@@ -147,14 +147,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Mark as ready once CDP has finished initializing or wagmi is connected
   // Use smart session restoration detection to minimize flash of logged-out state
   useEffect(() => {
+    // If already signed in with wallet (CDP or wagmi), mark ready immediately
+    if ((isSignedIn && evmAddress) || (wagmiIsConnected && wagmiAddress)) {
+      setReady(true);
+      return;
+    }
+
     // CDP is ready when isSignedIn is defined (not just truthy)
     if (typeof isSignedIn === 'boolean') {
-      // If already signed in with wallet (CDP or wagmi), mark ready immediately
-      if ((isSignedIn && evmAddress) || (wagmiIsConnected && wagmiAddress)) {
-        setReady(true);
-        return;
-      }
-
       // Check if there was a previous session that might need restoration
       // This allows us to avoid the timeout for truly new/logged-out users
       const hadPreviousSession = localStorage.getItem('cdp:wallet_address') ||
@@ -184,6 +184,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       };
     }
+
+    // CRITICAL FIX: If CDP SDK hasn't initialized after 1 second, mark ready anyway
+    // This prevents the login button from being permanently disabled if the SDK
+    // fails to initialize or takes too long. Without this, isSignedIn could stay
+    // undefined and the button would never work.
+    if (readyTimeoutRef.current) {
+      clearTimeout(readyTimeoutRef.current);
+    }
+    readyTimeoutRef.current = setTimeout(() => {
+      console.log('[AuthContext] CDP SDK did not initialize in time, marking ready anyway');
+      setReady(true);
+    }, 1000);
+
+    return () => {
+      if (readyTimeoutRef.current) {
+        clearTimeout(readyTimeoutRef.current);
+      }
+    };
   }, [isSignedIn, evmAddress, wagmiIsConnected, wagmiAddress]);
 
   // Logout function using CDP and/or wagmi
