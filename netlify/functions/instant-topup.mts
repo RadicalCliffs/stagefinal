@@ -1,0 +1,437 @@
+import type { Context, Config } from "@netlify/functions";
+import { createClient } from "@supabase/supabase-js";
+import { toPrizePid, normalizeWalletAddress } from "./_shared/userId.mts";
+
+/**
+ * Instant Top-Up Function - Handle direct wallet-to-treasury USDC transfers
+ *
+ * This function processes instant wallet top-ups where users send USDC
+ * directly from their connected wallet to the treasury, and we credit
+ * their sub_account_balance immediately after verifying the transaction.
+ *
+ * Flow:
+ * 1. Client sends USDC from wallet to treasury (handled in frontend)
+ * 2. Client calls this function with transaction hash
+ * 3. We verify the transaction on-chain
+ * 4. We credit the user's balance
+ * 5. We create a transaction record
+ *
+ * Routes:
+ * - POST /api/instant-topup - Process an instant top-up
+ */
+
+// Response helpers
+function jsonResponse(data: object, status: number = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    },
+  });
+}
+
+function errorResponse(message: string, status: number = 400): Response {
+  return jsonResponse({ success: false, error: message }, status);
+}
+
+// Get Supabase clients
+function getSupabaseClient() {
+  const supabaseUrl = Netlify.env.get("VITE_SUPABASE_URL") || Netlify.env.get("SUPABASE_URL");
+  const supabaseServiceKey = Netlify.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error("Missing Supabase configuration");
+  }
+
+  return createClient(supabaseUrl, supabaseServiceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
+
+// Verify wallet address token
+async function verifyWalletToken(
+  token: string,
+  supabase: ReturnType<typeof createClient>
+): Promise<{ userId: string; canonicalUserId: string } | null> {
+  if (!token.startsWith("wallet:")) {
+    return null;
+  }
+
+  const walletAddress = token.replace("wallet:", "").trim();
+
+  if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+    return null;
+  }
+
+  const normalizedAddress = walletAddress.toLowerCase();
+
+  const { data: userConnection, error } = await supabase
+    .from("canonical_users")
+    .select("id, privy_user_id, canonical_user_id, wallet_address")
+    .or(
+      `wallet_address.ilike.${normalizedAddress},base_wallet_address.ilike.${normalizedAddress}`
+    )
+    .maybeSingle();
+
+  if (error || !userConnection) {
+    console.error("Wallet user not found:", error?.message);
+    return null;
+  }
+
+  return {
+    userId: userConnection.id,
+    canonicalUserId: userConnection.canonical_user_id || toPrizePid(normalizedAddress),
+  };
+}
+
+// Get authenticated user from request
+async function getAuthenticatedUser(
+  request: Request,
+  supabase: ReturnType<typeof createClient>
+): Promise<{ userId: string; canonicalUserId: string } | null> {
+  const authHeader = request.headers.get("Authorization");
+
+  if (!authHeader?.startsWith("Bearer ")) {
+    return null;
+  }
+
+  const token = authHeader.replace("Bearer ", "").trim();
+
+  // Try wallet token first
+  const walletUser = await verifyWalletToken(token, supabase);
+  if (walletUser) {
+    return walletUser;
+  }
+
+  // Try Supabase token
+  try {
+    const anonKey = Netlify.env.get("VITE_SUPABASE_ANON_KEY") || Netlify.env.get("SUPABASE_ANON_KEY");
+    const url = Netlify.env.get("VITE_SUPABASE_URL") || Netlify.env.get("SUPABASE_URL");
+    if (!anonKey || !url) return null;
+
+    const anonClient = createClient(url, anonKey);
+    const { data: { user }, error } = await anonClient.auth.getUser(token);
+
+    if (error || !user) return null;
+
+    return {
+      userId: user.id,
+      canonicalUserId: toPrizePid(user.id),
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Verify transaction on Base network
+async function verifyTransaction(
+  txHash: string,
+  expectedRecipient: string,
+  expectedAmount: number,
+  senderAddress: string
+): Promise<{ verified: boolean; actualAmount?: number; error?: string }> {
+  const isMainnet = Netlify.env.get("VITE_BASE_MAINNET") === "true";
+  const rpcUrl = isMainnet ? "https://mainnet.base.org" : "https://sepolia.base.org";
+
+  // USDC contract addresses
+  const USDC_MAINNET = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
+  const USDC_TESTNET = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+  const USDC_ADDRESS = (
+    Netlify.env.get("VITE_USDC_CONTRACT_ADDRESS") || (isMainnet ? USDC_MAINNET : USDC_TESTNET)
+  ).toLowerCase();
+
+  try {
+    // Get transaction receipt
+    const receiptResponse = await fetch(rpcUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        method: "eth_getTransactionReceipt",
+        params: [txHash],
+        id: 1,
+      }),
+    });
+
+    const receiptData = await receiptResponse.json();
+    const receipt = receiptData.result;
+
+    if (!receipt) {
+      return { verified: false, error: "Transaction not found or not yet mined" };
+    }
+
+    // Check if transaction was successful
+    if (receipt.status !== "0x1") {
+      return { verified: false, error: "Transaction failed on chain" };
+    }
+
+    // Check if it's a USDC transfer
+    if (receipt.to?.toLowerCase() !== USDC_ADDRESS) {
+      return { verified: false, error: "Transaction is not a USDC transfer" };
+    }
+
+    // Parse logs to find the Transfer event
+    // Transfer event signature: Transfer(address indexed from, address indexed to, uint256 value)
+    const transferTopic = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+
+    const transferLog = receipt.logs?.find(
+      (log: any) =>
+        log.topics?.[0] === transferTopic &&
+        log.address?.toLowerCase() === USDC_ADDRESS
+    );
+
+    if (!transferLog) {
+      return { verified: false, error: "No USDC transfer event found in transaction" };
+    }
+
+    // Extract from, to, and amount from the log
+    const fromAddress = "0x" + transferLog.topics[1].slice(26).toLowerCase();
+    const toAddress = "0x" + transferLog.topics[2].slice(26).toLowerCase();
+    const amountHex = transferLog.data;
+    const amountInUnits = BigInt(amountHex);
+    const actualAmount = Number(amountInUnits) / 1_000_000; // USDC has 6 decimals
+
+    // Verify sender
+    if (fromAddress !== senderAddress.toLowerCase()) {
+      return {
+        verified: false,
+        error: `Transaction sender mismatch. Expected: ${senderAddress}, Got: ${fromAddress}`,
+      };
+    }
+
+    // Verify recipient
+    if (toAddress !== expectedRecipient.toLowerCase()) {
+      return {
+        verified: false,
+        error: `Transaction recipient mismatch. Expected: ${expectedRecipient}, Got: ${toAddress}`,
+      };
+    }
+
+    // Verify amount (allow small tolerance for rounding)
+    if (actualAmount < expectedAmount * 0.99) {
+      return {
+        verified: false,
+        error: `Amount mismatch. Expected: ${expectedAmount}, Got: ${actualAmount}`,
+        actualAmount,
+      };
+    }
+
+    return { verified: true, actualAmount };
+  } catch (error) {
+    console.error("Error verifying transaction:", error);
+    return {
+      verified: false,
+      error: error instanceof Error ? error.message : "Failed to verify transaction",
+    };
+  }
+}
+
+export default async (request: Request, context: Context): Promise<Response> => {
+  // Handle CORS preflight
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 200,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      },
+    });
+  }
+
+  if (request.method !== "POST") {
+    return errorResponse("Method not allowed", 405);
+  }
+
+  try {
+    const supabase = getSupabaseClient();
+
+    // Authenticate user
+    const user = await getAuthenticatedUser(request, supabase);
+    if (!user) {
+      return errorResponse("Unauthorized", 401);
+    }
+
+    // Parse request body
+    const body = await request.json();
+    const { transactionHash, amount, walletAddress } = body;
+
+    if (!transactionHash || typeof transactionHash !== "string") {
+      return errorResponse("transactionHash is required");
+    }
+
+    if (!amount || typeof amount !== "number" || amount <= 0) {
+      return errorResponse("amount must be a positive number");
+    }
+
+    if (!walletAddress || typeof walletAddress !== "string") {
+      return errorResponse("walletAddress is required");
+    }
+
+    // Validate wallet address format
+    if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+      return errorResponse("Invalid wallet address format");
+    }
+
+    const normalizedWallet = normalizeWalletAddress(walletAddress);
+    const treasuryAddress = Netlify.env.get("VITE_TREASURY_ADDRESS");
+
+    if (!treasuryAddress) {
+      console.error("Treasury address not configured");
+      return errorResponse("Service configuration error", 500);
+    }
+
+    // Check for duplicate transaction (idempotency)
+    const { data: existingTx } = await supabase
+      .from("user_transactions")
+      .select("id, status, wallet_credited")
+      .eq("tx_id", transactionHash)
+      .maybeSingle();
+
+    if (existingTx) {
+      if (existingTx.wallet_credited) {
+        return jsonResponse({
+          success: true,
+          message: "Transaction already processed",
+          transactionId: existingTx.id,
+          alreadyProcessed: true,
+        });
+      }
+      // Transaction exists but not credited - will reprocess
+      console.log(`Reprocessing transaction ${transactionHash} that wasn't credited`);
+    }
+
+    // Verify the transaction on-chain
+    const verification = await verifyTransaction(
+      transactionHash,
+      treasuryAddress,
+      amount,
+      walletAddress
+    );
+
+    if (!verification.verified) {
+      return errorResponse(verification.error || "Transaction verification failed", 400);
+    }
+
+    const creditAmount = verification.actualAmount || amount;
+
+    // Create or update transaction record
+    let transactionId: string;
+
+    if (existingTx) {
+      transactionId = existingTx.id;
+    } else {
+      const { data: newTx, error: createError } = await supabase
+        .from("user_transactions")
+        .insert({
+          user_id: user.canonicalUserId,
+          wallet_address: normalizedWallet,
+          competition_id: null, // Top-up has no competition
+          amount: creditAmount,
+          currency: "USDC",
+          network: "base",
+          payment_provider: "instant_wallet_topup",
+          status: "completed",
+          payment_status: "confirmed",
+          tx_id: transactionHash,
+          completed_at: new Date().toISOString(),
+        })
+        .select("id")
+        .single();
+
+      if (createError || !newTx) {
+        console.error("Error creating transaction:", createError);
+        return errorResponse("Failed to create transaction record", 500);
+      }
+
+      transactionId = newTx.id;
+    }
+
+    // Credit user's balance using the sub_account_balances RPC function
+    // This is the primary balance system - writes to sub_account_balances.available_balance
+    const { data: creditResult, error: creditError } = await supabase.rpc(
+      "credit_sub_account_balance",
+      {
+        p_canonical_user_id: user.canonicalUserId,
+        p_amount: creditAmount,
+        p_currency: "USD",
+      }
+    );
+
+    if (creditError) {
+      console.error("Error crediting balance via sub_account_balances:", creditError);
+
+      // Update transaction with error
+      await supabase
+        .from("user_transactions")
+        .update({
+          notes: `Balance credit failed: ${creditError.message}`,
+        })
+        .eq("id", transactionId);
+
+      return errorResponse(
+        "Transaction verified but balance credit failed. Please contact support.",
+        500
+      );
+    }
+
+    // Extract new balance from RPC result
+    const newBalance = creditResult?.[0]?.new_balance ?? creditAmount;
+    const creditSuccess = creditResult?.[0]?.success ?? false;
+
+    if (!creditSuccess) {
+      const errorMsg = creditResult?.[0]?.error_message || "Unknown error crediting balance";
+      console.error("Balance credit returned failure:", errorMsg);
+
+      await supabase
+        .from("user_transactions")
+        .update({
+          notes: `Balance credit failed: ${errorMsg}`,
+        })
+        .eq("id", transactionId);
+
+      return errorResponse(
+        "Transaction verified but balance credit failed. Please contact support.",
+        500
+      );
+    }
+
+    // Mark transaction as credited
+    await supabase
+      .from("user_transactions")
+      .update({
+        wallet_credited: true,
+        status: "finished",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", transactionId);
+
+    console.log(
+      `Instant top-up complete: ${creditAmount} USDC credited to ${user.canonicalUserId}. New balance: ${newBalance}`
+    );
+
+    return jsonResponse({
+      success: true,
+      transactionId,
+      creditedAmount: creditAmount,
+      newBalance: newBalance,
+      message: "Top-up successful",
+    });
+  } catch (error) {
+    console.error("Instant top-up error:", error);
+    return errorResponse(
+      error instanceof Error ? error.message : "Internal server error",
+      500
+    );
+  }
+};
+
+export const config: Config = {
+  path: "/api/instant-topup",
+};

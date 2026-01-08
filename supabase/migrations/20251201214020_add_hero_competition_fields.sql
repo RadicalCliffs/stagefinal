@@ -1,0 +1,18 @@
+/*\n  # Add Hero Competition Custom Fields\n  \n  1. New Columns\n    - `title` (text) - Competition headline\n    - `description` (text) - Competition description\n    - `ticket_price_display` (text) - Price display (e.g., "$10.00")\n    - `cta_text` (text) - Call-to-action button text\n    - `background_image` (text) - Hero image URL\n    - `link_url` (text) - Custom link URL for the competition\n    - `slug` (text) - URL slug for dedicated pages\n    \n  2. Notes\n    - All fields are nullable for backward compatibility\n    - Adds indexes for common queries\n*/\n\n-- Add new columns if they don't exist\nDO $$\nBEGIN\n  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'hero_competitions' AND column_name = 'title') THEN\n    ALTER TABLE hero_competitions ADD COLUMN title text;
+\n  END IF;
+\n  \n  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'hero_competitions' AND column_name = 'description') THEN\n    ALTER TABLE hero_competitions ADD COLUMN description text;
+\n  END IF;
+\n  \n  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'hero_competitions' AND column_name = 'ticket_price_display') THEN\n    ALTER TABLE hero_competitions ADD COLUMN ticket_price_display text;
+\n  END IF;
+\n  \n  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'hero_competitions' AND column_name = 'cta_text') THEN\n    ALTER TABLE hero_competitions ADD COLUMN cta_text text DEFAULT 'ENTER NOW';
+\n  END IF;
+\n  \n  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'hero_competitions' AND column_name = 'background_image') THEN\n    ALTER TABLE hero_competitions ADD COLUMN background_image text;
+\n  END IF;
+\n  \n  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'hero_competitions' AND column_name = 'link_url') THEN\n    ALTER TABLE hero_competitions ADD COLUMN link_url text;
+\n  END IF;
+\n  \n  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'hero_competitions' AND column_name = 'slug') THEN\n    ALTER TABLE hero_competitions ADD COLUMN slug text UNIQUE;
+\n  END IF;
+\nEND $$;
+\n\n-- Create index for slug lookups\nCREATE INDEX IF NOT EXISTS idx_hero_competitions_slug ON hero_competitions(slug) WHERE slug IS NOT NULL;
+\n\n-- Create index for active competitions\nCREATE INDEX IF NOT EXISTS idx_hero_competitions_active ON hero_competitions(is_active, display_order) WHERE is_active = true;
+;
