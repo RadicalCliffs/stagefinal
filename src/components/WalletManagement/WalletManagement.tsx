@@ -23,6 +23,7 @@ import { useWalletTokens } from '../../hooks/useWalletTokens';
 import { useRealTimeBalance } from '../../hooks/useRealTimeBalance';
 import { supabase } from '../../lib/supabase';
 import { database } from '../../lib/database';
+import { userIdsEqual, toPrizePid, isWalletAddress } from '../../utils/userId';
 
 // Lazy load TopUpWalletModal - only loaded when user clicks "Top Up"
 const TopUpWalletModal = lazy(() => import('../TopUpWalletModal'));
@@ -127,12 +128,16 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
       try {
         // Fetch top-up transactions (transactions without competition_id)
         // Include pending statuses to show transactions immediately after initiation
+        // Use ilike for case-insensitive wallet address matching and also check canonical_user_id
+        const canonicalId = toPrizePid(baseUser.id);
+        const normalizedWallet = isWalletAddress(baseUser.id) ? baseUser.id.toLowerCase() : baseUser.id;
+
         const { data, error } = await supabase
           .from('user_transactions')
           .select('*')
-          .eq('user_id', baseUser.id)
           .is('competition_id', null)
           .in('status', ['pending', 'pending_payment', 'waiting', 'processing', 'finished', 'completed', 'confirmed', 'success'])
+          .or(`user_id.ilike.${normalizedWallet},canonical_user_id.eq.${canonicalId},wallet_address.ilike.${normalizedWallet}`)
           .order('created_at', { ascending: false })
           .limit(10);
 
@@ -178,12 +183,19 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
           // Handle INSERT and UPDATE events
           const record = (payload.eventType === 'DELETE' ? payload.old : payload.new) as {
             user_id?: string;
+            wallet_address?: string;
+            canonical_user_id?: string;
             competition_id?: string | null;
           };
 
           // Only refresh if this is a transaction for the current user
           // and it's a top-up (no competition_id)
-          if (record.user_id === baseUser?.id && !record.competition_id) {
+          // Use userIdsEqual for case-insensitive matching across different identifier formats
+          const matchesUser = userIdsEqual(record.user_id, baseUser?.id) ||
+                              userIdsEqual(record.wallet_address, baseUser?.id) ||
+                              userIdsEqual(record.canonical_user_id, toPrizePid(baseUser?.id || ''));
+
+          if (matchesUser && !record.competition_id) {
             console.log('[WalletManagement] Transaction change detected, refreshing');
             fetchTransactions();
             fetchTopUps();
