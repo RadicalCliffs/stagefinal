@@ -1,0 +1,537 @@
+@import "tailwindcss";
+
+html,
+body {
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
+  background-color: #000000;
+  margin: 0;
+  padding: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+#root {
+  background-color: #000000;
+  min-height: 100vh;
+  transition: filter 0.3s ease-out;
+}
+
+body.loading #root {
+  filter: blur(10px);
+  pointer-events: none;
+}
+
+body.loading {
+  overflow: hidden;
+}
+
+@font-face {
+  font-family: "sequel-45";
+  src: url("/fonts/sequel-100-black-45.ttf") format("truetype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "sequel-75";
+  src: url("/fonts/sequel-100-black-75.ttf") format("truetype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "sequel-95";
+  src: url("/fonts/sequel-100-black-95.ttf") format("truetype");
+  font-display: swap;
+}
+
+/* Normal */
+.sequel-45 {
+  font-family: "sequel-45";
+}
+
+/* Bold */
+.sequel-75 {
+  font-family: "sequel-75";
+}
+
+/* Extra Bold */
+.sequel-95 {
+  font-family: "sequel-95";
+}
+
+.pending-winning-ticket-bg {
+  background-image: url("/src/assets/images/pending-winning-ticket.png");
+}
+
+.winning-ticket-bg {
+  background-image: url("/src/assets/images/winned-ticket.png");
+}
+
+@-webkit-keyframes barber-pole {
+  0% {
+    background-position: 0 0;
+  }
+
+  100% {
+    background-position: 40px 0;
+  }
+}
+
+@keyframes barber-pole {
+  0% {
+    background-position: 0 0;
+  }
+
+  100% {
+    background-position: 40px 0;
+  }
+}
+
+/* Toast slide-in animation */
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out;
+}
+
+/* Fade in animation for toast notifications */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+.progress {
+  background-color: rgba(78, 78, 78, 1);
+  box-shadow: inset 0 1px 2px rgba(78, 78, 78, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.15);
+  position: relative;
+  transition: width 0.6s ease;
+}
+
+.progress-bar-striped,
+.progress-striped .progress-bar {
+  background-image: linear-gradient(45deg,
+      rgba(255, 255, 255) 25%,
+      transparent 25%,
+      transparent 50%,
+      rgba(255, 255, 255) 50%,
+      rgba(255, 255, 255) 75%,
+      transparent 75%,
+      transparent);
+  background-size: 40px 40px;
+}
+
+.progress-bar.active,
+.progress.active .progress-bar {
+  -webkit-animation: barber-pole 1.5s linear infinite;
+  animation: barber-pole 1.5s linear infinite;
+}
+
+.progress-bar-success {
+  background-color: #ef008f;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  /* or height for horizontal scroll */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #999999;
+  /* yellow thumb */
+  border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background-color: #3b3b3b;
+  /* track color */
+}
+
+/* Range Slider as a Single Thumb Slider */
+.single-thumb .range-slider__thumb[data-lower] {
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.single-thumb .range-slider__range {
+  border-radius: 6px;
+}
+
+#individual-competition-range-slider {
+  background-color: #3b3b3b;
+  height: 12px;
+  touch-action: none;
+  cursor: pointer;
+}
+
+#individual-competition-range-slider .range-slider__thumb {
+  background: #ef008f;
+  width: 32px;
+  height: 32px;
+  cursor: grab;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#individual-competition-range-slider .range-slider__thumb:active {
+  cursor: grabbing;
+}
+
+#individual-competition-range-slider .range-slider__thumb[data-upper] {
+  z-index: 5;
+}
+
+#individual-competition-range-slider .range-slider__range {
+  background: #ef008f;
+  height: 100%;
+}
+
+.custom-box-shadow {
+  box-shadow: rgba(0, 0, 0, 0.65) 0px 5px 15px;
+}
+
+.custom-box-shadow-v2 {
+  box-shadow: rgba(0, 0, 0, 0.25) 0px 5px 15px;
+}
+
+.custom-box-shadow-v3 {
+  box-shadow: rgba(0, 0, 0, 0.65) 0px 3px 5px;
+}
+
+#ui-pills.custom-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+#winning-tickets-container.custom-scrollbar::-webkit-scrollbar {
+  height: 7px;
+}
+
+#selected-tickets.custom-scrollbar::-webkit-scrollbar {
+  height: 7px;
+}
+
+#activity-table .custom-scrollbar::-webkit-scrollbar {
+  height: 7px;
+}
+
+#live-competition-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+#live-competition-tabs .custom-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.loader {
+  width: 48px;
+  height: 48px;
+  border: 5px solid #dde404;
+  border-bottom-color: transparent;
+  border-radius: 50%;
+  display: inline-block;
+  box-sizing: border-box;
+  animation: rotation 1s linear infinite;
+}
+
+@keyframes rotation {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.custom-how-to-play-background {
+  background-image: url("./assets/images/how-to-play.webp");
+}
+
+.custom-landing-page-background {
+  background-image: url("./assets/images/landing-page-bg.webp");
+}
+
+.custom-competition-page-background {
+  background-image: url("./assets/images/competition-page-bg.webp");
+}
+
+.custom-individual-competition-page-background {
+  background-image: url("./assets/images/individual-competition-page.webp");
+}
+
+.custom-finished-competition-page-background {
+  background-image: url("./assets/images/finished-competition-page.webp");
+}
+
+.custom-winners-page-background {
+  background-image: url("./assets/images/New\ Winners\ Page.webp");
+}
+
+.bg-full-size {
+  background-size: 100% 100%;
+}
+
+/* #landing-page-fair-draws .swiper{
+	overflow: unset;
+}
+
+#landing-page-fair-draws .swiper-pagination-bullet{
+	width: 60px;
+	height: 6px;
+	border-radius: 5px;
+	 background-color: white;
+	 opacity: 0.15;
+
+}
+
+#landing-page-fair-draws .swiper-pagination-bullet-active{
+	 background-color: #DDE404;
+	 opacity: 1;
+}
+
+#landing-page-fair-draws .swiper-pagination{
+	bottom: -40px;
+} */
+
+/* Global Loader Styles */
+.global-loader {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999999;
+  opacity: 1;
+  transition: opacity 0.5s ease-out;
+}
+
+.global-loader-backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.98);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  z-index: 1;
+}
+
+.global-loader-fade-out {
+  opacity: 0;
+}
+
+.global-loader-fade-out .global-loader-backdrop {
+  backdrop-filter: blur(0px);
+  -webkit-backdrop-filter: blur(0px);
+  transition: backdrop-filter 0.5s ease-out;
+}
+
+.global-loader-content {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.global-loader-image {
+  max-width: 90vw;
+  max-height: 90vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.9;
+    transform: scale(1.02);
+  }
+}
+
+@keyframes spinYellow {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* a {
+  position: relative;
+}
+
+a::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: red;
+}
+
+a::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: blue;
+}
+
+span {
+  position: relative;
+}
+
+span::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: red;
+}
+
+span::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: blue;
+}
+
+button {
+  position: relative;
+}
+
+button::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: red;
+}
+
+button::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: blue;
+} */
+.hero-carousel .swiper-pagination {
+  bottom: 20px \!important;
+  z-index: 10;
+}
+
+.hero-carousel .swiper-pagination-bullet {
+  width: 12px;
+  height: 12px;
+  margin: 0 6px \!important;
+  opacity: 1;
+}
+
+
+.scroller {
+  max-width: 120rem;
+}
+
+.scroller__inner {}
+
+.scroller[data-animated="true"] {
+  overflow: hidden;
+  -webkit-mask: linear-gradient(90deg,
+      transparent,
+      white 20%,
+      white 80%,
+      transparent);
+  mask: linear-gradient(90deg, transparent, white 20%, white 80%, transparent);
+}
+
+.scroller[data-animated="true"] .scroller__inner {
+  width: max-content;
+  flex-wrap: nowrap;
+  animation: scroll var(--_animation-duration, 40s) var(--_animation-direction, forwards) linear infinite;
+}
+
+.scroller[data-direction="right"] {
+  --_animation-direction: reverse;
+}
+
+.scroller[data-direction="left"] {
+  --_animation-direction: forwards;
+}
+
+.scroller[data-speed="fast"] {
+  --_animation-duration: 40s;
+}
+
+.scroller[data-speed="slow"] {
+  --_animation-duration: 60s;
+}
+
+@keyframes scroll {
+  to {
+    transform: translate(calc(-50% - 0.5rem));
+  }
+}
+
+@media (max-width:600px) {
+  .scroller[data-animated="true"] {
+    mask: unset
+  }
+}

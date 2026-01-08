@@ -1,0 +1,63 @@
+-- VRF-Based Lucky Dip Support - Availability View (Part 1)
+
+-- Drop if exists to allow re-running migration
+DROP VIEW IF EXISTS v_competition_available_now;
+
+-- Create the view that shows currently available ticket numbers per competition
+CREATE OR REPLACE VIEW v_competition_available_now AS
+WITH competition_ranges AS (
+  SELECT
+    c.id AS competition_id,
+    c.total_tickets,
+    generate_series(1, c.total_tickets) AS ticket_number
+  FROM competitions c
+  WHERE c.status = 'active'
+    AND c.deleted = false
+),
+sold_tickets AS (
+  SELECT
+    t.competition_id,
+    t.ticket_number
+  FROM tickets t
+  WHERE t.ticket_number IS NOT NULL
+),
+confirmed_entries AS (
+  -- Tickets from joincompetition (confirmed purchases)
+  -- joincompetition.competitionid is TEXT, so we compare with competition UUID cast to text
+  SELECT
+    jc.competitionid AS competition_id_text,
+    UNNEST(
+      string_to_array(
+        REGEXP_REPLACE(jc.ticketnumbers, '[^0-9,]', '', 'g'),
+        ','
+      )
+    )::INTEGER AS ticket_number
+  FROM joincompetition jc
+  WHERE jc.ticketnumbers IS NOT NULL
+    AND jc.ticketnumbers != ''
+    AND jc.ticketnumbers != '[]'
+),
+pending_holds AS (
+  SELECT
+    pt.competition_id,
+    UNNEST(pt.ticket_numbers) AS ticket_number
+  FROM pending_tickets pt
+  WHERE pt.status = 'pending'
+    AND pt.expires_at > NOW()
+)
+SELECT DISTINCT
+  cr.competition_id,
+  cr.ticket_number
+FROM competition_ranges cr
+LEFT JOIN sold_tickets st
+  ON st.competition_id = cr.competition_id
+  AND st.ticket_number = cr.ticket_number
+LEFT JOIN confirmed_entries ce
+  ON ce.competition_id_text = cr.competition_id::TEXT
+  AND ce.ticket_number = cr.ticket_number
+LEFT JOIN pending_holds ph
+  ON ph.competition_id = cr.competition_id
+  AND ph.ticket_number = cr.ticket_number
+WHERE st.ticket_number IS NULL
+  AND ce.ticket_number IS NULL
+  AND ph.ticket_number IS NULL;

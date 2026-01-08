@@ -1,0 +1,66 @@
+# Functions configuration
+[functions]
+directory = "netlify/functions"
+node_bundler = "esbuild"
+
+# SPA fallback - redirect all other routes to index.html
+# force = false is CRITICAL - it ensures functions with custom path config take precedence
+# Functions in netlify/functions/ with config.path exports are automatically registered at those paths:
+# - secure-write.mts: /api/secure-write/*
+# - create-charge-proxy.mts: /api/create-charge
+# - cdp-transfer.mts: /api/cdp/*
+# - coinbase-onramp.mts: /api/coinbase-onramp/*
+# - cdp-analytics-webhook.mts: /api/cdp-analytics/webhook (receives CDP on-chain activity webhooks)
+# - cdp-analytics-subscriptions.mts: /api/cdp-analytics/subscriptions/* (manages webhook subscriptions)
+[[redirects]]
+from = "/*"
+to = "/index.html"
+status = 200
+force = false
+
+[[headers]]
+for = "/assets/*"
+
+[headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+for = "/*.js"
+
+[headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+for = "/*.css"
+
+[headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+for = "/fonts/*"
+
+[headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+for = "/*.woff2"
+
+[headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+for = "/*.ttf"
+
+[headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
+
+[build]
+command = "npx vite build"
+publish = "dist"
+
+[build.environment]
+NODE_VERSION = "22"
+
+# Email integration plugin for transactional emails via SendGrid
+[[plugins]]
+package = "@netlify/plugin-emails"

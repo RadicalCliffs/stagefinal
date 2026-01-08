@@ -1,0 +1,235 @@
+import { useNavigate } from "react-router";
+import { useState, type FC } from "react";
+import { Copy, Check } from "lucide-react";
+import type { EntryOrder, PurchaseOrder } from "../../../models/models";
+
+
+
+interface OrdersTableProps {
+  activeTab: { key: string };
+  data: PurchaseOrder[] | EntryOrder[];
+}
+
+const OrdersTable: FC<OrdersTableProps> = ({ activeTab, data }) => {
+  const navigate = useNavigate();
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Generate full BaseScan URL from transaction hash
+  const getBaseScanUrl = (txHash: string): string => {
+    if (!txHash) return '';
+    // Clean up the hash if it has any prefix
+    const cleanHash = txHash.startsWith('0x') ? txHash : `0x${txHash}`;
+    // Use correct explorer domain based on network
+    const isMainnet = import.meta.env.VITE_BASE_MAINNET === 'true';
+    const explorerDomain = isMainnet ? 'basescan.org' : 'sepolia.basescan.org';
+    return `https://${explorerDomain}/tx/${cleanHash}`;
+  };
+
+  const handleCopyTxHash = async (txHash: string, id: string) => {
+    if (!txHash) return;
+    try {
+      // Copy the full BaseScan URL, not just the hash
+      const baseScanUrl = getBaseScanUrl(txHash);
+      await navigator.clipboard.writeText(baseScanUrl);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  const handleAmountClick = (id: string | number) => {
+    navigate(`/dashboard/orders/${id}`);
+  };
+
+  return (
+    <div className="border-[2px] border-[#DDE404] rounded-lg mx-auto overflow-hidden relative z-10">
+      {/* Desktop Header */}
+      {activeTab.key === "purchases" ? (
+        <div className="hidden uppercase lg:grid items-center grid-cols-5 text-white sequel-75 text-base px-10 py-6 border-b-[2px] border-[#DDE404]">
+          <p className="w-7/12 text-center">Description</p>
+          <p >Network</p>
+          <p >TX Hash</p>
+          <p className="text-center">Date/ <br /> Time</p>
+          <p className="text-center">Amount</p>
+        </div>
+      ) : (
+        <div className="hidden uppercase lg:grid grid-cols-5 text-white sequel-75 items-center text-base px-10 py-6 border-b-[2px] border-[#DDE404]">
+          <p className="text-center">Competition <br /> Name</p>
+          <p className="text-center">Tickets</p>
+          <p className="text-center">Date/ <br />Time</p>
+          <p className="text-center">Amount</p>
+          <p className="text-center">Status</p>
+        </div>
+      )}
+
+      {/* Rows */}
+      <div className="sm:px-10 pl-6 pr-6 sm:py-10 py-4">
+        <div className="space-y-6">
+          {data.length > 0 ? (
+            data.map((item: any, index) => (
+              <div key={index}>
+                {/* Desktop layout */}
+                {activeTab.key === "purchases" ? (
+                  <div className="hidden lg:grid grid-cols-5 text-white sequel-45 items-center">
+                    <p className="text-white/60 text-center w-1/2">
+                      {item.is_topup ? item.competition_name : `${item.ticket_count} ticket${item.ticket_count !== 1 ? 's' : ''} - ${item.competition_name}`}
+                    </p>
+                    <p className="text-white/60 ">{item.network}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-white/60 truncate max-w-[140px]">{item.tx_id}</p>
+                      {item.tx_id && (
+                        <button
+                          onClick={() => handleCopyTxHash(item.tx_id, item.id)}
+                          className="text-white/60 hover:text-[#DDE404] transition-colors"
+                          title="Copy BaseScan URL"
+                        >
+                          {copiedId === item.id ? (
+                            <Check size={16} className="text-[#DDE404]" />
+                          ) : (
+                            <Copy size={16} />
+                          )}
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-white/60 text-center">  {new Date(item.created_at).toLocaleString()}</p>
+                    <p
+                      onClick={() => handleAmountClick(item.id)}
+                      className="text-[#DDE404]  cursor-pointer hover:underline text-center"
+                    >
+                      {item.amount_usd}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="hidden lg:grid grid-cols-5 text-white sequel-45 items-center">
+                    {item.transaction_type === 'topup' ? (
+                      <span className="text-green-500 text-center">Wallet Top-Up</span>
+                    ) : (
+                      <p className="text-white/60 truncate max-w-[200px] text-center">{item.title || item.competition_name || 'Unknown Competition'}</p>
+                    )}
+                    <p className="text-white/60 text-center">{item.number_of_tickets || item.ticket_count || '-'}</p>
+                    <p className="text-white/60 text-center">{new Date(item.purchase_date || item.created_at).toLocaleString()}</p>
+                    <p
+                      onClick={() => navigate(`/dashboard/entries/competition/${item.competition_id}`)}
+                      className="text-[#DDE404] text-center cursor-pointer hover:underline"
+                    >
+                      {item.amount_spent ? `$${parseFloat(item.amount_spent).toFixed(2)}` : item.amount_usd || '-'}
+                    </p>
+                    <button
+                      onClick={() => navigate(`/dashboard/entries/competition/${item.competition_id}`)}
+                      className="bg-[#DDE404] cursor-pointer hover:bg-[#DDE404]/90 text-black text-center sequel-95 py-1 rounded-md uppercase"
+                    >
+                      {item.status === 'live' ? 'Live' : item.status === 'pending' ? 'Pending' : item.status === 'drawn' ? (item.is_winner ? 'Won!' : 'View') : item.action || "View"}
+                    </button>
+                  </div>
+                )}
+
+                {/* Mobile layout */}
+                <div className="lg:hidden text-white sequel-45 space-y-2 border-b border-[#DDE404] pb-4">
+                  {activeTab.key === "purchases" ? (
+                    <>
+                      <div className="flex justify-between gap-4">
+                        <p className="text-white/60">Description</p>
+                        <p className="text-white truncate max-w-[160px] text-right">
+                          {item.is_topup ? item.competition_name : `${item.ticket_count} ticket${item.ticket_count !== 1 ? 's' : ''}`}
+                        </p>
+                      </div>
+                      {!item.is_topup && (
+                        <div className="flex justify-between gap-4">
+                          <p className="text-white/60">Competition</p>
+                          <p className="text-white truncate max-w-[160px] text-right">{item.competition_name}</p>
+                        </div>
+                      )}
+                      <div className="flex justify-between gap-4">
+                        <p className="text-white/60">Network</p>
+                        <p className="text-white">{item.network}</p>
+                      </div>
+                      <div className="flex justify-between gap-4 items-center">
+                        <p className="text-white/60">TX Hash</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-white truncate max-w-[130px] text-right">{item.tx_id}</p>
+                          {item.tx_id && (
+                            <button
+                              onClick={() => handleCopyTxHash(item.tx_id, item.id)}
+                              className="text-white/60 hover:text-[#DDE404] transition-colors flex-shrink-0"
+                              title="Copy BaseScan URL"
+                            >
+                              {copiedId === item.id ? (
+                                <Check size={14} className="text-[#DDE404]" />
+                              ) : (
+                                <Copy size={14} />
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex justify-between gap-4">
+                        <p className="text-white/60">Date</p>
+                        <p className="text-white truncate max-w-[160px] text-right">{new Date(item.created_at).toLocaleString()}</p>
+                      </div>
+                      <div className="flex justify-between gap-4">
+                        <p className="text-white/60">Amount</p>
+                        <p
+                          onClick={() => handleAmountClick(item.id)}
+                          className="text-[#DDE404] cursor-pointer hover:underline"
+                        >
+                          {item.amount_usd}
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex justify-between gap-4">
+                        <p className="text-white/60">Competition</p>
+                        <p className="text-white truncate max-w-[160px] text-right">
+                          {item.title || item.competition_name || 'Unknown Competition'}
+                        </p>
+                      </div>
+                      <div className="flex justify-between gap-4">
+                        <p className="text-white/60">Tickets</p>
+                        <p className="text-white text-right">
+                          {item.number_of_tickets || item.ticket_count || '-'}
+                        </p>
+                      </div>
+                      <div className="flex justify-between gap-4">
+                        <p className="text-white/60">Date</p>
+                        <p className="text-white truncate max-w-[160px] text-right">{new Date(item.purchase_date || item.created_at).toLocaleString()}</p>
+                      </div>
+                      <div className="flex justify-between gap-4">
+                        <p className="text-white/60">Amount</p>
+                        <p
+                          onClick={() => handleAmountClick(item.competition_id || item.id)}
+                          className="text-[#DDE404] cursor-pointer hover:underline"
+                        >
+                          {item.amount_spent ? `$${parseFloat(item.amount_spent).toFixed(2)}` : item.amount_usd || '-'}
+                        </p>
+                      </div>
+                      <div className="flex justify-between gap-4">
+                        <p className="text-white/60">Status</p>
+                        <p className={`text-right ${item.is_winner ? 'text-[#DDE404]' : 'text-white'}`}>
+                          {item.status === 'live' ? 'Live' : item.status === 'pending' ? 'Pending' : item.status === 'drawn' ? (item.is_winner ? 'Winner!' : 'Drawn') : '-'}
+                        </p>
+                      </div>
+                      <div >
+                          <button
+                            onClick={() => navigate(`/dashboard/entries/competition/${item.competition_id}`)}
+                            className="bg-[#DDE404] mt-2 text-sm cursor-pointer w-full hover:bg-[#DDE404]/90 text-black text-center sequel-95 py-2 rounded-md uppercase"
+                          >
+                            {item.status === 'live' ? 'View Entry' : item.status === 'pending' ? 'Complete Payment' : item.is_winner ? 'Claim Prize' : 'View Details'}
+                          </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="text-white/50 text-center py-10">No data found</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default OrdersTable;
