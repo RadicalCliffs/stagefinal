@@ -344,5 +344,5 @@ export class CoinbaseCommerceService {
 // Export config (no secrets exposed)
 export const COINBASE_CONFIG = {
   CREATE_CHARGE_ENDPOINT: '/api/create-charge',
-  WEBHOOK_ENDPOINT: 'https://cyxjzycxnfqctxocolwr.supabase.co/functions/v1/commerce-webhook',
+  WEBHOOK_ENDPOINT: 'https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1/commerce-webhook',
 };

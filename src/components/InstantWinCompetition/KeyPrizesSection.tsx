@@ -31,9 +31,9 @@ interface DatabasePrize {
 
 // Default prize images from Supabase storage (used as fallback if admin hasn't set images)
 const DEFAULT_PRIZE_IMAGES = {
-  grandPrize: 'https://cyxjzycxnfqctxocolwr.supabase.co/storage/v1/object/public/Competition%20Images/Competition%20Images/bitcoin-image.webp',
-  majorPrize: 'https://cyxjzycxnfqctxocolwr.supabase.co/storage/v1/object/public/Competition%20Images/Competition%20Images/Eth%20Tier%201.png',
-  jackpot: 'https://cyxjzycxnfqctxocolwr.supabase.co/storage/v1/object/public/Competition%20Images/Competition%20Images/soltier1.jpg',
+  grandPrize: 'https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Competition%20Images/Competition%20Images/bitcoin-image.webp',
+  majorPrize: 'https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Competition%20Images/Competition%20Images/Eth%20Tier%201.png',
+  jackpot: 'https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Competition%20Images/Competition%20Images/soltier1.jpg',
 };
 
 // UUID validation regex (RFC 4122)

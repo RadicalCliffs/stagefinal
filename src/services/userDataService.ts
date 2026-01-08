@@ -17,7 +17,7 @@ export interface AvatarOption {
 
 // Avatar URLs from Supabase public storage bucket "Avatars"
 // These are the official 777btc avatars that are publicly accessible
-const SUPABASE_AVATAR_BASE_URL = 'https://cyxjzycxnfqctxocolwr.supabase.co/storage/v1/object/public/Avatars';
+const SUPABASE_AVATAR_BASE_URL = 'https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Avatars';
 
 // Cache key for persisting avatar URL across page navigations
 const AVATAR_CACHE_KEY = 'user_avatar_cache';

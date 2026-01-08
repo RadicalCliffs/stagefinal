@@ -19,7 +19,7 @@ import { toPrizePid, normalizeWalletAddress } from "../_shared/userId.ts";
  * - charge:pending - Payment pending
  * - charge:resolved - Payment resolved
  *
- * Endpoint: https://cyxjzycxnfqctxocolwr.supabase.co/functions/v1/commerce-webhook
+ * Endpoint: https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1/commerce-webhook
  */
 
 const corsHeaders = {

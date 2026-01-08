@@ -9,7 +9,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
  * Coinbase Quote API:
  * POST https://api.developer.coinbase.com/onramp/v1/buy/quote
  *
- * Endpoint: https://cyxjzycxnfqctxocolwr.supabase.co/functions/v1/onramp-quote
+ * Endpoint: https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1/onramp-quote
  */
 
 // CORS configuration

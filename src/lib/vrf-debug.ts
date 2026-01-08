@@ -10,7 +10,7 @@
 
 import { supabase } from './supabase';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://cyxjzycxnfqctxocolwr.supabase.co';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://mthwfldcjvpxjtmrqkqm.supabase.co';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 /**

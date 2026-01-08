@@ -18,7 +18,7 @@ import { toPrizePid, normalizeWalletAddress } from "../_shared/userId.ts";
  * Webhook signature verification uses X-Hook0-Signature header
  * Format: t=timestamp,h=headers,v1=signature
  *
- * Endpoint: https://cyxjzycxnfqctxocolwr.supabase.co/functions/v1/offramp-webhook
+ * Endpoint: https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1/offramp-webhook
  */
 
 // CORS configuration (webhooks may not need CORS, but we keep it for flexibility)

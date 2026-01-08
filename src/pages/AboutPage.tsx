@@ -3,7 +3,7 @@ import { Navigation, Pagination, A11y } from 'swiper/modules';
 import 'swiper/swiper-bundle.css';
 import { SwiperNavButtons } from '../components/SwiperCustomNav';
 
-const SUPABASE_STORAGE_URL = 'https://cyxjzycxnfqctxocolwr.supabase.co/storage/v1/object/public/Web%20Assets/All%20Website%20Images';
+const SUPABASE_STORAGE_URL = 'https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Web%20Assets/All%20Website%20Images';
 
 const AboutPage = () => {
   const desktopFrames = [
