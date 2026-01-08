@@ -12,7 +12,7 @@ import { toPrizePid } from "../_shared/userId.ts";
  * Coinbase Transaction Status API:
  * GET https://api.developer.coinbase.com/onramp/v1/buy/user/{partnerUserId}/transactions
  *
- * Endpoint: https://cyxjzycxnfqctxocolwr.supabase.co/functions/v1/onramp-status
+ * Endpoint: https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1/onramp-status
  */
 
 // CORS configuration

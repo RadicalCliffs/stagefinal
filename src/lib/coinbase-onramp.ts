@@ -19,7 +19,7 @@
  */
 
 // Supabase Edge Functions endpoints for Coinbase Onramp
-const SUPABASE_FUNCTIONS_BASE = 'https://cyxjzycxnfqctxocolwr.supabase.co/functions/v1';
+const SUPABASE_FUNCTIONS_BASE = 'https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1';
 
 // Netlify function endpoint for session token generation
 const NETLIFY_SESSION_TOKEN_ENDPOINT = '/.netlify/functions/onramp-session-token';

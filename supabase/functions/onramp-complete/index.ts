@@ -9,7 +9,7 @@ import { toPrizePid } from "../_shared/userId.ts";
  * an onramp transaction via Coinbase. It updates the transaction status
  * and can redirect the user back to the application.
  *
- * Endpoint: https://cyxjzycxnfqctxocolwr.supabase.co/functions/v1/onramp-complete
+ * Endpoint: https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1/onramp-complete
  */
 
 // CORS configuration

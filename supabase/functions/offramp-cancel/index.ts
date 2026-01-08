@@ -8,7 +8,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
  * an offramp transaction via Coinbase. It updates the transaction status
  * and redirects the user back to the application.
  *
- * Endpoint: https://cyxjzycxnfqctxocolwr.supabase.co/functions/v1/offramp-cancel
+ * Endpoint: https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1/offramp-cancel
  */
 
 // CORS configuration

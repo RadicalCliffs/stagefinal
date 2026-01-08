@@ -35,7 +35,7 @@ const ENTRIES_PER_PAGE = 25;
 const MIN_PRIORITY_FOR_MINOR = 4; // Priority 4+ are minor prizes
 
 // Default prize image for minor prizes (wallet credits)
-const MINOR_PRIZE_IMAGE = 'https://cyxjzycxnfqctxocolwr.supabase.co/storage/v1/object/public/Competition%20Images/Competition%20Images/wallet-credit-prize.png';
+const MINOR_PRIZE_IMAGE = 'https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Competition%20Images/Competition%20Images/wallet-credit-prize.png';
 
 // Minor prize value patterns (site credits)
 const MINOR_PRIZE_PATTERNS = [

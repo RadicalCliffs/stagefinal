@@ -3,7 +3,7 @@ import { ArrowDownCircle } from "lucide-react";
 import type { PrizeHeaderProps } from "../../models/models";
 
 // Default fallback image for prizes when the provided image fails to load
-const DEFAULT_PRIZE_IMAGE = 'https://cyxjzycxnfqctxocolwr.supabase.co/storage/v1/object/public/Competition%20Images/Competition%20Images/bitcoin-image.webp';
+const DEFAULT_PRIZE_IMAGE = 'https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Competition%20Images/Competition%20Images/bitcoin-image.webp';
 
 const PrizesHeader: React.FC<PrizeHeaderProps> = ({
   image,

@@ -13,7 +13,7 @@ interface PrizeSectionProps {
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // Default fallback image for prizes
-const DEFAULT_PRIZE_IMAGE = 'https://cyxjzycxnfqctxocolwr.supabase.co/storage/v1/object/public/Competition%20Images/Competition%20Images/bitcoin-image.webp';
+const DEFAULT_PRIZE_IMAGE = 'https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Competition%20Images/Competition%20Images/bitcoin-image.webp';
 
 // Helper to validate if a URL looks like a valid image URL
 const isValidImageUrl = (url: string | null | undefined): boolean => {

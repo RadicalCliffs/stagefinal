@@ -9,7 +9,7 @@ import { toPrizePid } from "../_shared/userId.ts";
  * It can query both the local database and the Coinbase API
  * to provide real-time status updates.
  *
- * Endpoint: https://cyxjzycxnfqctxocolwr.supabase.co/functions/v1/offramp-status
+ * Endpoint: https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1/offramp-status
  */
 
 // CORS configuration

@@ -268,6 +268,6 @@ export const ONCHAINKIT_CONFIG = {
   CREATE_CHARGE_ENDPOINT: '/api/create-charge',
   // OnchainKit Checkout uses the same commerce webhook for payment confirmation
   // Use environment variable for flexibility between environments
-  WEBHOOK_ENDPOINT: import.meta.env.VITE_COMMERCE_WEBHOOK_URL || 'https://cyxjzycxnfqctxocolwr.supabase.co/functions/v1/commerce-webhook',
+  WEBHOOK_ENDPOINT: import.meta.env.VITE_COMMERCE_WEBHOOK_URL || 'https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1/commerce-webhook',
   SUPPORTED_CHAINS: ['base', 'ethereum', 'polygon'],
 };

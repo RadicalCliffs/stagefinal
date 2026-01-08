@@ -15,7 +15,7 @@ import type { Context, Config } from "@netlify/functions";
 const SUPABASE_FUNCTIONS_BASE =
   Netlify.env.get("SUPABASE_FUNCTIONS_URL") ||
   Netlify.env.get("VITE_SUPABASE_URL")?.replace(".supabase.co", ".supabase.co/functions/v1") ||
-  "https://cyxjzycxnfqctxocolwr.supabase.co/functions/v1";
+  "https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1";
 
 const CREATE_CHARGE_URL = `${SUPABASE_FUNCTIONS_BASE}/create-charge`;
 

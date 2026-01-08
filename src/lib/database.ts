@@ -71,7 +71,7 @@ function getImageUrl(imageUrl: string | null): string {
     if (match) {
       // URL is missing the "Competition Images" subfolder - fix it
       const filename = match[1];
-      return `https://cyxjzycxnfqctxocolwr.supabase.co/storage/v1/object/public/Competition%20Images/Competition%20Images/${filename}`;
+      return `https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Competition%20Images/Competition%20Images/${filename}`;
     }
     return imageUrl;
   }
@@ -469,7 +469,7 @@ export const database = {
         } while (avatar === lastUsedAvatar && avatars.length > 1);
 
         lastUsedAvatar = avatar;
-        return `https://cyxjzycxnfqctxocolwr.supabase.co/storage/v1/object/public/Avatars/${avatar}`;
+        return `https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Avatars/${avatar}`;
       };
 
       // Helper to format date
@@ -652,7 +652,7 @@ export const database = {
       } while (avatar === lastUsedAvatar && avatars.length > 1);
 
       lastUsedAvatar = avatar;
-      return `https://cyxjzycxnfqctxocolwr.supabase.co/storage/v1/object/public/Avatars/${avatar}`;
+      return `https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Avatars/${avatar}`;
     };
 
     // Helper to format date
@@ -1036,11 +1036,11 @@ export const database = {
       } while (avatar === lastUsedAvatar && avatars.length > 1);
 
       lastUsedAvatar = avatar;
-      return `https://cyxjzycxnfqctxocolwr.supabase.co/storage/v1/object/public/Avatars/${avatar}`;
+      return `https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Avatars/${avatar}`;
     };
 
     // Default placeholder image when no competition image is available
-    const DEFAULT_COMPETITION_IMAGE = 'https://cyxjzycxnfqctxocolwr.supabase.co/storage/v1/object/public/Competition%20Images/Competition%20Images/Tier%201%20(1).jpg';
+    const DEFAULT_COMPETITION_IMAGE = 'https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Competition%20Images/Competition%20Images/Tier%201%20(1).jpg';
 
     // PERFORMANCE FIX: Batch fetch all competitions and users instead of N+1 queries
     // Extract unique IDs for batch fetching
