@@ -2,6 +2,10 @@ import React, { useState } from "react";
 import { X } from "lucide-react";
 import { useAuthUser } from "../contexts/AuthContext";
 
+// Supabase URL with fallback to ensure email auth works even if env var is missing
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://mthwfldcjvpxjtmrqkqm.supabase.co';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
 interface EmailVerifyModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -29,23 +33,45 @@ export const EmailVerifyModal: React.FC<EmailVerifyModalProps> = ({
       return;
     }
 
+    // Check if Supabase is configured
+    if (!SUPABASE_ANON_KEY) {
+      console.error('[EmailVerifyModal] Missing VITE_SUPABASE_ANON_KEY');
+      setError("Service temporarily unavailable. Please try again later.");
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/email-auth-start`,
+        `${SUPABASE_URL}/functions/v1/email-auth-start`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+            apikey: SUPABASE_ANON_KEY,
           },
           body: JSON.stringify({ email: trimmed }),
         }
       );
 
-      const json = await res.json();
+      // Handle non-JSON responses
+      let json;
+      try {
+        json = await res.json();
+      } catch (parseError) {
+        console.error('[EmailVerifyModal] Failed to parse response:', parseError);
+        throw new Error('Unable to connect to email service. Please check your connection.');
+      }
+
       if (!res.ok || !json.success) {
-        throw new Error(json.error || "Could not send code");
+        const errorMessage = json.error || "Could not send code";
+        if (errorMessage.includes('not configured') || errorMessage.includes('misconfigured')) {
+          throw new Error('Email service is temporarily unavailable. Please try again later.');
+        }
+        if (errorMessage.includes('Failed to send')) {
+          throw new Error('Could not send verification email. Please check your email address.');
+        }
+        throw new Error(errorMessage);
       }
 
       setSessionId(json.sessionId);
@@ -74,20 +100,38 @@ export const EmailVerifyModal: React.FC<EmailVerifyModalProps> = ({
     setLoading(true);
     try {
       const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/email-auth-verify`,
+        `${SUPABASE_URL}/functions/v1/email-auth-verify`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+            apikey: SUPABASE_ANON_KEY,
           },
           body: JSON.stringify({ sessionId, code: code.trim() }),
         }
       );
 
-      const json = await res.json();
+      // Handle non-JSON responses
+      let json;
+      try {
+        json = await res.json();
+      } catch (parseError) {
+        console.error('[EmailVerifyModal] Failed to parse OTP response:', parseError);
+        throw new Error('Unable to verify code. Please check your connection.');
+      }
+
       if (!res.ok || !json.success) {
-        throw new Error(json.error || "Invalid or expired code");
+        const errorMessage = json.error || "Invalid or expired code";
+        if (errorMessage.includes('expired')) {
+          throw new Error('Code has expired. Please request a new code.');
+        }
+        if (errorMessage.includes('Invalid code') || errorMessage.includes('Invalid session')) {
+          throw new Error('Invalid code. Please check and try again.');
+        }
+        if (errorMessage.includes('already used')) {
+          throw new Error('Code has already been used. Please request a new code.');
+        }
+        throw new Error(errorMessage);
       }
 
       // Email is verified in our system
