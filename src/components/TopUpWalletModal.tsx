@@ -27,6 +27,13 @@ const PRESET_AMOUNTS = Object.keys(TOP_UP_CHECKOUT_URLS).map(Number).filter(a =>
 // Coinbase Commerce preset amounts (same as crypto since they use the same checkout URLs)
 const COMMERCE_PRESET_AMOUNTS = PRESET_AMOUNTS;
 
+// Helper function to get CDP project ID with fallback
+// Both VITE_ONCHAINKIT_PROJECT_ID and VITE_CDP_PROJECT_ID should have the same value
+// The fallback ensures consistency if only one is set
+const getCDPProjectId = (): string => {
+  return import.meta.env.VITE_ONCHAINKIT_PROJECT_ID || import.meta.env.VITE_CDP_PROJECT_ID || '';
+};
+
 const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
   isOpen,
   onClose,
@@ -769,7 +776,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                 <div className="flex justify-center">
                   <FundButton
                     fundingUrl={getOnrampBuyUrl({
-                      projectId: import.meta.env.VITE_ONCHAINKIT_PROJECT_ID || import.meta.env.VITE_CDP_PROJECT_ID || '',
+                      projectId: getCDPProjectId(),
                       addresses: { [walletAddress]: ['base'] },
                       assets: ['USDC'],
                       presetFiatAmount: amount,

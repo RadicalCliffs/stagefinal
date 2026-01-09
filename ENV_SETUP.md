@@ -9,13 +9,14 @@ This document describes the required environment variables for The Prize applica
 The application uses CDP for embedded wallets and onramp functionality. Both features require the same CDP project ID.
 
 - **VITE_CDP_PROJECT_ID**: `71e24c24-c628-460c-82e3-f830a2b0daf1`
-  - Used for CDP React Provider (embedded wallet creation)
+  - Used for CDP React Provider (embedded wallet creation) in `main.tsx`
   - Must be configured in Netlify environment variables
   
 - **VITE_ONCHAINKIT_PROJECT_ID**: `71e24c24-c628-460c-82e3-f830a2b0daf1`
-  - Used for OnchainKit onramp functionality
+  - Used for OnchainKit onramp functionality in `TopUpWalletModal.tsx`
   - Should be the same value as VITE_CDP_PROJECT_ID
   - Has a fallback to VITE_CDP_PROJECT_ID if not set
+  - **Note**: Both variables exist because OnchainKit and CDP React Provider are separate SDKs that evolved independently, but they use the same CDP project ID from the Coinbase Developer Portal
 
 - **VITE_CDP_API_KEY**: Your CDP API key
   - Get from: https://portal.cdp.coinbase.com

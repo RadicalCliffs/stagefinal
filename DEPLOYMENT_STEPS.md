@@ -77,5 +77,5 @@ If embedded wallets don't work after deployment:
 ## Code Locations
 
 The CDP project ID is used in these files:
-- `src/main.tsx` - Line 155, 188 (CDP React Provider configuration)
-- `src/components/TopUpWalletModal.tsx` - Line 772 (OnchainKit onramp)
+- `src/main.tsx` - In the CDP React Provider configuration (`cdpConfig` object)
+- `src/components/TopUpWalletModal.tsx` - In the `getOnrampBuyUrl` function call for OnchainKit onramp
