@@ -9,6 +9,10 @@ import { supabase } from "../lib/supabase";
 import { userDataService } from "../services/userDataService";
 import { toPrizePid } from "../utils/userId";
 
+// Supabase URL with fallback to ensure email auth works even if env var is missing
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://mthwfldcjvpxjtmrqkqm.supabase.co';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
 interface BaseWalletAuthModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -426,6 +430,13 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
       return;
     }
 
+    // Check if Supabase is configured
+    if (!SUPABASE_ANON_KEY) {
+      console.error('[BaseWallet] Missing VITE_SUPABASE_ANON_KEY');
+      setEmailError('Service temporarily unavailable. Please try again later.');
+      return;
+    }
+
     setEmailError('');
     setIsCheckingEmail(true);
     setUserEmail(email);
@@ -438,7 +449,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
         // Returning user with wallet - show Screen 3A or 3B
         setReturningUserWalletAddress(result.walletAddress || '');
         setIsReturningUser(true);
-        
+
         // Check if their wallet is currently available (connected)
         // For now, we'll show Screen 3A and let them try to continue
         // If wallet is not available, they can retry or create new account
@@ -449,27 +460,45 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
       // Send OTP for new users or returning users without wallet
       const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/email-auth-start`,
+        `${SUPABASE_URL}/functions/v1/email-auth-start`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+            apikey: SUPABASE_ANON_KEY,
           },
           body: JSON.stringify({ email }),
         }
       );
 
-      const json = await res.json();
+      // Handle non-JSON responses (like network errors or HTML error pages)
+      let json;
+      try {
+        json = await res.json();
+      } catch (parseError) {
+        console.error('[BaseWallet] Failed to parse response:', parseError);
+        throw new Error('Unable to connect to email service. Please check your connection.');
+      }
+
       if (!res.ok || !json.success) {
-        throw new Error(json.error || 'Could not send code');
+        // Provide more specific error messages based on the error type
+        const errorMessage = json.error || 'Could not send verification code';
+        if (errorMessage.includes('not configured') || errorMessage.includes('misconfigured')) {
+          throw new Error('Email service is temporarily unavailable. Please try again later.');
+        }
+        if (errorMessage.includes('Failed to send')) {
+          throw new Error('Could not send verification email. Please check your email address.');
+        }
+        throw new Error(errorMessage);
       }
 
       setOtpSessionId(json.sessionId);
       setFlowState('email-verification');
     } catch (error) {
       console.error('[BaseWallet] Error in email check:', error);
-      setEmailError('Something went wrong. Please try again.');
+      // Show specific error message if available, otherwise show generic message
+      const errorMessage = error instanceof Error ? error.message : 'Something went wrong. Please try again.';
+      setEmailError(errorMessage);
     } finally {
       setIsCheckingEmail(false);
     }
@@ -487,25 +516,44 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
     try {
       const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/email-auth-verify`,
+        `${SUPABASE_URL}/functions/v1/email-auth-verify`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+            apikey: SUPABASE_ANON_KEY,
           },
           body: JSON.stringify({ sessionId: otpSessionId, code: otpCode.trim() }),
         }
       );
 
-      const json = await res.json();
+      // Handle non-JSON responses
+      let json;
+      try {
+        json = await res.json();
+      } catch (parseError) {
+        console.error('[BaseWallet] Failed to parse OTP response:', parseError);
+        throw new Error('Unable to verify code. Please check your connection.');
+      }
+
       if (!res.ok || !json.success) {
-        throw new Error(json.error || 'Invalid or expired code');
+        // Provide specific error messages
+        const errorMessage = json.error || 'Invalid or expired code';
+        if (errorMessage.includes('expired')) {
+          throw new Error('Code has expired. Please request a new code.');
+        }
+        if (errorMessage.includes('Invalid code') || errorMessage.includes('Invalid session')) {
+          throw new Error('Invalid code. Please check and try again.');
+        }
+        if (errorMessage.includes('already used')) {
+          throw new Error('Code has already been used. Please request a new code.');
+        }
+        throw new Error(errorMessage);
       }
 
       // Email verified - check if user needs profile completion
       const result = await checkExistingUser(userEmail);
-      
+
       if (result.exists && result.hasCompletedProfile) {
         // Returning user with profile - go to wallet detection
         setFlowState('wallet-detection');
@@ -515,7 +563,8 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
       }
     } catch (error) {
       console.error('[BaseWallet] OTP verification error:', error);
-      setOtpError('Verification failed. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Verification failed. Please try again.';
+      setOtpError(errorMessage);
     } finally {
       setIsLoading(false);
     }
