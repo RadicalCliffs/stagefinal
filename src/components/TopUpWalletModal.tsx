@@ -27,11 +27,32 @@ const PRESET_AMOUNTS = Object.keys(TOP_UP_CHECKOUT_URLS).map(Number).filter(a =>
 // Coinbase Commerce preset amounts (same as crypto since they use the same checkout URLs)
 const COMMERCE_PRESET_AMOUNTS = PRESET_AMOUNTS;
 
-// Helper function to get CDP project ID with fallback
-// Both VITE_ONCHAINKIT_PROJECT_ID and VITE_CDP_PROJECT_ID should have the same value
-// The fallback ensures consistency if only one is set
+/**
+ * Helper function to get CDP project ID with fallback chain
+ * 
+ * Precedence order:
+ * 1. VITE_ONCHAINKIT_PROJECT_ID (OnchainKit-specific configuration)
+ * 2. VITE_CDP_PROJECT_ID (General CDP configuration, used by CDP React Provider)
+ * 
+ * Both variables should have the same value (71e24c24-c628-460c-82e3-f830a2b0daf1).
+ * The fallback ensures consistency if only one is set.
+ * 
+ * @returns CDP project ID string, or empty string if neither is set
+ */
 const getCDPProjectId = (): string => {
-  return import.meta.env.VITE_ONCHAINKIT_PROJECT_ID || import.meta.env.VITE_CDP_PROJECT_ID || '';
+  const projectId = import.meta.env.VITE_ONCHAINKIT_PROJECT_ID || import.meta.env.VITE_CDP_PROJECT_ID || '';
+  
+  // Log warning if using fallback
+  if (!import.meta.env.VITE_ONCHAINKIT_PROJECT_ID && import.meta.env.VITE_CDP_PROJECT_ID) {
+    console.warn('[TopUpWalletModal] Using VITE_CDP_PROJECT_ID as fallback for VITE_ONCHAINKIT_PROJECT_ID');
+  }
+  
+  // Log error if no project ID is configured
+  if (!projectId) {
+    console.error('[TopUpWalletModal] No CDP project ID configured. OnchainKit onramp will not work.');
+  }
+  
+  return projectId;
 };
 
 const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
