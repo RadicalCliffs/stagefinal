@@ -295,7 +295,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
   // Wagmi hooks for external wallet connection (Base App, Coinbase Wallet, etc.)
   const { address: wagmiAddress, isConnected: wagmiIsConnected } = useAccount();
-  const { disconnect: wagmiDisconnect } = useDisconnect();
+  const { disconnect: _wagmiDisconnect } = useDisconnect();
 
   // Get the effective wallet address (CDP or wagmi)
   const effectiveWalletAddress = evmAddress || wagmiAddress;
@@ -307,7 +307,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
   const [otpCode, setOtpCode] = useState<string>('');
   const [emailError, setEmailError] = useState<string>('');
   const [otpError, setOtpError] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [_isLoading, setIsLoading] = useState(false);
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
   const [otpSessionId, setOtpSessionId] = useState<string>('');
   
@@ -323,11 +323,9 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
   
   // Returning user state
   const [returningUserWalletAddress, setReturningUserWalletAddress] = useState<string>('');
-  const [hasBaseWallet, setHasBaseWallet] = useState<boolean>(false);
-  const [isReturningUser, setIsReturningUser] = useState<boolean>(false);
+  const [_isReturningUser, setIsReturningUser] = useState<boolean>(false);
   
   const [copied, setCopied] = useState(false);
-  const [isClearing, setIsClearing] = useState(false);
 
   const savedToDbRef = useRef(false);
   const walletDetectedRef = useRef(false);
@@ -486,7 +484,8 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
     }
 
     setOtpError('');
-    setIsLoading(true);
+    const isLoading = true;
+    setIsLoading(isLoading);
 
     try {
       const res = await fetch(
@@ -581,17 +580,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
     setFlowState('wallet-detection');
   }, [profileData]);
 
-  // === SCREEN 6: Wallet Choice ===
-  const handleChooseBaseApp = useCallback(() => {
-    // Show wallet connector for Base App
-    setFlowState('wallet-choice');
-  }, []);
-
-  const handleChooseExistingWallet = useCallback(() => {
-    // Show wagmi wallet connector
-    setFlowState('wallet-choice');
-  }, []);
-
+  // === SCREEN 6: Create Prize Wallet ===
   const handleCreatePrizeWallet = useCallback(async () => {
     // Create embedded CDP wallet
     setFlowState('wallet-detection');
@@ -755,10 +744,10 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
             <button
               onClick={handleVerifyOTP}
-              disabled={isLoading || otpCode.length !== 6}
+              disabled={_isLoading || otpCode.length !== 6}
               className="w-full bg-[#0052FF] text-white font-bold py-3 rounded-lg hover:bg-[#0052FF]/90 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {isLoading ? (
+              {_isLoading ? (
                 <>
                   <Loader2 className="animate-spin" size={18} />
                   Verifying...
@@ -809,10 +798,10 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
             <button
               onClick={handleContinueWithBaseWallet}
-              disabled={isLoading}
+              disabled={_isLoading}
               className="w-full bg-[#0052FF] text-white font-bold py-3 rounded-lg hover:bg-[#0052FF]/90 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed mb-3"
             >
-              {isLoading ? (
+              {_isLoading ? (
                 <>
                   <Loader2 className="animate-spin" size={18} />
                   Connecting...
