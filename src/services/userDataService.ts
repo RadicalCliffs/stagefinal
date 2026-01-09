@@ -230,10 +230,19 @@ export const userDataService = {
         p_canonical_user_id: canonicalId
       });
 
+      // Check for type mismatch error (can occur if database migration not applied)
+      const isTypeMismatchError = rpcError?.message?.includes('operator does not exist') ||
+        rpcError?.message?.includes('type cast') ||
+        rpcError?.code === '42883' ||
+        rpcError?.code === '42846';
+
       let walletBalance = 0;
       if (!rpcError && rpcBalance !== null) {
         walletBalance = Number(rpcBalance) || 0;
       } else {
+        if (isTypeMismatchError) {
+          console.warn('[userDataService] RPC type mismatch error - database migration may need to be applied. Falling back to direct query.');
+        }
         // Fallback: Direct query to wallet_balances view
         const { data: userBalance, error: balanceError } = await supabase
           .from('wallet_balances')

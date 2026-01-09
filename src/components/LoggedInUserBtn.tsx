@@ -192,7 +192,7 @@ const LoggedInUserBtn = () => {
         )}
         <div className="flex items-stretch">
           <div className="px-1.5 py-1 flex items-center border-r border-[#1A1A1A]/10">
-            <img src={avatarUrl} alt="avatar" className="w-10 h-10 rounded-md object-cover" onError={() => setAvatarError(true)} />
+            <img src={avatarUrl} alt="avatar" className="w-10 h-10 rounded-md object-cover" crossOrigin="anonymous" referrerPolicy="no-referrer" onError={() => setAvatarError(true)} />
           </div>
           <div className="flex flex-col justify-center px-3 py-1.5">
             <div className="flex items-center gap-1.5">
@@ -222,7 +222,7 @@ const LoggedInUserBtn = () => {
           {/* Header */}
           <div className="bg-gradient-to-r from-[#2A2A2A] to-[#232323] p-4 flex items-center justify-between">
             <div className="flex items-center gap-3 flex-1 min-w-0">
-              <img src={avatarUrl} alt="avatar" className="w-12 h-12 rounded-lg object-cover border-2 border-[#DDE404]" onError={() => setAvatarError(true)} />
+              <img src={avatarUrl} alt="avatar" className="w-12 h-12 rounded-lg object-cover border-2 border-[#DDE404]" crossOrigin="anonymous" referrerPolicy="no-referrer" onError={() => setAvatarError(true)} />
               <div className="flex-1 min-w-0">
                 <p className="sequel-95 text-white text-sm truncate">{displayName}</p>
                 <p className="sequel-45 text-white/60 text-xs mt-0.5 truncate">{primaryEmail || truncateString(primaryWallet?.address, 16)}</p>

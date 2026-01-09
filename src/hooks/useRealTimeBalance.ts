@@ -71,6 +71,12 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
         p_canonical_user_id: canonicalUserId
       });
 
+      // Check for type mismatch error (can occur if database migration not applied)
+      const isTypeMismatchError = rpcError?.message?.includes('operator does not exist') ||
+        rpcError?.message?.includes('type cast') ||
+        rpcError?.code === '42883' ||
+        rpcError?.code === '42846';
+
       if (!rpcError && rpcBalance !== null) {
         const balanceValue = Number(rpcBalance) || 0;
         setBalance(balanceValue);
@@ -112,7 +118,11 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
       }
 
       // Fallback: Direct query to sub_account_balances if RPC fails
-      console.log('[RealTimeBalance] RPC failed, falling back to direct query:', rpcError?.message);
+      if (isTypeMismatchError) {
+        console.warn('[RealTimeBalance] RPC type mismatch error - database migration may need to be applied. Falling back to direct query.');
+      } else {
+        console.log('[RealTimeBalance] RPC failed, falling back to direct query:', rpcError?.message);
+      }
 
       const userIsWallet = isWalletAddress(userId);
       const normalizedUserId = userIsWallet ? normalizeWalletAddress(userId) || userId.toLowerCase() : userId;

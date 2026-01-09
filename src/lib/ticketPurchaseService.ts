@@ -274,6 +274,12 @@ export async function getUserBalance(userId: string) {
       p_canonical_user_id: canonicalUserId
     });
 
+    // Check for type mismatch error (can occur if database migration not applied)
+    const isTypeMismatchError = rpcError?.message?.includes('operator does not exist') ||
+      rpcError?.message?.includes('type cast') ||
+      rpcError?.code === '42883' ||
+      rpcError?.code === '42846';
+
     if (!rpcError && rpcBalance !== null && Number(rpcBalance) > 0) {
       return {
         success: true,
@@ -284,7 +290,11 @@ export async function getUserBalance(userId: string) {
     }
 
     // Fallback 1: Direct query to sub_account_balances if RPC fails or returns 0
-    console.log('[ticketPurchaseService] RPC returned 0 or failed, trying fallback queries:', rpcError?.message);
+    if (isTypeMismatchError) {
+      console.warn('[ticketPurchaseService] RPC type mismatch error - database migration may need to be applied. Falling back to direct query.');
+    } else {
+      console.log('[ticketPurchaseService] RPC returned 0 or failed, trying fallback queries:', rpcError?.message);
+    }
 
     const { data: subAccountData, error: subAccountError } = await supabase
       .from('sub_account_balances')

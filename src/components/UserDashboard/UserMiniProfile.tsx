@@ -105,6 +105,8 @@ const UserMiniProfile = () => {
               src={avatarUrl}
               alt="user-avatar"
               className='sm:min-w-20 min-w-16 sm:w-20 sm:h-20 w-16 h-16 max-[420px]:w-12 max-[420px]:h-12 max-[420px]:min-w-12 rounded-full cursor-pointer transition-all hover:ring-2 hover:ring-[#DDE404]'
+              crossOrigin="anonymous"
+              referrerPolicy="no-referrer"
               onClick={() => setShowAvatarModal(true)}
             />
             <div className='absolute inset-0 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer' onClick={() => setShowAvatarModal(true)}>

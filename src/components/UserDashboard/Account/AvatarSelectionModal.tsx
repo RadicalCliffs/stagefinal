@@ -97,6 +97,8 @@ const AvatarSelectionModal = ({ isOpen, onClose, currentAvatar }: AvatarSelectio
                     src={avatar.url}
                     alt={avatar.name}
                     className="w-full h-full object-cover"
+                    crossOrigin="anonymous"
+                    referrerPolicy="no-referrer"
                     onError={(e) => {
                       e.currentTarget.style.display = 'none';
                     }}
