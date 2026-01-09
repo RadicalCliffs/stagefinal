@@ -102,7 +102,8 @@ async function callCreateCharge(body: Record<string, unknown>): Promise<ChargeRe
 export class CoinbaseCommerceService {
   /**
    * Create a top-up transaction via Coinbase Commerce.
-   * Uses pre-configured checkout URLs for fixed amounts.
+   * Creates a dynamic charge (NOT pre-configured URL) to ensure metadata is passed for webhooks.
+   * Uses optimistic crediting to immediately show pending balance to user.
    */
   static async createTopUpTransaction(
     userId: string,
@@ -119,26 +120,94 @@ export class CoinbaseCommerceService {
       throw new Error(`Invalid amount: ${amount}`);
     }
 
-    // Find matching checkout URL for the amount
-    const checkoutUrl = TOP_UP_CHECKOUT_URLS[normalizedAmount];
-
-    if (!checkoutUrl) {
-      throw new Error(`Invalid top-up amount: $${normalizedAmount}`);
-    }
-
-    // Call external server function to create the charge and track transaction
+    // CRITICAL: Do NOT use pre-configured checkout URLs - they don't pass metadata
+    // Always create dynamic charges so webhook receives user_id for crediting
     const result = await callCreateCharge({
       userId,
       totalAmount: normalizedAmount,
       type: 'topup',
-      checkoutUrl,
+      // No checkoutUrl - force dynamic charge creation with metadata
     });
 
-    // callCreateCharge throws on error, so if we get here, it was successful
+    const transactionId = (result.data?.transactionId as string) || '';
+    const checkoutUrl = (result.data?.checkoutUrl as string) || '';
+
+    // OPTIMISTIC CREDITING: Create a pending top-up record so user sees balance immediately
+    // Webhook will finalize the credit; if payment fails, cleanup job removes pending balance
+    if (transactionId && normalizedAmount > 0) {
+      try {
+        await this.optimisticallyCreditTopUp({
+          transactionId,
+          userId,
+          amount: normalizedAmount,
+        });
+      } catch (error) {
+        // Don't fail the purchase if optimistic crediting fails
+        // The backend webhook will still credit them properly
+        console.warn('[CoinbaseCommerce] Optimistic top-up crediting failed (non-critical):', error);
+      }
+    }
+
     return {
-      transactionId: (result.data?.transactionId as string) || '',
-      checkoutUrl: (result.data?.checkoutUrl as string) || checkoutUrl,
+      transactionId,
+      checkoutUrl,
     };
+  }
+
+  /**
+   * Optimistically credit top-up to user's pending balance before payment confirmation.
+   * Creates a pending_topups record that shows in dashboard, confirmed by webhook later.
+   * The pending balance is added to sub_account_balances.pending_balance until confirmed.
+   */
+  private static async optimisticallyCreditTopUp(params: {
+    transactionId: string;
+    userId: string;
+    amount: number;
+  }): Promise<void> {
+    const { transactionId, userId, amount } = params;
+
+    // Convert userId to canonical format (prize:pid:xxx)
+    const canonicalUserId = userId.startsWith('prize:pid:') ? userId :
+      userId.startsWith('0x') ? `prize:pid:${userId.toLowerCase()}` :
+      `prize:pid:${userId}`;
+
+    // Insert into pending_topups table - webhook will confirm and move to available_balance
+    const { error } = await supabase
+      .from('pending_topups')
+      .insert({
+        user_id: userId,
+        canonical_user_id: canonicalUserId,
+        amount: amount,
+        status: 'pending',
+        session_id: transactionId,
+        payment_provider: 'coinbase_commerce',
+        expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 min expiry
+        created_at: new Date().toISOString(),
+      });
+
+    if (error) {
+      // If table doesn't exist yet, that's OK - webhook will still credit
+      if (error.code !== '42P01') { // relation does not exist
+        console.error('[CoinbaseCommerce] Failed to insert pending top-up:', error);
+        throw error;
+      }
+      console.warn('[CoinbaseCommerce] pending_topups table does not exist, skipping optimistic credit');
+      return;
+    }
+
+    // Also add to pending_balance in sub_account_balances for immediate visibility
+    const { error: balanceError } = await supabase.rpc('add_pending_balance', {
+      p_canonical_user_id: canonicalUserId,
+      p_amount: amount,
+      p_currency: 'USD'
+    });
+
+    if (balanceError) {
+      // RPC might not exist yet - that's OK, webhook will handle it
+      console.warn('[CoinbaseCommerce] add_pending_balance RPC not available:', balanceError.message);
+    }
+
+    console.log(`[CoinbaseCommerce] Created pending top-up for $${amount}, txId=${transactionId}`);
   }
 
   /**

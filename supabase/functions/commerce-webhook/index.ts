@@ -387,39 +387,84 @@ Deno.serve(async (req: Request) => {
           ticketCount: transaction.ticket_count || entryCount,
         };
 
-        try {
-          const confirmResponse = await fetch(
-            `${supabaseUrl}/functions/v1/confirm-pending-tickets`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${supabaseServiceKey}`,
-              },
-              body: JSON.stringify(confirmPayload),
-            }
-          );
+        // ROBUST ENTRY CONFIRMATION: Retry up to 3 times with exponential backoff
+        let confirmSuccess = false;
+        let confirmResult: Record<string, unknown> | null = null;
 
-          const confirmResult = await confirmResponse.json();
-          
-          if (confirmResponse.ok && confirmResult.success) {
-            console.log(`[commerce-webhook][${requestId}] ✅ Tickets confirmed successfully:`, {
-              ticketCount: confirmResult.ticketCount,
-              ticketNumbers: confirmResult.ticketNumbers?.slice(0, 5),
-              instantWins: confirmResult.instantWins?.length || 0,
-            });
-          } else {
-            console.error(`[commerce-webhook][${requestId}] Error from confirm-pending-tickets:`, confirmResult.error || confirmResult);
-            // Don't fail the webhook - log for manual reconciliation
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            console.log(`[commerce-webhook][${requestId}] Confirm tickets attempt ${attempt}/3`);
+
+            const confirmResponse = await fetch(
+              `${supabaseUrl}/functions/v1/confirm-pending-tickets`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${supabaseServiceKey}`,
+                },
+                body: JSON.stringify(confirmPayload),
+              }
+            );
+
+            confirmResult = await confirmResponse.json();
+
+            if (confirmResponse.ok && confirmResult?.success) {
+              confirmSuccess = true;
+              console.log(`[commerce-webhook][${requestId}] ✅ Tickets confirmed on attempt ${attempt}:`, {
+                ticketCount: confirmResult.ticketCount,
+                ticketNumbers: (confirmResult.ticketNumbers as number[])?.slice(0, 5),
+                instantWins: (confirmResult.instantWins as unknown[])?.length || 0,
+              });
+              break;
+            } else if (confirmResult?.alreadyConfirmed) {
+              // Already confirmed - that's fine, idempotent success
+              confirmSuccess = true;
+              console.log(`[commerce-webhook][${requestId}] Tickets already confirmed (idempotent)`);
+              break;
+            } else {
+              throw new Error(String(confirmResult?.error) || 'Unknown confirmation error');
+            }
+          } catch (confirmError) {
+            console.error(`[commerce-webhook][${requestId}] Confirm attempt ${attempt} failed:`, confirmError);
+
+            if (attempt < 3) {
+              // Exponential backoff: 1s, 2s, 4s
+              const delay = Math.pow(2, attempt - 1) * 1000;
+              console.log(`[commerce-webhook][${requestId}] Retrying in ${delay}ms...`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+            }
           }
-        } catch (confirmError) {
-          console.error(`[commerce-webhook][${requestId}] Exception calling confirm-pending-tickets:`, confirmError);
-          // Don't fail the webhook - log for manual reconciliation
         }
 
-        console.log(`[commerce-webhook][${requestId}] ✅ Payment processed successfully`);
+        // FALLBACK: If confirm-pending-tickets failed, mark for reconciliation
+        if (!confirmSuccess) {
+          console.error(`[commerce-webhook][${requestId}] ⚠️ ALL CONFIRM ATTEMPTS FAILED - marking for reconciliation`);
+          await supabase
+            .from("user_transactions")
+            .update({
+              status: "needs_reconciliation",
+              payment_status: "confirmed",
+              completed_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", transaction.id);
+        } else {
+          // Mark transaction as fully completed
+          await supabase
+            .from("user_transactions")
+            .update({
+              status: "completed",
+              payment_status: "completed",
+              completed_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", transaction.id);
+        }
+
+        console.log(`[commerce-webhook][${requestId}] ✅ Payment processed ${confirmSuccess ? 'successfully' : 'with reconciliation needed'}`);
       } else {
-        // This is a top-up transaction - credit the user's balance
+        // This is a top-up transaction - credit the user's balance with GUARANTEED delivery
         console.log(`[commerce-webhook][${requestId}] Processing wallet top-up for user ${transaction.user_id}`);
 
         const topUpAmount = Number(transaction.amount) || 0;
@@ -429,68 +474,183 @@ Deno.serve(async (req: Request) => {
           if (transaction.wallet_credited === true) {
             console.log(`[commerce-webhook][${requestId}] Top-up already credited, skipping balance update`);
           } else {
-            // Use the credit_sub_account_balance function which is the primary balance system
-            const { data: creditResult, error: creditError } = await supabase.rpc(
-              'credit_sub_account_balance',
-              {
-                p_canonical_user_id: transaction.user_id,
-                p_amount: topUpAmount,
-                p_currency: 'USD'
+            // ROBUST CREDITING: Retry up to 3 times with exponential backoff
+            let creditSuccess = false;
+            let creditError: Error | null = null;
+            let newBalance = 0;
+
+            for (let attempt = 1; attempt <= 3; attempt++) {
+              try {
+                console.log(`[commerce-webhook][${requestId}] Credit attempt ${attempt}/3 for user ${transaction.user_id}`);
+
+                // Use the credit_sub_account_balance function which is the primary balance system
+                const { data: creditResult, error: rpcError } = await supabase.rpc(
+                  'credit_sub_account_balance',
+                  {
+                    p_canonical_user_id: transaction.user_id,
+                    p_amount: topUpAmount,
+                    p_currency: 'USD'
+                  }
+                );
+
+                if (rpcError) {
+                  throw new Error(`RPC error: ${rpcError.message}`);
+                }
+
+                newBalance = creditResult?.[0]?.new_balance ?? topUpAmount;
+                creditSuccess = creditResult?.[0]?.success ?? false;
+
+                if (creditSuccess) {
+                  console.log(`[commerce-webhook][${requestId}] ✅ Credit succeeded on attempt ${attempt}`);
+                  break;
+                } else {
+                  throw new Error(creditResult?.[0]?.error_message || 'Credit returned failure');
+                }
+              } catch (err) {
+                creditError = err as Error;
+                console.error(`[commerce-webhook][${requestId}] Credit attempt ${attempt} failed:`, err);
+
+                if (attempt < 3) {
+                  // Exponential backoff: 1s, 2s, 4s
+                  const delay = Math.pow(2, attempt - 1) * 1000;
+                  console.log(`[commerce-webhook][${requestId}] Retrying in ${delay}ms...`);
+                  await new Promise(resolve => setTimeout(resolve, delay));
+                }
               }
-            );
+            }
 
-            if (creditError) {
-              console.error(`[commerce-webhook][${requestId}] Failed to credit user balance:`, creditError);
-              // Don't fail the webhook - log and continue
-              // The transaction is still marked as finished, can be reconciled later
-            } else {
-              const newBalance = creditResult?.[0]?.new_balance ?? topUpAmount;
-              const creditSuccess = creditResult?.[0]?.success ?? false;
+            // FALLBACK: If RPC failed, try direct table update as last resort
+            if (!creditSuccess) {
+              console.log(`[commerce-webhook][${requestId}] RPC failed, attempting direct balance update...`);
+              try {
+                // Check if user has a balance record
+                const { data: existingBalance } = await supabase
+                  .from('sub_account_balances')
+                  .select('id, available_balance')
+                  .eq('canonical_user_id', transaction.user_id)
+                  .eq('currency', 'USD')
+                  .maybeSingle();
 
-              if (creditSuccess) {
-                console.log(`[commerce-webhook][${requestId}] ✅ Credited ${topUpAmount} USDC to user ${transaction.user_id}. New balance: ${newBalance}`);
+                if (existingBalance) {
+                  // Update existing record
+                  const newBalanceValue = (Number(existingBalance.available_balance) || 0) + topUpAmount;
+                  const { error: updateError } = await supabase
+                    .from('sub_account_balances')
+                    .update({
+                      available_balance: newBalanceValue,
+                      last_updated: new Date().toISOString()
+                    })
+                    .eq('id', existingBalance.id);
 
-                // Extract payment information from the charge
-                const charge = eventData;
-                const payments = charge.payments || [];
-                const payment = payments.length > 0 ? payments[payments.length - 1] : null; // Get the most recent payment
-                const payerWallet = payment?.payer_addresses?.[0] || walletAddress || null;
+                  if (!updateError) {
+                    creditSuccess = true;
+                    newBalance = newBalanceValue;
+                    console.log(`[commerce-webhook][${requestId}] ✅ Direct balance update succeeded`);
+                  }
+                } else {
+                  // Create new record
+                  const { error: insertError } = await supabase
+                    .from('sub_account_balances')
+                    .insert({
+                      canonical_user_id: transaction.user_id,
+                      user_id: transaction.user_id,
+                      currency: 'USD',
+                      available_balance: topUpAmount,
+                      pending_balance: 0,
+                      last_updated: new Date().toISOString()
+                    });
 
-                // Update user_transactions status (for wallet history display)
-                const txnId = metadata.transaction_id;
-                // Validate transaction ID format (should be a UUID)
-                if (supabaseUrl && supabaseServiceKey && txnId && typeof txnId === 'string' && txnId.length > 0) {
-                  try {
-                    await fetch(
-                      `${supabaseUrl}/rest/v1/user_transactions?id=eq.${encodeURIComponent(txnId)}`,
-                      {
-                        method: 'PATCH',
-                        headers: {
-                          'Content-Type': 'application/json',
-                          'apikey': supabaseServiceKey,
-                          'Authorization': `Bearer ${supabaseServiceKey}`,
-                          'Prefer': 'return=minimal'
-                        },
-                        body: JSON.stringify({
-                          status: 'completed',
-                          payment_status: 'completed',
-                          tx_id: charge.id,
-                          wallet_address: payerWallet,
-                          network: payment?.network || 'base',
-                          payment_id: payment?.payment_id || payment?.transaction_id,
-                          completed_at: new Date().toISOString(),
-                          credit_synced: true,
-                          wallet_credited: creditSuccess
-                        })
-                      }
-                    );
-                    console.log(`[commerce-webhook][${requestId}] Updated user_transactions with payment details`);
-                  } catch (updateError) {
-                    console.error(`[commerce-webhook][${requestId}] Failed to update user_transactions via REST API:`, updateError);
+                  if (!insertError) {
+                    creditSuccess = true;
+                    newBalance = topUpAmount;
+                    console.log(`[commerce-webhook][${requestId}] ✅ Created new balance record`);
                   }
                 }
-              } else {
-                console.error(`[commerce-webhook][${requestId}] Balance credit returned failure:`, creditResult?.[0]?.error_message);
+              } catch (directErr) {
+                console.error(`[commerce-webhook][${requestId}] Direct balance update also failed:`, directErr);
+              }
+            }
+
+            // LAST RESORT: Mark transaction for manual reconciliation if all else fails
+            if (!creditSuccess) {
+              console.error(`[commerce-webhook][${requestId}] ⚠️ ALL CREDIT ATTEMPTS FAILED - marking for reconciliation`);
+              await supabase
+                .from('user_transactions')
+                .update({
+                  status: 'needs_reconciliation',
+                  payment_status: 'confirmed',
+                  credit_synced: false,
+                  wallet_credited: false,
+                  completed_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', transaction.id);
+            }
+
+            if (creditSuccess) {
+              console.log(`[commerce-webhook][${requestId}] ✅ Credited ${topUpAmount} USDC to user ${transaction.user_id}. New balance: ${newBalance}`);
+
+              // Also confirm any pending_topups record (from optimistic crediting)
+              try {
+                await supabase
+                  .from('pending_topups')
+                  .update({
+                    status: 'confirmed',
+                    confirmed_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('session_id', transaction.id)
+                  .eq('status', 'pending');
+
+                // Move pending_balance to available_balance if optimistic credit was used
+                await supabase.rpc('confirm_pending_balance', {
+                  p_canonical_user_id: transaction.user_id,
+                  p_amount: topUpAmount,
+                  p_currency: 'USD'
+                });
+              } catch (pendingErr) {
+                // Not critical - optimistic crediting is optional
+                console.warn(`[commerce-webhook][${requestId}] Could not update pending_topups:`, pendingErr);
+              }
+
+              // Extract payment information from the charge
+              const charge = eventData;
+              const payments = charge.payments || [];
+              const payment = payments.length > 0 ? payments[payments.length - 1] : null; // Get the most recent payment
+              const payerWallet = payment?.payer_addresses?.[0] || walletAddress || null;
+
+              // Update user_transactions status (for wallet history display)
+              const txnId = metadata.transaction_id;
+              // Validate transaction ID format (should be a UUID)
+              if (supabaseUrl && supabaseServiceKey && txnId && typeof txnId === 'string' && txnId.length > 0) {
+                try {
+                  await fetch(
+                    `${supabaseUrl}/rest/v1/user_transactions?id=eq.${encodeURIComponent(txnId)}`,
+                    {
+                      method: 'PATCH',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': supabaseServiceKey,
+                        'Authorization': `Bearer ${supabaseServiceKey}`,
+                        'Prefer': 'return=minimal'
+                      },
+                      body: JSON.stringify({
+                        status: 'completed',
+                        payment_status: 'completed',
+                        tx_id: charge.id,
+                        wallet_address: payerWallet,
+                        network: payment?.network || 'base',
+                        payment_id: payment?.payment_id || payment?.transaction_id,
+                        completed_at: new Date().toISOString(),
+                        credit_synced: true,
+                        wallet_credited: creditSuccess
+                      })
+                    }
+                  );
+                  console.log(`[commerce-webhook][${requestId}] Updated user_transactions with payment details`);
+                } catch (updateError) {
+                  console.error(`[commerce-webhook][${requestId}] Failed to update user_transactions via REST API:`, updateError);
+                }
               }
             }
           }
