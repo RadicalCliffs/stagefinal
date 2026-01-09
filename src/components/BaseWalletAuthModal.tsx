@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { X, Wallet, CheckCircle, ArrowRight, Shield, Copy, Check, ExternalLink, Smartphone } from "lucide-react";
+import { X, Wallet, CheckCircle, ArrowRight, Shield, Copy, Check, ExternalLink, Smartphone, AlertCircle, Loader2 } from "lucide-react";
 import { SignIn, type SignInState } from "@coinbase/cdp-react";
 import { useCurrentUser, useEvmAddress, useIsSignedIn, useSignOut } from "@coinbase/cdp-hooks";
 import { ConnectWallet, Wallet as WalletComponent, WalletDropdown } from '@coinbase/onchainkit/wallet';
 import { Identity, Avatar, Name, Address } from '@coinbase/onchainkit/identity';
-import { useAccount, useConnect, useDisconnect } from 'wagmi';
+import { useAccount, useDisconnect } from 'wagmi';
 import { supabase } from "../lib/supabase";
 import { userDataService } from "../services/userDataService";
 import { toPrizePid } from "../utils/userId";
@@ -14,44 +14,69 @@ interface BaseWalletAuthModalProps {
   onClose: () => void;
 }
 
-type FlowState = 'email-first' | 'intro' | 'creating' | 'connect-wallet' | 'success' | 'account-recovery';
+// Screen flow states aligned to the specification
+type FlowState = 
+  | 'login-signup'           // Screen 1: Email entry
+  | 'email-verification'     // Screen 2: OTP verification
+  | 'returning-user-wallet'  // Screen 3A: Returning user with available wallet
+  | 'wallet-unavailable'     // Screen 3B: Returning user with unavailable wallet
+  | 'profile-completion'     // Screen 4: Profile setup for first-time users
+  | 'wallet-detection'       // Screen 5: Checking for wallets
+  | 'wallet-choice'          // Screen 6: Choose wallet type
+  | 'signature-confirm'      // Screen 8: Sign message to confirm (CDP handles this)
+  | 'logged-in-success';     // Screen 9: Success - You're live
+
+// Profile completion data for first-time users
+interface ProfileData {
+  username: string;
+  fullName: string;
+  country: string;
+  avatar?: string;
+  mobile?: string;
+  socialProfiles?: string;
+}
 
 /**
  * Validates that a wallet address is not the treasury address
- * @param walletAddress - The wallet address to validate
- * @throws Error if the wallet address matches the treasury address
  */
 function validateNotTreasuryAddress(walletAddress: string): void {
   const treasuryAddress = import.meta.env.VITE_TREASURY_ADDRESS?.toLowerCase();
   if (treasuryAddress && walletAddress.toLowerCase() === treasuryAddress) {
     console.error('[BaseWallet] ⚠️  BLOCKED: Attempted to use treasury address as user wallet!');
-    console.error('[BaseWallet] Treasury:', treasuryAddress);
-    console.error('[BaseWallet] Attempted wallet:', walletAddress);
     throw new Error('Invalid wallet address: Treasury address cannot be used as user wallet');
   }
 }
 
 // Check if email exists in database (returning user)
-async function checkExistingUser(email: string): Promise<{ exists: boolean; hasWallet: boolean }> {
+async function checkExistingUser(email: string): Promise<{ 
+  exists: boolean; 
+  hasWallet: boolean;
+  walletAddress?: string;
+  hasCompletedProfile: boolean;
+}> {
   try {
     const { data } = await supabase
       .from('canonical_users')
-      .select('id, email, wallet_address, privy_user_id')
+      .select('id, email, wallet_address, privy_user_id, username, country')
       .eq('email', email.toLowerCase().trim())
       .maybeSingle();
 
     if (data) {
-      return { exists: true, hasWallet: !!data.wallet_address };
+      return { 
+        exists: true, 
+        hasWallet: !!data.wallet_address,
+        walletAddress: data.wallet_address,
+        hasCompletedProfile: !!(data.username && data.country)
+      };
     }
-    return { exists: false, hasWallet: false };
+    return { exists: false, hasWallet: false, hasCompletedProfile: false };
   } catch (error) {
     console.error('[BaseWallet] Error checking existing user:', error);
-    return { exists: false, hasWallet: false };
+    return { exists: false, hasWallet: false, hasCompletedProfile: false };
   }
 }
 
 // Save wallet-only user to database (for external wallet connections)
-// Used when user connects with Base App or other external wallet
 async function saveWalletOnlyUser(walletAddress: string, email?: string): Promise<boolean> {
   try {
     console.log('[BaseWallet] Saving wallet-only user to database:', { walletAddress, email });
@@ -94,7 +119,6 @@ async function saveWalletOnlyUser(walletAddress: string, email?: string): Promis
       .maybeSingle();
 
     if (byWallet) {
-      // User exists with this wallet - ensure privy_user_id, canonical_user_id, and avatar are set
       console.log('[BaseWallet] Found existing user by wallet:', byWallet.id);
       const updates: Record<string, any> = {};
 
@@ -102,22 +126,16 @@ async function saveWalletOnlyUser(walletAddress: string, email?: string): Promis
         updates.privy_user_id = walletAddress;
       }
 
-      // CRITICAL: Set canonical_user_id if missing
       if (!byWallet.canonical_user_id) {
         updates.canonical_user_id = canonicalUserId;
-        console.log('[BaseWallet] Setting missing canonical_user_id for existing user');
       }
 
-      // Assign default avatar if missing
       if (!byWallet.avatar_url) {
         updates.avatar_url = userDataService.getDefaultAvatar();
       }
 
       if (Object.keys(updates).length > 0) {
-        await supabase
-          .from('canonical_users')
-          .update(updates)
-          .eq('id', byWallet.id);
+        await supabase.from('canonical_users').update(updates).eq('id', byWallet.id);
       }
       return true;
     }
@@ -155,13 +173,10 @@ async function saveWalletOnlyUser(walletAddress: string, email?: string): Promis
   }
 }
 
-// Save user to database immediately after CDP wallet creation
-// CRITICAL: This function handles account linking to prevent duplicate accounts
-// It checks for existing accounts by email, wallet address, or privy_user_id
-// and properly links/updates them rather than creating duplicates
-async function saveUserToDatabase(email: string, walletAddress: string): Promise<boolean> {
+// Save user with profile data to database
+async function saveUserWithProfile(email: string, walletAddress: string, profile: ProfileData): Promise<boolean> {
   try {
-    console.log('[BaseWallet] Saving user to database:', { email, walletAddress });
+    console.log('[BaseWallet] Saving user with profile to database:', { email, walletAddress, profile });
     const normalizedEmail = email.toLowerCase().trim();
 
     // CRITICAL: Validate wallet address is not the treasury address
@@ -169,81 +184,69 @@ async function saveUserToDatabase(email: string, walletAddress: string): Promise
 
     // Generate canonical user ID from wallet address
     const canonicalUserId = toPrizePid(walletAddress);
-    console.log('[BaseWallet] Generated canonical_user_id:', canonicalUserId);
 
-    // Step 1: Check if user already exists by wallet address or canonical ID (primary identifier for Base auth)
+    // Check if user already exists by wallet address or canonical ID
     const { data: byWallet } = await supabase
       .from('canonical_users')
-      .select('id, email, wallet_address, base_wallet_address, privy_user_id, canonical_user_id, avatar_url')
+      .select('id, email, wallet_address')
       .or(`wallet_address.eq.${walletAddress},base_wallet_address.eq.${walletAddress},privy_user_id.eq.${walletAddress},canonical_user_id.eq.${canonicalUserId}`)
       .maybeSingle();
 
     if (byWallet) {
-      // User exists with this wallet - update email, canonical_user_id, and avatar if needed
-      console.log('[BaseWallet] Found existing user by wallet:', byWallet.id);
-      const updates: Record<string, any> = {};
+      // Update existing user with profile data
+      console.log('[BaseWallet] Updating existing user with profile:', byWallet.id);
+      const { error } = await supabase
+        .from('canonical_users')
+        .update({
+          email: normalizedEmail,
+          username: profile.username,
+          first_name: profile.fullName.split(' ')[0],
+          last_name: profile.fullName.split(' ').slice(1).join(' '),
+          country: profile.country,
+          avatar_url: profile.avatar || userDataService.getDefaultAvatar(),
+          telephone_number: profile.mobile || null,
+          telegram_handle: profile.socialProfiles || null,
+          canonical_user_id: canonicalUserId,
+          privy_user_id: walletAddress,
+        })
+        .eq('id', byWallet.id);
 
-      if (!byWallet.email && normalizedEmail) {
-        updates.email = normalizedEmail;
-      }
-      // Ensure privy_user_id is set to wallet address for Base auth
-      if (!byWallet.privy_user_id || byWallet.privy_user_id !== walletAddress) {
-        updates.privy_user_id = walletAddress;
-      }
-      // CRITICAL: Set canonical_user_id if missing
-      if (!byWallet.canonical_user_id) {
-        updates.canonical_user_id = canonicalUserId;
-        console.log('[BaseWallet] Setting missing canonical_user_id for existing user');
-      }
-      // Assign default avatar if missing
-      if (!byWallet.avatar_url) {
-        updates.avatar_url = userDataService.getDefaultAvatar();
-      }
-
-      if (Object.keys(updates).length > 0) {
-        await supabase
-          .from('canonical_users')
-          .update(updates)
-          .eq('id', byWallet.id);
-      }
-      return true;
+      return !error;
     }
 
-    // Step 2: Check if user exists by email (for account linking)
+    // Check if user exists by email
     const { data: byEmail } = await supabase
       .from('canonical_users')
-      .select('id, email, wallet_address, base_wallet_address, privy_user_id, canonical_user_id, avatar_url')
+      .select('id')
       .eq('email', normalizedEmail)
       .maybeSingle();
 
     if (byEmail) {
-      // User exists with this email - link the wallet to their account
-      console.log('[BaseWallet] Found existing user by email, linking wallet:', byEmail.id);
-      const updates: Record<string, any> = {
-        wallet_address: walletAddress,
-        base_wallet_address: walletAddress,
-        eth_wallet_address: walletAddress,
-        // Set privy_user_id to wallet address for Base auth (replaces old Privy DID)
-        privy_user_id: walletAddress,
-        // CRITICAL: Set canonical_user_id when linking wallet to email account
-        canonical_user_id: canonicalUserId,
-      };
-
-      // Assign default avatar if missing
-      if (!byEmail.avatar_url) {
-        updates.avatar_url = userDataService.getDefaultAvatar();
-      }
-
-      console.log('[BaseWallet] Linking wallet with canonical_user_id:', canonicalUserId);
-      await supabase
+      // Link wallet to existing email account with profile
+      console.log('[BaseWallet] Linking wallet to existing email account with profile:', byEmail.id);
+      const { error } = await supabase
         .from('canonical_users')
-        .update(updates)
+        .update({
+          wallet_address: walletAddress,
+          base_wallet_address: walletAddress,
+          eth_wallet_address: walletAddress,
+          privy_user_id: walletAddress,
+          canonical_user_id: canonicalUserId,
+          username: profile.username,
+          first_name: profile.fullName.split(' ')[0],
+          last_name: profile.fullName.split(' ').slice(1).join(' '),
+          country: profile.country,
+          avatar_url: profile.avatar || userDataService.getDefaultAvatar(),
+          telephone_number: profile.mobile || null,
+          telegram_handle: profile.socialProfiles || null,
+        })
         .eq('id', byEmail.id);
-      return true;
+
+      return !error;
     }
 
-    // Step 3: Create new user (no existing account found)
-    console.log('[BaseWallet] Creating new user with canonical_user_id:', canonicalUserId);
+    // Create new user with profile
+    console.log('[BaseWallet] Creating new user with profile and canonical_user_id:', canonicalUserId);
     const { error } = await supabase
       .from('canonical_users')
       .insert({
@@ -252,40 +255,25 @@ async function saveUserToDatabase(email: string, walletAddress: string): Promise
         wallet_address: walletAddress,
         base_wallet_address: walletAddress,
         eth_wallet_address: walletAddress,
-        // CRITICAL: Set privy_user_id to wallet address for Base auth
-        // This prevents conflicts with the UNIQUE constraint
         privy_user_id: walletAddress,
-        username: normalizedEmail.split('@')[0],
-        avatar_url: userDataService.getDefaultAvatar(),
+        username: profile.username,
+        first_name: profile.fullName.split(' ')[0],
+        last_name: profile.fullName.split(' ').slice(1).join(' '),
+        country: profile.country,
+        avatar_url: profile.avatar || userDataService.getDefaultAvatar(),
+        telephone_number: profile.mobile || null,
+        telegram_handle: profile.socialProfiles || null,
         usdc_balance: 0,
         has_used_new_user_bonus: false,
         created_at: new Date().toISOString(),
       });
 
     if (error) {
-      // Handle unique constraint violation - another request may have created the user
       if (error.code === '23505') {
-        console.warn('[BaseWallet] User already exists (concurrent creation), attempting update');
-        // Try to update instead - include canonical_user_id
-        const { error: updateError } = await supabase
-          .from('canonical_users')
-          .update({
-            wallet_address: walletAddress,
-            base_wallet_address: walletAddress,
-            eth_wallet_address: walletAddress,
-            privy_user_id: walletAddress,
-            canonical_user_id: canonicalUserId,
-          })
-          .eq('email', normalizedEmail);
-
-        if (updateError) {
-          console.error('[BaseWallet] Error updating user after conflict:', updateError);
-          return false;
-        }
+        console.warn('[BaseWallet] User already exists (concurrent creation)');
         return true;
       }
-
-      console.error('[BaseWallet] Error creating user:', error);
+      console.error('[BaseWallet] Error creating user with profile:', error);
       return false;
     }
 
@@ -307,51 +295,37 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
   // Wagmi hooks for external wallet connection (Base App, Coinbase Wallet, etc.)
   const { address: wagmiAddress, isConnected: wagmiIsConnected } = useAccount();
-  const { disconnect: wagmiDisconnect } = useDisconnect();
+  const { disconnect: _wagmiDisconnect } = useDisconnect();
 
   // Get the effective wallet address (CDP or wagmi)
-  // IMPORTANT: This must be declared before any callbacks that use it to avoid
-  // "Cannot access variable before initialization" errors in production builds
   const effectiveWalletAddress = evmAddress || wagmiAddress;
 
-  // DIAGNOSTIC: Log wallet address sources to identify incorrect address
-  useEffect(() => {
-    if (isOpen && effectiveWalletAddress) {
-      const treasuryAddress = import.meta.env.VITE_TREASURY_ADDRESS?.toLowerCase();
-      console.log('[BaseWalletAuthModal] WALLET ADDRESS DIAGNOSTIC:', {
-        effectiveWalletAddress,
-        evmAddress,
-        wagmiAddress,
-        treasuryAddress,
-        isTreasuryAddress: effectiveWalletAddress.toLowerCase() === treasuryAddress,
-        cdpUser: currentUser?.userId,
-        cdpIsSignedIn,
-        wagmiIsConnected,
-        source: evmAddress ? 'CDP (evmAddress)' : wagmiAddress ? 'Wagmi (external wallet)' : 'Unknown',
-        timestamp: new Date().toISOString()
-      });
-
-      // CRITICAL: Alert if treasury address is detected
-      if (treasuryAddress && effectiveWalletAddress.toLowerCase() === treasuryAddress) {
-        console.error('[BaseWalletAuthModal] ⚠️  CRITICAL: Treasury address detected as user wallet!');
-        console.error('[BaseWalletAuthModal] Treasury:', treasuryAddress);
-        console.error('[BaseWalletAuthModal] This is incorrect - user should have their own wallet');
-      }
-    }
-  }, [isOpen, effectiveWalletAddress, evmAddress, wagmiAddress, currentUser, cdpIsSignedIn, wagmiIsConnected]);
-
-  const [flowState, setFlowState] = useState<FlowState>('email-first');
+  // State management for the new flow
+  const [flowState, setFlowState] = useState<FlowState>('login-signup');
   const [userEmail, setUserEmail] = useState<string>('');
   const [emailInput, setEmailInput] = useState<string>('');
+  const [otpCode, setOtpCode] = useState<string>('');
   const [emailError, setEmailError] = useState<string>('');
+  const [otpError, setOtpError] = useState<string>('');
+  const [_isLoading, setIsLoading] = useState(false);
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
-  const [existingUserEmail, setExistingUserEmail] = useState<string>('');
+  const [otpSessionId, setOtpSessionId] = useState<string>('');
+  
+  // Profile completion state
+  const [profileData, setProfileData] = useState<ProfileData>({
+    username: '',
+    fullName: '',
+    country: '',
+    avatar: '',
+    mobile: '',
+    socialProfiles: '',
+  });
+  
+  // Returning user state
+  const [returningUserWalletAddress, setReturningUserWalletAddress] = useState<string>('');
+  const [_isReturningUser, setIsReturningUser] = useState<boolean>(false);
+  
   const [copied, setCopied] = useState(false);
-  const [isClearing, setIsClearing] = useState(false);
-  const [externalWalletSaved, setExternalWalletSaved] = useState(false);
-  const [pendingEmail, setPendingEmail] = useState<string>('');
-  const [isSavingEmail, setIsSavingEmail] = useState(false);
-  const [emailSaved, setEmailSaved] = useState(false);
 
   const savedToDbRef = useRef(false);
   const walletDetectedRef = useRef(false);
@@ -360,194 +334,89 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
-      // Reset refs but keep flow state if user has a cached CDP session
       savedToDbRef.current = false;
       walletDetectedRef.current = false;
-      setIsClearing(false);
-      setExternalWalletSaved(false);
       setEmailInput('');
+      setOtpCode('');
       setEmailError('');
+      setOtpError('');
       setIsCheckingEmail(false);
-      setExistingUserEmail('');
+      setIsLoading(false);
+      setFlowState('login-signup');
+      setProfileData({
+        username: '',
+        fullName: '',
+        country: '',
+        avatar: '',
+        mobile: '',
+        socialProfiles: '',
+      });
     } else {
-      // Reset session cleared ref when modal closes so next open can clear if needed
       sessionClearedRef.current = false;
     }
   }, [isOpen]);
 
-  // Handle external wallet connection (wagmi) - save to database and show success
-  useEffect(() => {
-    const shouldProcessConnection =
-      flowState === 'connect-wallet' &&
-      wagmiIsConnected &&
-      wagmiAddress &&
-      !externalWalletSaved;
-
-    if (shouldProcessConnection) {
-      console.log('[BaseWallet] External wallet connected via wagmi:', wagmiAddress);
-      setExternalWalletSaved(true);
-
-      // Save wallet to database
-      saveWalletOnlyUser(wagmiAddress, userEmail).then((success) => {
-        if (success) {
-          console.log('[BaseWallet] External wallet saved to database');
-          // Store wallet address in localStorage for AuthContext
-          localStorage.setItem('cdp:wallet_address', wagmiAddress);
-          setFlowState('success');
-        } else {
-          console.error('[BaseWallet] Failed to save external wallet to database');
-        }
-      });
-    }
-  }, [flowState, wagmiIsConnected, wagmiAddress, externalWalletSaved, userEmail]);
-
-  // Clear stale CDP session when entering sign-in flow to prevent "email already linked" errors
-  // This handles the case where a user has a partial/stale session from a previous attempt
-  const clearStaleSession = useCallback(async () => {
-    if (sessionClearedRef.current) return;
-    sessionClearedRef.current = true;
-
-    // Only clear if user is in a partial state (signed in but no wallet)
-    // This prevents the "email already linked" error that occurs when
-    // a previous sign-in attempt left a stale session
-    const hasIncompleteSession = cdpIsSignedIn && !evmAddress;
-
-    if (hasIncompleteSession) {
-      console.log('[BaseWallet] Detected incomplete session, clearing before sign-in');
-      setIsClearing(true);
-
-      try {
-        // Sign out to clear the partial session
-        try {
-          await signOut();
-        } catch (error) {
-          console.warn('[BaseWallet] signOut error (may be expected):', error);
-        }
-
-        // Clear any CDP-related localStorage items that might contain stale state
-        const keysToRemove: string[] = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && (key.includes('cdp') || key.includes('coinbase'))) {
-            keysToRemove.push(key);
-          }
-        }
-        keysToRemove.forEach(key => {
-          console.log('[BaseWallet] Removing localStorage key:', key);
-          localStorage.removeItem(key);
-        });
-
-        // Clear sessionStorage as well
-        const sessionKeysToRemove: string[] = [];
-        for (let i = 0; i < sessionStorage.length; i++) {
-          const key = sessionStorage.key(i);
-          if (key && (key.includes('cdp') || key.includes('coinbase'))) {
-            sessionKeysToRemove.push(key);
-          }
-        }
-        sessionKeysToRemove.forEach(key => {
-          console.log('[BaseWallet] Removing sessionStorage key:', key);
-          sessionStorage.removeItem(key);
-        });
-
-        // Clear IndexedDB databases that might contain CDP session data
-        if (typeof indexedDB !== 'undefined') {
-          const databases = await indexedDB.databases?.() || [];
-          for (const db of databases) {
-            if (db.name && (db.name.includes('cdp') || db.name.includes('coinbase'))) {
-              console.log('[BaseWallet] Deleting IndexedDB:', db.name);
-              try {
-                await new Promise<void>((resolve, reject) => {
-                  const req = indexedDB.deleteDatabase(db.name!);
-                  req.onsuccess = () => resolve();
-                  req.onerror = () => reject(req.error);
-                  req.onblocked = () => {
-                    console.warn('[BaseWallet] IndexedDB delete blocked:', db.name);
-                    resolve();
-                  };
-                });
-              } catch (e) {
-                console.warn('[BaseWallet] Error deleting IndexedDB:', db.name, e);
-              }
-            }
-          }
-        }
-
-        // Small delay to ensure all cleanup is complete
-        await new Promise(resolve => setTimeout(resolve, 200));
-      } catch (error) {
-        console.warn('[BaseWallet] Error during session cleanup:', error);
-      }
-
-      setIsClearing(false);
-    }
-  }, [cdpIsSignedIn, evmAddress, signOut]);
-
-  // Extract email from CDP user - no longer checking for returning user to redirect to Privy
-  useEffect(() => {
-    const handleUserEmail = async () => {
-      if (currentUser && flowState === 'creating') {
-        const email = currentUser.email ||
-                     (currentUser as any).emails?.[0]?.value ||
-                     (currentUser as any).emails?.[0]?.address;
-        if (email && email !== userEmail) {
-          setUserEmail(email);
-        }
-      }
-    };
-
-    void handleUserEmail();
-  }, [currentUser, flowState, userEmail]);
-
-  // Detect wallet creation and save to DB
-  useEffect(() => {
-    // Log current state for debugging
-    if (flowState === 'creating') {
-      console.log('[BaseWallet] Wallet detection check:', {
-        cdpIsSignedIn,
-        evmAddress: evmAddress || 'not available',
-        userEmail: userEmail || 'not available',
-        walletDetectedRef: walletDetectedRef.current
-      });
-    }
-
-    if (flowState === 'creating' && cdpIsSignedIn && evmAddress && userEmail && !walletDetectedRef.current) {
-      console.log('[BaseWallet] Wallet created:', { email: userEmail, wallet: evmAddress });
-      walletDetectedRef.current = true;
-
-      // Save to database
-      if (!savedToDbRef.current) {
-        savedToDbRef.current = true;
-        saveUserToDatabase(userEmail, evmAddress).then(() => {
-          setFlowState('success');
-        });
-      }
-    }
-  }, [flowState, cdpIsSignedIn, evmAddress, userEmail]);
-
-  // If already authenticated with Base/CDP, close immediately without showing the modal
+  // If already authenticated with Base/CDP, close immediately
   useEffect(() => {
     if (cdpIsSignedIn && evmAddress && isOpen) {
       onClose();
     }
   }, [cdpIsSignedIn, evmAddress, isOpen, onClose]);
 
-  // Check for returning user with cached CDP session
+  // Handle external wallet connection (wagmi) - save to database and show success
   useEffect(() => {
-    if ((flowState === 'email-first' || flowState === 'intro') && cdpIsSignedIn && evmAddress && currentUser) {
-      // User has cached CDP wallet - show success state
-      const email = currentUser.email ||
-                   (currentUser as any).emails?.[0]?.value ||
-                   (currentUser as any).emails?.[0]?.address;
-      if (email) {
-        setUserEmail(email);
-        setFlowState('success');
+    const shouldProcessConnection =
+      (flowState === 'wallet-choice' || flowState === 'wallet-detection') &&
+      wagmiIsConnected &&
+      wagmiAddress &&
+      !savedToDbRef.current;
+
+    if (shouldProcessConnection) {
+      console.log('[BaseWallet] External wallet connected via wagmi:', wagmiAddress);
+      savedToDbRef.current = true;
+
+      // Save wallet to database
+      saveWalletOnlyUser(wagmiAddress, userEmail).then((success) => {
+        if (success) {
+          console.log('[BaseWallet] External wallet saved to database');
+          localStorage.setItem('cdp:wallet_address', wagmiAddress);
+          setFlowState('logged-in-success');
+        } else {
+          console.error('[BaseWallet] Failed to save external wallet to database');
+          setEmailError('Failed to save wallet. Please try again.');
+        }
+      });
+    }
+  }, [flowState, wagmiIsConnected, wagmiAddress, userEmail]);
+
+  // Detect CDP wallet creation and save to DB
+  useEffect(() => {
+    if (flowState === 'wallet-detection' && cdpIsSignedIn && evmAddress && userEmail && !walletDetectedRef.current) {
+      console.log('[BaseWallet] CDP Wallet created:', { email: userEmail, wallet: evmAddress });
+      walletDetectedRef.current = true;
+
+      // Save with profile data if available
+      if (profileData.username && profileData.fullName && profileData.country) {
+        saveUserWithProfile(userEmail, evmAddress, profileData).then((success) => {
+          if (success) {
+            localStorage.setItem('cdp:wallet_address', evmAddress);
+            setFlowState('logged-in-success');
+          }
+        });
+      } else {
+        // Save without profile (shouldn't happen in new flow)
+        saveWalletOnlyUser(evmAddress, userEmail).then((success) => {
+          if (success) {
+            localStorage.setItem('cdp:wallet_address', evmAddress);
+            setFlowState('logged-in-success');
+          }
+        });
       }
     }
-  }, [flowState, cdpIsSignedIn, evmAddress, currentUser]);
+  }, [flowState, cdpIsSignedIn, evmAddress, userEmail, profileData]);
 
-  // Handler for email-first flow - check if email exists before showing options
-  const handleEmailCheck = useCallback(async () => {
+  // === SCREEN 1: Login / Sign Up ===
+  const handleContinueWithEmail = useCallback(async () => {
     const email = emailInput.trim().toLowerCase();
 
     // Validate email format
@@ -559,119 +428,172 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
     setEmailError('');
     setIsCheckingEmail(true);
+    setUserEmail(email);
 
     try {
+      // Check if user exists
       const result = await checkExistingUser(email);
 
-      if (result.exists) {
-        // Existing user - route to sign-in flow
-        setExistingUserEmail(email);
-        setUserEmail(email);
-        console.log('[BaseWallet] Existing user found, routing to sign-in');
-        // Clear any stale session before showing sign-in
-        await clearStaleSession();
-        setFlowState('creating');
-      } else {
-        // New user - show account creation options
-        setUserEmail(email);
-        setFlowState('intro');
+      if (result.exists && result.hasWallet) {
+        // Returning user with wallet - show Screen 3A or 3B
+        setReturningUserWalletAddress(result.walletAddress || '');
+        setIsReturningUser(true);
+        
+        // Check if their wallet is currently available (connected)
+        // For now, we'll show Screen 3A and let them try to continue
+        // If wallet is not available, they can retry or create new account
+        setFlowState('returning-user-wallet');
+        setIsCheckingEmail(false);
+        return;
       }
+
+      // Send OTP for new users or returning users without wallet
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/email-auth-start`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+          },
+          body: JSON.stringify({ email }),
+        }
+      );
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || 'Could not send code');
+      }
+
+      setOtpSessionId(json.sessionId);
+      setFlowState('email-verification');
     } catch (error) {
-      console.error('[BaseWallet] Error checking email:', error);
+      console.error('[BaseWallet] Error in email check:', error);
       setEmailError('Something went wrong. Please try again.');
     } finally {
       setIsCheckingEmail(false);
     }
-  }, [emailInput, clearStaleSession]);
+  }, [emailInput]);
 
-  const handleCopy = useCallback(async () => {
-    const addressToCopy = evmAddress || wagmiAddress;
-    if (addressToCopy) {
-      try {
-        await navigator.clipboard.writeText(addressToCopy);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      } catch (err) {
-        // Fallback for Safari/older browsers where clipboard API may fail
-        console.warn('[BaseWallet] Clipboard API failed, trying fallback:', err);
-        try {
-          const textArea = document.createElement('textarea');
-          textArea.value = addressToCopy;
-          textArea.style.position = 'fixed';
-          textArea.style.left = '-9999px';
-          document.body.appendChild(textArea);
-          textArea.select();
-          document.execCommand('copy');
-          document.body.removeChild(textArea);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 2000);
-        } catch (fallbackErr) {
-          console.error('[BaseWallet] Copy failed:', fallbackErr);
-        }
-      }
-    }
-  }, [evmAddress, wagmiAddress]);
-
-  // Handle CDP SignIn success - wait for wallet address to become available
-  // The CDP SDK triggers onSuccess when OTP is verified, but evmAddress may not
-  // be immediately available. This handler polls for it and transitions to success.
-  const handleSignInSuccess = useCallback(async () => {
-    console.log('[BaseWallet] CDP SignIn success callback triggered');
-
-    // If we already have the wallet address, process immediately
-    if (evmAddress && currentUser) {
-      const email = currentUser.email ||
-                   (currentUser as any).emails?.[0]?.value ||
-                   (currentUser as any).emails?.[0]?.address;
-      console.log('[BaseWallet] Wallet already available:', { email, wallet: evmAddress });
-      if (email) {
-        setUserEmail(email);
-        if (!savedToDbRef.current) {
-          savedToDbRef.current = true;
-          walletDetectedRef.current = true;
-          await saveUserToDatabase(email, evmAddress);
-        }
-        setFlowState('success');
-      }
+  // === SCREEN 2: Email Verification ===
+  const handleVerifyOTP = useCallback(async () => {
+    if (!otpCode.trim() || otpCode.length !== 6) {
+      setOtpError('Please enter the 6-digit code.');
       return;
     }
 
-    // If wallet not yet available, wait for it (CDP SDK may be finalizing)
-    // Poll for up to 10 seconds with 500ms intervals
-    console.log('[BaseWallet] Waiting for wallet address to become available...');
-    let attempts = 0;
-    const maxAttempts = 20;
+    setOtpError('');
+    setIsLoading(true);
 
-    const checkWalletInterval = setInterval(async () => {
-      attempts++;
-      console.log('[BaseWallet] Checking for wallet address, attempt:', attempts);
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/email-auth-verify`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+          },
+          body: JSON.stringify({ sessionId: otpSessionId, code: otpCode.trim() }),
+        }
+      );
 
-      // Note: We need to check the current values from the hooks
-      // Since this is in a callback, we rely on the useEffect to handle the transition
-      // once evmAddress becomes available. This is mainly for logging/debugging.
-
-      if (attempts >= maxAttempts) {
-        console.warn('[BaseWallet] Wallet address not available after timeout');
-        clearInterval(checkWalletInterval);
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || 'Invalid or expired code');
       }
-    }, 500);
 
-    // Clean up interval after maxAttempts
-    setTimeout(() => clearInterval(checkWalletInterval), maxAttempts * 500 + 100);
-  }, [evmAddress, currentUser]);
+      // Email verified - check if user needs profile completion
+      const result = await checkExistingUser(userEmail);
+      
+      if (result.exists && result.hasCompletedProfile) {
+        // Returning user with profile - go to wallet detection
+        setFlowState('wallet-detection');
+      } else {
+        // New user or incomplete profile - go to profile completion
+        setFlowState('profile-completion');
+      }
+    } catch (error) {
+      console.error('[BaseWallet] OTP verification error:', error);
+      setOtpError('Verification failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [otpCode, otpSessionId, userEmail]);
 
-  // Complete authentication with Base - ensure wallet is stored and close modal
+  // === SCREEN 3A: Continue with Base Wallet ===
+  const handleContinueWithBaseWallet = useCallback(async () => {
+    // User has an existing wallet, trigger CDP sign-in flow
+    setIsLoading(true);
+    try {
+      // Clear any stale session
+      if (cdpIsSignedIn) {
+        await signOut();
+      }
+      
+      // Transition to wallet detection which will trigger CDP sign in
+      setFlowState('wallet-detection');
+    } catch (error) {
+      console.error('[BaseWallet] Error continuing with wallet:', error);
+      setEmailError('Failed to continue. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [cdpIsSignedIn, signOut]);
+
+  // === SCREEN 3B: Retry or Create New Account ===
+  const handleRetryConnectWallet = useCallback(() => {
+    setFlowState('wallet-choice');
+  }, []);
+
+  const handleCreateNewAccount = useCallback(() => {
+    // Reset returning user state and go to profile completion
+    setIsReturningUser(false);
+    setReturningUserWalletAddress('');
+    setFlowState('profile-completion');
+  }, []);
+
+  // === SCREEN 4: Profile Completion ===
+  const handleCompleteProfile = useCallback(async () => {
+    // Validate required fields
+    if (!profileData.username || !profileData.fullName || !profileData.country) {
+      setEmailError('Please complete all required fields.');
+      return;
+    }
+
+    // Check username uniqueness
+    const { data } = await supabase
+      .from('canonical_users')
+      .select('username')
+      .ilike('username', profileData.username)
+      .limit(1);
+
+    if (data && data.length > 0) {
+      setEmailError('Username already taken. Please choose another.');
+      return;
+    }
+
+    setEmailError('');
+    // Move to wallet detection after profile completion
+    setFlowState('wallet-detection');
+  }, [profileData]);
+
+  // === SCREEN 6: Create Prize Wallet ===
+  const handleCreatePrizeWallet = useCallback(async () => {
+    // Create embedded CDP wallet
+    setFlowState('wallet-detection');
+  }, []);
+
+  // === SCREEN 9: Complete Authentication ===
   const handleAuthenticate = useCallback(async () => {
     console.log('[BaseWallet] Base auth complete, finalizing...');
 
-    // CRITICAL: Validate wallet address before proceeding
     if (!effectiveWalletAddress) {
       console.error('[BaseWallet] Cannot authenticate: No wallet address available');
       setEmailError('Wallet address not available. Please try again.');
       return;
     }
 
-    // CRITICAL: Prevent treasury address from being used as user wallet
     try {
       validateNotTreasuryAddress(effectiveWalletAddress);
     } catch (error) {
@@ -680,15 +602,8 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
       return;
     }
 
-    // Ensure wallet address is stored in localStorage for AuthContext to pick up
-    // This is critical for the app to recognize the user is authenticated
-    if (effectiveWalletAddress) {
-      localStorage.setItem('cdp:wallet_address', effectiveWalletAddress);
-      console.log('[BaseWallet] Stored wallet address:', effectiveWalletAddress);
-    }
-
-    // Dispatch an event to notify AuthContext to refresh user data
-    // This ensures the app state is updated immediately after authentication
+    // Store wallet address and dispatch auth-complete event
+    localStorage.setItem('cdp:wallet_address', effectiveWalletAddress);
     window.dispatchEvent(new CustomEvent('auth-complete', {
       detail: {
         walletAddress: effectiveWalletAddress,
@@ -696,74 +611,21 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
       }
     }));
 
-    // Small delay to allow state updates to propagate before closing
     await new Promise(resolve => setTimeout(resolve, 100));
-
-    // Close the modal
     onClose();
   }, [onClose, effectiveWalletAddress, userEmail]);
 
-  // Handler to save email for external wallet users
-  // This allows external wallet users to add their email for profile features
-  const handleSaveEmail = useCallback(async () => {
-    if (!pendingEmail || !effectiveWalletAddress) return;
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(pendingEmail)) {
-      console.warn('[BaseWallet] Invalid email format');
-      return;
-    }
-
-    setIsSavingEmail(true);
-    try {
-      const normalizedEmail = pendingEmail.toLowerCase().trim();
-
-      // Update the user's profile with the email
-      const { error } = await supabase
-        .from('canonical_users')
-        .update({
-          email: normalizedEmail,
-          username: normalizedEmail.split('@')[0], // Update username from email
-        })
-        .or(`wallet_address.eq.${effectiveWalletAddress},base_wallet_address.eq.${effectiveWalletAddress},privy_user_id.eq.${effectiveWalletAddress}`);
-
-      if (error) {
-        console.error('[BaseWallet] Error saving email:', error);
-      } else {
-        console.log('[BaseWallet] Email saved successfully');
-        setUserEmail(normalizedEmail);
-        setEmailSaved(true);
+  const handleCopy = useCallback(async () => {
+    if (effectiveWalletAddress) {
+      try {
+        await navigator.clipboard.writeText(effectiveWalletAddress);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch (err) {
+        console.error('[BaseWallet] Copy failed:', err);
       }
-    } catch (error) {
-      console.error('[BaseWallet] Error saving email:', error);
-    } finally {
-      setIsSavingEmail(false);
     }
-  }, [pendingEmail, effectiveWalletAddress]);
-
-  // Handler for "I already have a wallet" - go directly to CDP sign in
-  const handleExistingWallet = useCallback(async () => {
-    // Clear any stale session before showing sign-in
-    await clearStaleSession();
-    // Go to creating state which shows the CDP SignIn component
-    // This allows users with existing Base wallets to sign in
-    setFlowState('creating');
-  }, [clearStaleSession]);
-
-  // Handler for "Create My Free Wallet" - clear stale session and show sign-in
-  const handleCreateWallet = useCallback(async () => {
-    // Clear any stale session before showing sign-in
-    await clearStaleSession();
-    setFlowState('creating');
-  }, [clearStaleSession]);
-
-  // Handler for "Connect with Base App" - show wagmi wallet connection UI
-  // Uses the inline ConnectWallet component for both mobile and desktop
-  // The wagmi configuration with smartWalletOnly handles mobile deep-linking properly
-  const handleConnectBaseApp = useCallback(() => {
-    console.log('[BaseWallet] Opening connect-wallet flow');
-    setFlowState('connect-wallet');
-  }, []);
+  }, [effectiveWalletAddress]);
 
   if (!isOpen) return null;
 
@@ -772,27 +634,478 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
       className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 p-4"
       role="dialog"
       aria-modal="true"
-      aria-labelledby="auth-modal-title"
     >
-      <div className="bg-[#101010] border border-white/10 rounded-2xl p-5 w-full max-w-md relative max-h-[90vh] overflow-y-auto">
+      <div className="bg-[#101010] border border-white/10 rounded-2xl p-6 w-full max-w-md relative max-h-[90vh] overflow-y-auto">
         <button
           className="absolute right-4 top-4 text-white/60 hover:text-white"
           onClick={onClose}
-          aria-label="Close authentication modal"
+          aria-label="Close"
         >
           <X size={18} />
         </button>
 
-        {/* SUCCESS STATE - Wallet created, show details */}
-        {flowState === 'success' && effectiveWalletAddress && (
-          <div className="flex flex-col items-center" role="status" aria-live="polite">
-            <div className="w-20 h-20 bg-gradient-to-br from-[#0052FF] to-[#DDE404] rounded-full flex items-center justify-center mb-4">
-              <CheckCircle size={40} className="text-white" aria-hidden="true" />
+        {/* === SCREEN 1: Login / Sign Up === */}
+        {flowState === 'login-signup' && (
+          <div className="flex flex-col items-center">
+            <div className="w-16 h-16 bg-[#0052FF] rounded-full flex items-center justify-center mb-4">
+              <Wallet size={32} className="text-white" />
             </div>
 
-            <h2 id="auth-modal-title" className="text-white text-xl font-bold mb-2">Your Base Account is Ready!</h2>
-            <p className="text-white/60 text-sm mb-4 text-center">
-              Your free Base Smart Wallet on the Base network
+            <h2 className="text-white text-2xl font-bold mb-2">Log in or create an account</h2>
+            <p className="text-white/60 text-sm mb-6 text-center">
+              Enter your email address to continue.
+            </p>
+
+            <div className="w-full space-y-4 mb-4">
+              <input
+                type="email"
+                placeholder="Email address"
+                value={emailInput}
+                onChange={(e) => {
+                  setEmailInput(e.target.value);
+                  setEmailError('');
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleContinueWithEmail();
+                  }
+                }}
+                className="w-full bg-white/5 border border-white/20 rounded-lg px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:border-[#0052FF]"
+                autoFocus
+              />
+              {emailError && (
+                <span className="text-red-400 text-xs">{emailError}</span>
+              )}
+            </div>
+
+            <button
+              onClick={handleContinueWithEmail}
+              disabled={isCheckingEmail || !emailInput.trim()}
+              className="w-full bg-[#0052FF] text-white font-bold py-3 rounded-lg hover:bg-[#0052FF]/90 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isCheckingEmail ? (
+                <>
+                  <Loader2 className="animate-spin" size={18} />
+                  Checking...
+                </>
+              ) : (
+                <>
+                  Continue
+                  <ArrowRight size={18} />
+                </>
+              )}
+            </button>
+
+            <p className="text-white/40 text-xs mt-4 text-center">
+              We'll send you a one-time code to verify your email.
+            </p>
+          </div>
+        )}
+
+        {/* === SCREEN 2: Email Verification === */}
+        {flowState === 'email-verification' && (
+          <div className="flex flex-col items-center">
+            <div className="w-16 h-16 bg-[#0052FF] rounded-full flex items-center justify-center mb-4">
+              <CheckCircle size={32} className="text-white" />
+            </div>
+
+            <h2 className="text-white text-2xl font-bold mb-2">Verify your email</h2>
+            <p className="text-white/60 text-sm mb-2 text-center">
+              Enter the code we've sent to your email address.
+            </p>
+            <p className="text-[#0052FF] text-sm font-semibold mb-6">{userEmail}</p>
+
+            <div className="w-full space-y-4 mb-4">
+              <input
+                type="text"
+                maxLength={6}
+                placeholder="6-digit code"
+                value={otpCode}
+                onChange={(e) => {
+                  setOtpCode(e.target.value.replace(/\D/g, ''));
+                  setOtpError('');
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleVerifyOTP();
+                  }
+                }}
+                className="w-full bg-white/5 border border-white/20 rounded-lg px-4 py-3 text-white text-center text-2xl tracking-widest placeholder:text-white/30 focus:outline-none focus:border-[#0052FF]"
+                autoFocus
+              />
+              {otpError && (
+                <span className="text-red-400 text-xs">{otpError}</span>
+              )}
+            </div>
+
+            <button
+              onClick={handleVerifyOTP}
+              disabled={_isLoading || otpCode.length !== 6}
+              className="w-full bg-[#0052FF] text-white font-bold py-3 rounded-lg hover:bg-[#0052FF]/90 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {_isLoading ? (
+                <>
+                  <Loader2 className="animate-spin" size={18} />
+                  Verifying...
+                </>
+              ) : (
+                <>
+                  Verify & continue
+                </>
+              )}
+            </button>
+
+            <p className="text-white/40 text-xs mt-4 text-center">
+              This is only required on your first login or when using a new device.
+            </p>
+
+            <button
+              onClick={() => setFlowState('login-signup')}
+              className="mt-4 text-white/40 text-xs hover:text-white/60"
+            >
+              ← Back to email entry
+            </button>
+          </div>
+        )}
+
+        {/* === SCREEN 3A: Returning User - Wallet Available === */}
+        {flowState === 'returning-user-wallet' && (
+          <div className="flex flex-col items-center">
+            <div className="w-16 h-16 bg-[#0052FF] rounded-full flex items-center justify-center mb-4">
+              <Wallet size={32} className="text-white" />
+            </div>
+
+            <h2 className="text-white text-2xl font-bold mb-2">Continue with your wallet</h2>
+            
+            {returningUserWalletAddress && (
+              <div className="w-full bg-[#0052FF]/20 border border-[#0052FF] rounded-xl p-4 mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[#0052FF] text-xs font-semibold">Active wallet</span>
+                </div>
+                <p className="text-white text-sm font-mono">
+                  {returningUserWalletAddress.slice(0, 6)}...{returningUserWalletAddress.slice(-4)}
+                </p>
+              </div>
+            )}
+
+            <p className="text-white/60 text-sm mb-6 text-center">
+              To access your account, please continue using your Base wallet.
+            </p>
+
+            <button
+              onClick={handleContinueWithBaseWallet}
+              disabled={_isLoading}
+              className="w-full bg-[#0052FF] text-white font-bold py-3 rounded-lg hover:bg-[#0052FF]/90 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed mb-3"
+            >
+              {_isLoading ? (
+                <>
+                  <Loader2 className="animate-spin" size={18} />
+                  Connecting...
+                </>
+              ) : (
+                <>
+                  Continue with Base wallet
+                  <ArrowRight size={18} />
+                </>
+              )}
+            </button>
+
+            <p className="text-white/40 text-xs text-center">
+              This is the wallet you used last time.
+            </p>
+
+            <button
+              onClick={() => setFlowState('wallet-unavailable')}
+              className="mt-4 text-white/40 text-xs hover:text-white/60"
+            >
+              Can't access this wallet?
+            </button>
+          </div>
+        )}
+
+        {/* === SCREEN 3B: Wallet Not Available === */}
+        {flowState === 'wallet-unavailable' && (
+          <div className="flex flex-col items-center">
+            <div className="w-16 h-16 bg-orange-500 rounded-full flex items-center justify-center mb-4">
+              <AlertCircle size={32} className="text-white" />
+            </div>
+
+            <h2 className="text-white text-2xl font-bold mb-2">Wallet not available</h2>
+            <p className="text-white/60 text-sm mb-6 text-center">
+              Your account uses a different wallet. To continue, please log in the same way you did last time.
+            </p>
+
+            <button
+              onClick={handleRetryConnectWallet}
+              className="w-full bg-[#0052FF] text-white font-bold py-3 rounded-lg hover:bg-[#0052FF]/90 mb-3"
+            >
+              Retry connecting wallet
+            </button>
+
+            <button
+              onClick={handleCreateNewAccount}
+              className="w-full border border-red-500/50 text-red-400 font-bold py-3 rounded-lg hover:bg-red-500/10"
+            >
+              Create new account
+            </button>
+
+            <div className="w-full bg-orange-500/10 border border-orange-500/30 rounded-lg p-3 mt-4">
+              <p className="text-orange-400 text-xs text-center">
+                Creating a new account will not include your previous balance or entries.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* === SCREEN 4: Profile Completion === */}
+        {flowState === 'profile-completion' && (
+          <div className="flex flex-col">
+            <div className="w-12 h-12 bg-[#0052FF] rounded-full flex items-center justify-center mb-4 mx-auto">
+              <Wallet size={24} className="text-white" />
+            </div>
+
+            <h2 className="text-white text-2xl font-bold mb-2 text-center">Complete your profile</h2>
+            <p className="text-white/60 text-sm mb-6 text-center">
+              Set up your account so you're ready to enter competitions.
+            </p>
+
+            <div className="w-full space-y-4 mb-4">
+              <div>
+                <label className="text-white/70 text-sm mb-1 block">Username *</label>
+                <input
+                  type="text"
+                  placeholder="your_username"
+                  value={profileData.username}
+                  onChange={(e) => setProfileData({ ...profileData, username: e.target.value })}
+                  className="w-full bg-white/5 border border-white/20 rounded-lg px-4 py-2 text-white placeholder:text-white/30 focus:outline-none focus:border-[#0052FF]"
+                />
+              </div>
+
+              <div>
+                <label className="text-white/70 text-sm mb-1 block">Full Name *</label>
+                <input
+                  type="text"
+                  placeholder="John Doe"
+                  value={profileData.fullName}
+                  onChange={(e) => setProfileData({ ...profileData, fullName: e.target.value })}
+                  className="w-full bg-white/5 border border-white/20 rounded-lg px-4 py-2 text-white placeholder:text-white/30 focus:outline-none focus:border-[#0052FF]"
+                />
+              </div>
+
+              <div>
+                <label className="text-white/70 text-sm mb-1 block">Country *</label>
+                <select
+                  value={profileData.country}
+                  onChange={(e) => setProfileData({ ...profileData, country: e.target.value })}
+                  className="w-full bg-white/5 border border-white/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#0052FF]"
+                >
+                  <option value="">Select country</option>
+                  <option value="US">United States</option>
+                  <option value="GB">United Kingdom</option>
+                  <option value="CA">Canada</option>
+                  <option value="AU">Australia</option>
+                  <option value="NZ">New Zealand</option>
+                  <option value="IE">Ireland</option>
+                  <option value="ZA">South Africa</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-white/70 text-sm mb-1 block">Mobile Number (optional)</label>
+                <input
+                  type="tel"
+                  placeholder="+1 234 567 8900"
+                  value={profileData.mobile}
+                  onChange={(e) => setProfileData({ ...profileData, mobile: e.target.value })}
+                  className="w-full bg-white/5 border border-white/20 rounded-lg px-4 py-2 text-white placeholder:text-white/30 focus:outline-none focus:border-[#0052FF]"
+                />
+              </div>
+
+              <div>
+                <label className="text-white/70 text-sm mb-1 block">Social Profiles (optional)</label>
+                <input
+                  type="text"
+                  placeholder="Twitter/Telegram handle"
+                  value={profileData.socialProfiles}
+                  onChange={(e) => setProfileData({ ...profileData, socialProfiles: e.target.value })}
+                  className="w-full bg-white/5 border border-white/20 rounded-lg px-4 py-2 text-white placeholder:text-white/30 focus:outline-none focus:border-[#0052FF]"
+                />
+              </div>
+
+              {emailError && (
+                <span className="text-red-400 text-xs">{emailError}</span>
+              )}
+            </div>
+
+            <button
+              onClick={handleCompleteProfile}
+              disabled={!profileData.username || !profileData.fullName || !profileData.country}
+              className="w-full bg-[#0052FF] text-white font-bold py-3 rounded-lg hover:bg-[#0052FF]/90 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              Continue
+            </button>
+
+            <p className="text-white/40 text-xs mt-4 text-center">
+              Your email will be saved as your account login.
+            </p>
+          </div>
+        )}
+
+        {/* === SCREEN 5: Wallet Detection === */}
+        {flowState === 'wallet-detection' && (
+          <div className="flex flex-col items-center">
+            <div className="w-16 h-16 bg-[#0052FF] rounded-full flex items-center justify-center mb-4">
+              <Loader2 className="animate-spin text-white" size={32} />
+            </div>
+
+            <h2 className="text-white text-2xl font-bold mb-2">Checking for wallets</h2>
+            <p className="text-white/60 text-sm mb-6 text-center">
+              We're checking your device for compatible Base wallets.
+            </p>
+
+            {/* Automatically proceed to wallet choice or create wallet */}
+            <div className="w-full">
+              <SignIn onSuccess={() => {
+                console.log('[BaseWallet] CDP sign-in successful');
+                // Wallet detection will trigger via useEffect
+              }}>
+                {(state: SignInState) => {
+                  if (state.error) {
+                    console.log('[BaseWallet] CDP error:', state.error);
+                  }
+                  return null;
+                }}
+              </SignIn>
+            </div>
+
+            <p className="text-white/40 text-xs mt-4 text-center">
+              No wallets will be connected automatically.
+            </p>
+
+            <button
+              onClick={() => setFlowState('wallet-choice')}
+              className="mt-4 text-[#0052FF] text-sm hover:text-[#0052FF]/80"
+            >
+              Or choose wallet manually →
+            </button>
+          </div>
+        )}
+
+        {/* === SCREEN 6: Wallet Choice === */}
+        {flowState === 'wallet-choice' && (
+          <div className="flex flex-col">
+            <div className="w-16 h-16 bg-[#0052FF] rounded-full flex items-center justify-center mb-4 mx-auto">
+              <Wallet size={32} className="text-white" />
+            </div>
+
+            <h2 className="text-white text-2xl font-bold mb-2 text-center">Choose how you want to use ThePrize</h2>
+            <p className="text-white/60 text-sm mb-6 text-center">
+              This wallet will be used to sign in, enter competitions, and receive tickets.
+            </p>
+
+            <div className="w-full space-y-3 mb-6">
+              {/* Option 1: Use Base App */}
+              <div className="bg-[#0052FF]/10 border border-[#0052FF]/30 rounded-lg p-4">
+                <div className="flex items-center gap-3 mb-2">
+                  <Smartphone size={20} className="text-[#0052FF]" />
+                  <span className="text-white font-semibold">Use my Base App</span>
+                  <span className="text-[#DDE404] text-xs font-semibold ml-auto">Recommended</span>
+                </div>
+                <p className="text-white/60 text-xs mb-3">
+                  Fastest option. Connect your Base app to continue.
+                </p>
+                <WalletComponent>
+                  <ConnectWallet className="w-full bg-[#0052FF] hover:bg-[#0052FF]/90 text-white font-bold py-2 rounded-lg">
+                    <Avatar className="h-6 w-6" />
+                    <Name />
+                  </ConnectWallet>
+                  <WalletDropdown>
+                    <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
+                      <Avatar />
+                      <Name />
+                      <Address />
+                    </Identity>
+                  </WalletDropdown>
+                </WalletComponent>
+                
+                {!wagmiIsConnected && (
+                  <a
+                    href="https://www.base.org/wallet"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#0052FF] text-xs mt-2 inline-flex items-center gap-1 hover:underline"
+                  >
+                    Download Base App <ExternalLink size={12} />
+                  </a>
+                )}
+              </div>
+
+              {/* Option 2: Use Existing Wallet */}
+              <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+                <div className="flex items-center gap-3 mb-2">
+                  <Wallet size={20} className="text-white/70" />
+                  <span className="text-white font-semibold">Use an existing Base wallet</span>
+                </div>
+                <p className="text-white/60 text-xs mb-3">
+                  Connect another wallet that supports the Base network.
+                </p>
+                <WalletComponent>
+                  <ConnectWallet className="w-full bg-white/10 hover:bg-white/20 text-white font-bold py-2 rounded-lg border border-white/20">
+                    <Avatar className="h-6 w-6" />
+                    <Name />
+                  </ConnectWallet>
+                  <WalletDropdown>
+                    <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
+                      <Avatar />
+                      <Name />
+                      <Address />
+                    </Identity>
+                  </WalletDropdown>
+                </WalletComponent>
+              </div>
+
+              {/* Option 3: Create Prize Wallet (conditional) */}
+              {!wagmiIsConnected && (
+                <div className="bg-[#DDE404]/10 border border-[#DDE404]/30 rounded-lg p-4">
+                  <div className="flex items-center gap-3 mb-2">
+                    <Shield size={20} className="text-[#DDE404]" />
+                    <span className="text-white font-semibold">Create a free Prize wallet</span>
+                  </div>
+                  <p className="text-white/60 text-xs mb-3">
+                    No Base wallet found. We'll create one for you automatically.
+                  </p>
+                  <button
+                    onClick={handleCreatePrizeWallet}
+                    className="w-full bg-[#DDE404] hover:bg-[#DDE404]/90 text-black font-bold py-2 rounded-lg"
+                  >
+                    Create wallet
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => setFlowState('profile-completion')}
+              className="text-white/40 text-xs hover:text-white/60"
+            >
+              ← Back to profile
+            </button>
+          </div>
+        )}
+
+        {/* === SCREEN 9: Logged In Success === */}
+        {flowState === 'logged-in-success' && effectiveWalletAddress && (
+          <div className="flex flex-col items-center">
+            <div className="w-20 h-20 bg-gradient-to-br from-[#0052FF] to-[#DDE404] rounded-full flex items-center justify-center mb-4">
+              <CheckCircle size={40} className="text-white" />
+            </div>
+
+            <h2 className="text-white text-3xl font-bold mb-2">You're live.</h2>
+            <p className="text-white/60 text-base mb-6 text-center">
+              The Platform Players Trust.
             </p>
             
             {/* Wallet Address */}
@@ -815,69 +1128,11 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               </div>
             )}
 
-            {/* Email collection for external wallet users - optional but recommended */}
-            {!userEmail && !emailSaved && (
-              <div className="w-full bg-[#0052FF]/10 border border-[#0052FF]/30 rounded-lg p-4 mb-4">
-                <p className="text-white text-sm font-semibold mb-2">Add Your Email (Optional)</p>
-                <p className="text-white/60 text-xs mb-3">
-                  Add your email to unlock full profile features including username customization and account management.
-                </p>
-                <div className="flex gap-2">
-                  <input
-                    type="email"
-                    placeholder="Enter your email"
-                    value={pendingEmail}
-                    onChange={(e) => setPendingEmail(e.target.value)}
-                    className="flex-1 bg-white/5 border border-white/20 rounded-lg px-3 py-2 text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-[#0052FF]"
-                  />
-                  <button
-                    onClick={handleSaveEmail}
-                    disabled={isSavingEmail || !pendingEmail}
-                    className="bg-[#0052FF] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#0052FF]/90 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isSavingEmail ? 'Saving...' : 'Save'}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* How to access - different message for embedded vs external wallets */}
-            {userEmail ? (
-              <div className="w-full bg-white/5 border border-white/10 rounded-lg p-4 mb-4">
-                <p className="text-white text-sm font-semibold mb-2">Access Your Base Account</p>
-                <p className="text-white/60 text-xs">
-                  Download the <span className="text-[#0052FF]">Base</span> app and sign in with <span className="text-white">{userEmail}</span> to manage your funds.
-                </p>
-              </div>
-            ) : (
-              <div className="w-full bg-white/5 border border-white/10 rounded-lg p-4 mb-4">
-                <p className="text-white text-sm font-semibold mb-2">Wallet Connected</p>
-                <p className="text-white/60 text-xs">
-                  Your <span className="text-[#0052FF]">external wallet</span> is now connected. Use the same wallet app to manage your funds and make purchases.
-                </p>
-              </div>
-            )}
-
-            {/* Next step */}
-            <div className="w-full bg-[#DDE404]/10 border border-[#DDE404]/30 rounded-lg p-4 mb-4">
-              <p className="text-[#DDE404] text-sm font-semibold mb-1">Final Step</p>
-              <p className="text-white/60 text-xs">
-                Click below to authenticate and start entering competitions!
-              </p>
-            </div>
-
             <button
               onClick={handleAuthenticate}
-              className="w-full bg-[#DDE404] text-black font-bold py-3 rounded-lg hover:bg-[#DDE404]/90"
+              className="w-full bg-[#DDE404] text-black font-bold py-3 rounded-lg hover:bg-[#DDE404]/90 mb-2"
             >
-              Authenticate & Continue
-            </button>
-            
-            <button
-              onClick={onClose}
-              className="w-full mt-2 text-white/40 text-xs py-2 hover:text-white/60"
-            >
-              I'll do this later
+              Start Entering Competitions
             </button>
 
             <a
@@ -888,371 +1143,6 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             >
               View on BaseScan <ExternalLink size={10} />
             </a>
-          </div>
-        )}
-
-        {/* INTRO STATE */}
-        {flowState === 'intro' && (
-          <div className="flex flex-col items-center">
-            <div className="w-16 h-16 bg-[#0052FF] rounded-full flex items-center justify-center mb-4">
-              <Wallet size={32} className="text-white" aria-hidden="true" />
-            </div>
-
-            <h2 id="auth-modal-title" className="text-white text-xl font-bold mb-2">Welcome, {userEmail.split('@')[0]}!</h2>
-            <p className="text-white/60 text-sm mb-2">Choose how to set up your account</p>
-
-            {/* Email confirmation badge */}
-            <div className="w-full bg-white/5 border border-white/10 rounded-lg p-2 mb-4 flex items-center justify-center gap-2">
-              <CheckCircle size={14} className="text-[#DDE404]" />
-              <span className="text-white/70 text-xs">{userEmail}</span>
-            </div>
-
-            <div className="w-full bg-[#DDE404]/10 border border-[#DDE404]/30 rounded-lg p-3 mb-4" role="note">
-              <p className="text-[#DDE404] text-sm font-semibold text-center">
-                50% Top Up Bonus on your first deposit!
-              </p>
-            </div>
-
-            <button
-              onClick={handleCreateWallet}
-              disabled={isClearing}
-              aria-busy={isClearing}
-              aria-describedby="create-wallet-description"
-              className="w-full bg-[#0052FF] text-white font-bold py-3 rounded-lg hover:bg-[#0052FF]/90 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <Wallet size={18} aria-hidden="true" />
-              {isClearing ? 'Preparing...' : 'Create a Free Base Account'}
-            </button>
-            <span id="create-wallet-description" className="sr-only">Create a new Base smart wallet using your email address</span>
-
-            <button
-              onClick={handleConnectBaseApp}
-              disabled={isClearing}
-              aria-busy={isClearing}
-              aria-describedby="connect-wallet-description"
-              className="w-full mt-3 bg-[#DDE404] text-black font-bold py-3 rounded-lg hover:bg-[#DDE404]/90 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <Smartphone size={18} aria-hidden="true" />
-              Connect existing Base wallet
-            </button>
-            <span id="connect-wallet-description" className="sr-only">Connect an existing wallet from the Base mobile app</span>
-
-            <button
-              onClick={() => setFlowState('email-first')}
-              className="w-full mt-4 text-white/40 text-xs py-2 hover:text-white/60"
-            >
-              ← Use a different email
-            </button>
-          </div>
-        )}
-
-        {/* EMAIL-FIRST STATE - Collect email before showing options */}
-        {flowState === 'email-first' && (
-          <div className="flex flex-col items-center">
-            <div className="w-16 h-16 bg-[#0052FF] rounded-full flex items-center justify-center mb-4">
-              <Wallet size={32} className="text-white" aria-hidden="true" />
-            </div>
-
-            <h2 id="auth-modal-title" className="text-white text-xl font-bold mb-2">Welcome to ThePrize</h2>
-            <p className="text-white/60 text-sm mb-6 text-center">Enter your email to get started</p>
-
-            {/* Info banner */}
-            <div className="w-full bg-[#0052FF]/10 border border-[#0052FF]/30 rounded-lg p-3 mb-4">
-              <p className="text-[#0052FF] text-xs text-center">
-                We link accounts by email to keep your identity secure and prevent duplicates.
-              </p>
-            </div>
-
-            <div className="w-full space-y-4 mb-4">
-              <div className="flex flex-col">
-                <label className="text-white/70 text-sm mb-2">Email Address</label>
-                <input
-                  type="email"
-                  placeholder="your@email.com"
-                  value={emailInput}
-                  onChange={(e) => {
-                    setEmailInput(e.target.value);
-                    setEmailError('');
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleEmailCheck();
-                    }
-                  }}
-                  className="w-full bg-white/5 border border-white/20 rounded-lg px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:border-[#0052FF]"
-                  autoFocus
-                />
-                {emailError && (
-                  <span className="text-red-400 text-xs mt-2">{emailError}</span>
-                )}
-              </div>
-            </div>
-
-            <button
-              onClick={handleEmailCheck}
-              disabled={isCheckingEmail || !emailInput.trim()}
-              className="w-full bg-[#0052FF] text-white font-bold py-3 rounded-lg hover:bg-[#0052FF]/90 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {isCheckingEmail ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  Checking...
-                </>
-              ) : (
-                <>
-                  <ArrowRight size={18} />
-                  Continue
-                </>
-              )}
-            </button>
-
-            <div className="w-full bg-[#DDE404]/10 border border-[#DDE404]/30 rounded-lg p-3 mt-4" role="note">
-              <p className="text-[#DDE404] text-sm font-semibold text-center">
-                50% Top Up Bonus on your first deposit!
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* CREATING STATE - CDP SignIn */}
-        {flowState === 'creating' && (
-          <div className="flex flex-col items-center">
-            <div className="w-12 h-12 bg-[#0052FF] rounded-full flex items-center justify-center mb-3">
-              <Wallet size={24} className="text-white" aria-hidden="true" />
-            </div>
-
-            {/* Show different header for existing vs new users */}
-            {existingUserEmail ? (
-              <>
-                <h3 id="auth-modal-title" className="text-white text-lg font-bold mb-1">Great! You're already a member</h3>
-                <p className="text-white/50 text-xs mb-2 text-center">
-                  Use <span className="text-white font-medium">{existingUserEmail}</span> to sign in now.
-                </p>
-                <div className="w-full bg-[#DDE404]/10 border border-[#DDE404]/30 rounded-lg p-3 mb-4">
-                  <p className="text-[#DDE404] text-xs text-center">
-                    Checking a different account? Enter that email instead.
-                  </p>
-                </div>
-              </>
-            ) : (
-              <>
-                <h3 id="auth-modal-title" className="text-white text-lg font-bold mb-1">Create Your Account</h3>
-                <p className="text-white/50 text-xs mb-4">Verify your email to create your Base account</p>
-              </>
-            )}
-
-            {isClearing ? (
-              <div className="w-full flex items-center justify-center py-8" role="status" aria-live="polite">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0052FF]" aria-hidden="true"></div>
-                <span className="ml-3 text-white/60 text-sm">Preparing sign-in...</span>
-              </div>
-            ) : (
-              <div className="w-full">
-                {/* Email reminder banner - show the collected email and guide user to enter it below */}
-                {/* Only show for new users - existing users already see their email in the header above */}
-                {userEmail && !existingUserEmail && (
-                  <div className="w-full bg-[#0052FF]/20 border-2 border-[#0052FF] rounded-lg p-4 mb-4 relative">
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-6 h-6 bg-[#0052FF] rounded-full flex items-center justify-center mt-0.5">
-                        <CheckCircle size={16} className="text-white" aria-hidden="true" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-white text-sm font-semibold mb-1">
-                          Your Email: <span className="text-[#DDE404]">{userEmail}</span>
-                        </p>
-                        <p className="text-white/80 text-xs">
-                          Enter this email in the Base authentication form below to confirm your account
-                        </p>
-                      </div>
-                    </div>
-                    {/* Arrow pointing down to the SignIn component */}
-                    <div className="absolute -bottom-3 left-1/2 transform -translate-x-1/2" aria-hidden="true">
-                      <ArrowRight size={24} className="text-[#0052FF] rotate-90" />
-                    </div>
-                  </div>
-                )}
-
-                <SignIn onSuccess={handleSignInSuccess}>
-                  {(state: SignInState) => {
-                    // Log errors for debugging
-                    if (state.error) {
-                      console.log('[BaseWallet] CDP error:', state.error);
-                      const errorStr = typeof state.error === 'string' ? state.error : (state.error as any)?.message || '';
-                      const errorLower = errorStr.toLowerCase();
-
-                      // Handle "email already linked" error - user should continue with OTP
-                      if (errorLower.includes('already linked') || errorLower.includes('already associated')) {
-                        return (
-                          <div className="mt-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg" role="alert">
-                            <p className="text-yellow-400 text-xs text-center">
-                              This email already has an account. Please enter the verification code sent to your email to sign in.
-                            </p>
-                          </div>
-                        );
-                      }
-
-                      // Handle rate limiting errors
-                      if (errorLower.includes('rate limit') || errorLower.includes('too many')) {
-                        return (
-                          <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg" role="alert">
-                            <p className="text-red-400 text-xs text-center">
-                              Too many attempts. Please wait a moment before trying again.
-                            </p>
-                          </div>
-                        );
-                      }
-
-                      // Handle network errors
-                      if (errorLower.includes('network') || errorLower.includes('connection') || errorLower.includes('timeout')) {
-                        return (
-                          <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg" role="alert">
-                            <p className="text-red-400 text-xs text-center">
-                              Network error. Please check your connection and try again.
-                            </p>
-                          </div>
-                        );
-                      }
-
-                      // Handle invalid email errors
-                      if (errorLower.includes('invalid email') || errorLower.includes('email format')) {
-                        return (
-                          <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg" role="alert">
-                            <p className="text-red-400 text-xs text-center">
-                              Please enter a valid email address.
-                            </p>
-                          </div>
-                        );
-                      }
-
-                      // Handle user cancellation (not a real error)
-                      if (errorLower.includes('cancelled') || errorLower.includes('rejected') || errorLower.includes('denied')) {
-                        return null; // Don't show error for user cancellation
-                      }
-
-                      // Generic error fallback for unexpected errors
-                      return (
-                        <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg" role="alert">
-                          <p className="text-red-400 text-xs text-center">
-                            Something went wrong. Please try again.
-                          </p>
-                        </div>
-                      );
-                    }
-                    return null;
-                  }}
-                </SignIn>
-              </div>
-            )}
-
-            <button
-              onClick={() => {
-                setExistingUserEmail('');
-                setFlowState('email-first');
-              }}
-              className="w-full mt-4 border border-white/20 text-white text-sm py-3 rounded-lg hover:bg-white/5"
-            >
-              ← Use a different email
-            </button>
-
-            {existingUserEmail && (
-              <button
-                onClick={() => setFlowState('account-recovery')}
-                className="w-full mt-2 text-white/40 text-xs py-2 hover:text-white/60"
-              >
-                Lost access to this email?
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* ACCOUNT RECOVERY STATE */}
-        {flowState === 'account-recovery' && (
-          <div className="flex flex-col items-center">
-            <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center mb-3">
-              <Shield size={24} className="text-white" aria-hidden="true" />
-            </div>
-            <h3 id="auth-modal-title" className="text-white text-lg font-bold mb-1">Account Recovery</h3>
-            <p className="text-white/50 text-xs mb-4 text-center">
-              Lost access to <span className="text-white">{existingUserEmail}</span>?
-            </p>
-
-            <div className="w-full bg-orange-500/10 border border-orange-500/30 rounded-lg p-4 mb-4">
-              <p className="text-orange-400 text-sm font-semibold mb-2">Recovery Options</p>
-              <ul className="text-white/70 text-xs space-y-2">
-                <li>• If you have access to your Base wallet app, connect it below to verify ownership</li>
-                <li>• Otherwise, contact support with proof of account ownership</li>
-              </ul>
-            </div>
-
-            <button
-              onClick={() => setFlowState('connect-wallet')}
-              className="w-full bg-[#DDE404] text-black font-bold py-3 rounded-lg hover:bg-[#DDE404]/90 flex items-center justify-center gap-2"
-            >
-              <Wallet size={18} aria-hidden="true" />
-              Verify with my Base Wallet
-            </button>
-
-            <a
-              href="mailto:support@theprize.io?subject=Account%20Recovery%20Request"
-              className="w-full mt-3 border border-white/20 text-white text-sm py-3 rounded-lg hover:bg-white/5 text-center block"
-            >
-              Contact Support
-            </a>
-
-            <button
-              onClick={() => setFlowState('creating')}
-              className="w-full mt-4 text-white/40 text-xs py-2 hover:text-white/60"
-            >
-              ← Back to sign in
-            </button>
-          </div>
-        )}
-
-        {/* CONNECT-WALLET STATE - Connect with Base App / Coinbase Wallet */}
-        {flowState === 'connect-wallet' && (
-          <div className="flex flex-col items-center">
-            <div className="w-12 h-12 bg-[#DDE404] rounded-full flex items-center justify-center mb-3">
-              <Smartphone size={24} className="text-black" aria-hidden="true" />
-            </div>
-            <h3 id="auth-modal-title" className="text-white text-lg font-bold mb-1">Connect Your Base Wallet</h3>
-            <p className="text-white/50 text-xs mb-4 text-center">
-              Use your existing Base wallet app
-            </p>
-
-            <div className="w-full bg-white/5 border border-white/10 rounded-lg p-4 mb-4">
-              <p className="text-white/70 text-sm mb-3 text-center">
-                Click below to connect your wallet
-              </p>
-              <div className="flex justify-center">
-                <WalletComponent>
-                  <ConnectWallet className="w-full">
-                    <Avatar className="h-6 w-6" />
-                    <Name />
-                  </ConnectWallet>
-                  <WalletDropdown>
-                    <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
-                      <Avatar />
-                      <Name />
-                      <Address />
-                    </Identity>
-                  </WalletDropdown>
-                </WalletComponent>
-              </div>
-            </div>
-
-            <div className="w-full bg-[#0052FF]/10 border border-[#0052FF]/30 rounded-lg p-3 mb-4">
-              <p className="text-[#0052FF] text-xs text-center">
-                Opens Base Smart Wallet - works on both mobile and desktop
-              </p>
-            </div>
-
-            <button
-              onClick={() => setFlowState('intro')}
-              className="w-full border border-white/20 text-white text-sm py-3 rounded-lg hover:bg-white/5"
-            >
-              Back
-            </button>
           </div>
         )}
       </div>
