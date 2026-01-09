@@ -27,6 +27,39 @@ const PRESET_AMOUNTS = Object.keys(TOP_UP_CHECKOUT_URLS).map(Number).filter(a =>
 // Coinbase Commerce preset amounts (same as crypto since they use the same checkout URLs)
 const COMMERCE_PRESET_AMOUNTS = PRESET_AMOUNTS;
 
+/**
+ * Get CDP project ID with fallback chain (cached at module level)
+ * 
+ * Precedence order:
+ * 1. VITE_ONCHAINKIT_PROJECT_ID (OnchainKit-specific configuration)
+ * 2. VITE_CDP_PROJECT_ID (General CDP configuration, used by CDP React Provider)
+ * 
+ * Both variables should have the same value from CDP Portal.
+ * The fallback ensures consistency if only one is set.
+ * 
+ * Cached at module initialization to avoid repeated environment variable access
+ * and to log warnings/errors only once.
+ */
+const getCDPProjectId = (() => {
+  // Read and cache environment variables at module initialization
+  const onchainKitId = import.meta.env.VITE_ONCHAINKIT_PROJECT_ID;
+  const cdpId = import.meta.env.VITE_CDP_PROJECT_ID;
+  const projectId = onchainKitId || cdpId || '';
+  
+  // Log warning if using fallback (only once at initialization)
+  if (!onchainKitId && cdpId) {
+    console.warn('[TopUpWalletModal] Using VITE_CDP_PROJECT_ID as fallback for VITE_ONCHAINKIT_PROJECT_ID');
+  }
+  
+  // Log error if no project ID is configured (only once at initialization)
+  if (!projectId) {
+    console.error('[TopUpWalletModal] No CDP project ID configured. OnchainKit onramp will not work.');
+  }
+  
+  // Return a function that returns the cached project ID
+  return () => projectId;
+})();
+
 const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
   isOpen,
   onClose,
@@ -769,7 +802,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                 <div className="flex justify-center">
                   <FundButton
                     fundingUrl={getOnrampBuyUrl({
-                      projectId: import.meta.env.VITE_ONCHAINKIT_PROJECT_ID || '',
+                      projectId: getCDPProjectId(),
                       addresses: { [walletAddress]: ['base'] },
                       assets: ['USDC'],
                       presetFiatAmount: amount,
