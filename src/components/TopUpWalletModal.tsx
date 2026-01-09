@@ -501,7 +501,41 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
               <div>
                 <p className="text-white sequel-45 mb-4 text-sm">Select payment method:</p>
                 <div className="grid grid-cols-1 gap-3">
-                  {/* Pay with Crypto - Coinbase Commerce */}
+                  {/* Option 1: Top up with another wallet (Instant wallet transfer) */}
+                  {hasWalletBalance && (
+                    <button
+                      onClick={() => handleMethodSelect('instant')}
+                      className={`p-4 rounded-lg transition-all flex items-start gap-4 text-left w-full ${
+                        paymentMethod === 'instant'
+                          ? 'bg-green-500/20 border-2 border-green-500'
+                          : 'bg-[#3A3A3A] border-2 border-green-500/30 hover:border-green-500/60'
+                      }`}
+                    >
+                      <div className={`p-2 rounded-lg ${paymentMethod === 'instant' ? 'bg-green-500' : 'bg-gradient-to-br from-green-500 to-emerald-600'}`}>
+                        <Wallet size={24} className="text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className={`sequel-75 mb-1 ${paymentMethod === 'instant' ? 'text-green-400' : 'text-white'}`}>
+                          Top up with another wallet
+                        </h3>
+                        <p className="text-gray-400 text-xs sequel-45">
+                          Transfer USDC from your connected wallet to your balance. No wallet replacement.
+                        </p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <Wallet size={14} className="text-green-400" />
+                          <span className="text-green-400 text-xs sequel-45">
+                            Available: ${walletUsdcBalance.toFixed(2)} USDC
+                          </span>
+                        </div>
+                        <p className="text-green-500 text-xs sequel-45 mt-2">
+                          ✓ Instant • No fees
+                        </p>
+                      </div>
+                      <ChevronRight size={20} className="text-green-400 opacity-60" />
+                    </button>
+                  )}
+
+                  {/* Option 2: Top up with Coinbase (Commerce flow with hardcoded URLs) */}
                   <button
                     onClick={() => handleMethodSelect('commerce')}
                     className={`p-4 rounded-lg transition-all flex items-start gap-4 text-left w-full ${
@@ -516,7 +550,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <h3 className={`sequel-75 mb-1 ${paymentMethod === 'commerce' ? 'text-[#DDE404]' : 'text-white'}`}>
-                          Pay with Crypto
+                          Top up with Coinbase
                         </h3>
                         <span className="bg-[#DDE404] text-black text-xs sequel-75 px-2 py-0.5 rounded">
                           RECOMMENDED
@@ -538,83 +572,39 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                     <ChevronRight size={20} className="text-[#DDE404] opacity-60" />
                   </button>
 
-                  {/* Pay with Card - Fiat Payment */}
+                  {/* Option 3: Pay with Card (InstaXchange) - Coming Soon */}
                   <button
-                    onClick={() => handleMethodSelect('card')}
                     disabled={true}
-                    className={`p-4 rounded-lg transition-all flex items-start gap-4 text-left w-full ${
-                      paymentMethod === 'card'
-                        ? 'bg-blue-500/20 border-2 border-blue-500'
-                        : 'bg-[#3A3A3A] border-2 border-transparent'
-                    } disabled:opacity-40 disabled:cursor-not-allowed`}
+                    className="p-4 rounded-lg transition-all flex items-start gap-4 text-left w-full bg-[#3A3A3A] border-2 border-gray-600/30 opacity-50 cursor-not-allowed"
                   >
-                    <div className={`p-2 rounded-lg ${paymentMethod === 'card' ? 'bg-blue-500' : 'bg-[#0052FF]'}`}>
-                      <CreditCard size={24} className="text-white" />
+                    <div className="p-2 rounded-lg bg-gray-600">
+                      <CreditCard size={24} className="text-gray-400" />
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <h3 className={`sequel-75 mb-1 ${paymentMethod === 'card' ? 'text-blue-400' : 'text-white'}`}>
-                          Pay with Card
+                        <h3 className="sequel-75 mb-1 text-gray-400">
+                          Pay with Card (powered by InstaXchange)
                         </h3>
-                        <span className="bg-blue-500 text-white text-xs sequel-75 px-2 py-0.5 rounded">
+                        <span className="bg-blue-500/50 text-white text-xs sequel-75 px-2 py-0.5 rounded">
                           COMING SOON
                         </span>
                       </div>
-                      <p className="text-gray-400 text-xs sequel-45">
-                        Credit or debit card payment via secure payment processor.
+                      <p className="text-gray-500 text-xs sequel-45">
+                        Credit or debit card payment via InstaXchange secure payment processor.
                       </p>
                       <div className="flex items-center gap-2 mt-2">
-                        <span className="text-white/50 text-xs">Visa</span>
-                        <span className="text-white/30">•</span>
-                        <span className="text-white/50 text-xs">Mastercard</span>
-                        <span className="text-white/30">•</span>
-                        <span className="text-white/50 text-xs">Apple Pay</span>
+                        <span className="text-white/30 text-xs">Visa</span>
+                        <span className="text-white/20">•</span>
+                        <span className="text-white/30 text-xs">Mastercard</span>
+                        <span className="text-white/20">•</span>
+                        <span className="text-white/30 text-xs">Apple Pay</span>
                       </div>
-                      <p className="text-blue-400/50 text-xs sequel-45 mt-2">
-                        Instant credit to balance
+                      <p className="text-gray-500 text-xs sequel-45 mt-2">
+                        Instant credit to balance - Available soon
                       </p>
                     </div>
-                    <ChevronRight size={20} className="text-blue-400 opacity-30" />
+                    <ChevronRight size={20} className="text-gray-600 opacity-30" />
                   </button>
-
-                  {/* Instaxchange - Disabled */}
-                  <div className="relative">
-                    <div className="absolute -inset-0.5 bg-gradient-to-r from-gray-600 to-gray-500 rounded-xl blur opacity-20"></div>
-                    <button
-                      disabled={true}
-                      className="relative p-4 rounded-lg transition-all flex items-start gap-4 text-left w-full bg-gradient-to-r from-[#3A3A3A] to-[#2A2A2A] border-2 border-gray-600/50 opacity-50 cursor-not-allowed"
-                    >
-                      <div className="p-2 rounded-lg bg-gradient-to-br from-gray-600 to-gray-700">
-                        <Smartphone size={24} className="text-gray-400" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <h3 className="sequel-75 mb-1 text-gray-400">
-                            Instaxchange
-                          </h3>
-                          <span className="bg-gray-600 text-gray-300 text-xs sequel-75 px-2 py-0.5 rounded">
-                            READY
-                          </span>
-                        </div>
-                        <p className="text-gray-500 text-xs sequel-45">
-                          Instant crypto exchange. Quick swap from your wallet balance.
-                        </p>
-                        <div className="flex items-center gap-2 mt-2">
-                          <span className="text-gray-500 text-xs">Coming soon</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 text-gray-500 text-xs sequel-45 bg-gray-800/50 px-2 py-1 rounded">
-                        <Shield size={12} />
-                        <span>Integration pending</span>
-                      </div>
-                    </button>
-                    {/* Coming soon badge overlay */}
-                    <div className="absolute top-4 right-4">
-                      <span className="bg-gray-800/80 text-gray-400 text-xs sequel-75 px-2 py-1 rounded border border-gray-700">
-                        Currently unavailable
-                      </span>
-                    </div>
-                  </div>
                 </div>
               </div>
 
