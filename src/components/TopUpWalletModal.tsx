@@ -34,16 +34,19 @@ const COMMERCE_PRESET_AMOUNTS = PRESET_AMOUNTS;
  * 1. VITE_ONCHAINKIT_PROJECT_ID (OnchainKit-specific configuration)
  * 2. VITE_CDP_PROJECT_ID (General CDP configuration, used by CDP React Provider)
  * 
- * Both variables should have the same value (71e24c24-c628-460c-82e3-f830a2b0daf1).
+ * Both variables should have the same value from CDP Portal.
  * The fallback ensures consistency if only one is set.
  * 
  * @returns CDP project ID string, or empty string if neither is set
  */
 const getCDPProjectId = (): string => {
-  const projectId = import.meta.env.VITE_ONCHAINKIT_PROJECT_ID || import.meta.env.VITE_CDP_PROJECT_ID || '';
+  // Cache environment variable values to avoid repeated access
+  const onchainKitId = import.meta.env.VITE_ONCHAINKIT_PROJECT_ID;
+  const cdpId = import.meta.env.VITE_CDP_PROJECT_ID;
+  const projectId = onchainKitId || cdpId || '';
   
   // Log warning if using fallback
-  if (!import.meta.env.VITE_ONCHAINKIT_PROJECT_ID && import.meta.env.VITE_CDP_PROJECT_ID) {
+  if (!onchainKitId && cdpId) {
     console.warn('[TopUpWalletModal] Using VITE_CDP_PROJECT_ID as fallback for VITE_ONCHAINKIT_PROJECT_ID');
   }
   
