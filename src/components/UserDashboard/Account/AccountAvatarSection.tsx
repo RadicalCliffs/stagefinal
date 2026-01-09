@@ -21,6 +21,8 @@ const AccountAvatarSection = () => {
             src={avatarUrl}
             alt="user-avatar"
             className="lg:w-38 sm:min-w-24 min-w-20 cursor-pointer hover:opacity-80 transition-opacity rounded-lg"
+            crossOrigin="anonymous"
+            referrerPolicy="no-referrer"
             onClick={() => setIsModalOpen(true)}
           />
           <div>
