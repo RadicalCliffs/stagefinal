@@ -70,13 +70,17 @@ export default function Account() {
         }
     };
 
-    // Only show loader on INITIAL load when profile has never been loaded
+    // Only show loader during ACTIVE loading when profile has never been loaded
     // If profile was previously loaded but is temporarily null (e.g., during navigation/refresh),
     // use the last known profile state to avoid flickering
+    //
+    // IMPORTANT: We only show the loader when authLoading is TRUE.
+    // If authLoading is false but profile is still null, it means the auth check
+    // completed but the user profile couldn't be loaded - show the form anyway
+    // so the user can see/edit their account info (even if empty).
     const showLoader = authLoading && !profileEverLoadedRef.current;
-    const hasValidProfileState = userProfile || (profileEverLoadedRef.current && profile.username !== "");
 
-    if (showLoader || (!hasValidProfileState && !profileEverLoadedRef.current)) {
+    if (showLoader) {
         return (
             <div className="py-20">
                 <Loader />
