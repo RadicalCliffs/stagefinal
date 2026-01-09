@@ -493,19 +493,22 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
           <X size={18} />
         </button>
 
-        {/* === SCREEN 1: CDP SignIn (handles email + OTP automatically) === */}
+        {/* === SCREEN 1 & 2: Login / Sign Up + Email Verification (CDP handles both) === */}
+        {/* CDP SignIn component displays Screen 1 (email input) and Screen 2 (OTP) automatically */}
         {flowState === 'cdp-signin' && (
           <div className="flex flex-col items-center">
             <div className="w-16 h-16 bg-[#0052FF] rounded-full flex items-center justify-center mb-4">
               <Wallet size={32} className="text-white" />
             </div>
 
-            <h2 className="text-white text-2xl font-bold mb-2">Welcome to ThePrize</h2>
+            <h2 className="text-white text-2xl font-bold mb-2">Log in or create an account</h2>
             <p className="text-white/60 text-sm mb-6 text-center">
-              Sign in or create your account with Base
+              Enter your email address to continue.
             </p>
 
             <div className="w-full">
+              {/* CDP SignIn handles both Screen 1 (email) and Screen 2 (OTP verification) */}
+              {/* It shows email input first, then OTP input after sending the code */}
               <SignIn onSuccess={() => {
                 console.log('[BaseWallet] CDP sign-in successful - wallet will be available shortly');
               }}>
@@ -518,7 +521,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                     // Handle specific error cases
                     if (errorLower.includes('already linked') || errorLower.includes('already associated')) {
                       return (
-                        <div className="mt-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                        <div className="mt-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg" role="alert">
                           <p className="text-yellow-400 text-xs text-center">
                             This email already has an account. Please enter the verification code sent to your email to sign in.
                           </p>
@@ -528,7 +531,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
                     if (errorLower.includes('rate limit') || errorLower.includes('too many')) {
                       return (
-                        <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                        <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg" role="alert">
                           <p className="text-red-400 text-xs text-center">
                             Too many attempts. Please wait a moment before trying again.
                           </p>
@@ -538,7 +541,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
                     if (errorLower.includes('network') || errorLower.includes('connection') || errorLower.includes('timeout')) {
                       return (
-                        <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                        <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg" role="alert">
                           <p className="text-red-400 text-xs text-center">
                             Network error. Please check your connection and try again.
                           </p>
@@ -548,7 +551,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
                     if (errorLower.includes('invalid email') || errorLower.includes('email format')) {
                       return (
-                        <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                        <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg" role="alert">
                           <p className="text-red-400 text-xs text-center">
                             Please enter a valid email address.
                           </p>
@@ -562,7 +565,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
                     // Generic error fallback
                     return (
-                      <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                      <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg" role="alert">
                         <p className="text-red-400 text-xs text-center">
                           Something went wrong. Please try again.
                         </p>
@@ -570,13 +573,15 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                     );
                   }
                   // Return null to let SignIn render its default UI
+                  // This shows Screen 1 (email input) with copy: "We'll send you a one-time code to verify your email."
+                  // After email submission, it shows Screen 2 (OTP input) with copy: "This is only required on your first login or when using a new device."
                   return null;
                 }}
               </SignIn>
             </div>
 
             <p className="text-white/40 text-xs mt-4 text-center">
-              CDP will handle email verification automatically
+              We'll send you a one-time code to verify your email.
             </p>
 
             <button
@@ -588,7 +593,16 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
           </div>
         )}
 
-        {/* === SCREEN 2: Profile Completion === */}
+        {/* === SCREENS 3A, 3B, 5, 7, 8: Handled by CDP === */}
+        {/* Screen 3A: Returning User - Resolve Active Wallet (Available) */}
+        {/* Screen 3B: Returning User - Active Wallet Not Available */}
+        {/* Screen 5: Wallet Detection (Read-Only) - CDP checks for compatible Base wallets */}
+        {/* Screen 7: Network Enforcement - CDP ensures user is on Base network */}
+        {/* Screen 8: Signature & Login - CDP handles message signing to confirm wallet */}
+        {/* All of these are handled internally by the CDP SignIn component */}
+
+        {/* === SCREEN 4: Profile Completion (First-Time Users Only) === */}
+        {/* Displayed only if the email address does not already have a Prize account */}
         {flowState === 'profile-completion' && (
           <div className="flex flex-col">
             <div className="w-12 h-12 bg-[#0052FF] rounded-full flex items-center justify-center mb-4 mx-auto">
@@ -683,7 +697,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
           </div>
         )}
 
-        {/* === SCREEN 3: Wallet Choice === */}
+        {/* === SCREEN 6: Explicit Wallet Choice (First-Time Users) === */}
         {flowState === 'wallet-choice' && (
           <div className="flex flex-col">
             <div className="w-16 h-16 bg-[#0052FF] rounded-full flex items-center justify-center mb-4 mx-auto">
@@ -696,7 +710,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             </p>
 
             <div className="w-full space-y-3 mb-6">
-              {/* Option 1: Use Base App */}
+              {/* Option 1: Use my Base App (Recommended) */}
               <div className="bg-[#0052FF]/10 border border-[#0052FF]/30 rounded-lg p-4">
                 <div className="flex items-center gap-3 mb-2">
                   <Smartphone size={20} className="text-[#0052FF]" />
@@ -720,6 +734,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                   </WalletDropdown>
                 </WalletComponent>
                 
+                {/* Conditional: Show download link only if Base App is not installed */}
                 {!wagmiIsConnected && (
                   <a
                     href="https://www.base.org/wallet"
@@ -732,7 +747,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                 )}
               </div>
 
-              {/* Option 2: Use Existing Wallet */}
+              {/* Option 2: Use an existing Base wallet */}
               <div className="bg-white/5 border border-white/10 rounded-lg p-4">
                 <div className="flex items-center gap-3 mb-2">
                   <Wallet size={20} className="text-white/70" />
@@ -755,6 +770,25 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                   </WalletDropdown>
                 </WalletComponent>
               </div>
+
+              {/* Conditional Option: Create a free Prize wallet (only if no Base wallet detected) */}
+              {!wagmiIsConnected && (
+                <div className="bg-[#DDE404]/10 border border-[#DDE404]/30 rounded-lg p-4">
+                  <div className="flex items-center gap-3 mb-2">
+                    <Shield size={20} className="text-[#DDE404]" />
+                    <span className="text-white font-semibold">Create a free Prize wallet</span>
+                  </div>
+                  <p className="text-white/60 text-xs mb-3">
+                    No Base wallet found. We'll create one for you automatically.
+                  </p>
+                  <button
+                    onClick={() => setFlowState('cdp-signin')}
+                    className="w-full bg-[#DDE404] hover:bg-[#DDE404]/90 text-black font-bold py-2 rounded-lg"
+                  >
+                    Create wallet
+                  </button>
+                </div>
+              )}
             </div>
 
             <button
@@ -766,7 +800,8 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
           </div>
         )}
 
-        {/* === SCREEN 4: Logged In Success === */}
+        {/* === SCREEN 9: Logged In (Success) === */}
+        {/* Title: "You're live." | Body: "The Platform Players Trust." */}
         {flowState === 'logged-in-success' && effectiveWalletAddress && (
           <div className="flex flex-col items-center">
             <div className="w-20 h-20 bg-gradient-to-br from-[#0052FF] to-[#DDE404] rounded-full flex items-center justify-center mb-4">
