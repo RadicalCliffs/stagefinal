@@ -769,7 +769,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                 <div className="flex justify-center">
                   <FundButton
                     fundingUrl={getOnrampBuyUrl({
-                      projectId: import.meta.env.VITE_ONCHAINKIT_PROJECT_ID || '',
+                      projectId: import.meta.env.VITE_ONCHAINKIT_PROJECT_ID || import.meta.env.VITE_CDP_PROJECT_ID || '',
                       addresses: { [walletAddress]: ['base'] },
                       assets: ['USDC'],
                       presetFiatAmount: amount,
