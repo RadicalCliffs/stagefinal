@@ -574,7 +574,6 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
 
                   {/* Option 3: Pay with Card (InstaXchange) - Coming Soon */}
                   <button
-                    onClick={() => {}} // Disabled state - no action taken
                     disabled={true}
                     className="p-4 rounded-lg transition-all flex items-start gap-4 text-left w-full bg-[#3A3A3A] border-2 border-gray-600/30 opacity-50 cursor-not-allowed"
                   >
