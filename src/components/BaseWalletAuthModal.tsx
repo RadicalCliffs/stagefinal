@@ -336,7 +336,6 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
     if (isOpen) {
       savedToDbRef.current = false;
       walletDetectedRef.current = false;
-      setIsClearing(false);
       setEmailInput('');
       setOtpCode('');
       setEmailError('');
@@ -484,8 +483,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
     }
 
     setOtpError('');
-    const isLoading = true;
-    setIsLoading(isLoading);
+    setIsLoading(true);
 
     try {
       const res = await fetch(
