@@ -24,6 +24,11 @@
 import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
 import { useAuthUser } from '../../contexts/AuthContext';
 import {
+  getCompetitionDetails,
+  getTicketOwner,
+  useCompetitionEvents,
+  type CompetitionDetails,
+  type PurchaseResult
 } from '../../lib/luckyDip';
 import { supabase } from '../../lib/supabase';
 import { reserveTicketsWithRedundancy } from '../../lib/reserve-tickets-redundant';
