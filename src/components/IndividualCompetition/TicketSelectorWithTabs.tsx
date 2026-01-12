@@ -414,13 +414,14 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                     console.log("[TicketSelector] HTTP 409 - removing unavailable tickets:", parsedError.unavailableTickets);
                     
                     // Remove unavailable tickets from selection
+                    const unavailableSet = new Set(parsedError.unavailableTickets);
                     setSelectedTickets(prev =>
-                        prev.filter(t => !parsedError.unavailableTickets!.includes(t))
+                        prev.filter(t => !unavailableSet.has(t))
                     );
                     
                     // Immediately remove unavailable tickets from visible UI state
                     setAvailableTickets(prev =>
-                        prev.filter(t => !parsedError.unavailableTickets!.includes(t))
+                        prev.filter(t => !unavailableSet.has(t))
                     );
                     
                     // Refresh available tickets from server for consistency
@@ -444,12 +445,13 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                 // Handle specific errors from the response
                 if (response?.unavailableTickets?.length > 0) {
                     // Some tickets were taken - remove them from selection
+                    const unavailableSet = new Set(response.unavailableTickets);
                     setSelectedTickets(prev =>
-                        prev.filter(t => !response.unavailableTickets.includes(t))
+                        prev.filter(t => !unavailableSet.has(t))
                     );
                     // Immediately remove unavailable tickets from visible UI state
                     setAvailableTickets(prev =>
-                        prev.filter(t => !response.unavailableTickets.includes(t))
+                        prev.filter(t => !unavailableSet.has(t))
                     );
                     // Refresh available tickets from server for consistency
                     const available = await database.getAvailableTicketsForCompetition(competitionId, totalTickets, baseUser.id);
