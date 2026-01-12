@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
 import TicketGrid from "./TicketGrid";
 import type { Options } from "../../models/models";
 import FilterTabs from "../FilterButtons";
@@ -11,7 +11,7 @@ import { supabase } from "../../lib/supabase";
 import { useAuthUser } from "../../contexts/AuthContext";
 import { getUserFriendlyErrorMessage, parseReservationErrorAsync, SupabaseFunctionError } from "../../lib/error-handler";
 import { debounce } from "../../utils/util";
-import { reserveTicketsWithRedundancy, parseReservationResponse } from "../../lib/reserve-tickets-redundant";
+import { reserveTicketsWithRedundancy } from "../../lib/reserve-tickets-redundant";
 
 // Lazy load PaymentModal - only loaded when user initiates payment
 const PaymentModal = lazy(() => import("../PaymentModal"));
@@ -29,8 +29,8 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
     // Ensure ticketPrice is a valid positive number (handles string coercion from database)
     const ticketPrice = Number(rawTicketPrice) || 1;
 
-    // Calculate remaining tickets available for purchase
-    const remainingTickets = Math.max(0, totalTickets - ticketsSold);
+    // Calculate remaining tickets available for purchase (unused but kept for clarity)
+    // const remainingTickets = Math.max(0, totalTickets - ticketsSold);
 
     const generateFilterOptions = (total: number): Options[] => {
         const options: Options[] = [];
@@ -284,7 +284,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
             } else {
                 sessionStorage.removeItem(`selectedTickets_${competitionId}`);
             }
-        } catch (e) {
+        } catch {
             // sessionStorage may not be available in some contexts
         }
     }, [selectedTickets, competitionId]);
@@ -473,7 +473,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
     };
 
     // Handle checkout - reserve tickets first, then show payment
-    const handleCheckout = async () => {
+    const handleCheckoutAction = async () => {
         setShowCaptchaModal(true);
     };
 

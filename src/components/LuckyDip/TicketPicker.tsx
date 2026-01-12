@@ -24,14 +24,8 @@
 import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
 import { useAuthUser } from '../../contexts/AuthContext';
 import {
-  getCompetitionDetails,
-  getTicketOwner,
-  useCompetitionEvents,
-  type CompetitionDetails,
-  type PurchaseResult
 } from '../../lib/luckyDip';
 import { supabase } from '../../lib/supabase';
-import { database } from '../../lib/database';
 import { reserveTicketsWithRedundancy } from '../../lib/reserve-tickets-redundant';
 import { parseReservationErrorAsync, getUserFriendlyErrorMessage, SupabaseFunctionError } from '../../lib/error-handler';
 import CaptchaModal from '../CaptchaModal';

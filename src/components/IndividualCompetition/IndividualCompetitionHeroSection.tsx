@@ -16,7 +16,7 @@ import { useAuthUser } from "../../contexts/AuthContext";
 import { useTicketBroadcast, type TicketStats } from "../../hooks/useTicketBroadcast";
 import { ticketReservationLogger, requestTracker, showDebugHintOnError } from "../../lib/debug-console";
 import { canEnterCompetition } from "../CompetitionStatusIndicator";
-import { reserveTicketsWithRedundancy, parseReservationResponse } from "../../lib/reserve-tickets-redundant";
+import { reserveTicketsWithRedundancy } from "../../lib/reserve-tickets-redundant";
 
 // Lazy load PaymentModal - only loaded when user initiates payment
 const PaymentModal = lazy(() => import("../PaymentModal"));
@@ -60,7 +60,7 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
     });
   }, []);
 
-  const { isSubscribed: isBroadcastConnected } = useTicketBroadcast({
+  const { isSubscribed: _isBroadcastConnected } = useTicketBroadcast({
     competitionId: competition?.id || '',
     onEvent: (event) => {
       if (event.stats) {
