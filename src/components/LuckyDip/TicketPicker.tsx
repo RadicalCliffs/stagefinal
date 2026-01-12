@@ -253,15 +253,17 @@ export default function TicketPicker({
         if (parsedError.statusCode === 409 && parsedError.unavailableTickets && parsedError.unavailableTickets.length > 0) {
           console.log("[TicketPicker] HTTP 409 - removing unavailable tickets:", parsedError.unavailableTickets);
           
+          const unavailableTickets = parsedError.unavailableTickets;
+          
           // Remove unavailable tickets from selection
           const newSelected = new Set(selectedTickets);
-          parsedError.unavailableTickets.forEach(t => newSelected.delete(t));
+          unavailableTickets.forEach(t => newSelected.delete(t));
           setSelectedTickets(newSelected);
           
           // Immediately add unavailable tickets to sold tickets display
           setSoldTickets(prev => {
             const updated = new Set(prev);
-            parsedError.unavailableTickets!.forEach(t => updated.add(t));
+            unavailableTickets.forEach(t => updated.add(t));
             return updated;
           });
           
