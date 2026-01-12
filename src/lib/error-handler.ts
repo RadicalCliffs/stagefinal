@@ -480,11 +480,23 @@ export async function parseReservationErrorAsync(error: unknown): Promise<{
 
   const message = (responseData.error || responseData.message || defaultResult.message) as string;
   const unavailableTickets = responseData.unavailableTickets as number[] | undefined;
-  const retryable = responseData.retryable === true || isRetryableError({ statusCode });
+  
+  // For HTTP 409 with unavailableTickets, this is NOT retryable automatically
+  // The user must reselect tickets manually
+  const isConflictWithUnavailable = statusCode === 409 && unavailableTickets && unavailableTickets.length > 0;
+  const retryable = isConflictWithUnavailable ? false : (responseData.retryable === true || isRetryableError({ statusCode }));
+
+  // Create specific message for 409 conflicts with unavailable tickets
+  let finalMessage = message;
+  if (statusCode === 409 && unavailableTickets && unavailableTickets.length > 0) {
+    finalMessage = `Tickets ${unavailableTickets.join(', ')} are no longer available. Please select different tickets.`;
+  } else {
+    finalMessage = getUserFriendlyErrorMessage(statusCode, message);
+  }
 
   return {
     statusCode,
-    message: getUserFriendlyErrorMessage(statusCode, message),
+    message: finalMessage,
     unavailableTickets,
     retryable
   };

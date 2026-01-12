@@ -96,9 +96,6 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
     const [reserving, setReserving] = useState(false);
     const [reservationError, setReservationError] = useState<string | null>(null);
     const [reservationSuccess, setReservationSuccess] = useState<string | null>(null);
-    const [retryCount, setRetryCount] = useState(0);
-    const maxRetries = 2;
-    const retryTimerRef = useRef<NodeJS.Timeout | null>(null);
 
     const startRangeIndex = (currentRangePage - 1) * RANGES_PER_PAGE;
     const endRangeIndex = Math.min(startRangeIndex + RANGES_PER_PAGE, filterOptions.length);
@@ -368,24 +365,10 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
     const clearMessages = () => {
         setReservationError(null);
         setReservationSuccess(null);
-        setRetryCount(0);
-        if (retryTimerRef.current) {
-            clearTimeout(retryTimerRef.current);
-            retryTimerRef.current = null;
-        }
     };
 
-    // Cleanup retry timer on unmount
-    useEffect(() => {
-        return () => {
-            if (retryTimerRef.current) {
-                clearTimeout(retryTimerRef.current);
-            }
-        };
-    }, []);
-
-    // Reserve tickets using Base authentication with automatic retry for transient errors
-    const reserveTickets = async (isRetry = false): Promise<string | null> => {
+    // Reserve tickets using Base authentication - no automatic retries, let server decide availability
+    const reserveTickets = async (): Promise<string | null> => {
         if (!baseUser?.id) {
             setReservationError("Please log in to reserve tickets");
             return null;
@@ -395,46 +378,27 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
         clearMessages();
 
         try {
-            // Fetch fresh availability data directly (don't rely on stale state)
-            // Pass baseUser.id to exclude the current user's own pending reservations
-            // since those will be cancelled when making a new reservation
-            const freshAvailableTickets = await database.getAvailableTicketsForCompetition(competitionId, totalTickets, baseUser.id);
-            setAvailableTickets(freshAvailableTickets);
-
-            // Check if our selected tickets are still available using fresh data
-            const unavailableTicketsFound = selectedTickets.filter(ticket => !freshAvailableTickets.includes(ticket));
-            if (unavailableTicketsFound.length > 0) {
-                // Remove unavailable tickets from selection
-                setSelectedTickets(prev => prev.filter(t => freshAvailableTickets.includes(t)));
-                throw new Error(`Tickets ${unavailableTicketsFound.join(", ")} are no longer available. Please select different tickets.`);
-            }
-
-            // Make the request using REDUNDANT function calls
-            // This tries the primary function first, then automatically falls back to backup
-            // Both reserve-tickets and reserve_tickets are called if needed
+            // Make the reservation request - let the server decide availability
             let response: any;
             let error: any;
 
             try {
-                console.log("[TicketSelector] Using redundant reservation service");
+                console.log("[TicketSelector] Calling reserve_tickets endpoint");
 
-                const redundantResult = await reserveTicketsWithRedundancy({
+                const result = await reserveTicketsWithRedundancy({
                     userId: baseUser.id,
                     competitionId: competitionId,
                     selectedTickets: selectedTickets,
-                    ticketPrice: Number(ticketPrice),
                 });
 
-                response = redundantResult.data;
-                error = redundantResult.error;
-
-                console.log(`[TicketSelector] Reservation completed via: ${redundantResult.functionUsed}`);
+                response = result.data;
+                error = result.error;
 
                 if (error) {
-                    console.log("[reserve-tickets-redundant] error:", error);
+                    console.log("[reserve_tickets] error:", error);
                 }
             } catch (invokeError) {
-                console.log("[reserve-tickets-redundant] caught exception:", invokeError);
+                console.log("[reserve_tickets] caught exception:", invokeError);
                 error = invokeError;
             }
 
@@ -445,40 +409,21 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                 // Use the async parseReservationErrorAsync for better body parsing
                 const parsedError = await parseReservationErrorAsync(error);
 
-                // Handle unavailable tickets - remove them and refresh
-                if (parsedError.unavailableTickets && parsedError.unavailableTickets.length > 0) {
+                // Handle HTTP 409 with unavailable tickets - remove them from UI and refresh
+                if (parsedError.statusCode === 409 && parsedError.unavailableTickets && parsedError.unavailableTickets.length > 0) {
+                    console.log("[TicketSelector] HTTP 409 - removing unavailable tickets:", parsedError.unavailableTickets);
+                    
+                    // Remove unavailable tickets from selection
                     setSelectedTickets(prev =>
                         prev.filter(t => !parsedError.unavailableTickets!.includes(t))
                     );
-                    // Refresh available tickets - exclude current user's pending reservations
+                    
+                    // Refresh available tickets from server
                     const available = await database.getAvailableTicketsForCompetition(competitionId, totalTickets, baseUser.id);
                     setAvailableTickets(available);
 
-                    // Remove unavailable tickets from selection
-                    const stillAvailable = selectedTickets.filter(t => available.includes(t));
-                    if (stillAvailable.length !== selectedTickets.length) {
-                        setSelectedTickets(stillAvailable);
-                    }
-                }
-
-                // Check if error is retryable and we haven't exceeded retry limit
-                // isAvailabilityError: true if tickets are unavailable or it's a conflict error
-                const isAvailabilityError = parsedError.retryable ||
-                    parsedError.statusCode === 409 ||
-                    (parsedError.unavailableTickets && parsedError.unavailableTickets.length > 0);
-                const errorMsg = parsedError.message;
-
-                if (isAvailabilityError && !isRetry && retryCount < maxRetries) {
-                    console.log(`Retryable error, scheduling retry ${retryCount + 1}/${maxRetries}...`);
-                    setRetryCount(prev => prev + 1);
-                    setReservationError(`${errorMsg} Retrying...`);
-
-                    // Auto-retry after a short delay
-                    retryTimerRef.current = setTimeout(async () => {
-                        setReservationError(null);
-                        await reserveTickets(true);
-                    }, 1500);
-
+                    // Show specific error message for 409 conflicts
+                    setReservationError(parsedError.message);
                     return null;
                 }
 
@@ -489,16 +434,15 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                 );
             }
 
-            // Check for success - backend returns { ok: true, reserved: [...], competition_id }
-            // Also handle legacy format { success: true, reservationId, ... }
-            if (!response?.ok && !response?.success) {
+            // Only show success on HTTP 200 with success: true
+            if (response?.success !== true) {
                 // Handle specific errors from the response
                 if (response?.unavailableTickets?.length > 0) {
                     // Some tickets were taken - remove them from selection
                     setSelectedTickets(prev =>
                         prev.filter(t => !response.unavailableTickets.includes(t))
                     );
-                    // Refresh available tickets - exclude current user's pending reservations
+                    // Refresh available tickets
                     const available = await database.getAvailableTicketsForCompetition(competitionId, totalTickets, baseUser.id);
                     setAvailableTickets(available);
                     throw new Error(`Tickets ${response.unavailableTickets.join(", ")} are no longer available. Please select different tickets.`);
@@ -507,12 +451,9 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
             }
 
             // Success - set reservation ID and success message
-            // IMPORTANT: Only use the actual reservationId from response
-            // Never use competition_id as a fallback - it's a different concept
             const resId = response.reservationId || null;
             setReservationId(resId);
             setReservationSuccess("Tickets reserved! Complete payment within 15 minutes.");
-            setRetryCount(0); // Reset retry count on success
             return resId;
         } catch (err) {
             // Enhanced error handling with user-friendly messages
@@ -524,16 +465,10 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                 errorMessage = getUserFriendlyErrorMessage();
             }
 
-            // Only set error if we're not in the middle of a retry
-            if (!retryTimerRef.current) {
-                setReservationError(errorMessage);
-            }
+            setReservationError(errorMessage);
             return null;
         } finally {
-            // Only clear reserving state if not scheduling a retry
-            if (!retryTimerRef.current) {
-                setReserving(false);
-            }
+            setReserving(false);
         }
     };
 
@@ -783,15 +718,12 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                     </div>
                 )}
 
-                {/* Reserving Indicator - Updated to show retry status */}
+                {/* Reserving Indicator */}
                 {reserving && (
                     <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg px-4 py-2.5">
                         <p className="text-blue-400 text-xs sequel-45 text-center flex items-center justify-center gap-2">
                             <span className="animate-spin">⏳</span>
-                            {retryCount > 0
-                                ? `Retrying reservation (attempt ${retryCount + 1}/${maxRetries + 1})...`
-                                : 'Reserving your tickets...'
-                            }
+                            Reserving your tickets...
                         </p>
                     </div>
                 )}
