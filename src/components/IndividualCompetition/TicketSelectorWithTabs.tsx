@@ -418,7 +418,12 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                         prev.filter(t => !parsedError.unavailableTickets!.includes(t))
                     );
                     
-                    // Refresh available tickets from server
+                    // Immediately remove unavailable tickets from visible UI state
+                    setAvailableTickets(prev =>
+                        prev.filter(t => !parsedError.unavailableTickets!.includes(t))
+                    );
+                    
+                    // Refresh available tickets from server for consistency
                     const available = await database.getAvailableTicketsForCompetition(competitionId, totalTickets, baseUser.id);
                     setAvailableTickets(available);
 
@@ -442,7 +447,11 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                     setSelectedTickets(prev =>
                         prev.filter(t => !response.unavailableTickets.includes(t))
                     );
-                    // Refresh available tickets
+                    // Immediately remove unavailable tickets from visible UI state
+                    setAvailableTickets(prev =>
+                        prev.filter(t => !response.unavailableTickets.includes(t))
+                    );
+                    // Refresh available tickets from server for consistency
                     const available = await database.getAvailableTicketsForCompetition(competitionId, totalTickets, baseUser.id);
                     setAvailableTickets(available);
                     throw new Error(`Tickets ${response.unavailableTickets.join(", ")} are no longer available. Please select different tickets.`);
