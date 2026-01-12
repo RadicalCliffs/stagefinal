@@ -56,12 +56,20 @@ async function invokeReserveFunction(
       headers['Authorization'] = `Bearer ${session.access_token}`;
     }
 
+    // Log outgoing payload for debugging
+    console.log('[reserveTickets] outgoing', {
+      userId: params.userId?.substring(0, 15) + '...',
+      competitionId: params.competitionId,
+      selectedTickets: params.selectedTickets,
+      len: params.selectedTickets.length,
+    });
+
     const result = await supabase.functions.invoke('reserve_tickets', {
       headers,
       body: {
         userId: params.userId,
         competitionId: params.competitionId,
-        ticketNumbers: params.selectedTickets,
+        selectedTickets: params.selectedTickets, // Send as selectedTickets array (required by Edge Function)
       },
     });
 

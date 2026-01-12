@@ -136,9 +136,12 @@ Deno.serve(async (req: Request) => {
 
     // Accept both camelCase and snake_case parameter names for backwards compatibility
     // Some clients may send competition_id/tickets instead of competitionId/selectedTickets
+    // Also accept ticket_numbers or ticketIds for flexibility
     const resolvedCompetitionId = competitionId || body.competition_id;
-    const resolvedSelectedTickets = selectedTickets || body.tickets;
+    const resolvedSelectedTickets = selectedTickets || body.ticket_numbers || body.ticketIds || body.ticketNumbers || body.tickets;
 
+    // Log all body keys for debugging payload issues
+    console.log(`[${requestId}][BACKUP] Request body keys:`, Object.keys(body));
     console.log(`[${requestId}][BACKUP] Parsed request body:`, {
       hasUserId: !!userId,
       hasUserIdentifier: !!userIdentifier,
@@ -147,7 +150,9 @@ Deno.serve(async (req: Request) => {
       ticketCount: Array.isArray(resolvedSelectedTickets) ? resolvedSelectedTickets.length : 0,
       hasTicketPrice: ticketPrice !== undefined,
       hasSessionId: !!sessionId,
-      isWalletAddress: userIdentifier ? isWalletAddress(String(userIdentifier)) : false
+      isWalletAddress: userIdentifier ? isWalletAddress(String(userIdentifier)) : false,
+      // Log if client sent ticketCount instead of array (common mistake)
+      sentTicketCountInstead: body.ticketCount !== undefined && !resolvedSelectedTickets,
     });
 
     // Validate required fields
@@ -162,8 +167,17 @@ Deno.serve(async (req: Request) => {
     }
 
     if (!resolvedSelectedTickets || !Array.isArray(resolvedSelectedTickets) || resolvedSelectedTickets.length === 0) {
-      console.error(`[${requestId}] Missing or invalid selectedTickets`);
-      return errorResponse("selectedTickets array is required and must not be empty", 400, corsHeaders);
+      console.error(`[${requestId}] Missing or invalid selectedTickets. Body keys: ${Object.keys(body).join(', ')}`);
+      // Provide clear error message explaining what's expected vs what was received
+      const receivedKeys = Object.keys(body).join(', ');
+      const hasTicketCount = body.ticketCount !== undefined;
+      const errorMsg = hasTicketCount
+        ? "ticket_numbers/selectedTickets array is required; ticketCount (number) is not accepted. Please send the actual ticket numbers array."
+        : `selectedTickets array is required and must not be empty. Received keys: ${receivedKeys}`;
+      return errorResponse(errorMsg, 400, corsHeaders, {
+        hint: "Send body with: { userId, competitionId, selectedTickets: [1, 2, 3, ...] }",
+        receivedKeys: Object.keys(body),
+      });
     }
 
     // Validate ticket numbers are valid integers
