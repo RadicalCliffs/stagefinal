@@ -31,7 +31,6 @@ import {
   type PurchaseResult
 } from '../../lib/luckyDip';
 import { supabase } from '../../lib/supabase';
-import { database } from '../../lib/database';
 import { reserveTicketsWithRedundancy } from '../../lib/reserve-tickets-redundant';
 import { parseReservationErrorAsync, getUserFriendlyErrorMessage, SupabaseFunctionError } from '../../lib/error-handler';
 import CaptchaModal from '../CaptchaModal';
@@ -240,37 +239,43 @@ export default function TicketPicker({
     try {
       const ticketArray = Array.from(selectedTickets).sort((a, b) => a - b);
 
-      // Reserve tickets using the redundant reservation service
-      const redundantResult = await reserveTicketsWithRedundancy({
+      // Reserve tickets using the reservation service
+      const result = await reserveTicketsWithRedundancy({
         userId: baseUser.id,
         competitionId: dbCompetitionId,
         selectedTickets: ticketArray,
-        ticketPrice: ticketPrice,
       });
 
-      if (redundantResult.error) {
-        const parsedError = await parseReservationErrorAsync(redundantResult.error);
+      if (result.error) {
+        const parsedError = await parseReservationErrorAsync(result.error);
         
-        // Handle unavailable tickets
-        if (parsedError.unavailableTickets && parsedError.unavailableTickets.length > 0) {
+        // Handle HTTP 409 with unavailable tickets - remove them from UI and refresh
+        if (parsedError.statusCode === 409 && parsedError.unavailableTickets && parsedError.unavailableTickets.length > 0) {
+          console.log("[TicketPicker] HTTP 409 - removing unavailable tickets:", parsedError.unavailableTickets);
+          
           const newSelected = new Set(selectedTickets);
           parsedError.unavailableTickets.forEach(t => newSelected.delete(t));
           setSelectedTickets(newSelected);
           
           // Refresh sold tickets
           await loadSoldTickets();
+          
+          // Show specific error message for 409 conflicts
+          setReservationError(parsedError.message);
+          return null;
         }
         
         throw new SupabaseFunctionError(
           parsedError.message,
           parsedError.statusCode,
-          redundantResult.error
+          result.error
         );
       }
 
-      const response = redundantResult.data;
+      const response = result.data;
       
-      if (!response?.ok && !response?.success) {
+      // Only show success on HTTP 200 with success: true
+      if (response?.success !== true) {
         throw new Error(response?.error || "Failed to reserve tickets");
       }
 

@@ -16,7 +16,7 @@ import { useAuthUser } from "../../contexts/AuthContext";
 import { useTicketBroadcast, type TicketStats } from "../../hooks/useTicketBroadcast";
 import { ticketReservationLogger, requestTracker, showDebugHintOnError } from "../../lib/debug-console";
 import { canEnterCompetition } from "../CompetitionStatusIndicator";
-import { reserveTicketsWithRedundancy, parseReservationResponse } from "../../lib/reserve-tickets-redundant";
+import { reserveTicketsWithRedundancy } from "../../lib/reserve-tickets-redundant";
 
 // Lazy load PaymentModal - only loaded when user initiates payment
 const PaymentModal = lazy(() => import("../PaymentModal"));
@@ -60,7 +60,7 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
     });
   }, []);
 
-  const { isSubscribed: isBroadcastConnected } = useTicketBroadcast({
+  useTicketBroadcast({
     competitionId: competition?.id || '',
     onEvent: (event) => {
       if (event.stats) {
@@ -231,7 +231,6 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
 
   // Reserve random tickets for lucky dip before payment
   // This ensures tickets are held atomically and prevents overselling
-  // Includes automatic retry logic for race conditions
   const reserveLuckyDipTickets = async (): Promise<boolean> => {
     if (!baseUser?.id || !competition?.id || ticketCount <= 0) {
       ticketReservationLogger.warn('Pre-validation failed', {
@@ -246,8 +245,6 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
     setReserving(true);
     setReservationError(null);
 
-    const maxRetries = 3;
-    let lastError = "";
     const reservationStartTime = Date.now();
 
     ticketReservationLogger.group(`Lucky Dip Reservation - ${ticketCount} tickets`);
@@ -258,221 +255,142 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
       totalTickets: competition.total_tickets
     });
 
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      const attemptStartTime = Date.now();
-      try {
-        ticketReservationLogger.info(`Attempt ${attempt}/${maxRetries}`, {
-          userId: baseUser.id.substring(0, 10) + '...'
+    try {
+      ticketReservationLogger.info('Fetching available tickets');
+
+      // Get current available tickets - let the server decide final availability
+      const availableTickets = await database.getAvailableTicketsForCompetition(competition.id, competition.total_tickets || 0, baseUser.id);
+
+      ticketReservationLogger.debug('Available tickets fetched', {
+        availableCount: availableTickets.length,
+        requestedCount: ticketCount
+      });
+
+      if (availableTickets.length < ticketCount) {
+        ticketReservationLogger.warn('Insufficient tickets available', {
+          available: availableTickets.length,
+          requested: ticketCount
         });
-
-        // Get current available tickets (fresh fetch on each attempt)
-        // Pass baseUser.id to exclude the current user's own pending reservations
-        // since those will be cancelled when making a new reservation
-        const availableTickets = await database.getAvailableTicketsForCompetition(competition.id, competition.total_tickets || 0, baseUser.id);
-
-        ticketReservationLogger.debug('Available tickets fetched', {
-          availableCount: availableTickets.length,
-          requestedCount: ticketCount
-        });
-
-        if (availableTickets.length < ticketCount) {
-          ticketReservationLogger.warn('Insufficient tickets available', {
-            available: availableTickets.length,
-            requested: ticketCount
-          });
-          setReservationError(`Only ${availableTickets.length} tickets available. Please reduce your selection.`);
-          setReserving(false);
-          ticketReservationLogger.groupEnd();
-          return false;
-        }
-
-        // Pick random tickets from available pool
-        const shuffled = [...availableTickets].sort(() => Math.random() - 0.5);
-        const selectedTickets = shuffled.slice(0, ticketCount);
-
-        ticketReservationLogger.info('Invoking reserve-tickets edge function', {
-          ticketPreview: selectedTickets.slice(0, 5).join(', ') + (selectedTickets.length > 5 ? '...' : ''),
-          totalSelected: selectedTickets.length
-        });
-
-        // Reserve them atomically using REDUNDANT function calls
-        // This tries the primary function first, then automatically falls back to backup
-        const edgeFunctionStartTime = Date.now();
-
-        let data: any;
-        let error: any;
-        let functionUsed: string = 'none';
-
-        try {
-          ticketReservationLogger.info('Using redundant reservation service');
-
-          const redundantResult = await reserveTicketsWithRedundancy({
-            userId: baseUser.id,
-            competitionId: competition.id,
-            selectedTickets: selectedTickets,
-            ticketPrice: Number(competition?.ticket_price) || 1,
-          });
-
-          data = redundantResult.data;
-          error = redundantResult.error;
-          functionUsed = redundantResult.functionUsed;
-
-          ticketReservationLogger.info(`Reservation completed via: ${functionUsed}`);
-
-          if (error) {
-            console.log("[reserve-tickets-redundant] error:", error);
-          }
-        } catch (invokeError) {
-          console.log("[reserve-tickets-redundant] caught exception:", invokeError);
-          error = invokeError;
-        }
-
-        const response = data;
-
-        const edgeFunctionDuration = Date.now() - edgeFunctionStartTime;
-
-        // Handle function invocation errors
-        // Note: Both primary and backup functions have been tried by this point
-        if (error) {
-          ticketReservationLogger.edgeFunctionError('reserve-tickets-redundant', error, attempt, maxRetries);
-          showDebugHintOnError();
-
-          requestTracker.addRequest({
-            timestamp: Date.now(),
-            endpoint: `edge:reserve-tickets-redundant(${functionUsed})`,
-            method: 'EDGE_FUNCTION',
-            success: false,
-            error: error.message || 'Both reservation functions failed',
-            errorCode: 'INVOKE_ERROR',
-            duration: edgeFunctionDuration
-          });
-
-          lastError = "Could not reserve tickets. Please try again.";
-
-          // Check if it's a retryable error (409 conflict)
-          const errorMessage = error.message || '';
-          const isRetryable = errorMessage.includes('409') || errorMessage.includes('conflict') || errorMessage.includes('Conflict');
-
-          if (isRetryable && attempt < maxRetries) {
-            ticketReservationLogger.info('Retryable error detected, will retry', {
-              delayMs: 500 * attempt
-            });
-            await new Promise(resolve => setTimeout(resolve, 500 * attempt)); // Exponential backoff
-            continue;
-          }
-          break;
-        }
-
-        // Handle application-level errors from the response
-        // Backend returns { ok: true, reserved: [...], competition_id } on success
-        if (!response?.ok && !response?.success) {
-          const errorMsg = response?.error || "Failed to reserve tickets";
-          ticketReservationLogger.warn('Application-level error', {
-            attempt,
-            error: errorMsg,
-            response,
-            functionUsed
-          });
-
-          requestTracker.addRequest({
-            timestamp: Date.now(),
-            endpoint: `edge:reserve-tickets-redundant(${functionUsed})`,
-            method: 'EDGE_FUNCTION',
-            success: false,
-            error: errorMsg,
-            errorCode: 'APP_ERROR',
-            duration: edgeFunctionDuration
-          });
-
-          lastError = errorMsg;
-
-          // If some tickets were taken (retryable), try again with fresh selection
-          const isRetryable = errorMsg.includes('not available') ||
-            errorMsg.includes('conflict') ||
-            errorMsg.includes('reserved');
-
-          if (isRetryable && attempt < maxRetries) {
-            ticketReservationLogger.info('Tickets unavailable, retrying with fresh selection', {
-              delayMs: 300 * attempt
-            });
-            await new Promise(resolve => setTimeout(resolve, 300 * attempt));
-            continue;
-          }
-
-          // Not retryable or out of retries
-          setReservationError(errorMsg);
-          setReserving(false);
-          ticketReservationLogger.groupEnd();
-          return false;
-        }
-
-        // Success!
-        // Handle both old response format (reservationId, ticketNumbers, ticketCount)
-        // and new stub format (ok: true, reserved: [...], competition_id)
-        const reservedTicketNumbers = response.reserved || response.ticketNumbers || selectedTickets;
-        const ticketCountReserved = response.reserved?.length || response.ticketCount || selectedTickets.length;
-
-        ticketReservationLogger.success('Reservation successful', {
-          attempt,
-          ticketCountReserved,
-          reservationId: response.reservationId || '(none)',
-          functionUsed,
-          attemptDuration: Date.now() - attemptStartTime,
-          totalDuration: Date.now() - reservationStartTime
-        });
-
-        requestTracker.addRequest({
-          timestamp: Date.now(),
-          endpoint: `edge:reserve-tickets-redundant(${functionUsed})`,
-          method: 'EDGE_FUNCTION',
-          success: true,
-          duration: edgeFunctionDuration
-        });
-
-        // Use the actual reservationId from response
-        // IMPORTANT: Never use competition_id as a fallback - it's a different concept
-        // The reservationId is a UUID pointing to a pending_tickets row
-        const actualReservationId = response.reservationId || null;
-        setReservationId(actualReservationId);
-        setReservedTickets(reservedTicketNumbers);
+        setReservationError(`Only ${availableTickets.length} tickets available. Please reduce your selection.`);
         setReserving(false);
         ticketReservationLogger.groupEnd();
-        return true;
+        return false;
+      }
 
-      } catch (err) {
-        ticketReservationLogger.error(`Exception on attempt ${attempt}`, err);
+      // Pick random tickets from available pool
+      const shuffled = [...availableTickets].sort(() => Math.random() - 0.5);
+      const selectedTickets = shuffled.slice(0, ticketCount);
+
+      ticketReservationLogger.info('Invoking reserve_tickets edge function', {
+        ticketPreview: selectedTickets.slice(0, 5).join(', ') + (selectedTickets.length > 5 ? '...' : ''),
+        totalSelected: selectedTickets.length
+      });
+
+      // Reserve them atomically using the reserve_tickets function
+      const edgeFunctionStartTime = Date.now();
+
+      const result = await reserveTicketsWithRedundancy({
+        userId: baseUser.id,
+        competitionId: competition.id,
+        selectedTickets: selectedTickets,
+      });
+
+      const edgeFunctionDuration = Date.now() - edgeFunctionStartTime;
+
+      // Handle function invocation errors
+      if (result.error) {
+        ticketReservationLogger.edgeFunctionError('reserve_tickets', result.error, 1, 1);
         showDebugHintOnError();
 
         requestTracker.addRequest({
           timestamp: Date.now(),
-          endpoint: 'edge:reserve-tickets-redundant',
+          endpoint: 'edge:reserve_tickets',
           method: 'EDGE_FUNCTION',
           success: false,
-          error: err instanceof Error ? err.message : 'Unknown exception',
-          errorCode: 'EXCEPTION',
-          duration: Date.now() - attemptStartTime
+          error: result.error.message || 'Reservation failed',
+          errorCode: 'INVOKE_ERROR',
+          duration: edgeFunctionDuration
         });
 
-        lastError = err instanceof Error ? err.message : "Failed to reserve tickets";
-
-        if (attempt < maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, 500 * attempt));
-          continue;
-        }
+        setReservationError("Could not reserve tickets. Please try again.");
+        setReserving(false);
+        ticketReservationLogger.groupEnd();
+        return false;
       }
+
+      const response = result.data;
+
+      // Only show success on HTTP 200 with success: true
+      if (response?.success !== true) {
+        const errorMsg = response?.error || "Failed to reserve tickets";
+        ticketReservationLogger.warn('Application-level error', {
+          error: errorMsg,
+          response
+        });
+
+        requestTracker.addRequest({
+          timestamp: Date.now(),
+          endpoint: 'edge:reserve_tickets',
+          method: 'EDGE_FUNCTION',
+          success: false,
+          error: errorMsg,
+          errorCode: 'APP_ERROR',
+          duration: edgeFunctionDuration
+        });
+
+        setReservationError(errorMsg);
+        setReserving(false);
+        ticketReservationLogger.groupEnd();
+        return false;
+      }
+
+      // Success!
+      // Handle both old response format (reservationId, ticketNumbers, ticketCount)
+      // and new stub format (ok: true, reserved: [...], competition_id)
+      const reservedTicketNumbers = response.reserved || response.ticketNumbers || selectedTickets;
+      const ticketCountReserved = response.reserved?.length || response.ticketCount || selectedTickets.length;
+
+      ticketReservationLogger.success('Reservation successful', {
+        ticketCountReserved,
+        reservationId: response.reservationId || '(none)',
+        totalDuration: Date.now() - reservationStartTime
+      });
+
+      requestTracker.addRequest({
+        timestamp: Date.now(),
+        endpoint: 'edge:reserve_tickets',
+        method: 'EDGE_FUNCTION',
+        success: true,
+        duration: edgeFunctionDuration
+      });
+
+      // Use the actual reservationId from response
+      const actualReservationId = response.reservationId || null;
+      setReservationId(actualReservationId);
+      setReservedTickets(reservedTicketNumbers);
+      setReserving(false);
+      ticketReservationLogger.groupEnd();
+      return true;
+
+    } catch (err) {
+      ticketReservationLogger.error('Exception during reservation', err);
+      showDebugHintOnError();
+
+      requestTracker.addRequest({
+        timestamp: Date.now(),
+        endpoint: 'edge:reserve_tickets',
+        method: 'EDGE_FUNCTION',
+        success: false,
+        error: err instanceof Error ? err.message : 'Unknown exception',
+        errorCode: 'EXCEPTION',
+        duration: Date.now() - reservationStartTime
+      });
+
+      setReservationError(err instanceof Error ? err.message : "Failed to reserve tickets");
+      setReserving(false);
+      ticketReservationLogger.groupEnd();
+      return false;
     }
-
-    // All retries exhausted
-    ticketReservationLogger.error('All retry attempts failed', {
-      maxRetries,
-      lastError,
-      totalDuration: Date.now() - reservationStartTime
-    });
-
-    setReservationError(lastError || "Failed to reserve tickets after multiple attempts. Please try again.");
-    setReserving(false);
-    ticketReservationLogger.groupEnd();
-    return false;
   };
 
   // Use accurate data from ticket availability, with fallback to competition data
