@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import TicketGrid from "./TicketGrid";
 import type { Options } from "../../models/models";
 import FilterTabs from "../FilterButtons";

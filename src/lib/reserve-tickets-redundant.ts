@@ -128,25 +128,3 @@ export async function reserveTicketsWithRedundancy(
     error: error instanceof Error ? error : new Error(String(error || 'Failed to reserve tickets')),
   };
 }
-
-/**
- * Parse a reservation response to extract the reservation ID and ticket numbers.
- * Handles multiple response formats from different function versions.
- */
-export function parseReservationResponse(response: ReserveTicketsResponse | null): {
-  reservationId: string | null;
-  ticketNumbers: number[];
-  ticketCount: number;
-  success: boolean;
-} {
-  if (!response) {
-    return { reservationId: null, ticketNumbers: [], ticketCount: 0, success: false };
-  }
-
-  const success = response.success === true || response.ok === true;
-  const reservationId = response.reservationId || null;
-  const ticketNumbers = response.reserved || response.ticketNumbers || response.selectedTickets || [];
-  const ticketCount = response.ticketCount || ticketNumbers.length;
-
-  return { reservationId, ticketNumbers, ticketCount, success };
-}

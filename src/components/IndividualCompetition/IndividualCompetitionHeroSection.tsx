@@ -60,7 +60,7 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
     });
   }, []);
 
-  const { isSubscribed: _isBroadcastConnected } = useTicketBroadcast({
+  useTicketBroadcast({
     competitionId: competition?.id || '',
     onEvent: (event) => {
       if (event.stats) {
