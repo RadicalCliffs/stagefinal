@@ -64,9 +64,16 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
     try {
       // Use get_user_balance RPC for consistent balance lookups
       // This now reads from sub_account_balances.available_balance as the source of truth
+      // IMPORTANT: Always use canonical_user_id (prize:pid: format) for RPC lookups
       const canonicalUserId = toPrizePid(userId);
 
+      console.log('[RealTimeBalance] Fetching balance for:', {
+        originalUserId: userId?.substring(0, 20) + '...',
+        canonicalUserId: canonicalUserId.substring(0, 30) + '...',
+      });
+
       // Primary: Use get_user_balance RPC function (reads from sub_account_balances)
+      // The RPC filters on canonical_user_id with case-insensitive LOWER() matching
       const { data: rpcBalance, error: rpcError } = await supabase.rpc('get_user_balance', {
         p_canonical_user_id: canonicalUserId
       });
@@ -126,13 +133,16 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
 
       const userIsWallet = isWalletAddress(userId);
       const normalizedUserId = userIsWallet ? normalizeWalletAddress(userId) || userId.toLowerCase() : userId;
+      // Also try lowercase version of canonical ID for case-insensitive matching
+      const canonicalUserIdLower = canonicalUserId.toLowerCase();
 
-      // Try sub_account_balances directly
+      // Try sub_account_balances directly with case-insensitive matching
+      // Use ilike for canonical_user_id to handle potential case mismatches
       const { data: subAccountData, error: subAccountError } = await supabase
         .from('sub_account_balances')
         .select('id, user_id, available_balance, pending_balance, canonical_user_id, privy_user_id')
         .eq('currency', 'USD')
-        .or(`canonical_user_id.eq.${canonicalUserId},user_id.eq.${userId},privy_user_id.eq.${userId}`)
+        .or(`canonical_user_id.ilike.${canonicalUserIdLower},canonical_user_id.eq.${canonicalUserId},user_id.eq.${userId},privy_user_id.eq.${userId}`)
         .limit(1);
 
       if (subAccountData && subAccountData.length > 0 && !subAccountError) {
