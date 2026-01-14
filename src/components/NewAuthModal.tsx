@@ -821,11 +821,11 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
                       Fastest option if you already use Base or Coinbase Wallet.
                     </p>
                     <WalletComponent>
-                      <ConnectWallet className="w-full">
-                        <button className="w-full py-3 bg-[#0052FF] hover:bg-[#0041CC] text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2">
-                          <WalletIcon size={20} />
-                          Connect Wallet
-                        </button>
+                      <ConnectWallet
+                        className="w-full py-3 bg-[#0052FF] hover:bg-[#0041CC] text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Avatar className="h-5 w-5" />
+                        <Name />
                       </ConnectWallet>
                       <WalletDropdown>
                         <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
