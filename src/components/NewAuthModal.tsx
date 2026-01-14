@@ -10,25 +10,30 @@
  * All user data is stored in canonical_users and profiles tables with canonical_user_id as the primary identifier.
  */
 
-import React, { useState, useEffect } from 'react';
-import { X, CheckCircle, AlertCircle, Loader2, User, Mail, Globe, Wallet as WalletIcon, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { X, CheckCircle, AlertCircle, Loader2, User, Mail, Globe, Wallet as WalletIcon, ArrowRight, KeyRound } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { toPrizePid } from '../utils/userId';
 import { SignIn } from '@coinbase/cdp-react';
-import { ConnectWallet } from '@coinbase/onchainkit/wallet';
+import { ConnectWallet, Wallet as WalletComponent, WalletDropdown } from '@coinbase/onchainkit/wallet';
+import { Identity, Avatar, Name, Address } from '@coinbase/onchainkit/identity';
 import { useCurrentUser, useEvmAddress, useIsSignedIn } from '@coinbase/cdp-hooks';
+import { useAccount, useDisconnect } from 'wagmi';
 
 interface NewAuthModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-type AuthStep = 
+type AuthStep =
   | 'username'           // Step 1: Enter or create username
   | 'profile'            // Step 2: Complete profile (email OTP, name, country, avatar, social)
   | 'email-otp'          // Step 2a: Email verification with OTP
   | 'wallet'             // Step 3: Connect Base wallet
-  | 'success';           // Step 4: Success confirmation
+  | 'success'            // Step 4: Success confirmation
+  | 'existing-account'   // Step: Show existing account options
+  | 'username-recovery'  // Step: Send username reminder email
+  | 'disassociate-email';// Step: Confirm email disassociation
 
 interface ProfileData {
   username: string;
@@ -42,6 +47,13 @@ interface ProfileData {
   metaConnected?: boolean;
 }
 
+interface ExistingAccountInfo {
+  type: 'email' | 'username' | 'both';
+  existingEmail?: string;
+  existingUsername?: string;
+  maskedEmail?: string;
+}
+
 export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
   const [step, setStep] = useState<AuthStep>('username');
   const [profileData, setProfileData] = useState<ProfileData>({
@@ -53,11 +65,20 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
   const [otpCode, setOtpCode] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [isReturningUser, setIsReturningUser] = useState(false);
+  const [existingAccountInfo, setExistingAccountInfo] = useState<ExistingAccountInfo | null>(null);
+  const [recoveryEmailSent, setRecoveryEmailSent] = useState(false);
 
   // CDP hooks for wallet connection
   const { currentUser } = useCurrentUser();
   const { evmAddress } = useEvmAddress();
   const { isSignedIn } = useIsSignedIn();
+
+  // Wagmi hooks for external wallet connection (Base App, Coinbase Wallet, etc.)
+  const { address: wagmiAddress, isConnected: wagmiIsConnected } = useAccount();
+  const { disconnect: wagmiDisconnect } = useDisconnect();
+
+  // Get the effective wallet address (CDP or wagmi)
+  const effectiveWalletAddress = evmAddress || wagmiAddress;
 
   // Reset state when modal opens
   useEffect(() => {
@@ -68,15 +89,17 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
       setOtpCode('');
       setOtpSent(false);
       setIsReturningUser(false);
+      setExistingAccountInfo(null);
+      setRecoveryEmailSent(false);
     }
   }, [isOpen]);
 
   // Check if wallet is connected, auto-advance to success
   useEffect(() => {
-    if (step === 'wallet' && isSignedIn && evmAddress) {
+    if (step === 'wallet' && effectiveWalletAddress && (isSignedIn || wagmiIsConnected)) {
       handleWalletConnected();
     }
-  }, [step, isSignedIn, evmAddress]);
+  }, [step, isSignedIn, evmAddress, wagmiIsConnected, wagmiAddress, effectiveWalletAddress]);
 
   if (!isOpen) return null;
 
@@ -136,11 +159,82 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
   };
 
   /**
+   * Helper: Mask email for privacy (e.g., t***@email.com)
+   */
+  const maskEmail = (email: string): string => {
+    const [localPart, domain] = email.split('@');
+    if (!domain) return email;
+    const masked = localPart.charAt(0) + '***';
+    return `${masked}@${domain}`;
+  };
+
+  /**
+   * Check for existing email or username in database
+   */
+  const checkForDuplicates = async (username: string, email: string): Promise<ExistingAccountInfo | null> => {
+    try {
+      // Check for existing email
+      const { data: emailData } = await supabase
+        .from('canonical_users')
+        .select('id, username, email')
+        .ilike('email', email.trim())
+        .maybeSingle();
+
+      // Check for existing username (only if different from email check result)
+      const { data: usernameData } = await supabase
+        .from('canonical_users')
+        .select('id, username, email')
+        .ilike('username', username.trim())
+        .maybeSingle();
+
+      // Both email and username exist for different accounts
+      if (emailData && usernameData && emailData.id !== usernameData.id) {
+        return {
+          type: 'both',
+          existingEmail: emailData.email,
+          existingUsername: usernameData.username,
+          maskedEmail: maskEmail(emailData.email)
+        };
+      }
+
+      // Only email exists
+      if (emailData) {
+        return {
+          type: 'email',
+          existingEmail: emailData.email,
+          existingUsername: emailData.username,
+          maskedEmail: maskEmail(emailData.email)
+        };
+      }
+
+      // Only username exists
+      if (usernameData) {
+        return {
+          type: 'username',
+          existingUsername: usernameData.username,
+          existingEmail: usernameData.email,
+          maskedEmail: usernameData.email ? maskEmail(usernameData.email) : undefined
+        };
+      }
+
+      return null;
+    } catch (err) {
+      console.error('[NewAuthModal] Error checking duplicates:', err);
+      return null;
+    }
+  };
+
+  /**
    * Step 2: Complete profile and send OTP
    */
   const handleProfileSubmit = async () => {
     if (!profileData.email.trim()) {
       setError('Email is required');
+      return;
+    }
+
+    if (!profileData.username.trim() && !isReturningUser) {
+      setError('Username is required');
       return;
     }
 
@@ -156,10 +250,28 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
       return;
     }
 
+    // Validate username format (if not returning user)
+    if (!isReturningUser && !/^[a-zA-Z0-9_]+$/.test(profileData.username.trim())) {
+      setError('Username can only contain letters, numbers, and underscores');
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
     try {
+      // Check for duplicate email or username before proceeding
+      if (!isReturningUser) {
+        const duplicateInfo = await checkForDuplicates(profileData.username, profileData.email);
+
+        if (duplicateInfo) {
+          setExistingAccountInfo(duplicateInfo);
+          setStep('existing-account');
+          setIsLoading(false);
+          return;
+        }
+      }
+
       // Send OTP via Netlify function using SendGrid
       console.log('[NewAuthModal] Sending OTP to:', profileData.email);
 
@@ -230,7 +342,7 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
    * Step 3: Handle wallet connected
    */
   const handleWalletConnected = async () => {
-    if (!evmAddress) {
+    if (!effectiveWalletAddress) {
       setError('No wallet address detected');
       return;
     }
@@ -240,7 +352,7 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
 
     try {
       // Generate canonical_user_id from wallet address
-      const canonicalUserId = toPrizePid(evmAddress);
+      const canonicalUserId = toPrizePid(effectiveWalletAddress);
 
       // Create or update user in canonical_users table
       const { error: upsertError } = await supabase
@@ -249,9 +361,9 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
           canonical_user_id: canonicalUserId,
           username: profileData.username.toLowerCase(),
           email: profileData.email.toLowerCase(),
-          wallet_address: evmAddress.toLowerCase(),
-          base_wallet_address: evmAddress.toLowerCase(),
-          eth_wallet_address: evmAddress.toLowerCase(),
+          wallet_address: effectiveWalletAddress.toLowerCase(),
+          base_wallet_address: effectiveWalletAddress.toLowerCase(),
+          eth_wallet_address: effectiveWalletAddress.toLowerCase(),
           ...(profileData.country && { country: profileData.country }),
           ...(profileData.avatar && { avatar_url: profileData.avatar }),
           ...(profileData.telegram && { telegram_handle: profileData.telegram }),
@@ -266,7 +378,7 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
         .from('profiles')
         .upsert({
           id: canonicalUserId,
-          wallet_address: evmAddress.toLowerCase(),
+          wallet_address: effectiveWalletAddress.toLowerCase(),
         }, {
           onConflict: 'id'
         });
@@ -292,13 +404,16 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
         console.warn('[NewAuthModal] Balance init error (non-fatal):', balanceError);
       }
 
+      // Store wallet address in localStorage for auth flow
+      localStorage.setItem('cdp:wallet_address', effectiveWalletAddress);
+
       // Success!
       setStep('success');
-      
+
       // Dispatch auth-complete event for AuthContext to refresh
-      const event = new CustomEvent('auth-complete', { 
-        detail: { 
-          walletAddress: evmAddress,
+      const event = new CustomEvent('auth-complete', {
+        detail: {
+          walletAddress: effectiveWalletAddress,
           canonicalUserId
         } 
       });
@@ -314,6 +429,94 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  /**
+   * Send username recovery email to the existing email address
+   */
+  const handleSendUsernameRecovery = async () => {
+    if (!existingAccountInfo?.existingEmail) {
+      setError('No email address on file');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/send-username-reminder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: existingAccountInfo.existingEmail.toLowerCase() }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send username reminder');
+      }
+
+      setRecoveryEmailSent(true);
+    } catch (err) {
+      console.error('[NewAuthModal] Error sending username reminder:', err);
+      setError(err instanceof Error ? err.message : 'Failed to send email. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /**
+   * Disassociate email from old account and allow new account creation
+   * This marks the old account as inactive but preserves the data for posterity
+   */
+  const handleDisassociateEmail = async () => {
+    if (!existingAccountInfo?.existingEmail) {
+      setError('No existing account found');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Update the old account to remove email and mark as inactive
+      const { error: updateError } = await supabase
+        .from('canonical_users')
+        .update({
+          email: null,
+          is_active: false,
+          deactivated_at: new Date().toISOString(),
+          deactivation_reason: 'email_disassociation_user_request'
+        })
+        .ilike('email', existingAccountInfo.existingEmail);
+
+      if (updateError) throw updateError;
+
+      console.log('[NewAuthModal] Email disassociated from old account:', existingAccountInfo.existingEmail);
+
+      // Clear the existing account info and continue with registration
+      setExistingAccountInfo(null);
+      setError(null);
+      setStep('profile');
+    } catch (err) {
+      console.error('[NewAuthModal] Error disassociating email:', err);
+      setError('Failed to process request. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /**
+   * Go back to login with existing account
+   */
+  const handleLoginWithExistingAccount = () => {
+    // Set the username to the existing one and go to username step
+    if (existingAccountInfo?.existingUsername) {
+      setProfileData(prev => ({ ...prev, username: existingAccountInfo.existingUsername || '' }));
+    }
+    setExistingAccountInfo(null);
+    setStep('username');
+    setError(null);
   };
 
   const renderStep = () => {
@@ -605,27 +808,47 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
             </div>
 
             <div className="space-y-4">
-              {!isSignedIn ? (
+              {!isSignedIn && !wagmiIsConnected ? (
                 <>
-                  <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
-                    <ConnectWallet className="w-full">
-                      <button className="w-full py-3 bg-[#0052FF] hover:bg-[#0041CC] text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2">
-                        <WalletIcon size={20} />
-                        Connect an existing Base wallet
-                      </button>
-                    </ConnectWallet>
-                    <p className="text-xs text-white/50 mt-2">
-                      Recommended if you already use Base or Coinbase Wallet.
+                  {/* Option 1: Connect existing Base wallet via wagmi */}
+                  <div className="p-4 bg-[#0052FF]/10 border border-[#0052FF]/30 rounded-lg">
+                    <div className="flex items-center gap-3 mb-2">
+                      <WalletIcon size={20} className="text-[#0052FF]" />
+                      <span className="text-white font-semibold">Connect existing Base wallet</span>
+                      <span className="text-[#DDE404] text-xs font-semibold ml-auto">Recommended</span>
+                    </div>
+                    <p className="text-white/60 text-xs mb-3">
+                      Fastest option if you already use Base or Coinbase Wallet.
                     </p>
+                    <WalletComponent>
+                      <ConnectWallet className="w-full">
+                        <button className="w-full py-3 bg-[#0052FF] hover:bg-[#0041CC] text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2">
+                          <WalletIcon size={20} />
+                          Connect Wallet
+                        </button>
+                      </ConnectWallet>
+                      <WalletDropdown>
+                        <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
+                          <Avatar />
+                          <Name />
+                          <Address />
+                        </Identity>
+                      </WalletDropdown>
+                    </WalletComponent>
                   </div>
 
                   <div className="text-center text-white/40 text-sm">OR</div>
 
+                  {/* Option 2: Create new wallet via CDP SignIn */}
                   <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
-                    <SignIn />
-                    <p className="text-xs text-white/50 mt-2">
+                    <div className="flex items-center gap-3 mb-2">
+                      <KeyRound size={20} className="text-white/70" />
+                      <span className="text-white font-semibold">Create a new Base wallet</span>
+                    </div>
+                    <p className="text-white/60 text-xs mb-3">
                       No wallet yet? Create one now and get started instantly.
                     </p>
+                    <SignIn />
                   </div>
                 </>
               ) : (
@@ -635,7 +858,7 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
                     <span className="font-semibold">Wallet Connected!</span>
                   </div>
                   <p className="text-white/70 text-sm mt-2">
-                    {evmAddress?.substring(0, 6)}...{evmAddress?.substring(evmAddress.length - 4)}
+                    {effectiveWalletAddress?.substring(0, 6)}...{effectiveWalletAddress?.substring(effectiveWalletAddress.length - 4)}
                   </p>
                 </div>
               )}
@@ -672,6 +895,200 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
             <p className="text-sm text-white/50">
               Redirecting you now...
             </p>
+          </div>
+        );
+
+      case 'existing-account':
+        return (
+          <div className="space-y-6">
+            <div>
+              <div className="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertCircle size={32} className="text-yellow-400" />
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-2 text-center">Account already exists</h2>
+              <p className="text-white/70 text-center">
+                {existingAccountInfo?.type === 'email' && (
+                  <>This email is already registered with username <strong className="text-white">{existingAccountInfo.existingUsername}</strong>.</>
+                )}
+                {existingAccountInfo?.type === 'username' && (
+                  <>This username is already taken and registered with email <strong className="text-white">{existingAccountInfo.maskedEmail}</strong>.</>
+                )}
+                {existingAccountInfo?.type === 'both' && (
+                  <>Both this email and username are already in use by different accounts.</>
+                )}
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {/* Option 1: Login with existing account */}
+              <button
+                onClick={handleLoginWithExistingAccount}
+                className="w-full py-3 bg-[#0052FF] hover:bg-[#0041CC] text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                <User size={20} />
+                Login with existing account
+              </button>
+
+              {/* Option 2: Send username reminder email */}
+              {existingAccountInfo?.existingEmail && (
+                <button
+                  onClick={() => setStep('username-recovery')}
+                  className="w-full py-3 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                >
+                  <Mail size={20} />
+                  Forgot your username? Get a reminder
+                </button>
+              )}
+
+              {/* Option 3: Lost email access - create new account */}
+              {existingAccountInfo?.type === 'email' && (
+                <button
+                  onClick={() => setStep('disassociate-email')}
+                  className="w-full py-3 bg-white/5 hover:bg-white/10 text-white/70 font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 text-sm"
+                >
+                  Lost access to that email? Create new account
+                </button>
+              )}
+            </div>
+
+            {error && (
+              <div className="flex items-center gap-2 text-red-400 text-sm">
+                <AlertCircle size={16} />
+                {error}
+              </div>
+            )}
+
+            <button
+              onClick={() => {
+                setExistingAccountInfo(null);
+                setStep('profile');
+              }}
+              className="w-full text-white/50 hover:text-white/70 text-sm transition-colors"
+            >
+              Go back and try different details
+            </button>
+          </div>
+        );
+
+      case 'username-recovery':
+        return (
+          <div className="space-y-6">
+            <div>
+              <div className="w-16 h-16 bg-[#0052FF]/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Mail size={32} className="text-[#0052FF]" />
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-2 text-center">
+                {recoveryEmailSent ? 'Email sent!' : 'Send username reminder'}
+              </h2>
+              <p className="text-white/70 text-center">
+                {recoveryEmailSent ? (
+                  <>We've sent your username to <strong className="text-white">{existingAccountInfo?.maskedEmail}</strong>. Check your inbox.</>
+                ) : (
+                  <>We'll send your username to <strong className="text-white">{existingAccountInfo?.maskedEmail}</strong>.</>
+                )}
+              </p>
+            </div>
+
+            {!recoveryEmailSent ? (
+              <button
+                onClick={handleSendUsernameRecovery}
+                disabled={isLoading}
+                className="w-full py-3 bg-[#0052FF] hover:bg-[#0041CC] disabled:bg-white/10 disabled:text-white/40 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="animate-spin" size={20} />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Mail size={20} />
+                    Send reminder email
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                onClick={handleLoginWithExistingAccount}
+                className="w-full py-3 bg-[#0052FF] hover:bg-[#0041CC] text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                <ArrowRight size={20} />
+                Continue to login
+              </button>
+            )}
+
+            {error && (
+              <div className="flex items-center gap-2 text-red-400 text-sm">
+                <AlertCircle size={16} />
+                {error}
+              </div>
+            )}
+
+            <button
+              onClick={() => {
+                setRecoveryEmailSent(false);
+                setStep('existing-account');
+              }}
+              className="w-full text-white/50 hover:text-white/70 text-sm transition-colors"
+            >
+              Go back
+            </button>
+          </div>
+        );
+
+      case 'disassociate-email':
+        return (
+          <div className="space-y-6">
+            <div>
+              <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertCircle size={32} className="text-red-400" />
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-2 text-center">Create new account</h2>
+              <p className="text-white/70 text-center">
+                If you've lost access to the email <strong className="text-white">{existingAccountInfo?.maskedEmail}</strong>,
+                we can remove it from your old account so you can create a new one.
+              </p>
+            </div>
+
+            <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+              <p className="text-yellow-400 text-sm">
+                <strong>Important:</strong> Your old account will become inactive and you won't be able to access
+                any entries or balance associated with it. This action cannot be undone.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                onClick={handleDisassociateEmail}
+                disabled={isLoading}
+                className="w-full py-3 bg-red-500 hover:bg-red-600 disabled:bg-white/10 disabled:text-white/40 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="animate-spin" size={20} />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    I understand, create new account
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={() => setStep('existing-account')}
+                className="w-full py-3 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-lg transition-colors"
+              >
+                Cancel, go back
+              </button>
+            </div>
+
+            {error && (
+              <div className="flex items-center gap-2 text-red-400 text-sm">
+                <AlertCircle size={16} />
+                {error}
+              </div>
+            )}
           </div>
         );
 
