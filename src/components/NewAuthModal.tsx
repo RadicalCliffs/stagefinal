@@ -1,13 +1,14 @@
 /**
  * New Authentication Modal - Compliant with Requirements
- * 
+ *
  * This modal implements the exact flow specified:
  * 1. Username entry/creation
  * 2. Profile completion (email OTP, name, country, avatar, social)
  * 3. Wallet connection (Base wallet required)
  * 4. Success confirmation
- * 
- * All user data is stored in canonical_users and profiles tables with canonical_user_id as the primary identifier.
+ *
+ * All user data is stored in canonical_users table with canonical_user_id as the primary identifier.
+ * The profiles table is also updated for user-editable profile data (linked by wallet_address).
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -354,8 +355,8 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
       // Generate canonical_user_id from wallet address
       const canonicalUserId = toPrizePid(effectiveWalletAddress);
 
-      // Create or update user in canonical_users table
-      const { error: upsertError } = await supabase
+      // Create or update user in canonical_users table and get the returned data
+      const { data: canonicalUserData, error: upsertError } = await supabase
         .from('canonical_users')
         .upsert({
           canonical_user_id: canonicalUserId,
@@ -369,38 +370,59 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
           ...(profileData.telegram && { telegram_handle: profileData.telegram }),
         }, {
           onConflict: 'canonical_user_id'
-        });
+        })
+        .select('id')
+        .single();
 
       if (upsertError) throw upsertError;
 
-      // Also upsert to profiles table
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .upsert({
-          id: canonicalUserId,
-          wallet_address: effectiveWalletAddress.toLowerCase(),
-        }, {
-          onConflict: 'id'
-        });
+      // Get the canonical_users.id (UUID) for the profiles table foreign key
+      const canonicalUserUUID = canonicalUserData?.id;
 
-      if (profileError) {
-        console.warn('[NewAuthModal] Profile upsert error (non-fatal):', profileError);
+      // Create or update the user's profile in the profiles table
+      // The profiles table has a user_id column that references canonical_users.id
+      if (canonicalUserUUID) {
+        const normalizedWallet = effectiveWalletAddress.toLowerCase();
+
+        // Check if profile already exists by user_id
+        const { data: existingProfile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('user_id', canonicalUserUUID)
+          .maybeSingle();
+
+        // Use existing profile id or generate a new UUID
+        const profileId = existingProfile?.id || crypto.randomUUID();
+
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: profileId,
+            user_id: canonicalUserUUID,
+            wallet_address: normalizedWallet,
+            updated_at: new Date().toISOString(),
+          }, {
+            onConflict: 'id'
+          });
+
+        if (profileError) {
+          console.warn('[NewAuthModal] Profile upsert error (non-fatal):', profileError);
+        }
       }
 
       // Initialize sub_account_balances if doesn't exist
+      // Try insert with ignoreDuplicates to avoid constraint issues
       const { error: balanceError } = await supabase
         .from('sub_account_balances')
-        .upsert({
+        .insert({
           user_id: canonicalUserId,
           currency: 'USD',
           available_balance: 0,
           pending_balance: 0,
-        }, {
-          onConflict: 'user_id,currency',
-          ignoreDuplicates: true
         });
 
-      if (balanceError) {
+      // Ignore "duplicate key" errors (23505) as they just mean the balance already exists
+      if (balanceError && balanceError.code !== '23505') {
         console.warn('[NewAuthModal] Balance init error (non-fatal):', balanceError);
       }
 
