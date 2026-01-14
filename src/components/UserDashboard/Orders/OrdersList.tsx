@@ -16,15 +16,16 @@ const ITEMS_PER_PAGE = 10;
 /**
  * Checks if a record matches the current user.
  * Uses the shared userIdsEqual utility for consistent comparison logic.
+ * UPDATED: Now checks canonical_user_id as the primary identifier
  */
 function recordMatchesUser(
-  record: { user_id?: string; wallet_address?: string; canonical_user_id?: string; privy_user_id?: string },
+  record: { canonical_user_id?: string; user_id?: string; wallet_address?: string; privy_user_id?: string },
   userId: string
 ): boolean {
-  return userIdsEqual(record.user_id, userId) ||
+  return userIdsEqual(record.canonical_user_id, userId) ||
+         userIdsEqual(record.user_id, userId) ||
          userIdsEqual(record.wallet_address, userId) ||
-         userIdsEqual(record.privy_user_id, userId) ||
-         userIdsEqual(record.canonical_user_id, userId);
+         userIdsEqual(record.privy_user_id, userId);
 }
 
 export default function OrdersList() {
