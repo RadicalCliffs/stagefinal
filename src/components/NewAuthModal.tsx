@@ -160,19 +160,26 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
     setError(null);
 
     try {
-      // Send OTP via Supabase/SendGrid
-      // TODO: Implement Supabase email OTP integration
-      // For now, simulate OTP send
+      // Send OTP via Netlify function using SendGrid
       console.log('[NewAuthModal] Sending OTP to:', profileData.email);
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
+      const response = await fetch('/api/send-otp-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: profileData.email.toLowerCase() }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send verification code');
+      }
+
       setOtpSent(true);
       setStep('email-otp');
     } catch (err) {
       console.error('[NewAuthModal] Error sending OTP:', err);
-      setError('Failed to send verification code. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to send verification code. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -191,17 +198,29 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
     setError(null);
 
     try {
-      // TODO: Implement actual OTP verification with Supabase
-      // For now, accept any 6-digit code
+      // Verify OTP via Netlify function
       console.log('[NewAuthModal] Verifying OTP:', otpCode);
-      
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
+      const response = await fetch('/api/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: profileData.email.toLowerCase(),
+          code: otpCode,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Invalid verification code');
+      }
+
       // OTP verified, proceed to wallet connection
       setStep('wallet');
     } catch (err) {
       console.error('[NewAuthModal] Error verifying OTP:', err);
-      setError('Invalid code. Please try again.');
+      setError(err instanceof Error ? err.message : 'Invalid code. Please try again.');
     } finally {
       setIsLoading(false);
     }
