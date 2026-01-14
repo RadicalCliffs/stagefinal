@@ -110,6 +110,7 @@ export function generatePrivyStyleId(walletAddress: string): string {
  * identifier type is stored.
  *
  * UPDATED: Now returns canonical prize:pid: format as primaryId
+ * MIGRATION APPLIED: canonical_user_id column now exists in canonical_users table
  *
  * @param identifier - Any user identifier (wallet address, prize:pid, privy_user_id, or legacy userid)
  * @returns ResolvedIdentity with all known identifiers for the user, including canonical ID
@@ -134,48 +135,60 @@ export async function resolveUserIdentity(identifier: string | null | undefined)
       // Normalize wallet address to lowercase for case-insensitive comparison
       const normalizedAddress = trimmedId.toLowerCase();
 
-      // Query by wallet address only - do NOT query canonical_user_id until migration is applied
-      // The canonical_user_id column may not exist in production yet
+      // Query by canonical_user_id first, then wallet addresses
+      // The canonical_user_id column now exists after migration 20260114120000
       // Use limit(1) instead of maybeSingle() to avoid PGRST116 error when multiple rows match
       const result = await supabase
         .from('canonical_users')
         .select('*')
-        .or(`wallet_address.ilike.${normalizedAddress},base_wallet_address.ilike.${normalizedAddress}`)
+        .or(`canonical_user_id.eq.${canonicalId},wallet_address.ilike.${normalizedAddress},base_wallet_address.ilike.${normalizedAddress}`)
         .order('created_at', { ascending: false }) // Get the most recent record if duplicates exist
         .limit(1);
 
       data = result.data?.[0] || null;
       error = result.error;
     } else if (isPrizePid(trimmedId)) {
-      // Prize PID format - extract the wallet address if present
+      // Prize PID format - query by canonical_user_id first
       // Format: prize:pid:0x... or prize:pid:<uuid>
       const idPart = trimmedId.substring(10); // Remove "prize:pid:" prefix
 
-      if (isWalletAddress(idPart)) {
-        // Extract wallet address from prize:pid:0x... format
-        const normalizedAddress = idPart.toLowerCase();
-        const result = await supabase
-          .from('canonical_users')
-          .select('*')
-          .or(`wallet_address.ilike.${normalizedAddress},base_wallet_address.ilike.${normalizedAddress}`)
-          .order('created_at', { ascending: false })
-          .limit(1);
+      // Try canonical_user_id first (most efficient)
+      let result = await supabase
+        .from('canonical_users')
+        .select('*')
+        .eq('canonical_user_id', trimmedId)
+        .limit(1);
 
-        data = result.data?.[0] || null;
-        error = result.error;
-      } else {
-        // UUID-based prize:pid - try to match by uid
-        const result = await supabase
-          .from('canonical_users')
-          .select('*')
-          .eq('uid', idPart)
-          .limit(1);
+      data = result.data?.[0] || null;
+      
+      // If not found by canonical_user_id, try the extracted part
+      if (!data) {
+        if (isWalletAddress(idPart)) {
+          // Extract wallet address from prize:pid:0x... format
+          const normalizedAddress = idPart.toLowerCase();
+          result = await supabase
+            .from('canonical_users')
+            .select('*')
+            .or(`canonical_user_id.eq.${trimmedId},wallet_address.ilike.${normalizedAddress},base_wallet_address.ilike.${normalizedAddress}`)
+            .order('created_at', { ascending: false })
+            .limit(1);
 
-        data = result.data?.[0] || null;
-        error = result.error;
+          data = result.data?.[0] || null;
+        } else {
+          // UUID-based prize:pid - try to match by uid or canonical_user_id
+          result = await supabase
+            .from('canonical_users')
+            .select('*')
+            .or(`canonical_user_id.eq.${trimmedId},uid.eq.${idPart}`)
+            .limit(1);
+
+          data = result.data?.[0] || null;
+        }
       }
+      error = result.error;
     } else if (isPrivyDid(trimmedId)) {
       // Query by Privy DID (legacy) - use limit(1) for safety
+      // NOTE: Privy is being phased out, but we still support legacy lookups
       const result = await supabase
         .from('canonical_users')
         .select('*')
@@ -278,6 +291,7 @@ function createPartialIdentity(identifier: string, canonicalId?: string): Resolv
  * Use this when querying tables that may store different identifier types.
  * Uses ILIKE for wallet addresses to ensure case-insensitive matching.
  *
+ * UPDATED: Now includes canonical_user_id in filter generation
  * ISSUE 4D FIX: Improved filter generation to prevent invalid query syntax
  * and ensure proper escaping of special characters.
  *
@@ -288,12 +302,14 @@ function createPartialIdentity(identifier: string, canonicalId?: string): Resolv
 export function buildIdentityFilter(
   identity: ResolvedIdentity,
   columns: {
+    canonicalColumn?: string;
     walletColumn?: string;
     privyColumn?: string;
     userIdColumn?: string;
   } = {}
 ): string {
   const {
+    canonicalColumn = 'canonical_user_id',
     walletColumn = 'walletaddress',
     privyColumn = 'privy_user_id',
     userIdColumn = 'userid',
@@ -315,13 +331,22 @@ export function buildIdentityFilter(
     if (!value || typeof value !== 'string') return false;
     const trimmed = value.trim();
     // Must have reasonable length
-    if (trimmed.length < 3 || trimmed.length > 100) return false;
+    if (trimmed.length < 3 || trimmed.length > 200) return false;
     // Must not contain dangerous patterns
     if (/[;'"\\]/.test(trimmed)) return false;
     return true;
   };
 
-  // ISSUE 4D FIX: Validate wallet address format before adding to filter
+  // PRIORITY 1: Add canonical_user_id filter (HIGHEST PRIORITY!)
+  // This is the new standard and should be checked first
+  if (identity.canonicalUserId && isValidFilterValue(identity.canonicalUserId)) {
+    const escapedCanonical = escapeFilterValue(identity.canonicalUserId);
+    if (escapedCanonical) {
+      filters.push(`${canonicalColumn}.eq.${escapedCanonical}`);
+    }
+  }
+
+  // PRIORITY 2: Wallet address filter
   // Only add wallet address filter if it's a valid wallet address
   // Use ILIKE for case-insensitive matching since Ethereum addresses are case-insensitive
   if (identity.walletAddress && isWalletAddress(identity.walletAddress) && isValidFilterValue(identity.walletAddress)) {
@@ -338,6 +363,7 @@ export function buildIdentityFilter(
     }
   }
 
+  // PRIORITY 3: Privy user ID filter
   // Only add privy_user_id filter if it's actually a Privy DID (not a wallet address)
   // This prevents invalid queries like privy_user_id.eq.0x75fa... which cause 400 errors
   if (identity.privyUserId && isPrivyDid(identity.privyUserId) && isValidFilterValue(identity.privyUserId)) {
@@ -347,7 +373,7 @@ export function buildIdentityFilter(
     }
   }
 
-  // ISSUE 4D FIX: Improved validation for legacy userid
+  // PRIORITY 4: Legacy userid filter
   // Only add legacy userid filter if it looks like a UUID (not a wallet address or privy DID)
   if (identity.legacyUserId && !isWalletAddress(identity.legacyUserId) && !isPrivyDid(identity.legacyUserId) && isValidFilterValue(identity.legacyUserId)) {
     // Additional validation: check if it looks like a UUID
@@ -365,7 +391,13 @@ export function buildIdentityFilter(
 
   // Fallback: always include the primary ID in the appropriate column as last resort
   if (filters.length === 0 && isValidFilterValue(identity.primaryId)) {
-    if (isWalletAddress(identity.primaryId)) {
+    if (isPrizePid(identity.primaryId)) {
+      // It's a prize:pid: format - add as canonical_user_id
+      const escapedPrimaryId = escapeFilterValue(identity.primaryId);
+      if (escapedPrimaryId) {
+        filters.push(`${canonicalColumn}.eq.${escapedPrimaryId}`);
+      }
+    } else if (isWalletAddress(identity.primaryId)) {
       const normalizedPrimaryWallet = identity.primaryId.toLowerCase();
       const escapedPrimaryWallet = escapeFilterValue(normalizedPrimaryWallet);
       if (escapedPrimaryWallet) {
@@ -462,6 +494,7 @@ export async function fetchUserTransactionsWithIdentity(identifier: string): Pro
   }
 
   const filter = buildIdentityFilter(identity, {
+    canonicalColumn: 'canonical_user_id',
     walletColumn: 'wallet_address',
     privyColumn: 'user_id',
     userIdColumn: 'user_id',
@@ -511,6 +544,7 @@ export async function fetchPendingTicketsWithIdentity(identifier: string): Promi
       console.warn('[fetchPendingTicketsWithIdentity] RPC not available, using fallback:', error.message);
 
       const filter = buildIdentityFilter(identity, {
+        canonicalColumn: 'canonical_user_id',
         walletColumn: 'wallet_address',
         privyColumn: 'user_id',
         userIdColumn: 'user_id',

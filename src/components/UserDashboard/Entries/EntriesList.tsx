@@ -23,12 +23,16 @@ function normalizeAddress(address: string | undefined | null): string {
 /**
  * Checks if a record matches the current user using case-insensitive wallet comparison.
  * This handles the case where database stores mixed-case addresses.
+ * UPDATED: Now checks canonical_user_id as the primary identifier
  */
 function recordMatchesUser(
-  record: { walletaddress?: string; privy_user_id?: string; userid?: string; user_id?: string; wallet_address?: string },
+  record: { canonical_user_id?: string; walletaddress?: string; privy_user_id?: string; userid?: string; user_id?: string; wallet_address?: string },
   normalizedUserId: string,
   originalUserId: string
 ): boolean {
+  // Check canonical_user_id FIRST (highest priority)
+  const matchesCanonical = record.canonical_user_id === originalUserId ||
+                          normalizeAddress(record.canonical_user_id) === normalizedUserId;
   // Case-insensitive wallet address comparison
   const matchesWallet = normalizeAddress(record.walletaddress) === normalizedUserId;
   const matchesWallet2 = normalizeAddress(record.wallet_address) === normalizedUserId;
@@ -42,7 +46,7 @@ function recordMatchesUser(
   const matchesLegacyUserId = record.userid === originalUserId ||
                               normalizeAddress(record.userid) === normalizedUserId;
 
-  return matchesWallet || matchesWallet2 || matchesPrivyId || matchesUserId || matchesLegacyUserId;
+  return matchesCanonical || matchesWallet || matchesWallet2 || matchesPrivyId || matchesUserId || matchesLegacyUserId;
 }
 
 // Interface for grouped competition entries
