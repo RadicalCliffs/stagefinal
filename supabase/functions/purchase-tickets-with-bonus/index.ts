@@ -1287,6 +1287,43 @@ Deno.serve(async (req: Request) => {
         console.warn("Fallback: get_competition_entries_bypass_rls RPC will fetch from tickets table");
       }
 
+      // STEP 9a: Create user_transactions record for dashboard visibility
+      // This is CRITICAL for the order to appear in the user's "Orders" tab
+      // Balance payments are immediately completed, so status is 'finished'
+      const transactionId = crypto.randomUUID();
+      const { error: txInsertErr, data: txData } = await supabase
+        .from("user_transactions")
+        .insert({
+          id: transactionId,
+          user_id: ticketUserId,
+          user_privy_id: ticketUserId,
+          wallet_address: walletAddress,
+          competition_id: competitionId,
+          ticket_count: assignedNumbers.length,
+          amount: totalCost,
+          status: 'finished', // Balance payments are immediately complete
+          payment_status: 'completed',
+          payment_provider: 'balance',
+          tx_id: txRef,
+          currency: 'usd',
+          pay_currency: 'USDC',
+          network: 'balance', // Indicates this was paid from account balance
+          order_id: jcEntryCreated ? (jcData?.uid || entryUid) : entryUid,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          completed_at: new Date().toISOString(),
+          notes: `Balance payment for ${assignedNumbers.length} tickets in competition ${competitionId}`,
+        })
+        .select('id')
+        .single();
+
+      if (txInsertErr) {
+        // Log but don't fail - user_transactions is for visibility, not critical path
+        console.warn("[user_transactions] Failed to create transaction record:", txInsertErr.message);
+      } else {
+        console.log("[user_transactions] Created transaction record:", txData?.id || transactionId);
+      }
+
       // STEP 9b: Mark reservation as confirmed (if we used one)
       if (reservationRecord?.id) {
         const { error: resUpdateErr } = await supabase
@@ -1347,6 +1384,8 @@ Deno.serve(async (req: Request) => {
           tickets: assignedNumbers,
           entryCreated: jcEntryCreated,  // Flag to indicate if dashboard entry was created
           entryId: jcEntryCreated ? (jcData?.uid || entryUid) : null,
+          transactionId: transactionId,  // Transaction record ID for tracking in user_transactions
+          transactionRef: txRef,  // Transaction reference/hash
           instantWins: instantWins.length > 0 ? instantWins : undefined,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }

@@ -116,6 +116,19 @@ export async function purchaseTicketsWithBalance({
       };
     }
 
+    // Dispatch balance-updated event so dashboard components refresh
+    // This ensures entries and orders appear immediately after purchase
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('balance-updated', {
+        detail: {
+          newBalance: data.balanceAfterPurchase,
+          purchaseAmount: data.totalCost,
+          ticketsCreated: data.ticketsCreated,
+          competitionId
+        }
+      }));
+    }
+
     return {
       success: true,
       ticketsCreated: data.ticketsCreated,
@@ -123,7 +136,10 @@ export async function purchaseTicketsWithBalance({
       totalCost: data.totalCost,
       balanceAfterPurchase: data.balanceAfterPurchase,
       message: data.message,
-      tickets: data.tickets
+      tickets: data.tickets,
+      entryId: data.entryId,
+      transactionId: data.transactionId,
+      transactionRef: data.transactionRef
     };
   } catch (err) {
     // Parse any caught errors for better messages
