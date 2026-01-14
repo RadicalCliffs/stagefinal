@@ -14,7 +14,7 @@ import SocialDropdown from "./SocialDropdown";
 import { useClickOutside } from "../hooks/useHandleClickOutside";
 
 // Lazy load the auth modal - only loaded when user clicks Login
-const BaseWalletAuthModal = lazy(() => import("./BaseWalletAuthModal"));
+const NewAuthModal = lazy(() => import("./NewAuthModal"));
 
 const Header: React.FC = () => {
   const navItems: { label: string; path: string }[] = [
@@ -266,7 +266,7 @@ const Header: React.FC = () => {
 
       {showAuthModal && (
         <Suspense fallback={null}>
-          <BaseWalletAuthModal
+          <NewAuthModal
             isOpen={showAuthModal}
             onClose={() => setShowAuthModal(false)}
           />

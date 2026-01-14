@@ -22,6 +22,7 @@
     "@coinbase/onchainkit": "^1.1.2",
     "@farcaster/miniapp-sdk": "^0.2.1",
     "@hookform/resolvers": "^5.2.2",
+    "@netlify/blobs": "^10.5.0",
     "@tailwindcss/vite": "^4.1.14",
     "axios": "^1.13.2",
     "buffer": "^6.0.3",
