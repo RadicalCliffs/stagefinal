@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { TOP_UP_CHECKOUT_URLS } from '../lib/coinbase-commerce';
 import { CoinbaseOnrampService } from '../lib/coinbase-onramp';
 import { isSuccessStatus, isFailureStatus } from '../lib/payment-status';
+import { notificationService } from '../lib/notification-service';
 import { Checkout, CheckoutButton, CheckoutStatus } from '@coinbase/onchainkit/checkout';
 import type { LifecycleStatus } from '@coinbase/onchainkit/checkout';
 import { FundButton, getOnrampBuyUrl } from '@coinbase/onchainkit/fund';
@@ -122,6 +123,14 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
           if (data?.status && isSuccessStatus(data.status)) {
             clearInterval(pollInterval);
             setStep('success');
+
+            // Send in-app notification for the successful top-up
+            if (baseUser?.id) {
+              notificationService.notifyTopUp(baseUser.id, amount).catch(err => {
+                console.warn('[TopUpWalletModal] Failed to send commerce top-up notification:', err);
+              });
+            }
+
             onSuccess?.();
           } else if (data?.status && isFailureStatus(data.status)) {
             clearInterval(pollInterval);
@@ -135,7 +144,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
 
       return () => clearInterval(pollInterval);
     }
-  }, [step, transactionId, onSuccess]);
+  }, [step, transactionId, onSuccess, baseUser?.id, amount]);
 
   // Handle Coinbase Commerce iframe messages for success detection
   useEffect(() => {
@@ -350,6 +359,14 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
       window.dispatchEvent(new CustomEvent('balance-updated', {
         detail: { newBalance: result.newBalance }
       }));
+
+      // Send in-app notification for the successful top-up
+      if (baseUser?.id) {
+        notificationService.notifyTopUp(baseUser.id, amount, result.newBalance).catch(err => {
+          console.warn('[TopUpWalletModal] Failed to send top-up notification:', err);
+        });
+      }
+
       onSuccess?.();
     } catch (err) {
       console.error('[TopUpWalletModal] Instant top-up error:', err);
@@ -428,13 +445,21 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
       setStep('success');
       // Refresh user data to show updated balance
       await refreshUserData();
+
+      // Send in-app notification for the successful top-up
+      if (baseUser?.id) {
+        notificationService.notifyTopUp(baseUser.id, amount).catch(err => {
+          console.warn('[TopUpWalletModal] Failed to send crypto top-up notification:', err);
+        });
+      }
+
       onSuccess?.();
     } else if (status.statusName === 'error') {
       console.error('Crypto payment error:', status.statusData);
       setError('Payment failed. Please try again.');
       setStep('error');
     }
-  }, [refreshUserData, onSuccess]);
+  }, [refreshUserData, onSuccess, baseUser?.id, amount]);
 
   const handleAmountSelect = (selectedAmount: number) => {
     setAmount(selectedAmount);

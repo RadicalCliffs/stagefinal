@@ -1583,13 +1583,18 @@ export const database = {
 
   async getUserTransactions(userId: string) {
     try {
-      // Use RPC function to bypass RLS for reliable access
+      // Use standard RPC function (not bypass_rls) for staging compatibility with anon key
       const { data, error } = await supabase
-        .rpc('get_user_transactions_bypass_rls', {
+        .rpc('get_user_transactions', {
           user_identifier: userId.trim()
         });
 
       if (error) {
+        // If permission denied or function not found, try fallback direct query
+        if (error.code === '42501' || error.code === '42883' || error.message?.includes('permission denied')) {
+          console.warn('[database] get_user_transactions RPC failed, using fallback:', error.message);
+          return await this.getUserTransactionsFallback(userId);
+        }
         handleDatabaseError(error, 'getUserTransactions');
         return [];
       }
@@ -1656,6 +1661,87 @@ export const database = {
       return formattedTransactions;
     } catch (error) {
       handleDatabaseError(error, 'getUserTransactions - outer catch');
+      return [];
+    }
+  },
+
+  // Fallback for getUserTransactions when RPC is not available
+  async getUserTransactionsFallback(userId: string) {
+    try {
+      const canonicalId = toPrizePid(userId);
+      const normalizedWallet = isWalletAddress(userId) ? userId.toLowerCase() : userId;
+
+      // Direct query to user_transactions table
+      const { data, error } = await supabase
+        .from('user_transactions')
+        .select('*')
+        .or(`user_id.ilike.${normalizedWallet},canonical_user_id.eq.${canonicalId},wallet_address.ilike.${normalizedWallet}`)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) {
+        handleDatabaseError(error, 'getUserTransactionsFallback');
+        return [];
+      }
+
+      // Get competition details
+      const competitionIds = [...new Set((data || []).map((tx: any) => tx.competition_id).filter(Boolean))];
+      let competitionsMap: { [key: string]: any } = {};
+
+      if (competitionIds.length > 0) {
+        const { data: competitions } = await supabase
+          .from('competitions')
+          .select('id, uid, title, image_url, prize_value')
+          .in('id', competitionIds);
+
+        if (competitions) {
+          competitionsMap = competitions.reduce((map: { [key: string]: any }, comp: any) => {
+            map[comp.id] = comp;
+            return map;
+          }, {});
+        }
+      }
+
+      // Format transactions
+      return (data || [])
+        .filter((tx: any) => {
+          const status = (tx.status || '').toLowerCase();
+          return status === 'completed' || status === 'finished' || status === 'confirmed' || status === 'success';
+        })
+        .map((tx: any) => {
+          const competition = competitionsMap[tx.competition_id];
+          const isTopUp = !tx.competition_id || (tx.webhook_ref && tx.webhook_ref.startsWith('TOPUP_'));
+          return {
+            id: tx.id,
+            user_id: tx.user_id,
+            competition_id: tx.competition_id,
+            competition_name: isTopUp ? 'Wallet Top-Up' : (competition?.title || 'Unknown Competition'),
+            competition_image: competition?.image_url ? getImageUrl(competition.image_url) : null,
+            ticket_count: tx.ticket_count || 0,
+            amount: tx.amount || 0,
+            amount_usd: tx.currency === 'usd' || tx.currency === 'USDC' || tx.currency === 'USD'
+              ? `$${Number(tx.amount || 0).toFixed(2)}`
+              : `${tx.amount} ${tx.currency?.toUpperCase() || ''}`,
+            currency: tx.currency,
+            network: tx.network || tx.payment_provider || 'crypto',
+            tx_id: tx.tx_id || tx.order_id || null,
+            status: tx.status,
+            payment_status: tx.payment_status,
+            created_at: tx.created_at,
+            completed_at: tx.completed_at,
+            is_topup: isTopUp,
+            transaction_type: isTopUp ? 'topup' : 'entry',
+            action: (() => {
+              const statusLower = (tx.status || '').toLowerCase().trim();
+              if (statusLower === 'completed' || statusLower === 'finished' || statusLower === 'confirmed' || statusLower === 'success') return 'View';
+              if (statusLower === 'pending') return 'Pending';
+              if (statusLower === 'failed' || statusLower === 'cancelled' || statusLower === 'expired') return 'Failed';
+              return 'Processing';
+            })(),
+          };
+        });
+    } catch (error) {
+      handleDatabaseError(error, 'getUserTransactionsFallback - outer catch');
       return [];
     }
   },

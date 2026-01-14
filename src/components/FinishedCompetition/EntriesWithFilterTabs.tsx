@@ -50,18 +50,35 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
         // Transform data to match expected format
         const transformedEntries: Array<{ ticketNumber: number; date: string; walletAddress: string }> = [];
 
-        // Strategy 1: Try RPC function first (bypasses RLS)
+        // Strategy 1: Try standard RPC function first (staging compatible with anon key)
         let rpcSucceeded = false;
         try {
-          entriesLogger.request('get_competition_entries_bypass_rls', {
+          entriesLogger.request('get_competition_entries', {
             competition_identifier: idToUse.slice(0, 8) + '...'
           });
 
           const rpcStartTime = Date.now();
-          const { data: rpcData, error: rpcError } = await supabase
-            .rpc('get_competition_entries_bypass_rls', {
+          // Try standard RPC first (non-bypass, if EXECUTE granted to anon)
+          let rpcData: any[] | null = null;
+          let rpcError: any = null;
+
+          const { data: standardData, error: standardError } = await supabase
+            .rpc('get_competition_entries', {
               competition_identifier: idToUse
             });
+
+          if (!standardError && standardData) {
+            rpcData = standardData;
+          } else {
+            // Fallback to bypass_rls version if standard fails (permission may not be granted)
+            console.log('[EntriesWithFilterTabs] Standard RPC unavailable, trying bypass_rls');
+            const { data: bypassData, error: bypassError } = await supabase
+              .rpc('get_competition_entries_bypass_rls', {
+                competition_identifier: idToUse
+              });
+            rpcData = bypassData;
+            rpcError = bypassError;
+          }
 
           if (!rpcError && rpcData && Array.isArray(rpcData) && rpcData.length > 0) {
             entriesLogger.success('RPC returned entries', {
@@ -72,7 +89,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
 
             requestTracker.addRequest({
               timestamp: Date.now(),
-              endpoint: 'get_competition_entries_bypass_rls',
+              endpoint: 'get_competition_entries',
               method: 'RPC',
               success: true,
               duration: Date.now() - rpcStartTime
@@ -103,12 +120,12 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
               }
             });
           } else if (rpcError) {
-            entriesLogger.rpcError('get_competition_entries_bypass_rls', rpcError, 'direct joincompetition query');
+            entriesLogger.rpcError('get_competition_entries', rpcError, 'direct joincompetition query');
             showDebugHintOnError();
 
             requestTracker.addRequest({
               timestamp: Date.now(),
-              endpoint: 'get_competition_entries_bypass_rls',
+              endpoint: 'get_competition_entries',
               method: 'RPC',
               success: false,
               error: rpcError.message,

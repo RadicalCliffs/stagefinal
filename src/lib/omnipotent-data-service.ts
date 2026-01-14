@@ -335,23 +335,39 @@ class OmnipotentDataService {
    */
   async getCompetitionEntries(competitionId: string, options: DataFetchOptions = {}): Promise<OmnipotentEntry[]> {
     const cacheKey = `competition_entries:${competitionId}`;
-    
+
     if (options.useCache !== false) {
       const cached = dataCache.get<OmnipotentEntry[]>(cacheKey);
       if (cached) return cached;
     }
 
     try {
-      // Use RPC that bypasses RLS and filters mock data
-      const { data, error } = await supabase
-        .rpc('get_competition_entries_bypass_rls', {
+      // Try standard RPC first (staging compatible with anon key)
+      let data: any[] | null = null;
+      let error: any = null;
+
+      const { data: standardData, error: standardError } = await supabase
+        .rpc('get_competition_entries', {
           competition_identifier: competitionId
         });
+
+      if (!standardError && standardData) {
+        data = standardData;
+      } else {
+        // Fallback to bypass_rls version if standard fails
+        console.log('[OmnipotentData] Standard RPC unavailable, trying bypass_rls');
+        const { data: bypassData, error: bypassError } = await supabase
+          .rpc('get_competition_entries_bypass_rls', {
+            competition_identifier: competitionId
+          });
+        data = bypassData;
+        error = bypassError;
+      }
 
       if (error) throw error;
 
       const entries = (data || []).map(entry => this.transformCompetitionEntry(entry));
-      
+
       dataCache.set(cacheKey, entries, options.cacheDuration || 15000);
       return entries;
 

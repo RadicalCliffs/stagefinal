@@ -215,14 +215,36 @@ export const userDataService = {
     const inputIdentifier = userId || walletAddress || '';
     // Convert to canonical format
     const canonicalId = toPrizePid(inputIdentifier);
+    // Normalize wallet for case-insensitive matching
+    const normalizedWallet = this.isWalletAddress(inputIdentifier) ? inputIdentifier.toLowerCase() : inputIdentifier;
 
     try {
-      // Get user tickets using RPC to bypass RLS
-      const { data: tickets, error: ticketsError } = await supabase
-        .rpc('get_user_tickets_bypass_rls', { user_identifier: canonicalId });
+      // Get user tickets using direct query (staging compatible, no bypass_rls)
+      let tickets: any[] = [];
+      try {
+        // First try the standard RPC (if EXECUTE granted to anon)
+        const { data: rpcData, error: rpcError } = await supabase
+          .rpc('get_user_tickets', { user_identifier: canonicalId });
 
-      if (ticketsError) {
-        console.error('Error fetching user tickets:', ticketsError);
+        if (!rpcError && rpcData) {
+          tickets = rpcData;
+        } else {
+          // Fallback: Direct query to joincompetition table
+          console.log('[userDataService] get_user_tickets RPC unavailable, using direct query');
+          const { data: directData, error: directError } = await supabase
+            .from('joincompetition')
+            .select('*')
+            .or(`walletaddress.ilike.${normalizedWallet},privy_user_id.eq.${canonicalId},userid.eq.${canonicalId}`)
+            .order('purchasedate', { ascending: false });
+
+          if (!directError && directData) {
+            tickets = directData;
+          } else if (directError) {
+            console.error('Error fetching user tickets (direct):', directError);
+          }
+        }
+      } catch (ticketsErr) {
+        console.error('Error fetching user tickets:', ticketsErr);
       }
 
       // Get user balance using get_user_balance RPC for consistent lookups
@@ -256,17 +278,39 @@ export const userDataService = {
         walletBalance = Number(userBalance?.balance || 0);
       }
 
-      // Get recent entries count using RPC to bypass RLS
-      const { data: recentCountData } = await supabase
-        .rpc('get_recent_entries_count_bypass_rls', {
-          user_identifier: canonicalId
-        });
+      // Get recent entries count - use direct query instead of bypass_rls
+      let recentEntries = 0;
+      try {
+        // First try standard RPC (if available)
+        const { data: rpcRecentData, error: rpcRecentError } = await supabase
+          .rpc('get_recent_entries_count', { user_identifier: canonicalId });
+
+        if (!rpcRecentError && rpcRecentData !== null) {
+          recentEntries = Number(rpcRecentData || 0);
+        } else {
+          // Fallback: Direct count query on joincompetition
+          console.log('[userDataService] get_recent_entries_count RPC unavailable, using direct count');
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+          const { count, error: countError } = await supabase
+            .from('joincompetition')
+            .select('*', { count: 'exact', head: true })
+            .or(`walletaddress.ilike.${normalizedWallet},privy_user_id.eq.${canonicalId},userid.eq.${canonicalId}`)
+            .gte('purchasedate', thirtyDaysAgo.toISOString());
+
+          if (!countError) {
+            recentEntries = count || 0;
+          }
+        }
+      } catch (recentErr) {
+        console.error('Error fetching recent entries count:', recentErr);
+      }
 
       // Calculate aggregation
       const ticketsData = tickets || [];
       const totalTickets = ticketsData.length;
       const activeTickets = ticketsData.filter((t: any) => t.is_active !== false).length;
-      const recentEntries = Number(recentCountData || 0);
 
       return {
         totalTickets,
@@ -289,15 +333,29 @@ export const userDataService = {
   async getUserTicketCount(userId: string): Promise<number> {
     try {
       const canonicalId = toPrizePid(userId);
-      const { data: tickets, error } = await supabase
-        .rpc('get_user_tickets_bypass_rls', { user_identifier: canonicalId });
+      const normalizedWallet = this.isWalletAddress(userId) ? userId.toLowerCase() : userId;
+
+      // Try standard RPC first
+      const { data: rpcData, error: rpcError } = await supabase
+        .rpc('get_user_tickets', { user_identifier: canonicalId });
+
+      if (!rpcError && rpcData) {
+        return rpcData.length || 0;
+      }
+
+      // Fallback: Direct query
+      console.log('[userDataService] get_user_tickets RPC unavailable for count, using direct query');
+      const { count, error } = await supabase
+        .from('joincompetition')
+        .select('*', { count: 'exact', head: true })
+        .or(`walletaddress.ilike.${normalizedWallet},privy_user_id.eq.${canonicalId},userid.eq.${canonicalId}`);
 
       if (error) {
         console.error('Error fetching user ticket count:', error);
         return 0;
       }
 
-      return tickets?.length || 0;
+      return count || 0;
     } catch (error) {
       console.error('Error in getUserTicketCount:', error);
       return 0;
@@ -308,15 +366,30 @@ export const userDataService = {
   async getUserActiveTicketsCount(userId: string): Promise<number> {
     try {
       const canonicalId = toPrizePid(userId);
-      const { data: tickets, error } = await supabase
-        .rpc('get_user_tickets_bypass_rls', { user_identifier: canonicalId });
+      const normalizedWallet = this.isWalletAddress(userId) ? userId.toLowerCase() : userId;
+
+      // Try standard RPC first
+      const { data: rpcData, error: rpcError } = await supabase
+        .rpc('get_user_tickets', { user_identifier: canonicalId });
+
+      if (!rpcError && rpcData) {
+        return rpcData.filter((t: any) => t.is_active !== false).length || 0;
+      }
+
+      // Fallback: Direct query - assumes all entries in joincompetition are active
+      // (no is_active column in joincompetition, so we return the total count)
+      console.log('[userDataService] get_user_tickets RPC unavailable for active count, using direct query');
+      const { count, error } = await supabase
+        .from('joincompetition')
+        .select('*', { count: 'exact', head: true })
+        .or(`walletaddress.ilike.${normalizedWallet},privy_user_id.eq.${canonicalId},userid.eq.${canonicalId}`);
 
       if (error) {
         console.error('Error fetching user active tickets:', error);
         return 0;
       }
 
-      return tickets?.filter((t: any) => t.is_active !== false).length || 0;
+      return count || 0;
     } catch (error) {
       console.error('Error in getUserActiveTicketsCount:', error);
       return 0;

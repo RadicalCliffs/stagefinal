@@ -4,6 +4,7 @@
 import { supabase } from './supabase';
 import { withRetry, isNetworkError, parseSupabaseFunctionError, getUserFriendlyErrorMessage } from './error-handler';
 import { toPrizePid, isPrizePid } from '../utils/userId';
+import { notificationService } from './notification-service';
 
 // Re-export supabase for backwards compatibility
 export { supabase };
@@ -127,6 +128,30 @@ export async function purchaseTicketsWithBalance({
           competitionId
         }
       }));
+
+      // Trigger in-app notification for the successful purchase
+      // Do this asynchronously so it doesn't block the return
+      try {
+        const ticketNumbers = data.tickets?.map((t: { ticket_number: number }) => t.ticket_number) || [];
+        // Get competition title if available (we need to fetch it)
+        supabase
+          .from('competitions')
+          .select('title')
+          .eq('uid', competitionId)
+          .maybeSingle()
+          .then(({ data: compData }) => {
+            const competitionTitle = compData?.title || 'Competition';
+            // Send entry notification
+            notificationService.notifyEntry(userId, competitionTitle, ticketNumbers, competitionId).catch(err => {
+              console.warn('[purchaseTicketsWithBalance] Failed to send entry notification:', err);
+            });
+          })
+          .catch(err => {
+            console.warn('[purchaseTicketsWithBalance] Failed to fetch competition for notification:', err);
+          });
+      } catch (notifyErr) {
+        console.warn('[purchaseTicketsWithBalance] Notification error (non-blocking):', notifyErr);
+      }
     }
 
     return {
