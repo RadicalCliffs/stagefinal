@@ -14,7 +14,7 @@ export interface UserTicket {
 export interface UserNotification {
   id: string;
   user_id: string;
-  type: 'win' | 'competition_ended' | 'special_offer' | 'announcement';
+  type: 'win' | 'competition_ended' | 'special_offer' | 'announcement' | 'payment' | 'topup' | 'entry';
   title: string;
   message: string;
   competition_id?: string;
@@ -22,6 +22,8 @@ export interface UserNotification {
   read: boolean;
   created_at: string;
   expires_at?: string;
+  amount?: number;
+  transaction_id?: string;
 }
 
 export interface NotificationPreferences {

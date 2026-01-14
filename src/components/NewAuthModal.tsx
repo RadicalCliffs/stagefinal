@@ -92,15 +92,26 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
       setIsReturningUser(false);
       setExistingAccountInfo(null);
       setRecoveryEmailSent(false);
+      setWalletProcessing(false);
     }
   }, [isOpen]);
 
+  // Track if we're currently processing wallet connection
+  const [walletProcessing, setWalletProcessing] = useState(false);
+
   // Check if wallet is connected, auto-advance to success
   useEffect(() => {
-    if (step === 'wallet' && effectiveWalletAddress && (isSignedIn || wagmiIsConnected)) {
+    // Only auto-advance if:
+    // 1. We're on the wallet step
+    // 2. We have a wallet address
+    // 3. User is signed in via CDP or connected via wagmi
+    // 4. We're not already processing
+    if (step === 'wallet' && effectiveWalletAddress && (isSignedIn || wagmiIsConnected) && !walletProcessing && !isLoading) {
+      console.log('[NewAuthModal] Wallet connected, auto-advancing to handleWalletConnected');
+      setWalletProcessing(true);
       handleWalletConnected();
     }
-  }, [step, isSignedIn, evmAddress, wagmiIsConnected, wagmiAddress, effectiveWalletAddress]);
+  }, [step, isSignedIn, evmAddress, wagmiIsConnected, wagmiAddress, effectiveWalletAddress, walletProcessing, isLoading]);
 
   if (!isOpen) return null;
 
@@ -448,6 +459,7 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
     } catch (err) {
       console.error('[NewAuthModal] Error saving user data:', err);
       setError('Failed to save your information. Please try again.');
+      setWalletProcessing(false); // Reset so user can retry
     } finally {
       setIsLoading(false);
     }
@@ -874,14 +886,38 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
                   </div>
                 </>
               ) : (
-                <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
-                  <div className="flex items-center gap-2 text-green-400">
-                    <CheckCircle size={20} />
-                    <span className="font-semibold">Wallet Connected!</span>
+                <div className="space-y-4">
+                  <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+                    <div className="flex items-center gap-2 text-green-400">
+                      <CheckCircle size={20} />
+                      <span className="font-semibold">Wallet Connected!</span>
+                    </div>
+                    <p className="text-white/70 text-sm mt-2">
+                      {effectiveWalletAddress?.substring(0, 6)}...{effectiveWalletAddress?.substring(effectiveWalletAddress.length - 4)}
+                    </p>
                   </div>
-                  <p className="text-white/70 text-sm mt-2">
-                    {effectiveWalletAddress?.substring(0, 6)}...{effectiveWalletAddress?.substring(effectiveWalletAddress.length - 4)}
-                  </p>
+
+                  {/* Manual continue button if auto-advance doesn't trigger */}
+                  <button
+                    onClick={() => {
+                      setWalletProcessing(true);
+                      handleWalletConnected();
+                    }}
+                    disabled={isLoading || walletProcessing}
+                    className="w-full py-3 bg-[#0052FF] hover:bg-[#0041CC] disabled:bg-white/10 disabled:text-white/40 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    {isLoading || walletProcessing ? (
+                      <>
+                        <Loader2 className="animate-spin" size={20} />
+                        Completing sign up...
+                      </>
+                    ) : (
+                      <>
+                        Continue
+                        <ArrowRight size={20} />
+                      </>
+                    )}
+                  </button>
                 </div>
               )}
             </div>

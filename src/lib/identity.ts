@@ -533,11 +533,27 @@ export async function fetchPendingTicketsWithIdentity(identifier: string): Promi
   }
 
   try {
-    // Use RPC function to bypass RLS which fails with Privy auth (auth.uid() is null)
-    const { data, error } = await supabase.rpc(
-      'get_user_pending_tickets_bypass_rls',
+    // Try standard RPC first (staging compatible with anon key)
+    let data: any[] | null = null;
+    let error: any = null;
+
+    const { data: standardData, error: standardError } = await supabase.rpc(
+      'get_user_pending_tickets',
       { user_identifier: identity.primaryId }
     );
+
+    if (!standardError && standardData) {
+      data = standardData;
+    } else {
+      // Fallback to bypass_rls version if standard fails
+      console.warn('[fetchPendingTicketsWithIdentity] Standard RPC not available, trying bypass_rls');
+      const { data: bypassData, error: bypassError } = await supabase.rpc(
+        'get_user_pending_tickets_bypass_rls',
+        { user_identifier: identity.primaryId }
+      );
+      data = bypassData;
+      error = bypassError;
+    }
 
     if (error) {
       // Fallback to direct query if RPC doesn't exist yet

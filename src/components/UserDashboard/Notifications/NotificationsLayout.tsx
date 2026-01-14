@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { notificationService } from '../../../lib/notification-service';
 import { useAuthUser } from '../../../contexts/AuthContext';
 import type { UserNotification } from '../../../types/notifications';
-import { Bell, Check, CheckCheck, Trash2, Gift, Trophy, Megaphone, AlertCircle } from 'lucide-react';
+import { Bell, Check, CheckCheck, Trash2, Gift, Trophy, Megaphone, AlertCircle, CreditCard, Wallet, Ticket } from 'lucide-react';
 import Loader from '../../Loader';
 
 const NotificationsLayout = () => {
@@ -49,6 +49,12 @@ const NotificationsLayout = () => {
         return <AlertCircle className="text-blue-400" size={24} />;
       case 'announcement':
         return <Megaphone className="text-white" size={24} />;
+      case 'payment':
+        return <CreditCard className="text-green-400" size={24} />;
+      case 'topup':
+        return <Wallet className="text-[#DDE404]" size={24} />;
+      case 'entry':
+        return <Ticket className="text-[#EF008F]" size={24} />;
       default:
         return <Bell className="text-white" size={24} />;
     }

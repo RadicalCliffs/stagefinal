@@ -368,4 +368,60 @@ export const notificationService = {
       console.error('Error sending bulk notifications:', error);
     }
   },
+
+  /**
+   * Notify user of a successful payment/purchase
+   */
+  async notifyPayment(userId: string, amount: number, ticketCount: number, competitionTitle?: string): Promise<void> {
+    const title = '✅ Payment Successful';
+    const message = competitionTitle
+      ? `You purchased ${ticketCount} ticket${ticketCount > 1 ? 's' : ''} for "${competitionTitle}" ($${amount.toFixed(2)})`
+      : `Your payment of $${amount.toFixed(2)} for ${ticketCount} ticket${ticketCount > 1 ? 's' : ''} was successful`;
+
+    await this.createNotification({
+      user_id: userId,
+      type: 'payment',
+      title,
+      message,
+      read: false,
+    });
+  },
+
+  /**
+   * Notify user of a successful wallet top-up
+   */
+  async notifyTopUp(userId: string, amount: number, newBalance?: number): Promise<void> {
+    const title = '💰 Top-Up Successful';
+    const message = newBalance !== undefined
+      ? `$${amount.toFixed(2)} has been added to your wallet. Your new balance is $${newBalance.toFixed(2)}.`
+      : `$${amount.toFixed(2)} has been added to your wallet.`;
+
+    await this.createNotification({
+      user_id: userId,
+      type: 'topup',
+      title,
+      message,
+      read: false,
+    });
+  },
+
+  /**
+   * Notify user of a new competition entry
+   */
+  async notifyEntry(userId: string, competitionTitle: string, ticketNumbers: number[], competitionId?: string): Promise<void> {
+    const ticketCount = ticketNumbers.length;
+    const title = '🎟️ Entry Confirmed';
+    const message = ticketCount === 1
+      ? `Your entry #${ticketNumbers[0]} for "${competitionTitle}" is confirmed. Good luck!`
+      : `Your ${ticketCount} entries for "${competitionTitle}" are confirmed (tickets: ${ticketNumbers.slice(0, 5).join(', ')}${ticketNumbers.length > 5 ? '...' : ''}). Good luck!`;
+
+    await this.createNotification({
+      user_id: userId,
+      type: 'entry',
+      title,
+      message,
+      competition_id: competitionId,
+      read: false,
+    });
+  },
 };
