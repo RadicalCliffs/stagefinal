@@ -12,11 +12,9 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, CheckCircle, AlertCircle, Loader2, User, Mail, Globe, Wallet as WalletIcon, ArrowRight, KeyRound, ExternalLink } from 'lucide-react';
+import { X, CheckCircle, AlertCircle, Loader2, User, Mail, Globe, Wallet as WalletIcon, ArrowRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { toPrizePid } from '../utils/userId';
-import { ConnectWallet, Wallet as WalletComponent, WalletDropdown } from '@coinbase/onchainkit/wallet';
-import { Identity, Avatar, Name, Address } from '@coinbase/onchainkit/identity';
 import { useCurrentUser, useEvmAddress, useIsSignedIn } from '@coinbase/cdp-hooks';
 import { useAccount, useDisconnect } from 'wagmi';
 
@@ -836,50 +834,21 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
             <div>
               <h2 className="text-2xl font-bold text-white mb-2">Connect your wallet</h2>
               <p className="text-white/70">
-                Use an existing Base wallet, or create one in seconds.
+                Connect an existing wallet or create a new one in seconds.
               </p>
             </div>
 
             <div className="space-y-4">
               {!isSignedIn && !wagmiIsConnected ? (
                 <>
-                  {/* Option 1: Connect existing Base wallet via wagmi/OnchainKit */}
+                  {/* Single wallet connection option - Opens Base wallet auth flow */}
                   <div className="p-4 bg-[#0052FF]/10 border border-[#0052FF]/30 rounded-lg">
                     <div className="flex items-center gap-3 mb-2">
                       <WalletIcon size={20} className="text-[#0052FF]" />
-                      <span className="text-white font-semibold">Connect existing Base wallet</span>
-                      <span className="text-[#DDE404] text-xs font-semibold ml-auto">Recommended</span>
+                      <span className="text-white font-semibold">Connect or Create Wallet</span>
                     </div>
-                    <p className="text-white/60 text-xs mb-3">
-                      Fastest option if you already use Base or Coinbase Wallet.
-                    </p>
-                    <WalletComponent>
-                      <ConnectWallet
-                        className="w-full py-3 bg-[#0052FF] hover:bg-[#0041CC] text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
-                      >
-                        <Avatar className="h-5 w-5" />
-                        <Name />
-                      </ConnectWallet>
-                      <WalletDropdown>
-                        <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
-                          <Avatar />
-                          <Name />
-                          <Address />
-                        </Identity>
-                      </WalletDropdown>
-                    </WalletComponent>
-                  </div>
-
-                  <div className="text-center text-white/40 text-sm">OR</div>
-
-                  {/* Option 2: Create new wallet - Opens dedicated Base wallet auth flow */}
-                  <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
-                    <div className="flex items-center gap-3 mb-2">
-                      <KeyRound size={20} className="text-white/70" />
-                      <span className="text-white font-semibold">Create a new Base wallet</span>
-                    </div>
-                    <p className="text-white/60 text-xs mb-3">
-                      No wallet yet? Create one via email verification with Coinbase.
+                    <p className="text-white/60 text-sm mb-3">
+                      If you have MetaMask, Coinbase Wallet, Base, or another supported wallet installed, it will be detected automatically. Otherwise, you can create a new wallet with your email.
                     </p>
                     <button
                       onClick={() => {
@@ -899,14 +868,13 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
                           }));
                         }, 100);
                       }}
-                      className="w-full py-3 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 border border-white/20"
+                      className="w-full py-3 bg-[#0052FF] hover:bg-[#0041CC] text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
                     >
                       <WalletIcon size={20} />
-                      Create wallet with email
-                      <ExternalLink size={16} className="ml-1 opacity-60" />
+                      Continue with Wallet
                     </button>
-                    <p className="text-white/40 text-xs mt-2 text-center">
-                      Opens a secure sign-in flow powered by Coinbase
+                    <p className="text-white/40 text-xs mt-3 text-center">
+                      Follow the instructions on the next screen to connect your existing wallet or create a new one.
                     </p>
                   </div>
                 </>
