@@ -982,165 +982,262 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // STEP 6: Debit user balance (optimistic, with rollback on failure later)
-    // Primary: Update sub_account_balances table
-    // Secondary: Update wallet_balances table
-    // Fallback: Update canonical_users.usdc_balance for legacy records
+    // STEP 6: Debit user balance using RPC for atomic operations
+    // PRIMARY: Use debit_sub_account_balance RPC (handles sub_account_balances atomically)
+    // FALLBACK: Direct table updates if RPC fails
     newBalance = Number((userBalance - totalCost).toFixed(2));
     let debitErr;
-    let debitResult;
-    let debitSource: 'sub_account_balances' | 'wallet_balances' | 'canonical_users' = 'sub_account_balances';
+    let debitResult: { success: boolean; previous_balance?: number; new_balance?: number; error_message?: string }[] | null = null;
+    let debitSource: 'sub_account_balances_rpc' | 'sub_account_balances' | 'wallet_balances' | 'canonical_users' = 'sub_account_balances_rpc';
 
-    // Primary: Try to update sub_account_balances if we have a record
-    if (userBalanceRecord?.record_id) {
-      const { error, data } = await supabase
-        .from("sub_account_balances")
-        .update({
-          available_balance: newBalance,
-          last_updated: new Date().toISOString(),
-        })
-        .eq("id", userBalanceRecord.record_id)
-        .gte("available_balance", totalCost)
-        .select("id, available_balance");
-      debitErr = error;
-      debitResult = data;
-      debitSource = 'sub_account_balances';
+    // PRIMARY: Use debit_sub_account_balance RPC for atomic debit
+    // This RPC handles row locking and atomic balance updates
+    console.log("[Balance Debit] Attempting RPC debit_sub_account_balance for:", canonicalUserId);
+    const { data: rpcDebitResult, error: rpcDebitError } = await supabase.rpc("debit_sub_account_balance", {
+      p_canonical_user_id: canonicalUserId,
+      p_amount: totalCost,
+      p_currency: "USD",
+    });
 
-      if (!error && data && data.length > 0) {
-        console.log("[Balance Debit] Successfully updated sub_account_balances, new balance:", newBalance);
-      } else {
-        console.log("[Balance Debit] sub_account_balances update failed or no rows matched, error:", error?.message);
-      }
-    }
+    if (!rpcDebitError && rpcDebitResult && rpcDebitResult.length > 0 && rpcDebitResult[0].success) {
+      // RPC succeeded
+      const result = rpcDebitResult[0];
+      newBalance = Number(result.new_balance);
+      debitResult = rpcDebitResult;
+      debitSource = 'sub_account_balances_rpc';
+      console.log(`[Balance Debit] RPC successful: ${result.previous_balance} → ${result.new_balance}`);
 
-    // Secondary: Try to update wallet_balances if sub_account_balances failed
-    if (!debitResult || debitResult.length === 0) {
-      console.log("[Balance Debit] Trying wallet_balances update");
-      debitSource = 'wallet_balances';
-
-      // Try by canonical_user_id first, then by wallet addresses
-      let walletBalanceUpdate = null;
-      if (userBalanceRecord?.canonical_user_id) {
-        const { error, data } = await supabase
-          .from("wallet_balances")
-          .update({
-            balance: newBalance,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("canonical_user_id", userBalanceRecord.canonical_user_id)
-          .gte("balance", totalCost)
-          .select("user_id, balance");
-        if (data && data.length > 0) {
-          debitErr = error;
-          debitResult = data;
-          walletBalanceUpdate = data;
-        }
-      }
-
-      // If not found by canonical, try by wallet_address
-      if (!walletBalanceUpdate && isUserIdWallet) {
-        const { error, data } = await supabase
-          .from("wallet_balances")
-          .update({
-            balance: newBalance,
-            updated_at: new Date().toISOString(),
-          })
-          .or(`wallet_address.ilike.${normalizedUserId},base_wallet_address.ilike.${normalizedUserId}`)
-          .gte("balance", totalCost)
-          .select("user_id, balance");
-        if (data && data.length > 0) {
-          debitErr = error;
-          debitResult = data;
-          walletBalanceUpdate = data;
-        }
-      }
-
-      if (walletBalanceUpdate && walletBalanceUpdate.length > 0) {
-        console.log("[Balance Debit] Successfully updated wallet_balances, new balance:", newBalance);
-      }
-    }
-
-    // Fallback: Update canonical_users if wallet_balances update failed or no record
-    if (!debitResult || debitResult.length === 0) {
-      console.log("[Balance Debit] Falling back to canonical_users update");
-      debitSource = 'canonical_users';
-
+      // Also sync to canonical_users for backwards compatibility
       if (pucRows.uid) {
-        const { error, data } = await supabase
+        await supabase
           .from("canonical_users")
-          .update({
-            usdc_balance: newBalance,
-          })
-          .eq("uid", pucRows.uid)
-          .select("uid");
-        debitErr = error;
-        debitResult = data;
-      } else if (isUserIdWallet) {
-        const storedWalletAddress = pucRows.wallet_address;
+          .update({ usdc_balance: newBalance })
+          .eq("uid", pucRows.uid);
+      }
 
-        if (storedWalletAddress) {
-          const { error, data } = await supabase
-            .from("canonical_users")
-            .update({
-              usdc_balance: newBalance,
-            })
-            .ilike("wallet_address", storedWalletAddress)
-            .select("uid");
-          debitErr = error;
-          debitResult = data;
+      // Also sync to wallet_balances if exists
+      if (userBalanceRecord?.canonical_user_id) {
+        await supabase
+          .from("wallet_balances")
+          .update({ balance: newBalance, updated_at: new Date().toISOString() })
+          .eq("canonical_user_id", userBalanceRecord.canonical_user_id);
+      }
+    } else {
+      // RPC failed - log the reason and try fallback
+      if (rpcDebitResult && rpcDebitResult.length > 0 && !rpcDebitResult[0].success) {
+        console.log("[Balance Debit] RPC returned error:", rpcDebitResult[0].error_message);
+        // If it's an insufficient balance error, throw immediately
+        if (rpcDebitResult[0].error_message?.includes("Insufficient")) {
+          throw new Error(rpcDebitResult[0].error_message);
         }
+      } else {
+        console.log("[Balance Debit] RPC failed, falling back to direct update:", rpcDebitError?.message);
+      }
 
-        // If wallet_address failed, try base_wallet_address
-        if (!debitResult || debitResult.length === 0) {
+      // FALLBACK: Try direct sub_account_balances update if we have a record_id
+      if (userBalanceRecord?.record_id) {
+        const { error, data } = await supabase
+          .from("sub_account_balances")
+          .update({
+            available_balance: newBalance,
+            last_updated: new Date().toISOString(),
+          })
+          .eq("id", userBalanceRecord.record_id)
+          .gte("available_balance", totalCost)
+          .select("id, available_balance");
+
+        if (!error && data && data.length > 0) {
+          debitResult = [{ success: true, new_balance: newBalance }];
+          debitSource = 'sub_account_balances';
+          console.log("[Balance Debit] Direct sub_account_balances update successful, new balance:", newBalance);
+
+          // Sync to canonical_users
+          if (pucRows.uid) {
+            await supabase
+              .from("canonical_users")
+              .update({ usdc_balance: newBalance })
+              .eq("uid", pucRows.uid);
+          }
+        } else {
+          debitErr = error;
+          console.log("[Balance Debit] Direct sub_account_balances update failed:", error?.message);
+        }
+      }
+
+      // FALLBACK 2: Try wallet_balances if sub_account_balances failed
+      if (!debitResult || debitResult.length === 0) {
+        console.log("[Balance Debit] Trying wallet_balances update");
+        debitSource = 'wallet_balances';
+
+        let walletBalanceUpdate = null;
+        if (userBalanceRecord?.canonical_user_id) {
           const { error, data } = await supabase
-            .from("canonical_users")
+            .from("wallet_balances")
             .update({
-              usdc_balance: newBalance,
+              balance: newBalance,
+              updated_at: new Date().toISOString(),
             })
-            .ilike("base_wallet_address", normalizedUserId)
-            .select("uid");
+            .eq("canonical_user_id", userBalanceRecord.canonical_user_id)
+            .gte("balance", totalCost)
+            .select("user_id, balance");
           if (data && data.length > 0) {
             debitErr = error;
-            debitResult = data;
+            debitResult = [{ success: true, new_balance: newBalance }];
+            walletBalanceUpdate = data;
           }
         }
 
-        if (!debitResult || debitResult.length === 0) {
+        if (!walletBalanceUpdate && isUserIdWallet) {
+          const { error, data } = await supabase
+            .from("wallet_balances")
+            .update({
+              balance: newBalance,
+              updated_at: new Date().toISOString(),
+            })
+            .or(`wallet_address.ilike.${normalizedUserId},base_wallet_address.ilike.${normalizedUserId}`)
+            .gte("balance", totalCost)
+            .select("user_id, balance");
+          if (data && data.length > 0) {
+            debitErr = error;
+            debitResult = [{ success: true, new_balance: newBalance }];
+            walletBalanceUpdate = data;
+          }
+        }
+
+        if (walletBalanceUpdate && walletBalanceUpdate.length > 0) {
+          console.log("[Balance Debit] Successfully updated wallet_balances, new balance:", newBalance);
+
+          // CRITICAL: Also update sub_account_balances to keep in sync
+          // Use upsert to create record if it doesn't exist
+          const { error: subAcctErr } = await supabase
+            .from("sub_account_balances")
+            .upsert({
+              canonical_user_id: canonicalUserId,
+              user_id: userBalanceRecord?.user_id || pucRows.uid || canonicalUserId,
+              currency: "USD",
+              available_balance: newBalance,
+              pending_balance: 0,
+              last_updated: new Date().toISOString(),
+            }, {
+              onConflict: "canonical_user_id,currency",
+            });
+          if (subAcctErr) {
+            console.warn("[Balance Debit] Failed to sync sub_account_balances:", subAcctErr.message);
+          } else {
+            console.log("[Balance Debit] Synced balance to sub_account_balances");
+          }
+
+          // Sync to canonical_users
+          if (pucRows.uid) {
+            await supabase
+              .from("canonical_users")
+              .update({ usdc_balance: newBalance })
+              .eq("uid", pucRows.uid);
+          }
+        }
+      }
+
+      // FALLBACK 3: Update canonical_users if wallet_balances update failed
+      if (!debitResult || debitResult.length === 0) {
+        console.log("[Balance Debit] Falling back to canonical_users update");
+        debitSource = 'canonical_users';
+
+        if (pucRows.uid) {
           const { error, data } = await supabase
             .from("canonical_users")
-            .update({
-              usdc_balance: newBalance,
-            })
+            .update({ usdc_balance: newBalance })
+            .eq("uid", pucRows.uid)
+            .select("uid");
+          debitErr = error;
+          if (data && data.length > 0) {
+            debitResult = [{ success: true, new_balance: newBalance }];
+          }
+        } else if (isUserIdWallet) {
+          const storedWalletAddress = pucRows.wallet_address;
+
+          if (storedWalletAddress) {
+            const { error, data } = await supabase
+              .from("canonical_users")
+              .update({ usdc_balance: newBalance })
+              .ilike("wallet_address", storedWalletAddress)
+              .select("uid");
+            debitErr = error;
+            if (data && data.length > 0) {
+              debitResult = [{ success: true, new_balance: newBalance }];
+            }
+          }
+
+          if (!debitResult || debitResult.length === 0) {
+            const { error, data } = await supabase
+              .from("canonical_users")
+              .update({ usdc_balance: newBalance })
+              .ilike("base_wallet_address", normalizedUserId)
+              .select("uid");
+            if (data && data.length > 0) {
+              debitErr = error;
+              debitResult = [{ success: true, new_balance: newBalance }];
+            }
+          }
+
+          if (!debitResult || debitResult.length === 0) {
+            const { error, data } = await supabase
+              .from("canonical_users")
+              .update({ usdc_balance: newBalance })
+              .eq("privy_user_id", normalizedUserId)
+              .select("uid");
+            debitErr = error;
+            if (data && data.length > 0) {
+              debitResult = [{ success: true, new_balance: newBalance }];
+            }
+          }
+        } else {
+          const { error, data } = await supabase
+            .from("canonical_users")
+            .update({ usdc_balance: newBalance })
             .eq("privy_user_id", normalizedUserId)
             .select("uid");
           debitErr = error;
-          debitResult = data;
+          if (data && data.length > 0) {
+            debitResult = [{ success: true, new_balance: newBalance }];
+          }
         }
-      } else {
-        const { error, data } = await supabase
-          .from("canonical_users")
-          .update({
-            usdc_balance: newBalance,
-          })
-          .eq("privy_user_id", normalizedUserId)
-          .select("uid");
-        debitErr = error;
-        debitResult = data;
+
+        // CRITICAL: If canonical_users updated, also sync to sub_account_balances
+        if (debitResult && debitResult.length > 0 && debitResult[0].success) {
+          console.log("[Balance Debit] Successfully updated canonical_users, syncing to sub_account_balances...");
+          const { error: subAcctErr } = await supabase
+            .from("sub_account_balances")
+            .upsert({
+              canonical_user_id: canonicalUserId,
+              user_id: pucRows.uid || canonicalUserId,
+              currency: "USD",
+              available_balance: newBalance,
+              pending_balance: 0,
+              last_updated: new Date().toISOString(),
+            }, {
+              onConflict: "canonical_user_id,currency",
+            });
+          if (subAcctErr) {
+            console.warn("[Balance Debit] Failed to sync sub_account_balances:", subAcctErr.message);
+          } else {
+            console.log("[Balance Debit] Synced balance to sub_account_balances");
+          }
+        }
       }
     }
 
-    if (debitErr) {
+    if (debitErr && (!debitResult || debitResult.length === 0)) {
       throw new Error(`Failed to update balance: ${debitErr.message}`);
     }
 
     // CRITICAL: Verify the update actually affected a row
-    if (!debitResult || debitResult.length === 0) {
+    if (!debitResult || debitResult.length === 0 || !debitResult[0].success) {
       console.error("[Balance Debit] No rows were updated! User record may not exist or wallet address mismatch.");
       console.error("[Balance Debit] userId:", userId, "storedWalletAddress:", pucRows.wallet_address, "uid:", pucRows.uid);
       throw new Error(`Balance update did not affect any rows. Please contact support.`);
     }
 
-    console.log(`[Balance Debit] Successfully updated ${debitSource}, new balance:`, newBalance);
+    console.log(`[Balance Debit] Successfully updated via ${debitSource}, new balance:`, newBalance);
 
     // Mark that balance has been debited - any error after this point needs rollback
     balanceDebited = true;
@@ -1148,7 +1245,7 @@ Deno.serve(async (req: Request) => {
     // CRITICAL FIX: Create balance_ledger entry for audit trail
     // This ensures all balance changes (both credits AND debits) are tracked
     // Previously, only top-ups created ledger entries; purchases were missing
-    const userUuidForLedger = pucRows.uid || debitResult[0]?.uid;
+    const userUuidForLedger = pucRows.uid;
     if (userUuidForLedger) {
       const ledgerEntry = {
         user_id: userUuidForLedger,
@@ -1392,16 +1489,36 @@ Deno.serve(async (req: Request) => {
       );
     } catch (assignErr) {
       // Rollback balance on failure
-      // Primary: Rollback sub_account_balances if that's what we updated
-      // Secondary: Rollback wallet_balances
-      // Fallback: Rollback canonical_users for legacy records
+      // Primary: Rollback via RPC credit_sub_account_balance if we used RPC for debit
+      // Secondary: Direct rollback to sub_account_balances
+      // Fallback: Rollback wallet_balances and canonical_users for legacy records
       const errorMessage = assignErr instanceof Error ? assignErr.message : "Failed to assign tickets";
       console.error("Ticket assignment error, rolling back balance:", errorMessage, assignErr);
 
       let rbErr;
 
-      // Try to rollback sub_account_balances first
-      if (userBalanceRecord?.record_id) {
+      // Try to rollback via RPC credit_sub_account_balance first (reverses the debit)
+      if (debitSource === 'sub_account_balances_rpc') {
+        console.log("[Balance Rollback] Attempting RPC credit to reverse debit");
+        const { data: rbRpcResult, error: rbRpcError } = await supabase.rpc("credit_sub_account_balance", {
+          p_canonical_user_id: canonicalUserId,
+          p_amount: totalCost,
+          p_currency: "USD",
+        });
+        if (!rbRpcError && rbRpcResult && rbRpcResult.length > 0 && rbRpcResult[0].success) {
+          console.log("sub_account_balances RPC rollback successful:", { canonicalUserId, restoredBalance: userBalance });
+          // Also sync to canonical_users
+          if (pucRows.uid) {
+            await supabase.from("canonical_users").update({ usdc_balance: userBalance }).eq("uid", pucRows.uid);
+          }
+        } else {
+          rbErr = rbRpcError || new Error("RPC rollback failed");
+          console.error("RPC rollback failed:", rbRpcError?.message);
+        }
+      }
+
+      // Try to rollback sub_account_balances directly if RPC wasn't used or failed
+      if (!rbErr && userBalanceRecord?.record_id && debitSource !== 'sub_account_balances_rpc') {
         const { error } = await supabase
           .from("sub_account_balances")
           .update({
@@ -1413,6 +1530,23 @@ Deno.serve(async (req: Request) => {
         if (!error) {
           console.log("sub_account_balances rollback successful:", { recordId: userBalanceRecord.record_id, restoredBalance: userBalance });
         }
+      }
+
+      // Also rollback sub_account_balances via upsert if we synced there during fallback debit
+      if (debitSource === 'wallet_balances' || debitSource === 'canonical_users') {
+        console.log("[Balance Rollback] Syncing rollback to sub_account_balances");
+        await supabase
+          .from("sub_account_balances")
+          .upsert({
+            canonical_user_id: canonicalUserId,
+            user_id: userBalanceRecord?.user_id || pucRows.uid || canonicalUserId,
+            currency: "USD",
+            available_balance: userBalance,
+            pending_balance: 0,
+            last_updated: new Date().toISOString(),
+          }, {
+            onConflict: "canonical_user_id,currency",
+          });
       }
 
       // Try to rollback wallet_balances
