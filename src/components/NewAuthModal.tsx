@@ -12,10 +12,9 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, CheckCircle, AlertCircle, Loader2, User, Mail, Globe, Wallet as WalletIcon, ArrowRight, KeyRound } from 'lucide-react';
+import { X, CheckCircle, AlertCircle, Loader2, User, Mail, Globe, Wallet as WalletIcon, ArrowRight, KeyRound, ExternalLink } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { toPrizePid } from '../utils/userId';
-import { SignIn } from '@coinbase/cdp-react';
 import { ConnectWallet, Wallet as WalletComponent, WalletDropdown } from '@coinbase/onchainkit/wallet';
 import { Identity, Avatar, Name, Address } from '@coinbase/onchainkit/identity';
 import { useCurrentUser, useEvmAddress, useIsSignedIn } from '@coinbase/cdp-hooks';
@@ -844,7 +843,7 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
             <div className="space-y-4">
               {!isSignedIn && !wagmiIsConnected ? (
                 <>
-                  {/* Option 1: Connect existing Base wallet via wagmi */}
+                  {/* Option 1: Connect existing Base wallet via wagmi/OnchainKit */}
                   <div className="p-4 bg-[#0052FF]/10 border border-[#0052FF]/30 rounded-lg">
                     <div className="flex items-center gap-3 mb-2">
                       <WalletIcon size={20} className="text-[#0052FF]" />
@@ -873,16 +872,42 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
 
                   <div className="text-center text-white/40 text-sm">OR</div>
 
-                  {/* Option 2: Create new wallet via CDP SignIn */}
+                  {/* Option 2: Create new wallet - Opens dedicated Base wallet auth flow */}
                   <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
                     <div className="flex items-center gap-3 mb-2">
                       <KeyRound size={20} className="text-white/70" />
                       <span className="text-white font-semibold">Create a new Base wallet</span>
                     </div>
                     <p className="text-white/60 text-xs mb-3">
-                      No wallet yet? Create one now and get started instantly.
+                      No wallet yet? Create one via email verification with Coinbase.
                     </p>
-                    <SignIn />
+                    <button
+                      onClick={() => {
+                        // Save current profile data to localStorage before opening wallet auth
+                        localStorage.setItem('pendingSignupData', JSON.stringify({
+                          profileData,
+                          isReturningUser,
+                          timestamp: Date.now()
+                        }));
+                        console.log('[NewAuthModal] Saved signup data, opening Base wallet auth flow');
+                        // Close this modal and dispatch event to open Base wallet auth modal
+                        onClose();
+                        // Small delay to ensure modal closes before opening new one
+                        setTimeout(() => {
+                          window.dispatchEvent(new CustomEvent('open-base-wallet-auth', {
+                            detail: { resumeSignup: true, email: profileData.email }
+                          }));
+                        }, 100);
+                      }}
+                      className="w-full py-3 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 border border-white/20"
+                    >
+                      <WalletIcon size={20} />
+                      Create wallet with email
+                      <ExternalLink size={16} className="ml-1 opacity-60" />
+                    </button>
+                    <p className="text-white/40 text-xs mt-2 text-center">
+                      Opens a secure sign-in flow powered by Coinbase
+                    </p>
                   </div>
                 </>
               ) : (
