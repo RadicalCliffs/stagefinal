@@ -337,6 +337,39 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
         throw new Error(data.error || 'Invalid verification code');
       }
 
+      // Create user in Supabase immediately after email verification
+      // This ensures user data is stored even if they don't complete wallet connection
+      if (!isReturningUser) {
+        console.log('[NewAuthModal] Creating user in database...');
+        const createUserResponse = await fetch('/api/create-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: profileData.username,
+            email: profileData.email,
+            firstName: profileData.firstName,
+            lastName: profileData.lastName,
+            country: profileData.country,
+            telegram: profileData.telegram,
+            avatar: profileData.avatar,
+          }),
+        });
+
+        const createUserData = await createUserResponse.json();
+
+        if (!createUserResponse.ok) {
+          // If user creation fails due to duplicate, continue to wallet connection
+          if (createUserResponse.status !== 409) {
+            console.error('[NewAuthModal] Failed to create user:', createUserData.error);
+            // Continue anyway - user can still complete wallet connection
+          } else {
+            console.log('[NewAuthModal] User already exists, continuing to wallet connection');
+          }
+        } else {
+          console.log('[NewAuthModal] User created in database:', createUserData.user?.id);
+        }
+      }
+
       // OTP verified, proceed to wallet connection
       setStep('wallet');
     } catch (err) {
@@ -363,29 +396,64 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
       // Generate canonical_user_id from wallet address
       const canonicalUserId = toPrizePid(effectiveWalletAddress);
 
-      // Create or update user in canonical_users table and get the returned data
-      const { data: canonicalUserData, error: upsertError } = await supabase
+      // First, try to find existing user by email (created during OTP verification)
+      const { data: existingUser, error: fetchError } = await supabase
         .from('canonical_users')
-        .upsert({
-          canonical_user_id: canonicalUserId,
-          username: profileData.username.toLowerCase(),
-          email: profileData.email.toLowerCase(),
-          wallet_address: effectiveWalletAddress.toLowerCase(),
-          base_wallet_address: effectiveWalletAddress.toLowerCase(),
-          eth_wallet_address: effectiveWalletAddress.toLowerCase(),
-          ...(profileData.country && { country: profileData.country }),
-          ...(profileData.avatar && { avatar_url: profileData.avatar }),
-          ...(profileData.telegram && { telegram_handle: profileData.telegram }),
-        }, {
-          onConflict: 'canonical_user_id'
-        })
         .select('id')
-        .single();
+        .eq('email', profileData.email.toLowerCase())
+        .maybeSingle();
 
-      if (upsertError) throw upsertError;
+      if (fetchError) {
+        console.warn('[NewAuthModal] Error checking for existing user:', fetchError);
+      }
 
-      // Get the canonical_users.id (UUID) for the profiles table foreign key
-      const canonicalUserUUID = canonicalUserData?.id;
+      let canonicalUserUUID: string | undefined;
+
+      if (existingUser) {
+        // User exists - update with wallet info
+        console.log('[NewAuthModal] Found existing user by email, linking wallet:', existingUser.id);
+        const { data: updatedUser, error: updateError } = await supabase
+          .from('canonical_users')
+          .update({
+            canonical_user_id: canonicalUserId,
+            wallet_address: effectiveWalletAddress.toLowerCase(),
+            base_wallet_address: effectiveWalletAddress.toLowerCase(),
+            eth_wallet_address: effectiveWalletAddress.toLowerCase(),
+            privy_user_id: effectiveWalletAddress,
+          })
+          .eq('id', existingUser.id)
+          .select('id')
+          .single();
+
+        if (updateError) throw updateError;
+        canonicalUserUUID = updatedUser?.id;
+      } else {
+        // No existing user - create new (fallback for edge cases like returning users)
+        console.log('[NewAuthModal] No existing user found, creating new user with wallet');
+        const { data: canonicalUserData, error: upsertError } = await supabase
+          .from('canonical_users')
+          .upsert({
+            canonical_user_id: canonicalUserId,
+            username: profileData.username.toLowerCase(),
+            email: profileData.email.toLowerCase(),
+            wallet_address: effectiveWalletAddress.toLowerCase(),
+            base_wallet_address: effectiveWalletAddress.toLowerCase(),
+            eth_wallet_address: effectiveWalletAddress.toLowerCase(),
+            privy_user_id: effectiveWalletAddress,
+            ...(profileData.firstName && { first_name: profileData.firstName }),
+            ...(profileData.lastName && { last_name: profileData.lastName }),
+            ...(profileData.country && { country: profileData.country }),
+            ...(profileData.avatar && { avatar_url: profileData.avatar }),
+            ...(profileData.telegram && { telegram_handle: profileData.telegram }),
+          }, {
+            onConflict: 'canonical_user_id'
+          })
+          .select('id')
+          .single();
+
+        if (upsertError) throw upsertError;
+        canonicalUserUUID = canonicalUserData?.id;
+      }
 
       // Create or update the user's profile in the profiles table
       // The profiles table has a user_id column that references canonical_users.id
