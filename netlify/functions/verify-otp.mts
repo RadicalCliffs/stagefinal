@@ -116,6 +116,39 @@ export default async function handler(request: Request, _context: Context) {
     await store.delete(otpKey);
     console.log(`[verify-otp][${requestId}] OTP verified successfully for ${email}`);
 
+    // Store verified email session in Supabase for user creation
+    const supabaseUrl = Netlify.env.get("SUPABASE_URL") || Netlify.env.get("VITE_SUPABASE_URL");
+    const supabaseServiceKey = Netlify.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+    if (supabaseUrl && supabaseServiceKey) {
+      try {
+        const response = await fetch(`${supabaseUrl}/rest/v1/email_auth_sessions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": supabaseServiceKey,
+            "Authorization": `Bearer ${supabaseServiceKey}`,
+            "Prefer": "resolution=merge-duplicates"
+          },
+          body: JSON.stringify({
+            email: email.toLowerCase(),
+            verification_code: code,
+            verified_at: new Date().toISOString(),
+            expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString() // 30 min validity
+          })
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.warn(`[verify-otp][${requestId}] Failed to store verified session:`, errorText);
+        } else {
+          console.log(`[verify-otp][${requestId}] Verified email session stored for ${email}`);
+        }
+      } catch (err) {
+        console.warn(`[verify-otp][${requestId}] Error storing verified session:`, err);
+      }
+    }
+
     return new Response(
       JSON.stringify({ success: true, message: "Email verified successfully" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
