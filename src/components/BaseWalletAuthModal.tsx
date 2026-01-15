@@ -299,7 +299,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
   const [flowState, setFlowState] = useState<FlowState>('cdp-signin');
   const [userEmail, setUserEmail] = useState<string>('');
   const [emailError, setEmailError] = useState<string>('');
-  
+
   // Profile completion state
   const [profileData, setProfileData] = useState<ProfileData>({
     username: '',
@@ -309,17 +309,19 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
     mobile: '',
     socialProfiles: '',
   });
-  
+
   const [copied, setCopied] = useState(false);
 
   const savedToDbRef = useRef(false);
   const profileCheckedRef = useRef(false);
+  const pendingSignupProcessedRef = useRef(false);
 
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
       savedToDbRef.current = false;
       profileCheckedRef.current = false;
+      pendingSignupProcessedRef.current = false;
       setEmailError('');
       setFlowState('cdp-signin');
       setProfileData({
@@ -333,11 +335,79 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
     }
   }, [isOpen]);
 
-  // If already authenticated with Base/CDP, close immediately
+  // If already authenticated with Base/CDP, check for pending signup and handle it
   useEffect(() => {
-    if (cdpIsSignedIn && evmAddress && isOpen) {
-      onClose();
-    }
+    const handleAuthenticatedState = async () => {
+      if (cdpIsSignedIn && evmAddress && isOpen && !pendingSignupProcessedRef.current) {
+        // Check for pending signup data from NewAuthModal
+        const pendingSignupStr = localStorage.getItem('pendingSignupData');
+        if (pendingSignupStr) {
+          try {
+            const pendingSignup = JSON.parse(pendingSignupStr);
+            // Check if data is recent (within 10 minutes)
+            const isRecent = Date.now() - pendingSignup.timestamp < 10 * 60 * 1000;
+
+            if (isRecent && pendingSignup.profileData) {
+              console.log('[BaseWallet] Found pending signup data from NewAuthModal, completing registration');
+              pendingSignupProcessedRef.current = true;
+
+              // Save the user with pending profile data
+              const { profileData: savedProfile } = pendingSignup;
+              const canonicalUserId = toPrizePid(evmAddress);
+
+              // Create/update user with the saved profile data
+              const { error: upsertError } = await supabase
+                .from('canonical_users')
+                .upsert({
+                  canonical_user_id: canonicalUserId,
+                  username: savedProfile.username?.toLowerCase() || `user_${evmAddress.slice(2, 8)}`,
+                  email: savedProfile.email?.toLowerCase() || null,
+                  wallet_address: evmAddress.toLowerCase(),
+                  base_wallet_address: evmAddress.toLowerCase(),
+                  eth_wallet_address: evmAddress.toLowerCase(),
+                  privy_user_id: evmAddress,
+                  ...(savedProfile.country && { country: savedProfile.country }),
+                  ...(savedProfile.avatar && { avatar_url: savedProfile.avatar }),
+                  ...(savedProfile.telegram && { telegram_handle: savedProfile.telegram }),
+                }, {
+                  onConflict: 'canonical_user_id'
+                });
+
+              if (upsertError) {
+                console.error('[BaseWallet] Error saving pending signup data:', upsertError);
+              } else {
+                console.log('[BaseWallet] Successfully completed signup with pending data');
+              }
+
+              // Clear the pending signup data
+              localStorage.removeItem('pendingSignupData');
+              localStorage.setItem('cdp:wallet_address', evmAddress);
+
+              // Dispatch auth-complete event
+              window.dispatchEvent(new CustomEvent('auth-complete', {
+                detail: {
+                  walletAddress: evmAddress,
+                  canonicalUserId,
+                  email: savedProfile.email
+                }
+              }));
+
+              onClose();
+              return;
+            }
+          } catch (e) {
+            console.error('[BaseWallet] Error parsing pending signup data:', e);
+          }
+          // Clear invalid or expired data
+          localStorage.removeItem('pendingSignupData');
+        }
+
+        // No pending data or invalid - just close the modal since user is already authenticated
+        onClose();
+      }
+    };
+
+    handleAuthenticatedState();
   }, [cdpIsSignedIn, evmAddress, isOpen, onClose]);
 
   // Handle external wallet connection (wagmi) - save to database and show success
@@ -371,18 +441,78 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
     const handleCDPSignInSuccess = async () => {
       if (flowState === 'cdp-signin' && cdpIsSignedIn && evmAddress && currentUser && !profileCheckedRef.current) {
         profileCheckedRef.current = true;
-        
+
         const email = currentUser.email ||
                      (currentUser as any).emails?.[0]?.value ||
                      (currentUser as any).emails?.[0]?.address;
-        
+
         if (email) {
           setUserEmail(email);
           console.log('[BaseWallet] CDP sign-in successful:', { email, wallet: evmAddress });
-          
-          // Check if user needs profile completion
+
+          // First, check for pending signup data from NewAuthModal
+          const pendingSignupStr = localStorage.getItem('pendingSignupData');
+          if (pendingSignupStr && !pendingSignupProcessedRef.current) {
+            try {
+              const pendingSignup = JSON.parse(pendingSignupStr);
+              const isRecent = Date.now() - pendingSignup.timestamp < 10 * 60 * 1000;
+
+              if (isRecent && pendingSignup.profileData) {
+                console.log('[BaseWallet] Processing pending signup data after CDP sign-in');
+                pendingSignupProcessedRef.current = true;
+
+                const { profileData: savedProfile } = pendingSignup;
+                const canonicalUserId = toPrizePid(evmAddress);
+
+                // Create/update user with the saved profile data
+                const { error: upsertError } = await supabase
+                  .from('canonical_users')
+                  .upsert({
+                    canonical_user_id: canonicalUserId,
+                    username: savedProfile.username?.toLowerCase() || `user_${evmAddress.slice(2, 8)}`,
+                    email: savedProfile.email?.toLowerCase() || email.toLowerCase(),
+                    wallet_address: evmAddress.toLowerCase(),
+                    base_wallet_address: evmAddress.toLowerCase(),
+                    eth_wallet_address: evmAddress.toLowerCase(),
+                    privy_user_id: evmAddress,
+                    ...(savedProfile.country && { country: savedProfile.country }),
+                    ...(savedProfile.avatar && { avatar_url: savedProfile.avatar }),
+                    ...(savedProfile.telegram && { telegram_handle: savedProfile.telegram }),
+                  }, {
+                    onConflict: 'canonical_user_id'
+                  });
+
+                if (upsertError) {
+                  console.error('[BaseWallet] Error saving pending signup data:', upsertError);
+                } else {
+                  console.log('[BaseWallet] Successfully completed signup with pending data');
+                }
+
+                // Clear the pending signup data
+                localStorage.removeItem('pendingSignupData');
+                localStorage.setItem('cdp:wallet_address', evmAddress);
+
+                // Dispatch auth-complete event
+                window.dispatchEvent(new CustomEvent('auth-complete', {
+                  detail: {
+                    walletAddress: evmAddress,
+                    canonicalUserId,
+                    email: savedProfile.email || email
+                  }
+                }));
+
+                setFlowState('logged-in-success');
+                return;
+              }
+            } catch (e) {
+              console.error('[BaseWallet] Error parsing pending signup data:', e);
+            }
+            localStorage.removeItem('pendingSignupData');
+          }
+
+          // No pending data - check if user needs profile completion
           const result = await checkExistingUser(email);
-          
+
           if (result.exists && result.hasCompletedProfile) {
             // Existing user with complete profile - save and show success
             if (!savedToDbRef.current) {
@@ -398,7 +528,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
         }
       }
     };
-    
+
     void handleCDPSignInSuccess();
   }, [flowState, cdpIsSignedIn, evmAddress, currentUser]);
 

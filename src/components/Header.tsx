@@ -15,6 +15,7 @@ import { useClickOutside } from "../hooks/useHandleClickOutside";
 
 // Lazy load the auth modal - only loaded when user clicks Login
 const NewAuthModal = lazy(() => import("./NewAuthModal"));
+const BaseWalletAuthModal = lazy(() => import("./BaseWalletAuthModal"));
 
 const Header: React.FC = () => {
   const navItems: { label: string; path: string }[] = [
@@ -27,6 +28,7 @@ const Header: React.FC = () => {
 
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showBaseWalletAuthModal, setShowBaseWalletAuthModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const { authenticated, ready, logout } = useAuthUser();
@@ -44,6 +46,19 @@ const Header: React.FC = () => {
       window.removeEventListener('open-auth-modal', handleOpenAuthModal);
     };
   }, [authenticated, ready]);
+
+  // Listen for open-base-wallet-auth events (triggered when user needs dedicated CDP wallet auth flow)
+  useEffect(() => {
+    const handleOpenBaseWalletAuth = (event: CustomEvent) => {
+      console.log('[Header] Opening Base wallet auth modal', event.detail);
+      setShowBaseWalletAuthModal(true);
+    };
+
+    window.addEventListener('open-base-wallet-auth', handleOpenBaseWalletAuth as EventListener);
+    return () => {
+      window.removeEventListener('open-base-wallet-auth', handleOpenBaseWalletAuth as EventListener);
+    };
+  }, []);
 
   // Prevent opening Base auth modal if user is already authenticated
   // Also prevent showing auth modal during initial auth check to avoid flicker on refresh
@@ -269,6 +284,15 @@ const Header: React.FC = () => {
           <NewAuthModal
             isOpen={showAuthModal}
             onClose={() => setShowAuthModal(false)}
+          />
+        </Suspense>
+      )}
+
+      {showBaseWalletAuthModal && (
+        <Suspense fallback={null}>
+          <BaseWalletAuthModal
+            isOpen={showBaseWalletAuthModal}
+            onClose={() => setShowBaseWalletAuthModal(false)}
           />
         </Suspense>
       )}
