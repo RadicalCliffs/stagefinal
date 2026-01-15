@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import type { UserNotification } from '../types/notifications';
 import { resolveUserIdentity, isWalletAddress, isPrivyDid } from './identity';
+import { toPrizePid } from '../utils/userId';
 
 /**
  * Notification Service
@@ -8,6 +9,9 @@ import { resolveUserIdentity, isWalletAddress, isPrivyDid } from './identity';
  * UPDATED: Now uses Netlify function for write operations to bypass RLS restrictions.
  * Read operations still use direct Supabase queries for performance.
  * Write operations (create, update, delete) use /api/notifications/* endpoints.
+ *
+ * For wallet-based auth (CDP/Base), notifications are stored with the canonical_users.id
+ * as the user_id, or directly with the canonical_user_id if no profile exists.
  */
 
 // Get authentication token for API calls
@@ -36,6 +40,49 @@ async function getAuthToken(): Promise<string | null> {
     return null;
   } catch (err) {
     console.error('Error getting auth token:', err);
+    return null;
+  }
+}
+
+/**
+ * Get user profile ID for notifications
+ *
+ * NOTE: Users MUST go through the sign-up/login flow before connecting a wallet.
+ * There are no "wallet-only" users - authentication always comes first, then wallet connection.
+ * This function only looks up existing users; it does NOT create new user records.
+ */
+async function getNotificationUserId(userId: string): Promise<string | null> {
+  try {
+    // First, try to resolve existing identity
+    const identity = await resolveUserIdentity(userId);
+    if (identity?.profile?.id) {
+      return identity.profile.id;
+    }
+
+    // If userId is a wallet address, look up the existing user
+    // NOTE: We do NOT create users here - users must register through the auth flow first
+    if (isWalletAddress(userId)) {
+      const normalizedWallet = userId.toLowerCase();
+
+      // Check if user already exists by wallet address (case-insensitive)
+      const { data: existingUser } = await supabase
+        .from('canonical_users')
+        .select('id')
+        .or(`wallet_address.ilike.${normalizedWallet},base_wallet_address.ilike.${normalizedWallet}`)
+        .limit(1);
+
+      if (existingUser && existingUser.length > 0) {
+        return existingUser[0].id;
+      }
+
+      // No user found - they need to complete registration first
+      console.warn('[NotificationService] No registered user found for wallet:', normalizedWallet);
+      console.warn('[NotificationService] Users must complete sign-up/login before connecting a wallet');
+    }
+
+    return null;
+  } catch (err) {
+    console.error('[NotificationService] Error in getNotificationUserId:', err);
     return null;
   }
 }
@@ -127,70 +174,60 @@ function buildNotificationUserFilter(userId: string, allIdentifiers: string[]): 
 
 export const notificationService = {
   async getUserNotifications(userId: string): Promise<UserNotification[]> {
-    // Resolve user identity to get all possible identifiers
-    const identity = await resolveUserIdentity(userId);
+    try {
+      // Use Netlify function to get notifications (handles auth internally)
+      const authToken = await getAuthToken();
+      if (!authToken) {
+        console.warn('[NotificationService] No auth token available');
+        return [];
+      }
 
-    // The user_notifications table stores user_id as UUID, so we need the profile.id
-    const profileId = identity?.profile?.id;
+      const response = await fetch('/api/notifications/', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+      });
 
-    // If no profile ID is found, we can't query the notifications table
-    // because wallet addresses won't match UUID user_id columns
-    if (!profileId) {
-      // Return empty array silently - no profile means no notifications
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        console.error('[NotificationService] Error fetching notifications:', data.error || response.statusText);
+        return [];
+      }
+
+      const result = await response.json();
+      return result.notifications || [];
+    } catch (err) {
+      console.error('[NotificationService] Error fetching notifications:', err);
       return [];
     }
-
-    // Query using only the UUID profile ID since the table uses UUID type
-    const { data, error } = await withRetry(() =>
-      supabase
-        .from('user_notifications')
-        .select('*')
-        .eq('user_id', profileId)
-        .order('created_at', { ascending: false })
-    );
-
-    if (error) {
-      console.error('Error fetching notifications:', error);
-      return [];
-    }
-
-    return data || [];
   },
 
   async getUnreadCount(userId: string): Promise<number> {
     try {
-      // Resolve user identity to get all possible identifiers
-      const identity = await resolveUserIdentity(userId);
-
-      // If we have a resolved identity with a UUID profile, use that
-      // The user_notifications table stores user_id as UUID, so we need the profile.id
-      const profileId = identity?.profile?.id;
-
-      // If no profile ID is found, we can't query the notifications table
-      // because wallet addresses won't match UUID user_id columns
-      if (!profileId) {
-        // Return 0 silently - no profile means no notifications
+      // Use Netlify function to get unread count (handles auth internally)
+      const authToken = await getAuthToken();
+      if (!authToken) {
         return 0;
       }
 
-      // Query using only the UUID profile ID since the table uses UUID type
-      const { count, error } = await withRetry(() =>
-        supabase
-          .from('user_notifications')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', profileId)
-          .eq('read', false)
-      );
+      const response = await fetch('/api/notifications/unread-count', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+      });
 
-      if (error) {
-        console.error('Error fetching unread count:', error);
+      if (!response.ok) {
         return 0;
       }
 
-      return count || 0;
+      const result = await response.json();
+      return result.count || 0;
     } catch (err) {
-      // Gracefully handle errors - don't break the UI for notification counts
-      console.error('Error fetching unread count:', err);
+      console.error('[NotificationService] Error fetching unread count:', err);
       return 0;
     }
   },
@@ -423,5 +460,166 @@ export const notificationService = {
       competition_id: competitionId,
       read: false,
     });
+  },
+
+  /**
+   * Backfill notifications from user's transaction and entry history
+   * This creates notifications for past activity that may not have generated notifications
+   */
+  async backfillNotificationsFromActivity(userId: string): Promise<{ created: number; errors: number }> {
+    let created = 0;
+    let errors = 0;
+
+    try {
+      const authToken = await getAuthToken();
+      if (!authToken) {
+        console.warn('[NotificationService] No auth token for backfill');
+        return { created: 0, errors: 0 };
+      }
+
+      // First, get existing notifications to avoid duplicates
+      const existingNotifications = await this.getUserNotifications(userId);
+      const existingSet = new Set(
+        existingNotifications.map(n => `${n.type}:${n.competition_id || ''}:${n.message?.slice(0, 50) || ''}`)
+      );
+
+      // Fetch user transactions using RPC
+      const { data: transactions, error: txError } = await supabase.rpc('get_user_transactions', {
+        user_identifier: toPrizePid(userId),
+      });
+
+      if (txError) {
+        console.warn('[NotificationService] Could not fetch transactions for backfill:', txError.message);
+      } else if (transactions && Array.isArray(transactions)) {
+        // Create notifications for successful transactions
+        for (const tx of transactions.slice(0, 20)) { // Limit to last 20 transactions
+          const amount = Number(tx.amount) || 0;
+          const ticketCount = Number(tx.ticket_count) || 1;
+          const txType = tx.type || 'purchase';
+
+          let notifType: 'payment' | 'topup' = 'payment';
+          let title = '';
+          let message = '';
+
+          if (txType === 'topup' || txType === 'deposit') {
+            notifType = 'topup';
+            title = '💰 Top-Up Successful';
+            message = `$${amount.toFixed(2)} was added to your wallet.`;
+          } else {
+            notifType = 'payment';
+            title = '✅ Payment Successful';
+            message = tx.competition_title
+              ? `You purchased ${ticketCount} ticket${ticketCount > 1 ? 's' : ''} for "${tx.competition_title}" ($${amount.toFixed(2)})`
+              : `Your payment of $${amount.toFixed(2)} for ${ticketCount} ticket${ticketCount > 1 ? 's' : ''} was successful`;
+          }
+
+          // Check if similar notification already exists
+          const key = `${notifType}:${tx.competition_id || ''}:${message.slice(0, 50)}`;
+          if (!existingSet.has(key)) {
+            try {
+              const response = await fetch('/api/notifications/', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${authToken}`,
+                },
+                body: JSON.stringify({
+                  type: notifType,
+                  title,
+                  message,
+                  competition_id: tx.competition_id || null,
+                  read: true, // Mark backfilled notifications as read
+                }),
+              });
+
+              if (response.ok) {
+                created++;
+                existingSet.add(key);
+              } else {
+                errors++;
+              }
+            } catch (err) {
+              errors++;
+            }
+          }
+        }
+      }
+
+      // Fetch user entries using RPC
+      const { data: entries, error: entryError } = await supabase.rpc('get_user_tickets', {
+        user_identifier: toPrizePid(userId),
+      });
+
+      if (entryError) {
+        console.warn('[NotificationService] Could not fetch entries for backfill:', entryError.message);
+      } else if (entries && Array.isArray(entries)) {
+        // Group entries by competition
+        const entriesByCompetition = new Map<string, any[]>();
+        for (const entry of entries) {
+          const compId = entry.competitionid || entry.competition_id || '';
+          if (!entriesByCompetition.has(compId)) {
+            entriesByCompetition.set(compId, []);
+          }
+          entriesByCompetition.get(compId)!.push(entry);
+        }
+
+        // Create entry notifications (limit to last 10 competitions)
+        let compCount = 0;
+        for (const [compId, compEntries] of entriesByCompetition) {
+          if (compCount >= 10) break;
+          compCount++;
+
+          const ticketNumbers = compEntries.flatMap(e => {
+            const nums = String(e.ticketnumbers || e.ticket_numbers || '').split(',').map(n => parseInt(n.trim(), 10)).filter(n => Number.isFinite(n));
+            return nums;
+          }).slice(0, 10);
+
+          if (ticketNumbers.length === 0) continue;
+
+          const competitionTitle = compEntries[0]?.competition_title || compEntries[0]?.title || 'Competition';
+          const ticketCount = ticketNumbers.length;
+
+          const title = '🎟️ Entry Confirmed';
+          const message = ticketCount === 1
+            ? `Your entry #${ticketNumbers[0]} for "${competitionTitle}" is confirmed. Good luck!`
+            : `Your ${ticketCount} entries for "${competitionTitle}" are confirmed (tickets: ${ticketNumbers.slice(0, 5).join(', ')}${ticketNumbers.length > 5 ? '...' : ''}). Good luck!`;
+
+          const key = `entry:${compId}:${message.slice(0, 50)}`;
+          if (!existingSet.has(key)) {
+            try {
+              const response = await fetch('/api/notifications/', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${authToken}`,
+                },
+                body: JSON.stringify({
+                  type: 'entry',
+                  title,
+                  message,
+                  competition_id: compId || null,
+                  read: true, // Mark backfilled notifications as read
+                }),
+              });
+
+              if (response.ok) {
+                created++;
+                existingSet.add(key);
+              } else {
+                errors++;
+              }
+            } catch (err) {
+              errors++;
+            }
+          }
+        }
+      }
+
+      console.log(`[NotificationService] Backfill complete: created ${created}, errors ${errors}`);
+      return { created, errors };
+    } catch (err) {
+      console.error('[NotificationService] Error in backfillNotificationsFromActivity:', err);
+      return { created, errors };
+    }
   },
 };

@@ -1,14 +1,17 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { notificationService } from '../../../lib/notification-service';
 import { useAuthUser } from '../../../contexts/AuthContext';
 import type { UserNotification } from '../../../types/notifications';
-import { Bell, Check, CheckCheck, Trash2, Gift, Trophy, Megaphone, AlertCircle, CreditCard, Wallet, Ticket } from 'lucide-react';
+import { Bell, Check, CheckCheck, Trash2, Gift, Trophy, Megaphone, AlertCircle, CreditCard, Wallet, Ticket, RefreshCw } from 'lucide-react';
 import Loader from '../../Loader';
 
 const NotificationsLayout = () => {
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillStatus, setBackfillStatus] = useState<string | null>(null);
   const { baseUser, authenticated } = useAuthUser();
+  const hasBackfilled = useRef(false);
 
   const loadNotifications = useCallback(async () => {
     if (!authenticated || !baseUser?.id) return;
@@ -17,11 +20,48 @@ const NotificationsLayout = () => {
     const data = await notificationService.getUserNotifications(baseUser.id);
     setNotifications(data);
     setLoading(false);
+    return data;
   }, [authenticated, baseUser?.id]);
 
+  // Backfill notifications from activity history
+  const handleBackfill = useCallback(async () => {
+    if (!authenticated || !baseUser?.id || backfilling) return;
+
+    setBackfilling(true);
+    setBackfillStatus('Loading your activity history...');
+
+    try {
+      const result = await notificationService.backfillNotificationsFromActivity(baseUser.id);
+      if (result.created > 0) {
+        setBackfillStatus(`Added ${result.created} notification${result.created !== 1 ? 's' : ''} from your history`);
+        // Reload notifications to show the new ones
+        await loadNotifications();
+      } else {
+        setBackfillStatus('No new activity to add');
+      }
+    } catch (err) {
+      console.error('[Notifications] Backfill error:', err);
+      setBackfillStatus('Could not load activity history');
+    } finally {
+      setBackfilling(false);
+      // Clear status after 3 seconds
+      setTimeout(() => setBackfillStatus(null), 3000);
+    }
+  }, [authenticated, baseUser?.id, backfilling, loadNotifications]);
+
   useEffect(() => {
-    loadNotifications();
-  }, [loadNotifications]);
+    const init = async () => {
+      const data = await loadNotifications();
+
+      // Auto-backfill if no notifications exist and we haven't tried yet
+      if (data && data.length === 0 && !hasBackfilled.current && authenticated && baseUser?.id) {
+        hasBackfilled.current = true;
+        await handleBackfill();
+      }
+    };
+
+    init();
+  }, [loadNotifications, handleBackfill, authenticated, baseUser?.id]);
 
   const handleMarkAsRead = async (id: string) => {
     await notificationService.markAsRead(id);
@@ -94,9 +134,20 @@ const NotificationsLayout = () => {
         <div className="bg-[#181818] border-2 border-white/20 rounded-xl p-12 text-center">
           <Bell className="text-white/30 mx-auto mb-4" size={48} />
           <p className="text-white/60 sequel-45 text-lg">No notifications yet</p>
-          <p className="text-white/40 sequel-45 text-sm mt-2">
+          <p className="text-white/40 sequel-45 text-sm mt-2 mb-6">
             You'll be notified here when you win, competitions end, or we have special offers
           </p>
+          {backfillStatus && (
+            <p className="text-[#DDE404] sequel-45 text-sm mb-4">{backfillStatus}</p>
+          )}
+          <button
+            onClick={handleBackfill}
+            disabled={backfilling}
+            className="bg-[#2A2A2A] hover:bg-[#3A3A3A] text-white sequel-75 uppercase px-4 py-2 rounded-lg transition-colors text-sm flex items-center gap-2 mx-auto disabled:opacity-50"
+          >
+            <RefreshCw size={18} className={backfilling ? 'animate-spin' : ''} />
+            {backfilling ? 'Loading...' : 'Load Activity History'}
+          </button>
         </div>
       ) : (
         <div className="space-y-3">

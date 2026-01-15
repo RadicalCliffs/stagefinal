@@ -53,6 +53,8 @@ function getSupabaseClient(): SupabaseClient {
 }
 
 // Verify wallet token authentication
+// NOTE: Users MUST go through sign-up/login before connecting a wallet.
+// There are no "wallet-only" users - this function only looks up existing users.
 async function verifyWalletToken(
   token: string,
   supabase: SupabaseClient
@@ -65,19 +67,28 @@ async function verifyWalletToken(
   // Look up user by wallet address
   const { data: user, error } = await supabase
     .from("canonical_users")
-    .select("id, privy_user_id, wallet_address, base_wallet_address")
+    .select("id, privy_user_id, wallet_address, base_wallet_address, canonical_user_id")
     .or(`wallet_address.ilike.${walletAddress},base_wallet_address.ilike.${walletAddress}`)
     .maybeSingle();
 
-  if (error || !user) return null;
+  if (error) {
+    console.error("[notification-service] Error looking up user:", error);
+  }
 
-  // Convert user ID to canonical format for consistent storage
-  const canonicalUserId = toPrizePid(user.privy_user_id || walletAddress);
+  // If user exists, return their info
+  if (user) {
+    const canonicalUserId = toPrizePid(user.privy_user_id || walletAddress);
+    return {
+      userId: canonicalUserId,
+      profileId: user.id,
+    };
+  }
 
-  return {
-    userId: canonicalUserId,
-    profileId: user.id, // Internal UUID for database operations
-  };
+  // User not found - they need to complete registration first
+  // NOTE: We do NOT create users here - users must register through the auth flow
+  console.warn("[notification-service] No registered user found for wallet:", walletAddress);
+  console.warn("[notification-service] Users must complete sign-up/login before connecting a wallet");
+  return null;
 }
 
 // Get authenticated user from request
@@ -151,7 +162,7 @@ async function handleCreateNotification(
   body: Record<string, unknown>,
   supabase: SupabaseClient
 ): Promise<Response> {
-  const { type, title, message, competition_id, prize_info, expires_at } = body;
+  const { type, title, message, competition_id, prize_info, expires_at, read } = body;
 
   if (!type || !title || !message) {
     return errorResponse("Missing required fields: type, title, message");
@@ -167,7 +178,7 @@ async function handleCreateNotification(
       competition_id: competition_id || null,
       prize_info: prize_info || null,
       expires_at: expires_at || null,
-      read: false,
+      read: read === true, // Support setting read status for backfilled notifications
       created_at: new Date().toISOString(),
     })
     .select()
