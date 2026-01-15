@@ -442,3 +442,153 @@ export async function getUserBonusStatus(userId: string) {
     };
   }
 }
+
+/**
+ * Pay with balance using the new pay-with-balance Edge Function
+ * This function calls the debit_balance_and_finalize_order RPC and triggers
+ * the realtime-balance-broadcaster for instant UI updates via wallet_balance_changed events
+ *
+ * @param params - Payment parameters
+ * @param params.canonical_user_id - User's canonical ID (prize:pid: format)
+ * @param params.order_id - Order UUID
+ * @param params.entries - Number of entries to purchase
+ * @param params.currency - Currency code (defaults to 'USD')
+ * @returns Payment result with success status and balance info
+ */
+export async function payWithBalance({
+  canonical_user_id,
+  order_id,
+  entries,
+  currency = 'USD'
+}: {
+  canonical_user_id: string;
+  order_id: string;
+  entries: number;
+  currency?: string;
+}) {
+  // Validate required fields
+  if (!canonical_user_id || typeof canonical_user_id !== 'string' || canonical_user_id.trim() === '') {
+    console.error('[payWithBalance] Invalid canonical_user_id provided:', canonical_user_id);
+    return {
+      success: false,
+      error: 'User identifier is missing. Please log in again and try once more.'
+    };
+  }
+
+  if (!order_id || typeof order_id !== 'string' || order_id.trim() === '') {
+    console.error('[payWithBalance] Invalid order_id provided:', order_id);
+    return {
+      success: false,
+      error: 'Order ID is missing.'
+    };
+  }
+
+  if (!Number.isFinite(entries) || entries <= 0) {
+    console.error('[payWithBalance] Invalid entries provided:', entries);
+    return {
+      success: false,
+      error: 'Invalid number of entries.'
+    };
+  }
+
+  // Ensure canonical_user_id is in prize:pid: format
+  const normalizedUserId = isPrizePid(canonical_user_id)
+    ? canonical_user_id
+    : toPrizePid(canonical_user_id);
+
+  const paymentBody = {
+    canonical_user_id: normalizedUserId,
+    order_id,
+    entries,
+    currency
+  };
+
+  try {
+    // Use retry logic for network failures
+    const { data, error } = await withRetry(
+      async () => {
+        const result = await supabase.functions.invoke('pay-with-balance', {
+          body: paymentBody
+        });
+
+        // Check for network-level errors that should trigger retry
+        if (result.error) {
+          const errorMessage = result.error?.message || String(result.error);
+          if (errorMessage.includes('Failed to send a request') ||
+              errorMessage.includes('FunctionsFetchError') ||
+              isNetworkError(result.error)) {
+            console.warn('[payWithBalance] Network error, will retry:', errorMessage);
+            throw new Error(`Network error during payment: ${errorMessage}`);
+          }
+        }
+
+        return result;
+      },
+      {
+        maxRetries: 3,
+        delayMs: 1500,
+        context: 'pay-with-balance',
+        shouldRetry: (error) => {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          return errorMessage.includes('Network error') ||
+                 errorMessage.includes('Failed to send') ||
+                 errorMessage.includes('FunctionsFetchError') ||
+                 isNetworkError(error);
+        }
+      }
+    );
+
+    if (error) {
+      const parsedError = parseSupabaseFunctionError(error);
+      const friendlyMessage = getUserFriendlyErrorMessage(parsedError.statusCode, parsedError.message);
+
+      console.error('[payWithBalance] Error:', {
+        originalMessage: error.message,
+        statusCode: parsedError.statusCode,
+        friendlyMessage
+      });
+
+      return {
+        success: false,
+        error: friendlyMessage
+      };
+    }
+
+    // Handle response - the Edge Function returns { ok: true/false, result, broadcast }
+    if (data?.ok === false) {
+      const errorMsg = data.error || 'Payment failed';
+      return {
+        success: false,
+        error: getUserFriendlyErrorMessage(null, errorMsg)
+      };
+    }
+
+    // Dispatch balance-updated event for any local listeners
+    // Note: The realtime-balance-broadcaster also sends wallet_balance_changed via Supabase broadcast
+    if (typeof window !== 'undefined' && data?.result) {
+      window.dispatchEvent(new CustomEvent('balance-updated', {
+        detail: {
+          newBalance: data.result.new_balance,
+          previousBalance: data.result.previous_balance,
+          debitedAmount: data.result.debited_amount,
+          orderId: order_id
+        }
+      }));
+    }
+
+    return {
+      success: true,
+      result: data.result,
+      broadcast: data.broadcast
+    };
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    const parsedError = parseSupabaseFunctionError(err);
+    const friendlyMessage = getUserFriendlyErrorMessage(parsedError.statusCode, errorMessage);
+
+    return {
+      success: false,
+      error: friendlyMessage
+    };
+  }
+}
