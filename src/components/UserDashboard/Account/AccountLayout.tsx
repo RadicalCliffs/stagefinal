@@ -6,10 +6,12 @@ import type { ProfileFormData } from '../../../models/models';
 import { userDataService } from '../../../services/userDataService';
 import { useAuthUser } from '../../../contexts/AuthContext';
 import Loader from '../../Loader';
+import { Copy, Check } from 'lucide-react';
 
 export default function Account() {
     const { profile: userProfile, isLoading: authLoading, refreshUserData, baseUser } = useAuthUser();
     const [isEditMode, setisEditMode] = useState<boolean>(false);
+    const [copied, setCopied] = useState(false);
     const [profile, setProfile] = useState<ProfileFormData>({
         username: "",
         email_address: "",
@@ -70,6 +72,29 @@ export default function Account() {
         }
     };
 
+    // Get the authorized wallet address
+    const walletAddress = baseUser?.id || userProfile?.wallet_address || userProfile?.base_wallet_address || '';
+
+    const handleCopyWallet = async () => {
+        if (!walletAddress) return;
+        try {
+            await navigator.clipboard.writeText(walletAddress);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch (err) {
+            console.error('Failed to copy:', err);
+        }
+    };
+
+    // Format wallet for display
+    const formatWallet = (address: string) => {
+        if (!address) return '—';
+        if (address.length > 20) {
+            return `${address.slice(0, 10)}...${address.slice(-8)}`;
+        }
+        return address;
+    };
+
     // Only show loader during ACTIVE loading when profile has never been loaded
     // If profile was previously loaded but is temporarily null (e.g., during navigation/refresh),
     // use the last known profile state to avoid flickering
@@ -94,6 +119,32 @@ export default function Account() {
             <div className='bg-[#151515]  lg:py-14 lg:px-18 px-4 py-8 rounded-lg my-8 w-full'>
                 <AccountAvatarSection />
                 <div className='bg-[#DDE404] h-[2px] w-full sm:mt-14 mt-8'></div>
+
+                {/* Authorized Wallet - Read Only */}
+                <div className="mt-10 mb-4">
+                    <label className="text-xl mb-2 sequel-75 text-[#E5EE00] block">
+                        Authorized Wallet
+                        <span className="text-white/50 text-sm ml-2">(read-only)</span>
+                    </label>
+                    <div className="flex items-center gap-3">
+                        <div className="bg-[#fff]/10 text-white/70 sequel-45 rounded-sm px-3 py-3 flex-1 flex items-center justify-between border border-white/10">
+                            <span className="font-mono">{formatWallet(walletAddress)}</span>
+                            {walletAddress && (
+                                <button
+                                    onClick={handleCopyWallet}
+                                    className="text-white/50 hover:text-white transition-colors p-1"
+                                    title="Copy wallet address"
+                                >
+                                    {copied ? <Check size={18} className="text-green-400" /> : <Copy size={18} />}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                    <p className="text-white/40 text-xs sequel-45 mt-1">
+                        This wallet is linked to your account and cannot be changed
+                    </p>
+                </div>
+
                 <ProfileForm isEditMode={isEditMode} setIsEditMode={setisEditMode} profile={profile} setProfile={handleProfileUpdate} />
                 {
                     !isEditMode && <button type="button" onClick={() => setisEditMode(true)} className="bg-white uppercase sm:text-lg text-black  sequel-95 sm:w-auto w-full hover:bg-white/90 px-8 py-3 cursor-pointer rounded-lg">Edit user details</button>
