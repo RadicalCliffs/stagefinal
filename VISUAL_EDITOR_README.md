@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Auth Modal Visual Editor is an admin-only tool for modifying the aesthetic properties of the authentication modals (`NewAuthModal.tsx` and `BaseWalletAuthModal.tsx`) without touching code.
+The Auth Modal Visual Editor is an admin-only tool for modifying both the aesthetic properties AND authentication flow order of the authentication modals (`NewAuthModal.tsx` and `BaseWalletAuthModal.tsx`) without touching code.
 
 ## Access
 
@@ -15,7 +15,20 @@ This route is:
 
 ## Features
 
-### 1. Color Editor
+### 1. Flow Order Editor (NEW!)
+- **Reorder authentication steps** via drag-and-drop
+- **Enable/disable steps** to skip or include them in the flow
+- **Customize user experience** while ensuring required data is collected
+- **Requirements enforced:** Username, email, country, wallet, and OTP verification must be collected
+- **Locked steps:** Some steps (like OTP verification after email, success screen) cannot be reordered for security
+
+**Use Cases:**
+- Start BaseWalletAuth on wallet selection screen instead of email screen
+- Skip username entry and collect it during profile completion
+- Change order: wallet → email → profile instead of email → profile → wallet
+- Remove optional steps from the flow entirely
+
+### 2. Color Editor
 - Modify all color properties including:
   - Background colors
   - Text colors (primary, secondary, muted)
@@ -25,7 +38,7 @@ This route is:
 - Uses standard color picker and hex input
 - **Locked elements:** Functional components (input backgrounds, focus states) are locked to preserve authentication flow
 
-### 2. Font Editor
+### 3. Font Editor
 - Adjust typography for:
   - Headings (size, weight, family)
   - Subheadings
@@ -39,7 +52,7 @@ This route is:
   - Font style (normal, italic)
 - **Locked elements:** Button and input fonts are locked to maintain usability
 
-### 3. Text Content Editor
+### 4. Text Content Editor
 - Edit text content including:
   - Modal titles and subtitles
   - Success messages
@@ -48,7 +61,7 @@ This route is:
 - Supports single-line and multi-line text fields
 - **Locked elements:** Functional labels and error messages are locked
 
-### 4. Image Editor
+### 5. Image Editor
 - Upload and replace images/icons
 - Supports:
   - Logo replacements

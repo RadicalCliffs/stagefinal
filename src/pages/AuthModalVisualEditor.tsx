@@ -28,7 +28,8 @@ import {
   Lock,
   Unlock,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  ArrowRight
 } from 'lucide-react';
 import NewAuthModal from '../components/NewAuthModal';
 import BaseWalletAuthModal from '../components/BaseWalletAuthModal';
@@ -67,6 +68,16 @@ interface ImageProperty {
   locked?: boolean;
 }
 
+interface FlowStep {
+  id: string;
+  name: string;
+  label: string;
+  required: boolean;
+  description: string;
+  locked?: boolean;
+  order: number;
+}
+
 type ModalType = 'NewAuthModal' | 'BaseWalletAuthModal';
 
 interface EditorState {
@@ -75,6 +86,7 @@ interface EditorState {
   fonts: FontProperty[];
   texts: TextProperty[];
   images: ImageProperty[];
+  flowSteps: FlowStep[];
   showPreview: boolean;
   previewOpen: boolean;
   hasChanges: boolean;
@@ -87,12 +99,13 @@ export default function AuthModalVisualEditor() {
     fonts: [],
     texts: [],
     images: [],
+    flowSteps: [],
     showPreview: true,
     previewOpen: false,
     hasChanges: false,
   });
 
-  const [activeTab, setActiveTab] = useState<'colors' | 'fonts' | 'text' | 'images'>('colors');
+  const [activeTab, setActiveTab] = useState<'flow' | 'colors' | 'fonts' | 'text' | 'images'>('flow');
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState('');
@@ -107,6 +120,13 @@ export default function AuthModalVisualEditor() {
     if (modalType === 'NewAuthModal') {
       setState(prev => ({
         ...prev,
+        flowSteps: [
+          { id: 'username', name: 'username', label: 'Username Entry', required: true, description: 'Enter or create username', order: 1, locked: false },
+          { id: 'profile', name: 'profile', label: 'Profile Completion', required: true, description: 'Complete profile (email, name, country)', order: 2, locked: false },
+          { id: 'email-otp', name: 'email-otp', label: 'Email OTP Verification', required: true, description: 'Email verification with OTP code', order: 3, locked: true },
+          { id: 'wallet', name: 'wallet', label: 'Wallet Connection', required: true, description: 'Connect Base wallet', order: 4, locked: false },
+          { id: 'success', name: 'success', label: 'Success Confirmation', required: true, description: 'Success message and redirect', order: 5, locked: true },
+        ],
         colors: [
           { name: 'primaryBg', label: 'Primary Background', value: '#0A0A0F', description: 'Main modal background color' },
           { name: 'primaryButton', label: 'Primary Button', value: '#0052FF', description: 'Main action button color' },
@@ -168,6 +188,12 @@ export default function AuthModalVisualEditor() {
           { name: 'body', label: 'Body Font', family: 'inherit', size: '0.875rem', weight: '400' },
           { name: 'button', label: 'Button Font', family: 'inherit', size: '1rem', weight: '700', locked: true },
         ],
+        flowSteps: [
+          { id: 'cdp-signin', name: 'cdp-signin', label: 'Email Sign-In', required: true, description: 'Email authentication with CDP', order: 1, locked: false },
+          { id: 'profile-completion', name: 'profile-completion', label: 'Profile Completion', required: false, description: 'Complete profile information', order: 2, locked: false },
+          { id: 'wallet-choice', name: 'wallet-choice', label: 'Wallet Selection', required: true, description: 'Choose wallet connection method', order: 3, locked: false },
+          { id: 'logged-in-success', name: 'logged-in-success', label: 'Success Screen', required: true, description: 'Success confirmation', order: 4, locked: true },
+        ],
         texts: [
           { name: 'loginTitle', label: 'Login Title', value: 'Log in or create an account' },
           { name: 'loginSubtitle', label: 'Login Subtitle', value: 'Enter your email address to continue.' },
@@ -177,6 +203,36 @@ export default function AuthModalVisualEditor() {
         images: [],
       }));
     }
+  };
+
+  const handleFlowStepReorder = (fromIndex: number, toIndex: number) => {
+    setState(prev => {
+      const newSteps = [...prev.flowSteps];
+      const [movedStep] = newSteps.splice(fromIndex, 1);
+      newSteps.splice(toIndex, 0, movedStep);
+      
+      // Update order numbers
+      const reorderedSteps = newSteps.map((step, index) => ({
+        ...step,
+        order: index + 1,
+      }));
+      
+      return {
+        ...prev,
+        flowSteps: reorderedSteps,
+        hasChanges: true,
+      };
+    });
+  };
+
+  const handleFlowStepToggle = (stepId: string, enabled: boolean) => {
+    setState(prev => ({
+      ...prev,
+      flowSteps: prev.flowSteps.map(step =>
+        step.id === stepId ? { ...step, required: enabled } : step
+      ),
+      hasChanges: true,
+    }));
   };
 
   const handleColorChange = (name: string, value: string) => {
@@ -259,6 +315,7 @@ export default function AuthModalVisualEditor() {
           fonts: state.fonts,
           texts: state.texts,
           images: state.images,
+          flowSteps: state.flowSteps,
         }),
       });
 
@@ -477,6 +534,124 @@ export default function AuthModalVisualEditor() {
     </div>
   );
 
+  const renderFlowEditor = () => (
+    <div className="space-y-4">
+      <div className="p-4 bg-[#0052FF]/10 border border-[#0052FF]/30 rounded-lg mb-6">
+        <h3 className="text-white font-semibold mb-2 flex items-center gap-2">
+          <AlertCircle size={18} className="text-[#0052FF]" />
+          Authentication Flow Order
+        </h3>
+        <p className="text-white/70 text-sm mb-2">
+          Drag and drop steps to reorder the authentication flow. Toggle steps on/off to include or skip them.
+        </p>
+        <p className="text-white/60 text-xs">
+          <strong>Requirements:</strong> The flow must collect username, email, country, wallet, and OTP verification 
+          (though the order can be changed).
+        </p>
+      </div>
+
+      {state.flowSteps
+        .sort((a, b) => a.order - b.order)
+        .map((step, index) => (
+        <div 
+          key={step.id} 
+          className={`p-4 border rounded-lg ${
+            step.required 
+              ? 'bg-white/5 border-white/10' 
+              : 'bg-white/[0.02] border-white/5 opacity-60'
+          }`}
+          draggable={!step.locked}
+          onDragStart={(e) => {
+            if (!step.locked) {
+              e.dataTransfer.effectAllowed = 'move';
+              e.dataTransfer.setData('text/plain', index.toString());
+            }
+          }}
+          onDragOver={(e) => {
+            if (!step.locked) {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+            }
+          }}
+          onDrop={(e) => {
+            if (!step.locked) {
+              e.preventDefault();
+              const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
+              if (fromIndex !== index) {
+                handleFlowStepReorder(fromIndex, index);
+              }
+            }
+          }}
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3 flex-1">
+              <div className={`flex items-center justify-center w-8 h-8 rounded-full flex-shrink-0 ${
+                step.required ? 'bg-[#0052FF]/20 text-[#0052FF]' : 'bg-white/5 text-white/40'
+              }`}>
+                <span className="font-bold text-sm">{step.order}</span>
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <h4 className="text-white font-semibold">{step.label}</h4>
+                  {step.locked && (
+                    <Lock size={14} className="text-yellow-400" title="Core step - cannot be reordered" />
+                  )}
+                  {!step.locked && (
+                    <span className="text-white/40 text-xs cursor-move">⋮⋮ Drag to reorder</span>
+                  )}
+                </div>
+                <p className="text-white/60 text-sm">{step.description}</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className={`text-xs px-2 py-1 rounded ${
+                    step.required 
+                      ? 'bg-green-500/20 text-green-400' 
+                      : 'bg-white/10 text-white/50'
+                  }`}>
+                    {step.required ? 'Enabled' : 'Disabled'}
+                  </span>
+                  {step.locked && (
+                    <span className="text-xs px-2 py-1 rounded bg-yellow-500/20 text-yellow-400">
+                      Required
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {!step.locked && (
+                <button
+                  onClick={() => handleFlowStepToggle(step.id, !step.required)}
+                  className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                    step.required
+                      ? 'bg-white/10 hover:bg-white/20 text-white'
+                      : 'bg-[#0052FF] hover:bg-[#0041CC] text-white'
+                  }`}
+                >
+                  {step.required ? 'Disable' : 'Enable'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      ))}
+
+      <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+        <div className="flex items-start gap-2">
+          <AlertCircle size={16} className="text-yellow-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-yellow-400 text-sm font-medium mb-1">Important Notes</p>
+            <ul className="text-yellow-400/80 text-xs space-y-1 list-disc list-inside">
+              <li>Steps marked as "Required" cannot be disabled (they're essential for authentication)</li>
+              <li>Locked steps cannot be reordered (e.g., OTP must come after email, Success must be last)</li>
+              <li>You can change the order of enabled steps to customize the user experience</li>
+              <li>Disabled steps will be skipped entirely in the authentication flow</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-[#0A0A0F] text-white">
       {/* Header */}
@@ -556,6 +731,17 @@ export default function AuthModalVisualEditor() {
             {/* Tab Navigation */}
             <div className="flex gap-2 mb-6 border-b border-white/10">
               <button
+                onClick={() => setActiveTab('flow')}
+                className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors ${
+                  activeTab === 'flow' 
+                    ? 'border-[#0052FF] text-white' 
+                    : 'border-transparent text-white/50 hover:text-white/70'
+                }`}
+              >
+                <ArrowRight size={18} />
+                <span>Flow Order</span>
+              </button>
+              <button
                 onClick={() => setActiveTab('colors')}
                 className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors ${
                   activeTab === 'colors' 
@@ -603,6 +789,7 @@ export default function AuthModalVisualEditor() {
 
             {/* Editor Content */}
             <div className="space-y-6">
+              {activeTab === 'flow' && renderFlowEditor()}
               {activeTab === 'colors' && renderColorEditor()}
               {activeTab === 'fonts' && renderFontEditor()}
               {activeTab === 'text' && renderTextEditor()}

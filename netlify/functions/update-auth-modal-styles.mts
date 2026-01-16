@@ -44,6 +44,16 @@ interface TextProperty {
   locked?: boolean;
 }
 
+interface FlowStep {
+  id: string;
+  name: string;
+  label: string;
+  required: boolean;
+  description: string;
+  locked?: boolean;
+  order: number;
+}
+
 interface ImageProperty {
   name: string;
   label: string;
@@ -57,6 +67,7 @@ interface UpdateRequest {
   fonts: FontProperty[];
   texts: TextProperty[];
   images: ImageProperty[];
+  flowSteps: FlowStep[];
 }
 
 /**
@@ -135,6 +146,7 @@ async function updateModalFile(request: UpdateRequest): Promise<{ success: boole
   const editableFonts = request.fonts.filter(f => !f.locked);
   const editableTexts = request.texts.filter(t => !t.locked);
   const editableImages = request.images.filter(i => !i.locked);
+  const editableFlowSteps = request.flowSteps.filter(s => !s.locked);
 
   console.log('[UpdateAuthModalStyles] Would update file:', {
     modalType: request.modalType,
@@ -142,6 +154,8 @@ async function updateModalFile(request: UpdateRequest): Promise<{ success: boole
     editableFonts: editableFonts.length,
     editableTexts: editableTexts.length,
     editableImages: editableImages.length,
+    editableFlowSteps: editableFlowSteps.length,
+    flowOrder: request.flowSteps.map(s => `${s.order}: ${s.name} (${s.required ? 'enabled' : 'disabled'})`),
   });
 
   // In a real implementation, we would:
@@ -168,6 +182,14 @@ ${generateCSSVariables(editableColors)}
 }
 
 /* Font overrides would go here */
+
+/**
+ * Authentication Flow Configuration
+ * Order: ${request.flowSteps.map(s => s.name).join(' → ')}
+ * 
+ * Flow Steps:
+${request.flowSteps.map(s => ` * ${s.order}. ${s.label} (${s.name}): ${s.required ? 'ENABLED' : 'DISABLED'}${s.locked ? ' [LOCKED]' : ''}`).join('\n')}
+ */
 `;
 
     // In a real implementation, we would write to:
