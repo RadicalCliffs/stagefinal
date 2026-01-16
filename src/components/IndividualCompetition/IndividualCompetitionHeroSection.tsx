@@ -74,34 +74,70 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
     if (!competition?.id) return;
 
     console.log('[HeroSection] fetchTicketAvailability called for', competition.id);
+
+    // Get the competition's stored tickets_sold value for validation
+    const storedTicketsSold = competition.tickets_sold || 0;
+    const totalTickets = competition.total_tickets || 0;
+
     try {
       // Try the RPC function - this is the source of truth
       const availability = await database.getAccurateTicketAvailability(competition.id);
       console.log('[HeroSection] RPC result:', availability);
 
       if (availability && typeof availability.available_count === 'number') {
-        // RPC succeeded and returned valid data - use it directly
+        // Validate RPC result against stored tickets_sold
+        // If RPC returns 0 sold but competition has tickets_sold > 0, use stored value
+        const rpcSoldCount = availability.sold_count;
+        const effectiveSoldCount = (rpcSoldCount === 0 && storedTicketsSold > 0)
+          ? storedTicketsSold
+          : rpcSoldCount;
+        const effectiveAvailableCount = totalTickets - effectiveSoldCount;
+
+        if (rpcSoldCount === 0 && storedTicketsSold > 0) {
+          console.log('[HeroSection] RPC returned 0 sold but competition has tickets_sold, using stored value:', {
+            rpcSoldCount,
+            storedTicketsSold,
+            effectiveSoldCount
+          });
+        }
+
+        // RPC succeeded and returned valid data - use it directly (with validation)
         setTicketAvailability({
-          sold_count: availability.sold_count,
-          available_count: availability.available_count,
+          sold_count: effectiveSoldCount,
+          available_count: effectiveAvailableCount,
           pending_count: 0, // Will be updated by broadcast
           total_tickets: availability.total_tickets
         });
         setRpcSuccess(true);
         setAvailabilityFetched(true);
-        console.log('[HeroSection] RPC success! Available:', availability.available_count);
+        console.log('[HeroSection] RPC success! Available:', effectiveAvailableCount);
         return;
       }
 
       // RPC returned null or invalid - try fallback
       console.log('[HeroSection] RPC returned null, using fallback method');
       const unavailable = await database.getUnavailableTicketsForCompetition(competition.id);
-      const totalTickets = competition.total_tickets || 0;
-      const fallbackAvailableCount = totalTickets - unavailable.size;
-      console.log('[HeroSection] Fallback result:', { unavailableSize: unavailable.size, totalTickets, fallbackAvailableCount });
+
+      // Validate fallback result against stored tickets_sold
+      // If fallback returns 0 unavailable but competition has tickets_sold > 0, use stored value
+      const fallbackSoldCount = unavailable.size;
+      const effectiveSoldCount = (fallbackSoldCount === 0 && storedTicketsSold > 0)
+        ? storedTicketsSold
+        : fallbackSoldCount;
+      const fallbackAvailableCount = totalTickets - effectiveSoldCount;
+
+      if (fallbackSoldCount === 0 && storedTicketsSold > 0) {
+        console.log('[HeroSection] Fallback returned 0 sold but competition has tickets_sold, using stored value:', {
+          fallbackSoldCount,
+          storedTicketsSold,
+          effectiveSoldCount
+        });
+      }
+
+      console.log('[HeroSection] Fallback result:', { unavailableSize: unavailable.size, totalTickets, fallbackAvailableCount, effectiveSoldCount });
 
       setTicketAvailability({
-        sold_count: unavailable.size,
+        sold_count: effectiveSoldCount,
         available_count: fallbackAvailableCount,
         pending_count: 0,
         total_tickets: totalTickets
@@ -112,8 +148,7 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
       console.error('Error fetching ticket availability:', error);
       // Both RPC and fallback failed - use competition data as last resort
       // This is the ONLY case where "temporarily unavailable" might be appropriate
-      const totalTickets = competition.total_tickets || 0;
-      const ticketsSold = competition.tickets_sold || 0;
+      const ticketsSold = storedTicketsSold;
       const lastResortAvailable = Math.max(0, totalTickets - ticketsSold);
 
       console.log('[HeroSection] Both methods failed, using competition data:', {
