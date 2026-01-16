@@ -129,20 +129,41 @@ Deno.serve(async (req: Request) => {
 
     // CRITICAL: Ensure user exists in canonical_users before creating transaction
     // This prevents orphaned transactions for users who bypassed the auth modal
-    const { data: existingUser } = await supabase
+    
+    // Extract wallet address for fallback lookup
+    if (!walletAddress && canonicalUserId.startsWith('prize:pid:0x')) {
+      walletAddress = canonicalUserId.substring(10).toLowerCase();
+    }
+    
+    // Step 1: Try to find user by canonical_user_id
+    let { data: existingUser } = await supabase
       .from('canonical_users')
-      .select('id')
+      .select('id, canonical_user_id')
       .eq('canonical_user_id', canonicalUserId)
       .maybeSingle();
 
-    if (!existingUser) {
-      // Extract wallet address from canonical user ID if not already extracted from userId
-      // This handles cases where userId was not in wallet format (e.g., Privy user ID)
-      if (!walletAddress && canonicalUserId.startsWith('prize:pid:0x')) {
-        walletAddress = canonicalUserId.substring(10); // Extract 0x... address
-      }
+    // Step 2: If not found by canonical_user_id, try wallet_address (user from signup form)
+    if (!existingUser && walletAddress) {
+      const { data: userByWallet } = await supabase
+        .from('canonical_users')
+        .select('id, canonical_user_id')
+        .eq('wallet_address', walletAddress)
+        .maybeSingle();
       
-      // Create user on-the-fly
+      if (userByWallet) {
+        console.log(`[create-charge][${requestId}] Found user by wallet_address, updating canonical_user_id`);
+        // User exists but needs canonical_user_id set - UPDATE, don't create
+        await supabase
+          .from('canonical_users')
+          .update({ canonical_user_id: canonicalUserId })
+          .eq('id', userByWallet.id);
+        existingUser = userByWallet;
+      }
+    }
+
+    // Step 3: Only create new user if truly not found anywhere
+    if (!existingUser) {
+      console.log(`[create-charge][${requestId}] No user found, creating minimal entry`);
       const { error: createUserError } = await supabase.from('canonical_users').insert({
         canonical_user_id: canonicalUserId,
         privy_user_id: walletAddress,
