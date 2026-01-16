@@ -623,7 +623,7 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
       case 'username':
         return (
           <div className="space-y-6">
-            <div>
+            <div className="text-center">
               <h2 className="text-2xl font-bold text-white mb-2">Welcome to The Prize</h2>
               <p className="text-white/70">Sign in with your username to continue.</p>
             </div>
@@ -644,9 +644,9 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
             </div>
 
             {error && (
-              <div className="flex items-center gap-2 text-red-400 text-sm">
-                <AlertCircle size={16} />
-                {error}
+              <div className="flex items-start gap-2 text-red-400 text-sm">
+                <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+                <span className="break-words">{error}</span>
               </div>
             )}
 
@@ -657,13 +657,13 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="animate-spin" size={20} />
-                  Checking...
+                  <Loader2 className="animate-spin flex-shrink-0" size={20} />
+                  <span>Checking...</span>
                 </>
               ) : (
                 <>
-                  Continue
-                  <ArrowRight size={20} />
+                  <span>Continue</span>
+                  <ArrowRight size={20} className="flex-shrink-0" />
                 </>
               )}
             </button>
@@ -673,7 +673,7 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
                 setIsReturningUser(false);
                 setStep('profile');
               }}
-              className="w-full text-[#0052FF] hover:text-[#0041CC] text-sm transition-colors"
+              className="w-full text-center text-[#0052FF] hover:text-[#0041CC] text-sm transition-colors"
             >
               Create free account
             </button>
@@ -687,7 +687,7 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
       case 'profile':
         return (
           <div className="space-y-6">
-            <div>
+            <div className="text-center">
               <h2 className="text-2xl font-bold text-white mb-2">Create your account</h2>
               <p className="text-white/70">Takes under a minute.</p>
             </div>
@@ -730,7 +730,7 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-white/90 mb-2">
                   First name (optional)
@@ -798,9 +798,9 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
             </div>
 
             {error && (
-              <div className="flex items-center gap-2 text-red-400 text-sm">
-                <AlertCircle size={16} />
-                {error}
+              <div className="flex items-start gap-2 text-red-400 text-sm">
+                <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+                <span className="break-words">{error}</span>
               </div>
             )}
 
@@ -811,13 +811,13 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="animate-spin" size={20} />
-                  Processing...
+                  <Loader2 className="animate-spin flex-shrink-0" size={20} />
+                  <span>Processing...</span>
                 </>
               ) : (
                 <>
-                  Create account
-                  <ArrowRight size={20} />
+                  <span>Create account</span>
+                  <ArrowRight size={20} className="flex-shrink-0" />
                 </>
               )}
             </button>
@@ -831,15 +831,15 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
       case 'email-otp':
         return (
           <div className="space-y-6">
-            <div>
+            <div className="text-center">
               <h2 className="text-2xl font-bold text-white mb-2">Check your email</h2>
-              <p className="text-white/70">
+              <p className="text-white/70 break-words">
                 Enter the 6-digit code we sent to {profileData.email}
               </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-white/90 mb-2">
+              <label className="block text-sm font-medium text-white/90 mb-2 text-center">
                 Verification code
               </label>
               <input
@@ -852,15 +852,15 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
                 className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white text-center text-2xl tracking-widest placeholder-white/40 focus:outline-none focus:border-[#0052FF] transition-colors"
                 disabled={isLoading}
               />
-              <p className="text-xs text-white/50 mt-1">
+              <p className="text-xs text-white/50 mt-1 text-center">
                 Didn't get it? Check spam or wait 30 seconds.
               </p>
             </div>
 
             {error && (
-              <div className="flex items-center gap-2 text-red-400 text-sm">
-                <AlertCircle size={16} />
-                {error}
+              <div className="flex items-start gap-2 text-red-400 text-sm justify-center">
+                <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+                <span className="break-words">{error}</span>
               </div>
             )}
 
@@ -871,13 +871,13 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="animate-spin" size={20} />
-                  Verifying...
+                  <Loader2 className="animate-spin flex-shrink-0" size={20} />
+                  <span>Verifying...</span>
                 </>
               ) : (
                 <>
-                  Verify & continue
-                  <CheckCircle size={20} />
+                  <span>Verify & continue</span>
+                  <CheckCircle size={20} className="flex-shrink-0" />
                 </>
               )}
             </button>
@@ -889,7 +889,7 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
                 handleProfileSubmit();
               }}
               disabled={isLoading}
-              className="w-full text-[#0052FF] hover:text-[#0041CC] text-sm transition-colors"
+              className="w-full text-center text-[#0052FF] hover:text-[#0041CC] text-sm transition-colors"
             >
               Resend code
             </button>
@@ -899,7 +899,7 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
       case 'wallet':
         return (
           <div className="space-y-6">
-            <div>
+            <div className="text-center">
               <h2 className="text-2xl font-bold text-white mb-2">Connect your wallet</h2>
               <p className="text-white/70">
                 Connect an existing wallet or create a new one in seconds.
@@ -911,11 +911,11 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
                 <>
                   {/* Single wallet connection option - Opens Base wallet auth flow */}
                   <div className="p-4 bg-[#0052FF]/10 border border-[#0052FF]/30 rounded-lg">
-                    <div className="flex items-center gap-3 mb-2">
-                      <WalletIcon size={20} className="text-[#0052FF]" />
+                    <div className="flex items-center justify-center gap-3 mb-2">
+                      <WalletIcon size={20} className="text-[#0052FF] flex-shrink-0" />
                       <span className="text-white font-semibold">Connect or Create Wallet</span>
                     </div>
-                    <p className="text-white/60 text-sm mb-3">
+                    <p className="text-white/60 text-sm mb-3 text-center">
                       If you have MetaMask, Coinbase Wallet, Base, or another supported wallet installed, it will be detected automatically. Otherwise, you can create a new wallet with your email.
                     </p>
                     <button
@@ -938,8 +938,8 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
                       }}
                       className="w-full py-3 bg-[#0052FF] hover:bg-[#0041CC] text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
                     >
-                      <WalletIcon size={20} />
-                      Continue with Wallet
+                      <WalletIcon size={20} className="flex-shrink-0" />
+                      <span>Continue with Wallet</span>
                     </button>
                     <p className="text-white/40 text-xs mt-3 text-center">
                       Follow the instructions on the next screen to connect your existing wallet or create a new one.
@@ -948,12 +948,12 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
                 </>
               ) : (
                 <div className="space-y-4">
-                  <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
-                    <div className="flex items-center gap-2 text-green-400">
-                      <CheckCircle size={20} />
+                  <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg text-center">
+                    <div className="flex items-center justify-center gap-2 text-green-400">
+                      <CheckCircle size={20} className="flex-shrink-0" />
                       <span className="font-semibold">Wallet Connected!</span>
                     </div>
-                    <p className="text-white/70 text-sm mt-2">
+                    <p className="text-white/70 text-sm mt-2 break-all">
                       {effectiveWalletAddress?.substring(0, 6)}...{effectiveWalletAddress?.substring(effectiveWalletAddress.length - 4)}
                     </p>
                   </div>
@@ -969,13 +969,13 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
                   >
                     {isLoading || walletProcessing ? (
                       <>
-                        <Loader2 className="animate-spin" size={20} />
-                        Completing sign up...
+                        <Loader2 className="animate-spin flex-shrink-0" size={20} />
+                        <span>Completing sign up...</span>
                       </>
                     ) : (
                       <>
-                        Continue
-                        <ArrowRight size={20} />
+                        <span>Continue</span>
+                        <ArrowRight size={20} className="flex-shrink-0" />
                       </>
                     )}
                   </button>
@@ -984,13 +984,13 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
             </div>
 
             {error && (
-              <div className="flex items-center gap-2 text-red-400 text-sm">
-                <AlertCircle size={16} />
-                {error}
+              <div className="flex items-start gap-2 text-red-400 text-sm justify-center">
+                <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+                <span className="break-words">{error}</span>
               </div>
             )}
 
-            <div className="p-4 bg-white/5 rounded-lg">
+            <div className="p-4 bg-white/5 rounded-lg text-center">
               <p className="text-xs text-white/50 mb-2">Powered by Coinbase</p>
               <p className="text-xs text-white/40">
                 We never store your private keys. Your wallet is used for entries, top-ups, and ownership verification.
@@ -1020,17 +1020,17 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
       case 'existing-account':
         return (
           <div className="space-y-6">
-            <div>
+            <div className="text-center">
               <div className="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
                 <AlertCircle size={32} className="text-yellow-400" />
               </div>
-              <h2 className="text-2xl font-bold text-white mb-2 text-center">Account already exists</h2>
-              <p className="text-white/70 text-center">
+              <h2 className="text-2xl font-bold text-white mb-2">Account already exists</h2>
+              <p className="text-white/70 break-words">
                 {existingAccountInfo?.type === 'email' && (
-                  <>This email is already registered with username <strong className="text-white">{existingAccountInfo.existingUsername}</strong>.</>
+                  <>This email is already registered with username <strong className="text-white break-all">{existingAccountInfo.existingUsername}</strong>.</>
                 )}
                 {existingAccountInfo?.type === 'username' && (
-                  <>This username is already taken and registered with email <strong className="text-white">{existingAccountInfo.maskedEmail}</strong>.</>
+                  <>This username is already taken and registered with email <strong className="text-white break-all">{existingAccountInfo.maskedEmail}</strong>.</>
                 )}
                 {existingAccountInfo?.type === 'both' && (
                   <>Both this email and username are already in use by different accounts.</>
@@ -1044,18 +1044,18 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
                 onClick={handleLoginWithExistingAccount}
                 className="w-full py-3 bg-[#0052FF] hover:bg-[#0041CC] text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
               >
-                <User size={20} />
-                Login with existing account
+                <User size={20} className="flex-shrink-0" />
+                <span>Login with existing account</span>
               </button>
 
               {/* Option 2: Send username reminder email */}
               {existingAccountInfo?.existingEmail && (
                 <button
                   onClick={() => setStep('username-recovery')}
-                  className="w-full py-3 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                  className="w-full py-3 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 text-sm"
                 >
-                  <Mail size={20} />
-                  Forgot your username? Get a reminder
+                  <Mail size={20} className="flex-shrink-0" />
+                  <span>Forgot your username? Get a reminder</span>
                 </button>
               )}
 
@@ -1063,7 +1063,7 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
               {existingAccountInfo?.type === 'email' && (
                 <button
                   onClick={() => setStep('disassociate-email')}
-                  className="w-full py-3 bg-white/5 hover:bg-white/10 text-white/70 font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 text-sm"
+                  className="w-full py-3 bg-white/5 hover:bg-white/10 text-white/70 font-semibold rounded-lg transition-colors text-sm text-center"
                 >
                   Lost access to that email? Create new account
                 </button>
@@ -1071,9 +1071,9 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
             </div>
 
             {error && (
-              <div className="flex items-center gap-2 text-red-400 text-sm">
-                <AlertCircle size={16} />
-                {error}
+              <div className="flex items-start gap-2 text-red-400 text-sm justify-center">
+                <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+                <span className="break-words">{error}</span>
               </div>
             )}
 
@@ -1082,7 +1082,7 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
                 setExistingAccountInfo(null);
                 setStep('profile');
               }}
-              className="w-full text-white/50 hover:text-white/70 text-sm transition-colors"
+              className="w-full text-center text-white/50 hover:text-white/70 text-sm transition-colors"
             >
               Go back and try different details
             </button>
@@ -1092,18 +1092,18 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
       case 'username-recovery':
         return (
           <div className="space-y-6">
-            <div>
+            <div className="text-center">
               <div className="w-16 h-16 bg-[#0052FF]/20 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Mail size={32} className="text-[#0052FF]" />
               </div>
-              <h2 className="text-2xl font-bold text-white mb-2 text-center">
+              <h2 className="text-2xl font-bold text-white mb-2">
                 {recoveryEmailSent ? 'Email sent!' : 'Send username reminder'}
               </h2>
-              <p className="text-white/70 text-center">
+              <p className="text-white/70 break-words">
                 {recoveryEmailSent ? (
-                  <>We've sent your username to <strong className="text-white">{existingAccountInfo?.maskedEmail}</strong>. Check your inbox.</>
+                  <>We've sent your username to <strong className="text-white break-all">{existingAccountInfo?.maskedEmail}</strong>. Check your inbox.</>
                 ) : (
-                  <>We'll send your username to <strong className="text-white">{existingAccountInfo?.maskedEmail}</strong>.</>
+                  <>We'll send your username to <strong className="text-white break-all">{existingAccountInfo?.maskedEmail}</strong>.</>
                 )}
               </p>
             </div>
@@ -1116,13 +1116,13 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
               >
                 {isLoading ? (
                   <>
-                    <Loader2 className="animate-spin" size={20} />
-                    Sending...
+                    <Loader2 className="animate-spin flex-shrink-0" size={20} />
+                    <span>Sending...</span>
                   </>
                 ) : (
                   <>
-                    <Mail size={20} />
-                    Send reminder email
+                    <Mail size={20} className="flex-shrink-0" />
+                    <span>Send reminder email</span>
                   </>
                 )}
               </button>
@@ -1131,15 +1131,15 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
                 onClick={handleLoginWithExistingAccount}
                 className="w-full py-3 bg-[#0052FF] hover:bg-[#0041CC] text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
               >
-                <ArrowRight size={20} />
-                Continue to login
+                <ArrowRight size={20} className="flex-shrink-0" />
+                <span>Continue to login</span>
               </button>
             )}
 
             {error && (
-              <div className="flex items-center gap-2 text-red-400 text-sm">
-                <AlertCircle size={16} />
-                {error}
+              <div className="flex items-start gap-2 text-red-400 text-sm justify-center">
+                <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+                <span className="break-words">{error}</span>
               </div>
             )}
 
@@ -1148,7 +1148,7 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
                 setRecoveryEmailSent(false);
                 setStep('existing-account');
               }}
-              className="w-full text-white/50 hover:text-white/70 text-sm transition-colors"
+              className="w-full text-center text-white/50 hover:text-white/70 text-sm transition-colors"
             >
               Go back
             </button>
@@ -1158,19 +1158,19 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
       case 'disassociate-email':
         return (
           <div className="space-y-6">
-            <div>
+            <div className="text-center">
               <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
                 <AlertCircle size={32} className="text-red-400" />
               </div>
-              <h2 className="text-2xl font-bold text-white mb-2 text-center">Create new account</h2>
-              <p className="text-white/70 text-center">
-                If you've lost access to the email <strong className="text-white">{existingAccountInfo?.maskedEmail}</strong>,
+              <h2 className="text-2xl font-bold text-white mb-2">Create new account</h2>
+              <p className="text-white/70 break-words">
+                If you've lost access to the email <strong className="text-white break-all">{existingAccountInfo?.maskedEmail}</strong>,
                 we can remove it from your old account so you can create a new one.
               </p>
             </div>
 
             <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-              <p className="text-yellow-400 text-sm">
+              <p className="text-yellow-400 text-sm text-center">
                 <strong>Important:</strong> Your old account will become inactive and you won't be able to access
                 any entries or balance associated with it. This action cannot be undone.
               </p>
@@ -1184,28 +1184,26 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
               >
                 {isLoading ? (
                   <>
-                    <Loader2 className="animate-spin" size={20} />
-                    Processing...
+                    <Loader2 className="animate-spin flex-shrink-0" size={20} />
+                    <span>Processing...</span>
                   </>
                 ) : (
-                  <>
-                    I understand, create new account
-                  </>
+                  <span>I understand, create new account</span>
                 )}
               </button>
 
               <button
                 onClick={() => setStep('existing-account')}
-                className="w-full py-3 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-lg transition-colors"
+                className="w-full py-3 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-lg transition-colors text-center"
               >
                 Cancel, go back
               </button>
             </div>
 
             {error && (
-              <div className="flex items-center gap-2 text-red-400 text-sm">
-                <AlertCircle size={16} />
-                {error}
+              <div className="flex items-start gap-2 text-red-400 text-sm justify-center">
+                <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+                <span className="break-words">{error}</span>
               </div>
             )}
           </div>

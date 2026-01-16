@@ -425,6 +425,33 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
         }
       });
 
+    // Subscribe to the private broadcast channel for wallet_balance_changed events
+    // This is used by the realtime-balance-broadcaster Edge Function for instant updates
+    // Channel format: user:{canonical_user_id}:wallet
+    const walletBroadcastChannel = supabase
+      .channel(`user:${canonicalUserId}:wallet`)
+      .on('broadcast', { event: 'wallet_balance_changed' }, (payload) => {
+        console.log('[RealTimeBalance] wallet_balance_changed broadcast received:', payload);
+        const newBalance = payload.payload?.new_balance;
+        if (newBalance !== undefined && newBalance !== null) {
+          console.log('[RealTimeBalance] Updating balance from broadcast:', newBalance);
+          setBalance(Number(newBalance));
+          setLastUpdate(new Date());
+          // Set cooldown to prevent DB reads from overwriting the broadcast value
+          lastEventUpdateRef.current = Date.now();
+        } else {
+          // If payload doesn't include new_balance, fetch from DB
+          fetchBalance();
+        }
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[RealTimeBalance] Wallet broadcast channel subscribed');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.warn('[RealTimeBalance] Wallet broadcast channel error');
+        }
+      });
+
     // Fallback: Poll for balance updates every 30 seconds in case real-time events are missed
     // This ensures balance stays in sync even if Supabase real-time is unreliable
     const pollingInterval = setInterval(() => {
@@ -449,6 +476,7 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
     return () => {
       clearInterval(pollingInterval);
       supabase.removeChannel(channel);
+      supabase.removeChannel(walletBroadcastChannel);
       window.removeEventListener('balance-updated', handleBalanceUpdated as EventListener);
     };
   }, [userId, fetchBalance]);

@@ -7,11 +7,13 @@ import { userDataService } from '../../../services/userDataService';
 import { useAuthUser } from '../../../contexts/AuthContext';
 import Loader from '../../Loader';
 import { Copy, Check } from 'lucide-react';
+import ProfileUpdateSuccessModal from '../../ProfileUpdateSuccessModal';
 
 export default function Account() {
     const { profile: userProfile, isLoading: authLoading, refreshUserData, baseUser } = useAuthUser();
     const [isEditMode, setisEditMode] = useState<boolean>(false);
     const [copied, setCopied] = useState(false);
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [profile, setProfile] = useState<ProfileFormData>({
         username: "",
         email_address: "",
@@ -62,7 +64,8 @@ export default function Account() {
             if (success) {
                 setProfile(updatedProfile);
                 await refreshUserData();
-                alert('Profile updated successfully!');
+                // Show success modal with competitions carousel
+                setShowSuccessModal(true);
             } else {
                 alert('Failed to update profile. Please try again.');
             }
@@ -151,6 +154,13 @@ export default function Account() {
                 }
 
             </div>
+
+            {/* Profile Update Success Modal with live competitions carousel */}
+            <ProfileUpdateSuccessModal
+                isOpen={showSuccessModal}
+                onClose={() => setShowSuccessModal(false)}
+                username={profile.username}
+            />
         </div>
     );
 }
