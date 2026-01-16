@@ -1422,22 +1422,42 @@ Deno.serve(async (req: Request) => {
       }
 
       // STEP 9b: Mark reservation as confirmed (if we used one)
+      // Use confirm_ticket_purchase RPC to atomically debit balance and confirm purchase
       if (reservationRecord?.id) {
-        const { error: resUpdateErr } = await supabase
-          .from("pending_tickets")
-          .update({
-            status: "confirmed",
-            transaction_hash: txRef,
-            payment_provider: "balance",
-            confirmed_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", reservationRecord.id);
+        // After inserting pending ticket, confirm and debit immediately
+        const { data: confirmResult } = await supabase.rpc('confirm_ticket_purchase', {
+          p_pending_ticket_id: reservationRecord.id,
+          p_payment_provider: 'balance'
+        });
 
-        if (resUpdateErr) {
-          console.warn("Failed to update reservation status (non-critical):", resUpdateErr);
+        if (!confirmResult?.success) {
+          // If RPC fails (e.g., already confirmed or not found), fall back to direct update
+          // This handles cases where the RPC is not available or returns an error
+          if (confirmResult?.already_confirmed) {
+            console.log("Reservation already confirmed via RPC:", reservationRecord.id);
+          } else {
+            console.warn("confirm_ticket_purchase RPC failed, using fallback:", confirmResult?.error);
+
+            // Fallback: direct update for backwards compatibility
+            const { error: resUpdateErr } = await supabase
+              .from("pending_tickets")
+              .update({
+                status: "confirmed",
+                transaction_hash: txRef,
+                payment_provider: "balance",
+                confirmed_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", reservationRecord.id);
+
+            if (resUpdateErr) {
+              console.warn("Failed to update reservation status (non-critical):", resUpdateErr);
+            } else {
+              console.log("Reservation marked as confirmed via fallback:", reservationRecord.id);
+            }
+          }
         } else {
-          console.log("Reservation marked as confirmed:", reservationRecord.id);
+          console.log("Reservation confirmed via RPC:", reservationRecord.id, "Balance debited:", confirmResult.amount_debited);
         }
       }
 
