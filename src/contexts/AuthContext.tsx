@@ -6,6 +6,7 @@ import { userAuth, type UserProfile } from '../lib/user-auth';
 import { supabase } from '../lib/supabase';
 import { userDataService } from '../services/userDataService';
 import { toPrizePid } from '../utils/userId';
+import { toCanonicalUserId } from '../lib/canonicalUserId';
 
 interface LinkedWallet {
   address: string;
@@ -50,6 +51,8 @@ interface AuthContextType extends UserData {
   refreshUserData: () => Promise<void>;
   // Keep privyUser for backward compatibility (maps to baseUser)
   privyUser: BaseUser | null;
+  // Canonical user ID in prize:pid: format for Supabase calls
+  canonicalUserId: string | null;
   // Login function - triggers auth modal via event system
   // Components call this, and the Header component listens and opens the modal
   login: (options?: { loginMethods?: string[]; prefill?: { type: string; value: string } }) => void;
@@ -514,9 +517,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [effectiveWalletAddress, refreshUserData, fetchUserData, profile?.wallet_address, profile?.id, profile?.uid]);
 
+  // Compute canonical user ID for Supabase calls
+  const canonicalUserId = useMemo(() => {
+    if (!baseUser?.id) return null;
+    return toCanonicalUserId(baseUser.id);
+  }, [baseUser?.id]);
+
   const value: AuthContextType = {
     baseUser,
     privyUser: baseUser, // Keep privyUser for backward compatibility
+    canonicalUserId,
     profile,
     entryCount,
     walletBalance,
@@ -544,6 +554,7 @@ export const useAuthUser = () => {
     return {
       baseUser: null,
       privyUser: null,
+      canonicalUserId: null,
       profile: null,
       entryCount: 0,
       walletBalance: 0,
