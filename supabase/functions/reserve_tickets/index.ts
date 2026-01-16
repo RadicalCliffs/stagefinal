@@ -1,6 +1,61 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { toPrizePid, normalizeWalletAddress } from "../_shared/userId.ts";
+
+// Inlined userId utilities (bundler doesn't support shared module imports)
+function isWalletAddress(identifier: string): boolean {
+  return /^0x[a-fA-F0-9]{40}$/.test(identifier);
+}
+
+function isPrizePid(identifier: string): boolean {
+  return identifier.startsWith('prize:pid:');
+}
+
+function extractPrizePid(prizePid: string): string {
+  if (!isPrizePid(prizePid)) return prizePid;
+  return prizePid.substring('prize:pid:'.length);
+}
+
+function toPrizePid(inputUserId: string | null | undefined): string {
+  if (!inputUserId || inputUserId.trim() === '') {
+    return `prize:pid:${crypto.randomUUID()}`;
+  }
+  const trimmedId = inputUserId.trim();
+  if (isPrizePid(trimmedId)) {
+    const extracted = extractPrizePid(trimmedId);
+    if (isWalletAddress(extracted)) {
+      return `prize:pid:${extracted.toLowerCase()}`;
+    }
+    return trimmedId.toLowerCase();
+  }
+  if (isWalletAddress(trimmedId)) {
+    return `prize:pid:${trimmedId.toLowerCase()}`;
+  }
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (uuidPattern.test(trimmedId)) {
+    return `prize:pid:${trimmedId.toLowerCase()}`;
+  }
+  // For any other identifier format, generate a new UUID
+  return `prize:pid:${crypto.randomUUID()}`;
+}
+
+function normalizeWalletAddress(address: string | null | undefined): string | null {
+  if (!address) return null;
+  const trimmed = address.trim();
+  if (isWalletAddress(trimmed)) {
+    return trimmed.toLowerCase();
+  }
+  return trimmed;
+}
+
+/**
+ * BACKUP Reserve Tickets Function (reserve_tickets - underscore version)
+ *
+ * This is a redundant backup of the primary reserve-tickets function.
+ * If the primary function fails, the frontend will automatically fallback to this one.
+ * Both functions are identical in functionality to ensure maximum reliability.
+ *
+ * This ensures tickets can ALWAYS be reserved even if one function has deployment issues.
+ */
 
 // Inlined CORS configuration (bundler doesn't support shared module imports)
 const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://substage.theprize.io';
@@ -42,35 +97,7 @@ function handleCorsOptions(req: Request): Response {
   });
 }
 
-/**
- * Reserve Tickets Function - Standalone Version with Flexible Authentication
- *
- * Updated to handle both Base wallet addresses and legacy Privy IDs without
- * requiring users to exist in canonical_users table.
- *
- * This function reserves specific ticket numbers for a user BEFORE payment.
- * Performs availability check and reservation directly using service role key
- * to bypass RLS restrictions - no RPC function required.
- *
- * User Identifier Handling:
- * - For Base auth: wallet address (0x...) is used directly as the user ID
- * - For legacy Privy: DID (did:privy:xxx) is used
- * - NO lookup in canonical_users required - just uses the ID as-is
- *
- * Flow:
- * 1. User selects tickets → Frontend calls this function
- * 2. Function checks availability of tickets (pending + sold)
- * 3. Creates reservation in pending_tickets table with 15-minute expiry
- * 4. User completes payment
- * 5. Payment webhook calls confirm-pending-tickets to finalize
- * 6. If payment fails/expires, cleanup job releases the tickets
- *
- * Error Codes:
- * - 400: Invalid input (missing fields, invalid ticket numbers, competition not active)
- * - 404: Competition not found
- * - 409: Tickets no longer available (conflict)
- * - 500: Server error
- */
+// Note: isWalletAddress and normalizeWalletAddress imported from shared userId module
 
 // Helper to create consistent error responses
 function errorResponse(
@@ -111,6 +138,8 @@ function validateTicketNumbers(tickets: unknown[]): { valid: boolean; invalidTic
   return { valid: invalidTickets.length === 0, invalidTickets };
 }
 
+console.info("reserve_tickets (backup) function ready");
+
 Deno.serve(async (req: Request) => {
   // Handle CORS preflight - no auth required
   if (req.method === "OPTIONS") {
@@ -126,7 +155,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const requestId = crypto.randomUUID().slice(0, 8);
-  console.log(`[${requestId}] Reserve tickets request started`);
+  console.log(`[${requestId}][BACKUP] Reserve tickets request started`);
 
   try {
     // Parse request body
@@ -147,31 +176,32 @@ Deno.serve(async (req: Request) => {
     } = body;
 
     // Accept flexible user identifiers (wallet address or Privy ID)
-    // Priority: userId > userIdentifier > user_identifier > privy_user_id > user_id
-    const inputUserId = userId || body.userIdentifier || body.user_identifier || body.privy_user_id || body.user_id;
-
-    // Convert to canonical prize:pid: format
-    const canonicalUserId = toPrizePid(inputUserId);
-    console.log(`[${requestId}] Canonical user ID: ${canonicalUserId}`);
+    // Priority: userId > userIdentifier (camelCase) > user_identifier (snake_case) > privy_user_id > user_id
+    const userIdentifier = userId || body.userIdentifier || body.user_identifier || body.privy_user_id || body.user_id;
 
     // Accept both camelCase and snake_case parameter names for backwards compatibility
     // Some clients may send competition_id/tickets instead of competitionId/selectedTickets
+    // Also accept ticket_numbers or ticketIds for flexibility
     const resolvedCompetitionId = competitionId || body.competition_id;
-    const resolvedSelectedTickets = selectedTickets || body.tickets;
+    const resolvedSelectedTickets = selectedTickets || body.ticket_numbers || body.ticketIds || body.ticketNumbers || body.tickets;
 
-    console.log(`[${requestId}] Parsed request body:`, {
+    // Log all body keys for debugging payload issues
+    console.log(`[${requestId}][BACKUP] Request body keys:`, Object.keys(body));
+    console.log(`[${requestId}][BACKUP] Parsed request body:`, {
       hasUserId: !!userId,
-      hasInputUserId: !!inputUserId,
+      hasUserIdentifier: !!userIdentifier,
       hasCompetitionId: !!resolvedCompetitionId,
       hasSelectedTickets: !!resolvedSelectedTickets && Array.isArray(resolvedSelectedTickets),
       ticketCount: Array.isArray(resolvedSelectedTickets) ? resolvedSelectedTickets.length : 0,
       hasTicketPrice: ticketPrice !== undefined,
       hasSessionId: !!sessionId,
-      canonicalUserId: canonicalUserId.substring(0, 20) + '...'
+      isWalletAddress: userIdentifier ? isWalletAddress(String(userIdentifier)) : false,
+      // Log if client sent ticketCount instead of array (common mistake)
+      sentTicketCountInstead: body.ticketCount !== undefined && !resolvedSelectedTickets,
     });
 
     // Validate required fields
-    if (!inputUserId || typeof inputUserId !== 'string') {
+    if (!userIdentifier || typeof userIdentifier !== 'string') {
       console.error(`[${requestId}] Missing or invalid user identifier`);
       return errorResponse("userId (wallet address or Privy ID) is required and must be a string", 400, corsHeaders);
     }
@@ -182,8 +212,17 @@ Deno.serve(async (req: Request) => {
     }
 
     if (!resolvedSelectedTickets || !Array.isArray(resolvedSelectedTickets) || resolvedSelectedTickets.length === 0) {
-      console.error(`[${requestId}] Missing or invalid selectedTickets`);
-      return errorResponse("selectedTickets array is required and must not be empty", 400, corsHeaders);
+      console.error(`[${requestId}] Missing or invalid selectedTickets. Body keys: ${Object.keys(body).join(', ')}`);
+      // Provide clear error message explaining what's expected vs what was received
+      const receivedKeys = Object.keys(body).join(', ');
+      const hasTicketCount = body.ticketCount !== undefined;
+      const errorMsg = hasTicketCount
+        ? "ticket_numbers/selectedTickets array is required; ticketCount (number) is not accepted. Please send the actual ticket numbers array."
+        : `selectedTickets array is required and must not be empty. Received keys: ${receivedKeys}`;
+      return errorResponse(errorMsg, 400, corsHeaders, {
+        hint: "Send body with: { userId, competitionId, selectedTickets: [1, 2, 3, ...] }",
+        receivedKeys: Object.keys(body),
+      });
     }
 
     // Validate ticket numbers are valid integers
@@ -221,17 +260,14 @@ Deno.serve(async (req: Request) => {
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
     // Step 1: Verify competition exists and is active
-    // Fetch both id (UUID) and uid (legacy text) since joincompetition stores competitionid
-    // which may match either field depending on when the entry was created
     const { data: competition, error: compError } = await supabase
       .from("competitions")
       .select("id, uid, status, total_tickets, end_date, ticket_price")
       .eq("id", resolvedCompetitionId)
       .single();
 
-    // DEBUG: Log competition query results to diagnose schema mismatches
-    console.log(`[${requestId}] Competition row:`, competition);
-    console.log(`[${requestId}] Competition error:`, compError);
+    console.log(`[${requestId}][BACKUP] Competition row:`, competition);
+    console.log(`[${requestId}][BACKUP] Competition error:`, compError);
 
     // Use ticket_price from competition if available, otherwise use provided ticketPrice or default to 1
     const competitionTicketPrice = competition?.ticket_price;
@@ -239,8 +275,9 @@ Deno.serve(async (req: Request) => {
       ? ticketPrice 
       : (typeof competitionTicketPrice === 'number' && competitionTicketPrice > 0 ? competitionTicketPrice : 1);
 
-    console.log(`[${requestId}] Attempting reservation:`, {
-      canonicalUserId: canonicalUserId.substring(0, 20) + '...',
+    console.log(`[${requestId}][BACKUP] Attempting reservation:`, {
+      userIdentifier: userIdentifier.substring(0, 15) + '...',
+      isWalletAddress: isWalletAddress(userIdentifier),
       competitionId: resolvedCompetitionId,
       ticketCount: resolvedSelectedTickets.length,
       tickets: resolvedSelectedTickets.slice(0, 10), // Log first 10 tickets
@@ -253,15 +290,13 @@ Deno.serve(async (req: Request) => {
       return errorResponse("Competition not found", 404, corsHeaders);
     }
 
-    // IMPORTANT: Database stores status as "active" (not "live")
-    // The frontend displays "live" but the DB value is "active"
-    // All other edge functions only check for "active" so we must be consistent
+    // Database stores status as "active" (not "live")
     if (competition.status !== "active") {
       console.error(`[${requestId}] Competition not active: ${competition.status}`);
       return errorResponse("Competition is not currently active", 400, corsHeaders);
     }
 
-    // Check if competition has ended - fail loudly on invalid date
+    // Check if competition has ended
     if (competition.end_date) {
       const endDate = new Date(competition.end_date);
       if (isNaN(endDate.getTime())) {
@@ -274,7 +309,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Fail loudly if total_tickets is missing or invalid - don't silently default to 1000
+    // Validate total_tickets
     if (typeof competition.total_tickets !== "number" || !Number.isFinite(competition.total_tickets) || competition.total_tickets <= 0) {
       console.error(`[${requestId}] Missing or invalid total_tickets on competition row:`, competition);
       return errorResponse(
@@ -302,14 +337,18 @@ Deno.serve(async (req: Request) => {
     // 1. All user IDs are stored as prize:pid:<id>
     // 2. Wallet addresses are normalized to lowercase
     // 3. Legacy Privy DIDs are converted to prize:pid: format
-    //
-    // This ensures the entire flow uses a consistent identifier:
-    //   Frontend sends: 0x1234... or did:privy:xxx
-    //   reserve-tickets stores: prize:pid:0x1234... (lowercase)
-    //   confirm-pending-tickets queries: prize:pid:0x1234... -> MATCH!
     // ==========================================================================
+    const canonicalUserId = toPrizePid(userIdentifier);
+    console.log(`[${requestId}][BACKUP] Canonical user ID: ${canonicalUserId}`);
+
     const resolvedUserId = canonicalUserId;
-    console.log(`[${requestId}] Using canonical user ID: ${resolvedUserId}`);
+    console.log(`[${requestId}][BACKUP] Using canonical user ID for reservation`);
+
+    console.log(`[${requestId}][BACKUP] Resolved user:`, {
+      originalIdentifier: userIdentifier.substring(0, 15) + '...',
+      resolvedUserId: resolvedUserId.substring(0, 20) + '...',
+      isWalletAddress: isWalletAddress(userIdentifier)
+    });
 
     // Step 2: Get currently unavailable tickets
     const unavailableSet = new Set<number>();
@@ -324,7 +363,6 @@ Deno.serve(async (req: Request) => {
 
     if (pendingError) {
       console.error(`[${requestId}] Error fetching pending tickets:`, pendingError);
-      // Continue anyway - we'll still check sold tickets
     } else if (pendingData) {
       pendingData.forEach((row: { ticket_numbers: number[]; user_id: string; expires_at: string }) => {
         // Convert row user_id to canonical format for comparison
@@ -344,10 +382,6 @@ Deno.serve(async (req: Request) => {
     }
 
     // Get sold tickets from joincompetition
-    // CRITICAL: joincompetition.competitionid is a TEXT field that may contain either:
-    // - The competition.id (UUID) for newer entries
-    // - The competition.uid (legacy text) for older entries
-    // We must check BOTH to get accurate sold ticket counts
     const competitionUid = competition.uid || resolvedCompetitionId;
     const { data: soldData, error: soldError } = await supabase
       .from("joincompetition")
@@ -356,7 +390,6 @@ Deno.serve(async (req: Request) => {
 
     if (soldError) {
       console.error(`[${requestId}] Error fetching sold tickets:`, soldError);
-      // Continue anyway
     } else if (soldData) {
       soldData.forEach((row: { ticketnumbers: string | null }) => {
         const nums = String(row.ticketnumbers || "")
@@ -385,7 +418,6 @@ Deno.serve(async (req: Request) => {
     // Step 4: Create reservation
     const totalAmount = validTicketPrice * resolvedSelectedTickets.length;
 
-    // Use the resolved user ID (already normalized for wallet addresses)
     const { data: reservation, error: insertError } = await supabase
       .from("pending_tickets")
       .insert({
@@ -407,7 +439,7 @@ Deno.serve(async (req: Request) => {
     if (insertError) {
       console.error(`[${requestId}] Error creating reservation:`, insertError);
 
-      // Check for unique constraint violation (race condition - someone else got the tickets)
+      // Check for unique constraint violation (race condition)
       if (insertError.code === "23505") {
         return errorResponse(
           "Some tickets were reserved by another user. Please try again.",
@@ -426,7 +458,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // SUCCESS: Reservation created
-    console.log(`[${requestId}] Reservation successful:`, {
+    console.log(`[${requestId}][BACKUP] Reservation successful:`, {
       reservationId,
       ticketCount: resolvedSelectedTickets.length,
       resolvedUserId: resolvedUserId.substring(0, 15) + '...'
@@ -442,13 +474,13 @@ Deno.serve(async (req: Request) => {
       totalAmount,
       expiresAt: expiresAt.toISOString(),
       userIdentifier: resolvedUserId.substring(0, 15) + '...',
-      message: `Successfully reserved ${resolvedSelectedTickets.length} tickets. Complete payment within 15 minutes.`
+      message: `Successfully reserved ${resolvedSelectedTickets.length} tickets. Complete payment within 15 minutes.`,
+      source: 'backup_function' // Indicator that backup function was used
     }, corsHeaders);
 
   } catch (error) {
-    // Catch-all for unexpected errors
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error(`[${requestId}] Unexpected error:`, errorMessage);
+    console.error(`[${requestId}][BACKUP] Unexpected error:`, errorMessage);
 
     return errorResponse(
       "An unexpected error occurred. Please try again.",
