@@ -65,7 +65,7 @@ interface UpdateRequest {
 async function verifyAdminAccess(authHeader: string | null): Promise<boolean> {
   if (!authHeader) return false;
 
-  const supabaseUrl = Netlify.env.get("VITE_SUPABASE_URL") || Netlify.env.get("SUPABASE_URL");
+  const supabaseUrl = Netlify.env.get("VITE_SUPABASE_URL");
   const supabaseServiceKey = Netlify.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
   if (!supabaseUrl || !supabaseServiceKey) {
@@ -171,7 +171,7 @@ ${generateCSSVariables(editableColors)}
 `;
 
     // In a real implementation, we would write to:
-    // - /home/runner/work/theprize.io/theprize.io/src/styles/${request.modalType}-overrides.css
+    // - <project-root>/src/styles/${request.modalType}-overrides.css
     // But for safety, we'll just log it
     console.log('[UpdateAuthModalStyles] Generated CSS overrides:', cssContent);
 

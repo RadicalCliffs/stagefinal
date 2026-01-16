@@ -100,6 +100,7 @@ export default function AuthModalVisualEditor() {
   // Load initial properties based on selected modal
   useEffect(() => {
     loadModalProperties(state.selectedModal);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.selectedModal]);
 
   const loadModalProperties = (modalType: ModalType) => {
@@ -205,8 +206,20 @@ export default function AuthModalVisualEditor() {
   };
 
   const handleImageUpload = async (name: string, file: File) => {
+    // Validate file size (max 2MB to prevent memory issues)
+    const maxSize = 2 * 1024 * 1024; // 2MB
+    if (file.size > maxSize) {
+      setSaveStatus('error');
+      setSaveMessage('Image file too large. Maximum size is 2MB.');
+      setTimeout(() => {
+        setSaveStatus('idle');
+        setSaveMessage('');
+      }, 5000);
+      return;
+    }
+
     // In a real implementation, this would upload to storage
-    // For now, we'll use a data URL
+    // For now, we'll use a data URL (with size validation)
     const reader = new FileReader();
     reader.onload = (e) => {
       const dataUrl = e.target?.result as string;
@@ -292,10 +305,11 @@ export default function AuthModalVisualEditor() {
             <div className="flex items-center gap-2">
               <input
                 type="color"
-                value={color.value.startsWith('rgba') ? '#ffffff' : color.value}
+                value={color.value.startsWith('rgba') || color.value.startsWith('rgb') ? '#000000' : color.value}
                 onChange={(e) => !color.locked && handleColorChange(color.name, e.target.value)}
-                disabled={color.locked}
+                disabled={color.locked || color.value.startsWith('rgba') || color.value.startsWith('rgb')}
                 className="w-10 h-10 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                title={color.value.startsWith('rgba') || color.value.startsWith('rgb') ? 'RGBA colors must be edited as text' : ''}
               />
               <input
                 type="text"
