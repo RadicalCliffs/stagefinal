@@ -68,6 +68,10 @@ interface ImageProperty {
   value: string;
   alt?: string;
   locked?: boolean;
+  type?: 'logo' | 'icon' | 'wallet_icon' | 'payment_icon' | 'background' | 'other'; // New: Icon type categorization
+  format?: 'svg' | 'png' | 'webp' | 'jpg' | 'any'; // New: Preferred format
+  dimensions?: { width: number; height: number }; // New: Recommended dimensions
+  acceptFormats?: string; // New: Accept attribute for file input
 }
 
 interface FlowStep {
@@ -89,6 +93,8 @@ interface ButtonProperty {
   hasDependencies?: boolean;
   dependencies?: string[];
   locked?: boolean;
+  hidden?: boolean; // New: Controls visibility of button in the modal
+  icon?: string; // New: Icon/image URL for the button
 }
 
 type ModalType = 'NewAuthModal' | 'BaseWalletAuthModal' | 'PaymentModal' | 'TopUpWalletModal';
@@ -121,14 +127,25 @@ export default function AuthModalVisualEditor() {
   });
 
   const [activeTab, setActiveTab] = useState<'flow' | 'colors' | 'fonts' | 'text' | 'images' | 'buttons'>('flow');
-  const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState('');
+  const [showAddButton, setShowAddButton] = useState(false);
+  const [newButton, setNewButton] = useState<Partial<ButtonProperty>>({
+    name: '',
+    label: '',
+    linkType: 'none',
+    linkValue: '',
+    description: '',
+    hasDependencies: false,
+    dependencies: [],
+    locked: false,
+    hidden: false,
+    icon: '',
+  });
 
   // Load initial properties based on selected modal
   useEffect(() => {
     loadModalProperties(state.selectedModal);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.selectedModal]);
 
   const loadModalProperties = (modalType: ModalType) => {
@@ -177,7 +194,7 @@ export default function AuthModalVisualEditor() {
           { name: 'connectWalletSubtitle', label: 'Connect Wallet Subtitle', value: 'Connect an existing wallet or create a new one in seconds.' },
         ],
         images: [
-          { name: 'modalLogo', label: 'Modal Logo', value: '/logo.png', alt: 'The Prize Logo' },
+          { name: 'modalLogo', label: 'Modal Logo', value: '/logo.png', alt: 'The Prize Logo', type: 'logo', format: 'png', acceptFormats: 'image/png,image/svg+xml,image/webp' },
         ],
         buttons: [],
       }));
@@ -253,10 +270,10 @@ export default function AuthModalVisualEditor() {
         images: [],
         flowSteps: [],
         buttons: [
-          { name: 'payWithBalance', label: 'Pay with Balance Button', linkType: 'action', linkValue: 'balancePayment', description: 'Triggers balance payment', hasDependencies: true, dependencies: ['Balance check', 'Transaction API'], locked: false },
-          { name: 'payWithCard', label: 'Pay with Card Button', linkType: 'action', linkValue: 'cardPayment', description: 'Triggers card payment flow', hasDependencies: true, dependencies: ['Coinbase Commerce API'], locked: false },
-          { name: 'payWithCrypto', label: 'Pay with Crypto Button', linkType: 'action', linkValue: 'cryptoPayment', description: 'Triggers crypto payment flow', hasDependencies: true, dependencies: ['OnchainKit', 'Wallet connection'], locked: false },
-          { name: 'topUpBalance', label: 'Top Up Balance Link', linkType: 'action', linkValue: 'openTopUpModal', description: 'Opens top-up modal', hasDependencies: true, dependencies: ['TopUpWalletModal component'], locked: false },
+          { name: 'payWithBalance', label: 'Pay with Balance Button', linkType: 'action', linkValue: 'balancePayment', description: 'Triggers balance payment', hasDependencies: true, dependencies: ['Balance check', 'Transaction API'], locked: false, hidden: false },
+          { name: 'payWithCard', label: 'Pay with Card Button', linkType: 'action', linkValue: 'cardPayment', description: 'Triggers card payment flow', hasDependencies: true, dependencies: ['Coinbase Commerce API'], locked: false, hidden: false },
+          { name: 'payWithCrypto', label: 'Pay with Crypto Button', linkType: 'action', linkValue: 'cryptoPayment', description: 'Triggers crypto payment flow', hasDependencies: true, dependencies: ['OnchainKit', 'Wallet connection'], locked: false, hidden: false },
+          { name: 'topUpBalance', label: 'Top Up Balance Link', linkType: 'action', linkValue: 'openTopUpModal', description: 'Opens top-up modal', hasDependencies: true, dependencies: ['TopUpWalletModal component'], locked: false, hidden: false },
         ],
       }));
     } else if (modalType === 'TopUpWalletModal') {
@@ -294,9 +311,9 @@ export default function AuthModalVisualEditor() {
         images: [],
         flowSteps: [],
         buttons: [
-          { name: 'instantTopUp', label: 'Instant Top-Up Button', linkType: 'action', linkValue: 'instantTopUp', description: 'Direct USDC transfer', hasDependencies: true, dependencies: ['Wallet connection', 'USDC balance', 'Treasury address'], locked: false },
-          { name: 'cryptoTopUp', label: 'Crypto Top-Up Button', linkType: 'action', linkValue: 'cryptoCheckout', description: 'Opens OnchainKit checkout', hasDependencies: true, dependencies: ['OnchainKit', 'Coinbase Commerce'], locked: false },
-          { name: 'cardTopUp', label: 'Card Top-Up Button', linkType: 'action', linkValue: 'cardCheckout', description: 'Opens card payment flow', hasDependencies: true, dependencies: ['Coinbase Commerce API'], locked: false },
+          { name: 'instantTopUp', label: 'Instant Top-Up Button', linkType: 'action', linkValue: 'instantTopUp', description: 'Direct USDC transfer', hasDependencies: true, dependencies: ['Wallet connection', 'USDC balance', 'Treasury address'], locked: false, hidden: false },
+          { name: 'cryptoTopUp', label: 'Crypto Top-Up Button', linkType: 'action', linkValue: 'cryptoCheckout', description: 'Opens OnchainKit checkout', hasDependencies: true, dependencies: ['OnchainKit', 'Coinbase Commerce'], locked: false, hidden: false },
+          { name: 'cardTopUp', label: 'Card Top-Up Button', linkType: 'action', linkValue: 'cardCheckout', description: 'Opens card payment flow', hasDependencies: true, dependencies: ['Coinbase Commerce API'], locked: false, hidden: false },
         ],
       }));
     }
@@ -358,7 +375,7 @@ export default function AuthModalVisualEditor() {
     }));
   };
 
-  const handleImageUpload = async (name: string, file: File) => {
+  const handleImageUpload = async (name: string, file: File, imageProperty: ImageProperty) => {
     // Validate file size (max 2MB to prevent memory issues)
     const maxSize = 2 * 1024 * 1024; // 2MB
     if (file.size > maxSize) {
@@ -369,6 +386,39 @@ export default function AuthModalVisualEditor() {
         setSaveMessage('');
       }, 5000);
       return;
+    }
+
+    // Validate file type if format is specified
+    if (imageProperty.format && imageProperty.format !== 'any') {
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
+      if (imageProperty.format !== fileExt) {
+        setSaveStatus('error');
+        setSaveMessage(`Preferred format is ${imageProperty.format.toUpperCase()}. Consider converting your image.`);
+        // Allow upload but warn user
+        setTimeout(() => {
+          setSaveStatus('idle');
+          setSaveMessage('');
+        }, 5000);
+      }
+    }
+
+    // Validate dimensions for specific icon types
+    if (imageProperty.dimensions) {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        const { width, height } = imageProperty.dimensions!;
+        if (img.width !== width || img.height !== height) {
+          setSaveStatus('error');
+          setSaveMessage(`Recommended dimensions: ${width}x${height}px. Your image: ${img.width}x${img.height}px.`);
+          setTimeout(() => {
+            setSaveStatus('idle');
+            setSaveMessage('');
+          }, 5000);
+        }
+        URL.revokeObjectURL(objectUrl);
+      };
+      img.src = objectUrl;
     }
 
     // In a real implementation, this would upload to storage
@@ -383,6 +433,12 @@ export default function AuthModalVisualEditor() {
         ),
         hasChanges: true,
       }));
+      setSaveStatus('success');
+      setSaveMessage('Image uploaded successfully!');
+      setTimeout(() => {
+        setSaveStatus('idle');
+        setSaveMessage('');
+      }, 3000);
     };
     reader.readAsDataURL(file);
   };
@@ -397,6 +453,62 @@ export default function AuthModalVisualEditor() {
     }));
   };
 
+  const handleButtonVisibilityToggle = (name: string, hidden: boolean) => {
+    setState(prev => ({
+      ...prev,
+      buttons: prev.buttons.map(b => 
+        b.name === name ? { ...b, hidden } : b
+      ),
+      hasChanges: true,
+    }));
+  };
+
+  const handleButtonIconChange = (name: string, icon: string) => {
+    setState(prev => ({
+      ...prev,
+      buttons: prev.buttons.map(b => 
+        b.name === name ? { ...b, icon } : b
+      ),
+      hasChanges: true,
+    }));
+  };
+
+  const handleAddNewButton = (button: ButtonProperty) => {
+    // Validate unique name
+    const exists = state.buttons.some(b => b.name === button.name);
+    if (exists) {
+      setSaveStatus('error');
+      setSaveMessage('Button name already exists. Please use a unique name.');
+      setTimeout(() => {
+        setSaveStatus('idle');
+        setSaveMessage('');
+      }, 5000);
+      return;
+    }
+
+    setState(prev => ({
+      ...prev,
+      buttons: [...prev.buttons, button],
+      hasChanges: true,
+    }));
+    
+    setSaveStatus('success');
+    setSaveMessage('New button added successfully!');
+    setTimeout(() => {
+      setSaveStatus('idle');
+      setSaveMessage('');
+    }, 3000);
+  };
+
+  // Commented out for now - can be used in future to allow button removal
+  // const handleRemoveButton = (name: string) => {
+  //   setState(prev => ({
+  //     ...prev,
+  //     buttons: prev.buttons.filter(b => b.name !== name),
+  //     hasChanges: true,
+  //   }));
+  // };
+
   /**
    * Generate a downloadable TypeScript file with all changes applied
    * This creates a complete .tsx file for developers to review and apply
@@ -405,7 +517,7 @@ export default function AuthModalVisualEditor() {
     const { selectedModal, colors, fonts, texts, images, buttons, flowSteps } = state;
     
     // Generate a comment block with all the changes
-    let fileContent = `/**
+    const fileContent = `/**
  * ${selectedModal} - Modified by Visual Editor
  * 
  * This file contains the customizations made in the Visual Editor.
@@ -460,12 +572,14 @@ ${images.filter(i => !i.locked).map(i => `  ${i.name}: '${i.value}', // ${i.alt 
 
 ${buttons.length > 0 ? `
 // ============================================================================
-// BUTTON LINK CUSTOMIZATIONS
+// BUTTON CUSTOMIZATIONS
 // ============================================================================
-${buttons.filter(b => !b.locked && b.linkType !== 'none').map(b => `
+${buttons.map(b => `
 // ${b.label}
 // Link Type: ${b.linkType}
 // Link Value: ${b.linkValue}
+// Hidden: ${b.hidden ? 'Yes (Button will not be shown)' : 'No (Button will be visible)'}
+${b.icon ? `// Icon: ${b.icon}` : ''}
 // Description: ${b.description || 'No description'}
 ${b.hasDependencies ? `// ⚠️  DEPENDENCIES: ${b.dependencies?.join(', ')}
 // WARNING: Changing this button may break functionality that depends on:
@@ -473,8 +587,12 @@ ${b.dependencies?.map(d => `//   - ${d}`).join('\n')}` : ''}
 const ${b.name}Config = {
   linkType: '${b.linkType}',
   linkValue: '${b.linkValue}',
+  hidden: ${b.hidden || false},${b.icon ? `\n  icon: '${b.icon}',` : ''}
 };
 `).join('\n')}
+
+// NOTE: Buttons marked as hidden should be conditionally rendered
+// Example: {!${buttons[0]?.name}Config.hidden && <button>...</button>}
 ` : ''}
 
 ${flowSteps.length > 0 ? `
@@ -732,7 +850,25 @@ TESTING CHECKLIST:
               {image.locked && (
                 <Lock size={14} className="text-yellow-400" title="Functional - locked from editing" />
               )}
+              {image.type && (
+                <span className="text-xs px-2 py-0.5 rounded bg-blue-500/20 text-blue-400">
+                  {image.type.replace('_', ' ')}
+                </span>
+              )}
             </div>
+            
+            {/* Image metadata info */}
+            {(image.format || image.dimensions) && (
+              <div className="mb-3 p-2 bg-blue-500/10 border border-blue-500/30 rounded text-xs text-blue-400">
+                {image.format && image.format !== 'any' && (
+                  <div>Preferred format: <strong>{image.format.toUpperCase()}</strong></div>
+                )}
+                {image.dimensions && (
+                  <div>Recommended dimensions: <strong>{image.dimensions.width}×{image.dimensions.height}px</strong></div>
+                )}
+              </div>
+            )}
+
             <div className="flex items-start gap-4">
               {image.value && (
                 <img 
@@ -744,18 +880,24 @@ TESTING CHECKLIST:
               <div className="flex-1">
                 <input
                   type="file"
-                  accept="image/*"
+                  accept={image.acceptFormats || "image/*"}
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file && !image.locked) {
-                      handleImageUpload(image.name, file);
+                      handleImageUpload(image.name, file, image);
                     }
                   }}
                   disabled={image.locked}
                   className="w-full text-white/70 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <p className="text-white/40 text-xs mt-2">
-                  Upload a new image to replace the current one
+                  {image.acceptFormats ? 
+                    `Accepts: ${image.acceptFormats.split(',').map(f => f.split('/')[1].toUpperCase()).join(', ')}` :
+                    'Upload a new image to replace the current one'
+                  }
+                </p>
+                <p className="text-white/40 text-xs mt-1">
+                  Maximum file size: 2MB
                 </p>
               </div>
             </div>
@@ -765,106 +907,342 @@ TESTING CHECKLIST:
     </div>
   );
 
-  const renderButtonEditor = () => (
-    <div className="space-y-4">
-      {state.buttons.length === 0 ? (
-        <div className="p-8 text-center text-white/50">
-          No button properties available for this modal
-        </div>
-      ) : (
-        <>
-          <div className="p-4 bg-[#0052FF]/10 border border-[#0052FF]/30 rounded-lg mb-6">
-            <h3 className="text-white font-semibold mb-2 flex items-center gap-2">
-              <LinkIcon size={18} className="text-[#0052FF]" />
-              Button Link Configuration
-            </h3>
-            <p className="text-white/70 text-sm mb-2">
-              Configure button links and actions. Be careful when changing buttons with dependencies.
-            </p>
-            <p className="text-white/60 text-xs">
-              <strong>Warning:</strong> Buttons with dependencies may break functionality if linked incorrectly.
-            </p>
+  const renderButtonEditor = () => {
+    const buttonTemplates = [
+      {
+        name: 'payment_method',
+        label: 'Payment Method Button',
+        linkType: 'action' as const,
+        linkValue: 'processPayment',
+        description: 'New payment method option',
+        hasDependencies: true,
+        dependencies: ['Payment API'],
+      },
+      {
+        name: 'wallet_connect',
+        label: 'Wallet Connection Button',
+        linkType: 'action' as const,
+        linkValue: 'connectWallet',
+        description: 'Connect a specific wallet',
+        hasDependencies: true,
+        dependencies: ['Wallet SDK', 'OnchainKit'],
+      },
+      {
+        name: 'external_link',
+        label: 'External Link Button',
+        linkType: 'url' as const,
+        linkValue: 'https://example.com',
+        description: 'Link to external resource',
+        hasDependencies: false,
+      },
+      {
+        name: 'internal_nav',
+        label: 'Internal Navigation Button',
+        linkType: 'route' as const,
+        linkValue: '/dashboard',
+        description: 'Navigate to internal route',
+        hasDependencies: false,
+      },
+    ];
+
+    const applyTemplate = (template: typeof buttonTemplates[0]) => {
+      setNewButton({
+        ...newButton,
+        ...template,
+        name: `${template.name}_${Date.now()}`,
+      });
+    };
+
+    const addButton = () => {
+      if (!newButton.name || !newButton.label) {
+        setSaveStatus('error');
+        setSaveMessage('Button name and label are required.');
+        setTimeout(() => {
+          setSaveStatus('idle');
+          setSaveMessage('');
+        }, 3000);
+        return;
+      }
+
+      handleAddNewButton(newButton as ButtonProperty);
+      setShowAddButton(false);
+      setNewButton({
+        name: '',
+        label: '',
+        linkType: 'none',
+        linkValue: '',
+        description: '',
+        hasDependencies: false,
+        dependencies: [],
+        locked: false,
+        hidden: false,
+        icon: '',
+      });
+    };
+
+    return (
+      <div className="space-y-4">
+        {state.buttons.length === 0 ? (
+          <div className="p-8 text-center text-white/50">
+            No button properties available for this modal
           </div>
+        ) : (
+          <>
+            <div className="p-4 bg-[#0052FF]/10 border border-[#0052FF]/30 rounded-lg mb-6">
+              <h3 className="text-white font-semibold mb-2 flex items-center gap-2">
+                <LinkIcon size={18} className="text-[#0052FF]" />
+                Button Configuration
+              </h3>
+              <p className="text-white/70 text-sm mb-2">
+                Configure button visibility, links, and icons. Add new buttons using templates below.
+              </p>
+              <p className="text-white/60 text-xs">
+                <strong>Tip:</strong> Hide buttons to remove them from the modal without deleting configuration.
+              </p>
+            </div>
 
-          {state.buttons.map(button => (
-            <div key={button.name} className="p-4 bg-white/5 border border-white/10 rounded-lg">
-              <div className="flex items-center gap-2 mb-3">
-                <label className="text-white font-medium">{button.label}</label>
-                {button.locked && (
-                  <Lock size={14} className="text-yellow-400" title="Functional - locked from editing" />
-                )}
-                {button.hasDependencies && (
-                  <AlertCircle size={14} className="text-orange-400" title="Has dependencies" />
-                )}
-              </div>
+            {/* Add New Button Section */}
+            {state.selectedModal === 'PaymentModal' || state.selectedModal === 'TopUpWalletModal' ? (
+              <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
+                <button
+                  onClick={() => setShowAddButton(!showAddButton)}
+                  className="w-full flex items-center justify-between text-white font-medium"
+                >
+                  <span className="flex items-center gap-2">
+                    <CheckCircle size={16} className="text-green-400" />
+                    Add New Button
+                  </span>
+                  <span className="text-green-400">{showAddButton ? '−' : '+'}</span>
+                </button>
+                
+                {showAddButton && (
+                  <div className="mt-4 space-y-3">
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                      {buttonTemplates.map((template) => (
+                        <button
+                          key={template.name}
+                          onClick={() => applyTemplate(template)}
+                          className="px-3 py-2 bg-white/10 hover:bg-white/20 rounded text-xs text-white text-left transition-colors"
+                        >
+                          {template.label}
+                        </button>
+                      ))}
+                    </div>
 
-              {button.description && (
-                <p className="text-white/60 text-sm mb-3">{button.description}</p>
-              )}
-
-              {button.hasDependencies && button.dependencies && (
-                <div className="mb-3 p-3 bg-orange-500/10 border border-orange-500/30 rounded">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle size={16} className="text-orange-400 flex-shrink-0 mt-0.5" />
                     <div>
-                      <p className="text-orange-400 text-xs font-medium mb-1">⚠️ Dependencies</p>
-                      <ul className="text-orange-400/80 text-xs space-y-0.5 list-disc list-inside">
-                        {button.dependencies.map((dep, idx) => (
-                          <li key={idx}>{dep}</li>
-                        ))}
-                      </ul>
-                      <p className="text-orange-400/70 text-xs mt-1">
-                        Changing this button's link may break these dependencies.
-                      </p>
+                      <label className="text-white/70 text-xs mb-1 block">Button Name (unique ID)</label>
+                      <input
+                        type="text"
+                        value={newButton.name}
+                        onChange={(e) => setNewButton({ ...newButton, name: e.target.value })}
+                        placeholder="e.g., myNewButton"
+                        className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-white/70 text-xs mb-1 block">Button Label</label>
+                      <input
+                        type="text"
+                        value={newButton.label}
+                        onChange={(e) => setNewButton({ ...newButton, label: e.target.value })}
+                        placeholder="e.g., Pay with Apple Pay"
+                        className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-white/70 text-xs mb-1 block">Link Type</label>
+                        <select
+                          value={newButton.linkType}
+                          onChange={(e) => setNewButton({ ...newButton, linkType: e.target.value as any })}
+                          className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm"
+                        >
+                          <option value="none">None</option>
+                          <option value="url">External URL</option>
+                          <option value="route">Internal Route</option>
+                          <option value="action">Action/Function</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-white/70 text-xs mb-1 block">Link Value</label>
+                        <input
+                          type="text"
+                          value={newButton.linkValue}
+                          onChange={(e) => setNewButton({ ...newButton, linkValue: e.target.value })}
+                          placeholder="URL, route, or function"
+                          className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-white/70 text-xs mb-1 block">Icon URL (optional)</label>
+                      <input
+                        type="text"
+                        value={newButton.icon}
+                        onChange={(e) => setNewButton({ ...newButton, icon: e.target.value })}
+                        placeholder="https://example.com/icon.svg"
+                        className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-white/70 text-xs mb-1 block">Description</label>
+                      <input
+                        type="text"
+                        value={newButton.description}
+                        onChange={(e) => setNewButton({ ...newButton, description: e.target.value })}
+                        placeholder="Brief description"
+                        className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm"
+                      />
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={addButton}
+                        className="flex-1 px-4 py-2 bg-green-500 hover:bg-green-600 rounded text-white font-medium transition-colors"
+                      >
+                        Add Button
+                      </button>
+                      <button
+                        onClick={() => setShowAddButton(false)}
+                        className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded text-white transition-colors"
+                      >
+                        Cancel
+                      </button>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+            ) : null}
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-white/70 text-xs mb-1 block">Link Type</label>
-                  <select
-                    value={button.linkType}
-                    onChange={(e) => !button.locked && handleButtonLinkChange(button.name, 'linkType', e.target.value)}
-                    disabled={button.locked}
-                    className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <option value="none">No Link (Default Action)</option>
-                    <option value="url">External URL</option>
-                    <option value="route">Internal Route</option>
-                    <option value="action">Action/Function</option>
-                  </select>
+            {/* Existing Buttons */}
+            {state.buttons.map(button => (
+              <div key={button.name} className={`p-4 border rounded-lg ${
+                button.hidden 
+                  ? 'bg-white/[0.02] border-white/5 opacity-60' 
+                  : 'bg-white/5 border-white/10'
+              }`}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <label className="text-white font-medium">{button.label}</label>
+                    {button.locked && (
+                      <Lock size={14} className="text-yellow-400" title="Functional - locked from editing" />
+                    )}
+                    {button.hasDependencies && (
+                      <AlertCircle size={14} className="text-orange-400" title="Has dependencies" />
+                    )}
+                    {button.hidden && (
+                      <span className="text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-400">
+                        Hidden
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Visibility Toggle */}
+                  {!button.locked && (
+                    <button
+                      onClick={() => handleButtonVisibilityToggle(button.name, !button.hidden)}
+                      className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                        button.hidden
+                          ? 'bg-green-500/20 hover:bg-green-500/30 text-green-400'
+                          : 'bg-red-500/20 hover:bg-red-500/30 text-red-400'
+                      }`}
+                    >
+                      {button.hidden ? 'Show' : 'Hide'}
+                    </button>
+                  )}
                 </div>
+
+                {button.description && (
+                  <p className="text-white/60 text-sm mb-3">{button.description}</p>
+                )}
+
+                {button.hasDependencies && button.dependencies && (
+                  <div className="mb-3 p-3 bg-orange-500/10 border border-orange-500/30 rounded">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle size={16} className="text-orange-400 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-orange-400 text-xs font-medium mb-1">⚠️ Dependencies</p>
+                        <ul className="text-orange-400/80 text-xs space-y-0.5 list-disc list-inside">
+                          {button.dependencies.map((dep, idx) => (
+                            <li key={idx}>{dep}</li>
+                          ))}
+                        </ul>
+                        <p className="text-orange-400/70 text-xs mt-1">
+                          Changing this button's link may break these dependencies.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="text-white/70 text-xs mb-1 block">Link Type</label>
+                    <select
+                      value={button.linkType}
+                      onChange={(e) => !button.locked && handleButtonLinkChange(button.name, 'linkType', e.target.value)}
+                      disabled={button.locked}
+                      className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <option value="none">No Link (Default Action)</option>
+                      <option value="url">External URL</option>
+                      <option value="route">Internal Route</option>
+                      <option value="action">Action/Function</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-white/70 text-xs mb-1 block">Link Value</label>
+                    <input
+                      type="text"
+                      value={button.linkValue}
+                      onChange={(e) => !button.locked && handleButtonLinkChange(button.name, 'linkValue', e.target.value)}
+                      disabled={button.locked || button.linkType === 'none'}
+                      placeholder={
+                        button.linkType === 'url' ? 'https://example.com' :
+                        button.linkType === 'route' ? '/dashboard' :
+                        button.linkType === 'action' ? 'functionName' : 'N/A'
+                      }
+                      className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                  </div>
+                </div>
+
+                {/* Icon Input */}
                 <div>
-                  <label className="text-white/70 text-xs mb-1 block">Link Value</label>
+                  <label className="text-white/70 text-xs mb-1 block">Icon URL (optional)</label>
                   <input
                     type="text"
-                    value={button.linkValue}
-                    onChange={(e) => !button.locked && handleButtonLinkChange(button.name, 'linkValue', e.target.value)}
-                    disabled={button.locked || button.linkType === 'none'}
-                    placeholder={
-                      button.linkType === 'url' ? 'https://example.com' :
-                      button.linkType === 'route' ? '/dashboard' :
-                      button.linkType === 'action' ? 'functionName' : 'N/A'
-                    }
+                    value={button.icon || ''}
+                    onChange={(e) => !button.locked && handleButtonIconChange(button.name, e.target.value)}
+                    disabled={button.locked}
+                    placeholder="https://example.com/icon.svg or /icons/wallet.png"
                     className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   />
+                  {button.icon && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <img src={button.icon} alt="Icon preview" className="w-6 h-6 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                      <span className="text-white/50 text-xs">Icon preview</span>
+                    </div>
+                  )}
                 </div>
-              </div>
 
-              {button.linkType === 'url' && button.linkValue && (
-                <div className="mt-2 flex items-center gap-2 text-xs text-white/50">
-                  <ExternalLink size={12} />
-                  <span>Will open: {button.linkValue}</span>
-                </div>
-              )}
-            </div>
-          ))}
-        </>
-      )}
-    </div>
-  );
+                {button.linkType === 'url' && button.linkValue && (
+                  <div className="mt-2 flex items-center gap-2 text-xs text-white/50">
+                    <ExternalLink size={12} />
+                    <span>Will open: {button.linkValue}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+    );
+  };
 
   const renderFlowEditor = () => (
     <div className="space-y-4">
