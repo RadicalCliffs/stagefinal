@@ -113,6 +113,7 @@ const OrderDetails = lazy(() => import('./components/UserDashboard/Orders/OrderD
 // Admin-only visual editor for auth modals (secret route)
 const AuthModalVisualEditor = lazy(() => import('./pages/AuthModalVisualEditor.tsx'));
 const AdminGuard = lazy(() => import('./components/AdminGuard.tsx'));
+const AdminPasswordGate = lazy(() => import('./pages/AdminPasswordGate.tsx'));
 
 // NOTE: Admin functionality is in a separate repository
 // Admin dashboard: https://github.com/RadicalCliffs/theprize-admin-github-ready
@@ -140,8 +141,17 @@ const router = createBrowserRouter([
       { path: 'acceptable-use', element: <AcceptableUsePage /> },
       // Secret admin route for visual auth modal editor
       // Pattern: /a/e/o/x/u (unindexable, unsearchable)
-      { 
-        path: 'a/e/o/x/u', 
+      // Password gate at /a/e/o/x/u, editor at /a/e/o/x/u/editor
+      {
+        path: 'a/e/o/x/u',
+        element: (
+          <Suspense fallback={<Loader />}>
+            <AdminPasswordGate />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'a/e/o/x/u/editor',
         element: (
           <Suspense fallback={<Loader />}>
             <AdminGuard>
