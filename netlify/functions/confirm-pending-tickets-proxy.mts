@@ -1082,6 +1082,19 @@ function isValidUserId(userId: string): boolean {
       }
     }
 
+    // Calculate correct total amount - recalculate if reservation has 0 or invalid amount
+    let finalTotalAmount = Number(reservation.total_amount) || 0;
+    if (finalTotalAmount <= 0 && ticketNumbers.length > 0) {
+      const { data: compPriceData } = await supabase
+        .from("competitions")
+        .select("ticket_price")
+        .eq("id", finalCompetitionId)
+        .maybeSingle();
+      const ticketPrice = Number((compPriceData as any)?.ticket_price) || 1;
+      finalTotalAmount = ticketPrice * ticketNumbers.length;
+      console.log(`[Confirm Tickets] PATH B: Recalculated amount from 0 to ${finalTotalAmount} (${ticketPrice} × ${ticketNumbers.length})`);
+    }
+
     // joincompetition - use stable transactionhash for idempotency
     await withRetries("insert joincompetition (reserved)", async () =>
       supabase.from("joincompetition").insert({
@@ -1091,7 +1104,7 @@ function isValidUserId(userId: string): boolean {
         privy_user_id: finalUserId,
         numberoftickets: ticketNumbers.length,
         ticketnumbers: ticketNumbers.join(","),
-        amountspent: reservation.total_amount,
+        amountspent: finalTotalAmount,
         walletaddress: walletAddress,
         chain: paymentProvider || "USDC",
         transactionhash: finalTransactionHash,
@@ -1260,7 +1273,7 @@ function isValidUserId(userId: string): boolean {
         reservationId: reservation.id,
         ticketNumbers,
         ticketCount: ticketNumbers.length,
-        totalAmount: reservation.total_amount,
+        totalAmount: finalTotalAmount,
         instantWins: instantWins.length ? instantWins : undefined,
         soldOut: soldOutTriggered,
         message: soldOutTriggered
@@ -1277,3 +1290,4 @@ function isValidUserId(userId: string): boolean {
     return json({ success: false, error: err instanceof Error ? err.message : "Internal server error" }, 500, origin);
   }
 };
+
