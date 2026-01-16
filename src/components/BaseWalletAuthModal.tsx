@@ -354,24 +354,74 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               // Save the user with pending profile data
               const { profileData: savedProfile } = pendingSignup;
               const canonicalUserId = toPrizePid(evmAddress);
+              const normalizedEmail = savedProfile.email?.toLowerCase()?.trim() || null;
 
               // Create/update user with the saved profile data
-              const { error: upsertError } = await supabase
-                .from('canonical_users')
-                .upsert({
-                  canonical_user_id: canonicalUserId,
-                  username: savedProfile.username?.toLowerCase() || `user_${evmAddress.slice(2, 8)}`,
-                  email: savedProfile.email?.toLowerCase() || null,
-                  wallet_address: evmAddress.toLowerCase(),
-                  base_wallet_address: evmAddress.toLowerCase(),
-                  eth_wallet_address: evmAddress.toLowerCase(),
-                  privy_user_id: evmAddress,
-                  ...(savedProfile.country && { country: savedProfile.country }),
-                  ...(savedProfile.avatar && { avatar_url: savedProfile.avatar }),
-                  ...(savedProfile.telegram && { telegram_handle: savedProfile.telegram }),
-                }, {
-                  onConflict: 'canonical_user_id'
-                });
+              // IMPORTANT: Check for existing email FIRST to avoid duplicate key constraint violation
+              let upsertError: any = null;
+              if (normalizedEmail) {
+                const { data: existingByEmail } = await supabase
+                  .from('canonical_users')
+                  .select('id')
+                  .eq('email', normalizedEmail)
+                  .maybeSingle();
+
+                if (existingByEmail) {
+                  // User exists by email - update their record with wallet info
+                  console.log('[BaseWallet] Found existing user by email during pending signup, linking wallet:', existingByEmail.id);
+                  const { error } = await supabase
+                    .from('canonical_users')
+                    .update({
+                      canonical_user_id: canonicalUserId,
+                      wallet_address: evmAddress.toLowerCase(),
+                      base_wallet_address: evmAddress.toLowerCase(),
+                      eth_wallet_address: evmAddress.toLowerCase(),
+                      privy_user_id: evmAddress,
+                      ...(savedProfile.country && { country: savedProfile.country }),
+                      ...(savedProfile.avatar && { avatar_url: savedProfile.avatar }),
+                      ...(savedProfile.telegram && { telegram_handle: savedProfile.telegram }),
+                    })
+                    .eq('id', existingByEmail.id);
+                  upsertError = error;
+                } else {
+                  // No user with this email - safe to upsert by canonical_user_id
+                  const { error } = await supabase
+                    .from('canonical_users')
+                    .upsert({
+                      canonical_user_id: canonicalUserId,
+                      username: savedProfile.username?.toLowerCase() || `user_${evmAddress.slice(2, 8)}`,
+                      email: normalizedEmail,
+                      wallet_address: evmAddress.toLowerCase(),
+                      base_wallet_address: evmAddress.toLowerCase(),
+                      eth_wallet_address: evmAddress.toLowerCase(),
+                      privy_user_id: evmAddress,
+                      ...(savedProfile.country && { country: savedProfile.country }),
+                      ...(savedProfile.avatar && { avatar_url: savedProfile.avatar }),
+                      ...(savedProfile.telegram && { telegram_handle: savedProfile.telegram }),
+                    }, {
+                      onConflict: 'canonical_user_id'
+                    });
+                  upsertError = error;
+                }
+              } else {
+                // No email provided - upsert by canonical_user_id only
+                const { error } = await supabase
+                  .from('canonical_users')
+                  .upsert({
+                    canonical_user_id: canonicalUserId,
+                    username: savedProfile.username?.toLowerCase() || `user_${evmAddress.slice(2, 8)}`,
+                    wallet_address: evmAddress.toLowerCase(),
+                    base_wallet_address: evmAddress.toLowerCase(),
+                    eth_wallet_address: evmAddress.toLowerCase(),
+                    privy_user_id: evmAddress,
+                    ...(savedProfile.country && { country: savedProfile.country }),
+                    ...(savedProfile.avatar && { avatar_url: savedProfile.avatar }),
+                    ...(savedProfile.telegram && { telegram_handle: savedProfile.telegram }),
+                  }, {
+                    onConflict: 'canonical_user_id'
+                  });
+                upsertError = error;
+              }
 
               if (upsertError) {
                 console.error('[BaseWallet] Error saving pending signup data:', upsertError);
@@ -463,24 +513,54 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
                 const { profileData: savedProfile } = pendingSignup;
                 const canonicalUserId = toPrizePid(evmAddress);
+                const normalizedEmail = (savedProfile.email?.toLowerCase() || email.toLowerCase()).trim();
 
                 // Create/update user with the saved profile data
-                const { error: upsertError } = await supabase
+                // IMPORTANT: Check for existing email FIRST to avoid duplicate key constraint violation
+                let upsertError: any = null;
+                const { data: existingByEmail } = await supabase
                   .from('canonical_users')
-                  .upsert({
-                    canonical_user_id: canonicalUserId,
-                    username: savedProfile.username?.toLowerCase() || `user_${evmAddress.slice(2, 8)}`,
-                    email: savedProfile.email?.toLowerCase() || email.toLowerCase(),
-                    wallet_address: evmAddress.toLowerCase(),
-                    base_wallet_address: evmAddress.toLowerCase(),
-                    eth_wallet_address: evmAddress.toLowerCase(),
-                    privy_user_id: evmAddress,
-                    ...(savedProfile.country && { country: savedProfile.country }),
-                    ...(savedProfile.avatar && { avatar_url: savedProfile.avatar }),
-                    ...(savedProfile.telegram && { telegram_handle: savedProfile.telegram }),
-                  }, {
-                    onConflict: 'canonical_user_id'
-                  });
+                  .select('id')
+                  .eq('email', normalizedEmail)
+                  .maybeSingle();
+
+                if (existingByEmail) {
+                  // User exists by email - update their record with wallet info
+                  console.log('[BaseWallet] Found existing user by email during CDP sign-in, linking wallet:', existingByEmail.id);
+                  const { error } = await supabase
+                    .from('canonical_users')
+                    .update({
+                      canonical_user_id: canonicalUserId,
+                      wallet_address: evmAddress.toLowerCase(),
+                      base_wallet_address: evmAddress.toLowerCase(),
+                      eth_wallet_address: evmAddress.toLowerCase(),
+                      privy_user_id: evmAddress,
+                      ...(savedProfile.country && { country: savedProfile.country }),
+                      ...(savedProfile.avatar && { avatar_url: savedProfile.avatar }),
+                      ...(savedProfile.telegram && { telegram_handle: savedProfile.telegram }),
+                    })
+                    .eq('id', existingByEmail.id);
+                  upsertError = error;
+                } else {
+                  // No user with this email - safe to upsert by canonical_user_id
+                  const { error } = await supabase
+                    .from('canonical_users')
+                    .upsert({
+                      canonical_user_id: canonicalUserId,
+                      username: savedProfile.username?.toLowerCase() || `user_${evmAddress.slice(2, 8)}`,
+                      email: normalizedEmail,
+                      wallet_address: evmAddress.toLowerCase(),
+                      base_wallet_address: evmAddress.toLowerCase(),
+                      eth_wallet_address: evmAddress.toLowerCase(),
+                      privy_user_id: evmAddress,
+                      ...(savedProfile.country && { country: savedProfile.country }),
+                      ...(savedProfile.avatar && { avatar_url: savedProfile.avatar }),
+                      ...(savedProfile.telegram && { telegram_handle: savedProfile.telegram }),
+                    }, {
+                      onConflict: 'canonical_user_id'
+                    });
+                  upsertError = error;
+                }
 
                 if (upsertError) {
                   console.error('[BaseWallet] Error saving pending signup data:', upsertError);
