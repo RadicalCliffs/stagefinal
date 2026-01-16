@@ -140,8 +140,25 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
             // IMPORTANT: Always trust the RPC for availability - never rely on client-side checks
             // The database RPC enforces consistency and handles race conditions atomically
             const available = await database.getAvailableTicketsForCompetition(competitionId, totalTickets);
-            console.log('[TicketSelector] Setting availableTickets:', { count: available.length, first5: available.slice(0, 5) });
-            setAvailableTickets(available);
+
+            // Validate against ticketsSold prop - if RPC returns more available than expected,
+            // the RPC may have failed to find sold tickets in joincompetition table
+            const expectedAvailable = totalTickets - ticketsSold;
+            let validatedAvailable = available;
+
+            if (ticketsSold > 0 && available.length > expectedAvailable) {
+                console.log('[TicketSelector] RPC returned more available than expected, using ticketsSold for validation:', {
+                    rpcAvailableCount: available.length,
+                    expectedAvailable,
+                    ticketsSold
+                });
+                // Limit to expected available count (use first N tickets as available)
+                // This prevents showing sold tickets as available when RPC fails to find joincompetition entries
+                validatedAvailable = available.slice(0, expectedAvailable);
+            }
+
+            console.log('[TicketSelector] Setting availableTickets:', { count: validatedAvailable.length, first5: validatedAvailable.slice(0, 5) });
+            setAvailableTickets(validatedAvailable);
             if (isInitialLoad) {
                 setIsInitialLoad(false);
             }
@@ -159,7 +176,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                 setLoading(false);
             }
         }
-    }, [competitionId, totalTickets, isInitialLoad]);
+    }, [competitionId, totalTickets, ticketsSold, isInitialLoad]);
 
     // Create debounced fetch function (debounce 300ms to prevent rapid calls during high traffic)
     useEffect(() => {
