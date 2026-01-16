@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { userDataService } from '../services/userDataService';
 import { toPrizePid, isWalletAddress, normalizeWalletAddress } from '../utils/userId';
+import { toCanonicalUserId } from './canonicalUserId';
 import { generatePrivyStyleId } from './identity';
 
 export interface UserProfile {
@@ -340,6 +341,18 @@ export const userAuth = {
           }
         } else {
           console.log('[user-auth] ✅ Successfully linked user to canonical ID');
+          // Migrate balance from wallet address to canonical user ID
+          if (walletAddress) {
+            try {
+              await supabase.rpc('migrate_user_balance', {
+                p_old_id: walletAddress,
+                p_new_id: toCanonicalUserId(inputUserId)
+              });
+              console.log('[user-auth] Balance migration completed for wallet:', walletAddress.substring(0, 10) + '...');
+            } catch (migrateErr) {
+              console.warn('[user-auth] Balance migration failed (non-blocking):', migrateErr);
+            }
+          }
         }
 
         return {

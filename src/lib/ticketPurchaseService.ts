@@ -4,6 +4,7 @@
 import { supabase } from './supabase';
 import { withRetry, isNetworkError, parseSupabaseFunctionError, getUserFriendlyErrorMessage } from './error-handler';
 import { toPrizePid, isPrizePid } from '../utils/userId';
+import { toCanonicalUserId } from './canonicalUserId';
 import { notificationService } from './notification-service';
 
 // Re-export supabase for backwards compatibility
@@ -42,11 +43,12 @@ export async function purchaseTicketsWithBalance({
   // NOTE: 'type' field is NOT sent - the server infers type from competitionId:
   //   - competitionId IS NOT NULL → entry purchase
   //   - competitionId IS NULL → wallet top-up
-  // CRITICAL: Send both userId AND userIdentifier for backwards compatibility
-  // The deployed edge function may expect either field name depending on version
+  // Ensure userId is always in canonical format
+  const canonicalUserId = toCanonicalUserId(userId);
+
   const purchaseBody = {
-    userId,
-    userIdentifier: userId, // Also send as userIdentifier for backward compatibility
+    userId: canonicalUserId,
+    idempotencyKey: `${userId}-${competitionId}-${numberOfTickets}-${Date.now()}`,
     competitionId,
     numberOfTickets,
     ticketPrice,

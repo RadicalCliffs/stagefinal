@@ -9,6 +9,7 @@ import { useAuthUser } from "../contexts/AuthContext";
 import type { UserInfo } from "./UserInfoModal";
 import { BasePaymentService } from "../lib/base-payment";
 import { purchaseTicketsWithBalance, getUserBalance } from "../lib/ticketPurchaseService";
+import { toCanonicalUserId } from "../lib/canonicalUserId";
 import { isSuccessStatus, isFailureStatus } from "../lib/payment-status";
 import { getPaymentErrorInfo, type PaymentErrorInfo } from "../lib/error-handler";
 import { OnchainKitCheckoutService } from "../lib/onchainkit-checkout";
@@ -533,7 +534,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     try {
       // Purchase tickets using balance - pass reservationId for atomic ticket allocation
       const result = await purchaseTicketsWithBalance({
-        userId: baseUser.id,
+        userId: toCanonicalUserId(baseUser.id),
         competitionId,
         numberOfTickets: ticketCount,
         ticketPrice,

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { X, Check, AlertCircle, Wallet, ExternalLink, CreditCard, ArrowDownToLine, ArrowUpFromLine, Gift, Zap, Smartphone, Coins, Sparkles, Shield, ChevronRight } from 'lucide-react';
 import { useAuthUser } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { toCanonicalUserId } from '../lib/canonicalUserId';
 import { TOP_UP_CHECKOUT_URLS } from '../lib/coinbase-commerce';
 import { CoinbaseOnrampService } from '../lib/coinbase-onramp';
 import { isSuccessStatus, isFailureStatus } from '../lib/payment-status';
@@ -216,7 +217,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
           method: 'POST',
           headers,
           body: JSON.stringify({
-            userId: baseUser.id,
+            userId: toCanonicalUserId(baseUser.id),
             totalAmount: amount,
             type: 'topup',
           }),
@@ -413,7 +414,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
         method: 'POST',
         headers,
         body: JSON.stringify({
-          userId: baseUser.id,
+          userId: toCanonicalUserId(baseUser.id),
           totalAmount: amount,
           type: 'topup',
           paymentMethod: 'onchainkit',
