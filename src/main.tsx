@@ -110,6 +110,10 @@ const OrdersLayout = lazy(() => import('./components/UserDashboard/Orders/Orders
 const OrdersList = lazy(() => import('./components/UserDashboard/Orders/OrdersList.tsx'));
 const OrderDetails = lazy(() => import('./components/UserDashboard/Orders/OrderDetails.tsx'));
 
+// Admin-only visual editor for auth modals (secret route)
+const AuthModalVisualEditor = lazy(() => import('./pages/AuthModalVisualEditor.tsx'));
+const AdminGuard = lazy(() => import('./components/AdminGuard.tsx'));
+
 // NOTE: Admin functionality is in a separate repository
 // Admin dashboard: https://github.com/RadicalCliffs/theprize-admin-github-ready
 // All admin operations (competition management, draws, payouts) are handled there
@@ -134,6 +138,18 @@ const router = createBrowserRouter([
       { path: 'terms-and-conditions', element: <TermsAndConditionsPage /> },
       { path: 'terms-of-use', element: <TermsOfUsePage /> },
       { path: 'acceptable-use', element: <AcceptableUsePage /> },
+      // Secret admin route for visual auth modal editor
+      // Pattern: /a/e/o/x/u (unindexable, unsearchable)
+      { 
+        path: 'a/e/o/x/u', 
+        element: (
+          <Suspense fallback={<Loader />}>
+            <AdminGuard>
+              <AuthModalVisualEditor />
+            </AdminGuard>
+          </Suspense>
+        ),
+      },
       {
         path: 'dashboard',
         element: <UserDashboard />,
