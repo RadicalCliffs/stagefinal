@@ -337,11 +337,12 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
         throw new Error(data.error || 'Invalid verification code');
       }
 
-      // Create user in Supabase immediately after email verification
-      // This ensures user data is stored even if they don't complete wallet connection
+      // Create user via edge function with service role access
       if (!isReturningUser) {
-        console.log('[NewAuthModal] Creating user in database...');
-        const createUserResponse = await fetch('/api/create-user', {
+        console.log('[NewAuthModal] Creating user via edge function...');
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        
+        const upsertResponse = await fetch(`${supabaseUrl}/functions/v1/upsert-user`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -355,19 +356,12 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
           }),
         });
 
-        const createUserData = await createUserResponse.json();
-
-        if (!createUserResponse.ok) {
-          // If user creation fails due to duplicate, continue to wallet connection
-          if (createUserResponse.status !== 409) {
-            console.error('[NewAuthModal] Failed to create user:', createUserData.error);
-            // Continue anyway - user can still complete wallet connection
-          } else {
-            console.log('[NewAuthModal] User already exists, continuing to wallet connection');
-          }
-        } else {
-          console.log('[NewAuthModal] User created in database:', createUserData.user?.id);
+        if (!upsertResponse.ok) {
+          const errorData = await upsertResponse.json();
+          console.error('[NewAuthModal] Failed to create user:', errorData);
+          throw new Error('Failed to create account. Please try again.');
         }
+        console.log('[NewAuthModal] User created/updated in database');
       }
 
       // OTP verified, proceed to wallet connection
