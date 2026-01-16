@@ -14,14 +14,12 @@ interface BaseWalletAuthModalProps {
   onClose: () => void;
 }
 
-// Simplified screen flow states - CDP handles email verification
 type FlowState = 
-  | 'cdp-signin'             // Screen 1: CDP SignIn (handles email + OTP automatically)
-  | 'profile-completion'     // Screen 2: Profile setup for first-time users
-  | 'wallet-choice'          // Screen 3: Choose wallet type (external wallets)
-  | 'logged-in-success';     // Screen 4: Success - You're live
+  | 'cdp-signin'
+  | 'profile-completion'
+  | 'wallet-choice'
+  | 'logged-in-success';
 
-// Profile completion data for first-time users
 interface ProfileData {
   username: string;
   fullName: string;
@@ -31,247 +29,141 @@ interface ProfileData {
   socialProfiles?: string;
 }
 
-/**
- * Validates that a wallet address is not the treasury address
- */
 function validateNotTreasuryAddress(walletAddress: string): void {
   const treasuryAddress = import.meta.env.VITE_TREASURY_ADDRESS?.toLowerCase();
   if (treasuryAddress && walletAddress.toLowerCase() === treasuryAddress) {
-    console.error('[BaseWallet] ⚠️  BLOCKED: Attempted to use treasury address as user wallet!');
     throw new Error('Invalid wallet address: Treasury address cannot be used as user wallet');
   }
 }
 
-// Check if email exists in database (returning user)
-async function checkExistingUser(email: string): Promise<{ 
-  exists: boolean; 
-  hasWallet: boolean;
-  walletAddress?: string;
-  hasCompletedProfile: boolean;
-}> {
+/**
+ * Find user by email and update with wallet address.
+ * This is the ONLY way BaseWalletAuthModal should update users.
+ * Users must be created first via NewAuthModal -> /api/create-user
+ */
+async function linkWalletToExistingUser(email: string, walletAddress: string): Promise<{ success: boolean; userId?: string }> {
   try {
-    const { data } = await supabase
-      .from('canonical_users')
-      .select('id, email, wallet_address, privy_user_id, username, country')
-      .eq('email', email.toLowerCase().trim())
-      .maybeSingle();
-
-    if (data) {
-      return { 
-        exists: true, 
-        hasWallet: !!data.wallet_address,
-        walletAddress: data.wallet_address,
-        hasCompletedProfile: !!(data.username && data.country)
-      };
-    }
-    return { exists: false, hasWallet: false, hasCompletedProfile: false };
-  } catch (error) {
-    console.error('[BaseWallet] Error checking existing user:', error);
-    return { exists: false, hasWallet: false, hasCompletedProfile: false };
-  }
-}
-
-// Save wallet-only user to database (for external wallet connections)
-async function saveWalletOnlyUser(walletAddress: string, email?: string): Promise<boolean> {
-  try {
-    console.log('[BaseWallet] Saving wallet-only user to database:', { walletAddress, email });
-
-    // CRITICAL: Validate wallet address is not the treasury address
+    console.log('[BaseWallet] Looking up user by email:', email);
     validateNotTreasuryAddress(walletAddress);
-
-    // Generate canonical user ID from wallet address
+    
+    const normalizedEmail = email.toLowerCase().trim();
     const canonicalUserId = toPrizePid(walletAddress);
-    console.log('[BaseWallet] Generated canonical_user_id:', canonicalUserId);
-
-    // Step 0: Check by EMAIL FIRST if provided
-    if (email) {
-      const normalizedEmail = email.toLowerCase().trim();
-      const { data: byEmail } = await supabase
-        .from('canonical_users')
-        .select('id, wallet_address, canonical_user_id, avatar_url')
-        .eq('email', normalizedEmail)
-        .maybeSingle();
-
-      if (byEmail) {
-        console.log('[BaseWallet] Found existing user by email, linking wallet:', byEmail.id);
-        await supabase.from('canonical_users').update({
-          wallet_address: walletAddress,
-          base_wallet_address: walletAddress,
-          eth_wallet_address: walletAddress,
-          privy_user_id: walletAddress,
-          canonical_user_id: canonicalUserId,
-          avatar_url: byEmail.avatar_url || userDataService.getDefaultAvatar(),
-        }).eq('id', byEmail.id);
-        return true;
-      }
-    }
-
-    // Step 1: Check if user already exists by wallet address or canonical ID
-    const { data: byWallet } = await supabase
+    
+    // Find user by email
+    const { data: existingUser, error: fetchError } = await supabase
       .from('canonical_users')
-      .select('id, email, wallet_address, base_wallet_address, privy_user_id, canonical_user_id, avatar_url, username')
-      .or(`wallet_address.eq.${walletAddress},base_wallet_address.eq.${walletAddress},privy_user_id.eq.${walletAddress},canonical_user_id.eq.${canonicalUserId}`)
+      .select('id, username, email, country, first_name, last_name')
+      .eq('email', normalizedEmail)
       .maybeSingle();
-
-    if (byWallet) {
-      console.log('[BaseWallet] Found existing user by wallet:', byWallet.id);
-      const updates: Record<string, any> = {};
-
-      if (!byWallet.privy_user_id || byWallet.privy_user_id !== walletAddress) {
-        updates.privy_user_id = walletAddress;
-      }
-
-      if (!byWallet.canonical_user_id) {
-        updates.canonical_user_id = canonicalUserId;
-      }
-
-      if (!byWallet.avatar_url) {
-        updates.avatar_url = userDataService.getDefaultAvatar();
-      }
-
-      if (Object.keys(updates).length > 0) {
-        await supabase.from('canonical_users').update(updates).eq('id', byWallet.id);
-      }
-      return true;
+    
+    if (fetchError) {
+      console.error('[BaseWallet] Error finding user by email:', fetchError);
+      return { success: false };
     }
-
-    // Step 2: Create new user with wallet address only
-    console.log('[BaseWallet] Creating new wallet-only user with canonical_user_id:', canonicalUserId);
-    const { error } = await supabase
+    
+    if (!existingUser) {
+      console.log('[BaseWallet] No user found with email:', normalizedEmail);
+      return { success: false };
+    }
+    
+    console.log('[BaseWallet] Found user, updating with wallet:', existingUser.id);
+    
+    // Update user with wallet info
+    const { error: updateError } = await supabase
       .from('canonical_users')
-      .insert({
+      .update({
         canonical_user_id: canonicalUserId,
-        wallet_address: walletAddress,
-        base_wallet_address: walletAddress,
-        eth_wallet_address: walletAddress,
+        wallet_address: walletAddress.toLowerCase(),
+        base_wallet_address: walletAddress.toLowerCase(),
+        eth_wallet_address: walletAddress.toLowerCase(),
         privy_user_id: walletAddress,
-        username: `user_${walletAddress.slice(2, 8)}`,
-        avatar_url: userDataService.getDefaultAvatar(),
-        usdc_balance: 0,
-        has_used_new_user_bonus: false,
-        created_at: new Date().toISOString(),
-      });
-
-    if (error) {
-      if (error.code === '23505') {
-        console.warn('[BaseWallet] User already exists (concurrent creation)');
-        return true;
-      }
-      console.error('[BaseWallet] Error creating wallet-only user:', error);
-      return false;
+        wallet_linked: true,
+        auth_provider: 'cdp',
+      })
+      .eq('id', existingUser.id);
+    
+    if (updateError) {
+      console.error('[BaseWallet] Error updating user with wallet:', updateError);
+      return { success: false };
     }
-
-    return true;
+    
+    console.log('[BaseWallet] Successfully linked wallet to user:', existingUser.id);
+    return { success: true, userId: existingUser.id };
   } catch (error) {
-    console.error('[BaseWallet] Database error:', error);
-    return false;
+    console.error('[BaseWallet] Error in linkWalletToExistingUser:', error);
+    return { success: false };
   }
 }
 
-// Save user with profile data to database
+/**
+ * Save user with profile data - ONLY used when profile-completion form is shown
+ */
 async function saveUserWithProfile(email: string, walletAddress: string, profile: ProfileData): Promise<boolean> {
   try {
-    console.log('[BaseWallet] Saving user with profile to database:', { email, walletAddress, profile });
+    console.log('[BaseWallet] Saving user with profile:', { email, walletAddress, profile });
     const normalizedEmail = email.toLowerCase().trim();
-
-    // CRITICAL: Validate wallet address is not the treasury address
     validateNotTreasuryAddress(walletAddress);
-
-    // Generate canonical user ID from wallet address
     const canonicalUserId = toPrizePid(walletAddress);
 
-    // Check if user already exists by wallet address or canonical ID
-    const { data: byWallet } = await supabase
-      .from('canonical_users')
-      .select('id, email, wallet_address')
-      .or(`wallet_address.eq.${walletAddress},base_wallet_address.eq.${walletAddress},privy_user_id.eq.${walletAddress},canonical_user_id.eq.${canonicalUserId}`)
-      .maybeSingle();
-
-    if (byWallet) {
-      // Update existing user with profile data
-      console.log('[BaseWallet] Updating existing user with profile:', byWallet.id);
-      const { error } = await supabase
-        .from('canonical_users')
-        .update({
-          email: normalizedEmail,
-          username: profile.username,
-          first_name: profile.fullName.split(' ')[0],
-          last_name: profile.fullName.split(' ').slice(1).join(' '),
-          country: profile.country,
-          avatar_url: profile.avatar || userDataService.getDefaultAvatar(),
-          telephone_number: profile.mobile || null,
-          telegram_handle: profile.socialProfiles || null,
-          canonical_user_id: canonicalUserId,
-          privy_user_id: walletAddress,
-        })
-        .eq('id', byWallet.id);
-
-      return !error;
-    }
-
-    // Check if user exists by email
-    const { data: byEmail } = await supabase
+    // Check if user exists by email first
+    const { data: existingUser } = await supabase
       .from('canonical_users')
       .select('id')
       .eq('email', normalizedEmail)
       .maybeSingle();
 
-    if (byEmail) {
-      // Link wallet to existing email account with profile
-      console.log('[BaseWallet] Linking wallet to existing email account with profile:', byEmail.id);
+    if (existingUser) {
+      // Update existing user
       const { error } = await supabase
         .from('canonical_users')
         .update({
-          wallet_address: walletAddress,
-          base_wallet_address: walletAddress,
-          eth_wallet_address: walletAddress,
+          wallet_address: walletAddress.toLowerCase(),
+          base_wallet_address: walletAddress.toLowerCase(),
+          eth_wallet_address: walletAddress.toLowerCase(),
           privy_user_id: walletAddress,
           canonical_user_id: canonicalUserId,
-          username: profile.username,
-          first_name: profile.fullName.split(' ')[0],
-          last_name: profile.fullName.split(' ').slice(1).join(' '),
+          username: profile.username.toLowerCase(),
+          first_name: profile.fullName.split(' ')[0] || null,
+          last_name: profile.fullName.split(' ').slice(1).join(' ') || null,
           country: profile.country,
           avatar_url: profile.avatar || userDataService.getDefaultAvatar(),
           telephone_number: profile.mobile || null,
           telegram_handle: profile.socialProfiles || null,
+          wallet_linked: true,
+          auth_provider: 'cdp',
         })
-        .eq('id', byEmail.id);
-
+        .eq('id', existingUser.id);
       return !error;
     }
 
-    // Create new user with profile
-    console.log('[BaseWallet] Creating new user with profile and canonical_user_id:', canonicalUserId);
+    // Create new user if not found
     const { error } = await supabase
       .from('canonical_users')
       .insert({
         canonical_user_id: canonicalUserId,
         email: normalizedEmail,
-        wallet_address: walletAddress,
-        base_wallet_address: walletAddress,
-        eth_wallet_address: walletAddress,
+        wallet_address: walletAddress.toLowerCase(),
+        base_wallet_address: walletAddress.toLowerCase(),
+        eth_wallet_address: walletAddress.toLowerCase(),
         privy_user_id: walletAddress,
-        username: profile.username,
-        first_name: profile.fullName.split(' ')[0],
-        last_name: profile.fullName.split(' ').slice(1).join(' '),
+        username: profile.username.toLowerCase(),
+        first_name: profile.fullName.split(' ')[0] || null,
+        last_name: profile.fullName.split(' ').slice(1).join(' ') || null,
         country: profile.country,
         avatar_url: profile.avatar || userDataService.getDefaultAvatar(),
         telephone_number: profile.mobile || null,
         telegram_handle: profile.socialProfiles || null,
         usdc_balance: 0,
         has_used_new_user_bonus: false,
+        wallet_linked: true,
+        auth_provider: 'cdp',
         created_at: new Date().toISOString(),
       });
 
-    if (error) {
-      if (error.code === '23505') {
-        console.warn('[BaseWallet] User already exists (concurrent creation)');
-        return true;
-      }
-      console.error('[BaseWallet] Error creating user with profile:', error);
+    if (error && error.code !== '23505') {
+      console.error('[BaseWallet] Error creating user:', error);
       return false;
     }
-
     return true;
   } catch (error) {
     console.error('[BaseWallet] Database error:', error);
@@ -288,20 +180,16 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
   const { evmAddress } = useEvmAddress();
   const { signOut } = useSignOut();
 
-  // Wagmi hooks for external wallet connection (Base App, Coinbase Wallet, etc.)
   const { address: wagmiAddress, isConnected: wagmiIsConnected } = useAccount();
   const { disconnect: _wagmiDisconnect } = useDisconnect();
   const { connect, connectors, isPending: isConnecting } = useConnect();
 
-  // Get the effective wallet address (CDP or wagmi)
   const effectiveWalletAddress = evmAddress || wagmiAddress;
 
-  // Simplified state management - CDP handles email verification
   const [flowState, setFlowState] = useState<FlowState>('cdp-signin');
   const [userEmail, setUserEmail] = useState<string>('');
   const [emailError, setEmailError] = useState<string>('');
 
-  // Profile completion state
   const [profileData, setProfileData] = useState<ProfileData>({
     username: '',
     fullName: '',
@@ -312,17 +200,14 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
   });
 
   const [copied, setCopied] = useState(false);
-
   const savedToDbRef = useRef(false);
   const profileCheckedRef = useRef(false);
-  const pendingSignupProcessedRef = useRef(false);
 
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
       savedToDbRef.current = false;
       profileCheckedRef.current = false;
-      pendingSignupProcessedRef.current = false;
       setEmailError('');
       setFlowState('cdp-signin');
       setProfileData({
@@ -336,158 +221,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
     }
   }, [isOpen]);
 
-  // If already authenticated with Base/CDP, check for pending signup and handle it
-  useEffect(() => {
-    const handleAuthenticatedState = async () => {
-      if (cdpIsSignedIn && evmAddress && isOpen && !pendingSignupProcessedRef.current) {
-        // Check for pending signup data from NewAuthModal
-        const pendingSignupStr = localStorage.getItem('pendingSignupData');
-        if (pendingSignupStr) {
-          try {
-            const pendingSignup = JSON.parse(pendingSignupStr);
-            // Check if data is recent (within 10 minutes)
-            const isRecent = Date.now() - pendingSignup.timestamp < 10 * 60 * 1000;
-
-            if (isRecent && pendingSignup.profileData) {
-              console.log('[BaseWallet] Found pending signup data from NewAuthModal, completing registration');
-              pendingSignupProcessedRef.current = true;
-
-              // Save the user with pending profile data
-              const { profileData: savedProfile } = pendingSignup;
-              const canonicalUserId = toPrizePid(evmAddress);
-              const normalizedEmail = savedProfile.email?.toLowerCase()?.trim() || null;
-
-              // Create/update user with the saved profile data
-              // IMPORTANT: Check for existing email FIRST to avoid duplicate key constraint violation
-              let upsertError: any = null;
-              if (normalizedEmail) {
-                const { data: existingByEmail } = await supabase
-                  .from('canonical_users')
-                  .select('id')
-                  .eq('email', normalizedEmail)
-                  .maybeSingle();
-
-                if (existingByEmail) {
-                  // User exists by email - update their record with wallet info
-                  console.log('[BaseWallet] Found existing user by email during pending signup, linking wallet:', existingByEmail.id);
-                  const { error } = await supabase
-                    .from('canonical_users')
-                    .update({
-                      canonical_user_id: canonicalUserId,
-                      wallet_address: evmAddress.toLowerCase(),
-                      base_wallet_address: evmAddress.toLowerCase(),
-                      eth_wallet_address: evmAddress.toLowerCase(),
-                      privy_user_id: evmAddress,
-                      ...(savedProfile.country && { country: savedProfile.country }),
-                      ...(savedProfile.avatar && { avatar_url: savedProfile.avatar }),
-                      ...(savedProfile.telegram && { telegram_handle: savedProfile.telegram }),
-                    })
-                    .eq('id', existingByEmail.id);
-                  upsertError = error;
-                } else {
-                  // No user with this email - safe to upsert by canonical_user_id
-                  const { error } = await supabase
-                    .from('canonical_users')
-                    .upsert({
-                      canonical_user_id: canonicalUserId,
-                      username: savedProfile.username?.toLowerCase() || `user_${evmAddress.slice(2, 8)}`,
-                      email: normalizedEmail,
-                      wallet_address: evmAddress.toLowerCase(),
-                      base_wallet_address: evmAddress.toLowerCase(),
-                      eth_wallet_address: evmAddress.toLowerCase(),
-                      privy_user_id: evmAddress,
-                      ...(savedProfile.country && { country: savedProfile.country }),
-                      ...(savedProfile.avatar && { avatar_url: savedProfile.avatar }),
-                      ...(savedProfile.telegram && { telegram_handle: savedProfile.telegram }),
-                    }, {
-                      onConflict: 'canonical_user_id'
-                    });
-                  upsertError = error;
-                }
-              } else {
-                // No email provided - upsert by canonical_user_id only
-                const { error } = await supabase
-                  .from('canonical_users')
-                  .upsert({
-                    canonical_user_id: canonicalUserId,
-                    username: savedProfile.username?.toLowerCase() || `user_${evmAddress.slice(2, 8)}`,
-                    wallet_address: evmAddress.toLowerCase(),
-                    base_wallet_address: evmAddress.toLowerCase(),
-                    eth_wallet_address: evmAddress.toLowerCase(),
-                    privy_user_id: evmAddress,
-                    ...(savedProfile.country && { country: savedProfile.country }),
-                    ...(savedProfile.avatar && { avatar_url: savedProfile.avatar }),
-                    ...(savedProfile.telegram && { telegram_handle: savedProfile.telegram }),
-                  }, {
-                    onConflict: 'canonical_user_id'
-                  });
-                upsertError = error;
-              }
-
-              if (upsertError) {
-                console.error('[BaseWallet] Error saving pending signup data:', upsertError);
-              } else {
-                console.log('[BaseWallet] Successfully completed signup with pending data');
-              }
-
-              // Clear the pending signup data
-              localStorage.removeItem('pendingSignupData');
-              localStorage.setItem('cdp:wallet_address', evmAddress);
-
-              // Dispatch auth-complete event
-              window.dispatchEvent(new CustomEvent('auth-complete', {
-                detail: {
-                  walletAddress: evmAddress,
-                  canonicalUserId,
-                  email: savedProfile.email
-                }
-              }));
-
-              onClose();
-              return;
-            }
-          } catch (e) {
-            console.error('[BaseWallet] Error parsing pending signup data:', e);
-          }
-          // Clear invalid or expired data
-          localStorage.removeItem('pendingSignupData');
-        }
-
-        // No pending data or invalid - just close the modal since user is already authenticated
-        onClose();
-      }
-    };
-
-    handleAuthenticatedState();
-  }, [cdpIsSignedIn, evmAddress, isOpen, onClose]);
-
-  // Handle external wallet connection (wagmi) - save to database and show success
-  useEffect(() => {
-    const shouldProcessConnection =
-      flowState === 'wallet-choice' &&
-      wagmiIsConnected &&
-      wagmiAddress &&
-      !savedToDbRef.current;
-
-    if (shouldProcessConnection) {
-      console.log('[BaseWallet] External wallet connected via wagmi:', wagmiAddress);
-      savedToDbRef.current = true;
-
-      // Save wallet to database
-      saveWalletOnlyUser(wagmiAddress, userEmail).then((success) => {
-        if (success) {
-          console.log('[BaseWallet] External wallet saved to database');
-          localStorage.setItem('cdp:wallet_address', wagmiAddress);
-          setFlowState('logged-in-success');
-        } else {
-          console.error('[BaseWallet] Failed to save external wallet to database');
-          setEmailError('Failed to save wallet. Please try again.');
-        }
-      });
-    }
-  }, [flowState, wagmiIsConnected, wagmiAddress, userEmail]);
-
-  // Extract email from CDP user and check if profile completion is needed
+  // Handle CDP sign-in success - find user by email and link wallet
   useEffect(() => {
     const handleCDPSignInSuccess = async () => {
       if (flowState === 'cdp-signin' && cdpIsSignedIn && evmAddress && currentUser && !profileCheckedRef.current) {
@@ -501,109 +235,23 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
           setUserEmail(email);
           console.log('[BaseWallet] CDP sign-in successful:', { email, wallet: evmAddress });
 
-          // First, check for pending signup data from NewAuthModal
-          const pendingSignupStr = localStorage.getItem('pendingSignupData');
-          if (pendingSignupStr && !pendingSignupProcessedRef.current) {
-            try {
-              const pendingSignup = JSON.parse(pendingSignupStr);
-              const isRecent = Date.now() - pendingSignup.timestamp < 10 * 60 * 1000;
-
-              if (isRecent && pendingSignup.profileData) {
-                console.log('[BaseWallet] Processing pending signup data after CDP sign-in');
-                pendingSignupProcessedRef.current = true;
-
-                const { profileData: savedProfile } = pendingSignup;
-                const canonicalUserId = toPrizePid(evmAddress);
-                const normalizedEmail = (savedProfile.email?.toLowerCase() || email.toLowerCase()).trim();
-
-                // Create/update user with the saved profile data
-                // IMPORTANT: Check for existing email FIRST to avoid duplicate key constraint violation
-                let upsertError: any = null;
-                const { data: existingByEmail } = await supabase
-                  .from('canonical_users')
-                  .select('id')
-                  .eq('email', normalizedEmail)
-                  .maybeSingle();
-
-                if (existingByEmail) {
-                  // User exists by email - update their record with wallet info
-                  console.log('[BaseWallet] Found existing user by email during CDP sign-in, linking wallet:', existingByEmail.id);
-                  const { error } = await supabase
-                    .from('canonical_users')
-                    .update({
-                      canonical_user_id: canonicalUserId,
-                      wallet_address: evmAddress.toLowerCase(),
-                      base_wallet_address: evmAddress.toLowerCase(),
-                      eth_wallet_address: evmAddress.toLowerCase(),
-                      privy_user_id: evmAddress,
-                      ...(savedProfile.country && { country: savedProfile.country }),
-                      ...(savedProfile.avatar && { avatar_url: savedProfile.avatar }),
-                      ...(savedProfile.telegram && { telegram_handle: savedProfile.telegram }),
-                    })
-                    .eq('id', existingByEmail.id);
-                  upsertError = error;
-                } else {
-                  // No user with this email - safe to upsert by canonical_user_id
-                  const { error } = await supabase
-                    .from('canonical_users')
-                    .upsert({
-                      canonical_user_id: canonicalUserId,
-                      username: savedProfile.username?.toLowerCase() || `user_${evmAddress.slice(2, 8)}`,
-                      email: normalizedEmail,
-                      wallet_address: evmAddress.toLowerCase(),
-                      base_wallet_address: evmAddress.toLowerCase(),
-                      eth_wallet_address: evmAddress.toLowerCase(),
-                      privy_user_id: evmAddress,
-                      ...(savedProfile.country && { country: savedProfile.country }),
-                      ...(savedProfile.avatar && { avatar_url: savedProfile.avatar }),
-                      ...(savedProfile.telegram && { telegram_handle: savedProfile.telegram }),
-                    }, {
-                      onConflict: 'canonical_user_id'
-                    });
-                  upsertError = error;
-                }
-
-                if (upsertError) {
-                  console.error('[BaseWallet] Error saving pending signup data:', upsertError);
-                } else {
-                  console.log('[BaseWallet] Successfully completed signup with pending data');
-                }
-
-                // Clear the pending signup data
-                localStorage.removeItem('pendingSignupData');
-                localStorage.setItem('cdp:wallet_address', evmAddress);
-
-                // Dispatch auth-complete event
-                window.dispatchEvent(new CustomEvent('auth-complete', {
-                  detail: {
-                    walletAddress: evmAddress,
-                    canonicalUserId,
-                    email: savedProfile.email || email
-                  }
-                }));
-
-                setFlowState('logged-in-success');
-                return;
-              }
-            } catch (e) {
-              console.error('[BaseWallet] Error parsing pending signup data:', e);
-            }
-            localStorage.removeItem('pendingSignupData');
-          }
-
-          // No pending data - check if user needs profile completion
-          const result = await checkExistingUser(email);
-
-          if (result.exists && result.hasCompletedProfile) {
-            // Existing user with complete profile - save and show success
-            if (!savedToDbRef.current) {
-              savedToDbRef.current = true;
-              await saveWalletOnlyUser(evmAddress, email);
-              localStorage.setItem('cdp:wallet_address', evmAddress);
-            }
+          // Try to find existing user by email and link wallet
+          const result = await linkWalletToExistingUser(email, evmAddress);
+          
+          if (result.success) {
+            // User found and wallet linked - show success
+            console.log('[BaseWallet] Wallet linked successfully');
+            savedToDbRef.current = true;
+            localStorage.setItem('cdp:wallet_address', evmAddress);
+            
+            window.dispatchEvent(new CustomEvent('auth-complete', {
+              detail: { walletAddress: evmAddress, email }
+            }));
+            
             setFlowState('logged-in-success');
           } else {
-            // New user or incomplete profile - go to profile completion
+            // No user found with this email - show profile completion
+            console.log('[BaseWallet] No existing user found, showing profile completion');
             setFlowState('profile-completion');
           }
         }
@@ -613,9 +261,28 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
     void handleCDPSignInSuccess();
   }, [flowState, cdpIsSignedIn, evmAddress, currentUser]);
 
-  // Profile Completion Handler
+  // Handle external wallet connection (wagmi)
+  useEffect(() => {
+    const handleWagmiConnection = async () => {
+      if (flowState === 'wallet-choice' && wagmiIsConnected && wagmiAddress && !savedToDbRef.current && userEmail) {
+        console.log('[BaseWallet] External wallet connected:', wagmiAddress);
+        
+        const result = await linkWalletToExistingUser(userEmail, wagmiAddress);
+        
+        if (result.success) {
+          savedToDbRef.current = true;
+          localStorage.setItem('cdp:wallet_address', wagmiAddress);
+          setFlowState('logged-in-success');
+        } else {
+          setEmailError('No account found with this email. Please sign up first.');
+        }
+      }
+    };
+
+    handleWagmiConnection();
+  }, [flowState, wagmiIsConnected, wagmiAddress, userEmail]);
+
   const handleCompleteProfile = useCallback(async () => {
-    // Validate required fields
     if (!profileData.username || !profileData.fullName || !profileData.country) {
       setEmailError('Please complete all required fields.');
       return;
@@ -635,40 +302,38 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
     setEmailError('');
     
-    // Save user with profile data
     if (evmAddress && userEmail && !savedToDbRef.current) {
       savedToDbRef.current = true;
-      await saveUserWithProfile(userEmail, evmAddress, profileData);
-      localStorage.setItem('cdp:wallet_address', evmAddress);
-      setFlowState('logged-in-success');
+      const success = await saveUserWithProfile(userEmail, evmAddress, profileData);
+      if (success) {
+        localStorage.setItem('cdp:wallet_address', evmAddress);
+        window.dispatchEvent(new CustomEvent('auth-complete', {
+          detail: { walletAddress: evmAddress, email: userEmail }
+        }));
+        setFlowState('logged-in-success');
+      } else {
+        setEmailError('Failed to save profile. Please try again.');
+        savedToDbRef.current = false;
+      }
     }
   }, [profileData, evmAddress, userEmail]);
 
-  // Complete Authentication Handler
   const handleAuthenticate = useCallback(async () => {
-    console.log('[BaseWallet] Base auth complete, finalizing...');
-
     if (!effectiveWalletAddress) {
-      console.error('[BaseWallet] Cannot authenticate: No wallet address available');
-      setEmailError('Wallet address not available. Please try again.');
+      setEmailError('Wallet address not available.');
       return;
     }
 
     try {
       validateNotTreasuryAddress(effectiveWalletAddress);
-    } catch (error) {
-      console.error('[BaseWallet] Treasury address validation failed:', error);
-      setEmailError('Invalid wallet configuration detected. Please contact support.');
+    } catch {
+      setEmailError('Invalid wallet configuration.');
       return;
     }
 
-    // Store wallet address and dispatch auth-complete event
     localStorage.setItem('cdp:wallet_address', effectiveWalletAddress);
     window.dispatchEvent(new CustomEvent('auth-complete', {
-      detail: {
-        walletAddress: effectiveWalletAddress,
-        email: userEmail
-      }
+      detail: { walletAddress: effectiveWalletAddress, email: userEmail }
     }));
 
     await new Promise(resolve => setTimeout(resolve, 100));
@@ -687,24 +352,18 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
     }
   }, [effectiveWalletAddress]);
 
-  // Handle MetaMask connection directly
   const handleConnectMetaMask = useCallback(() => {
-    // Find the MetaMask connector from wagmi connectors
     const metaMaskConnector = connectors.find(
       (c) => c.id === 'metaMaskSDK' || c.id === 'metaMask' || c.name.toLowerCase().includes('metamask')
     );
 
     if (metaMaskConnector) {
-      console.log('[BaseWallet] Connecting to MetaMask via connector:', metaMaskConnector.name);
       connect({ connector: metaMaskConnector });
     } else {
-      // Fallback: try injected connector which may detect MetaMask
       const injectedConnector = connectors.find((c) => c.id === 'injected');
       if (injectedConnector) {
-        console.log('[BaseWallet] Falling back to injected connector for MetaMask');
         connect({ connector: injectedConnector });
       } else {
-        console.error('[BaseWallet] No MetaMask connector found');
         setEmailError('MetaMask not found. Please install the MetaMask browser extension.');
       }
     }
@@ -727,8 +386,6 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
           <X size={18} />
         </button>
 
-        {/* === SCREEN 1 & 2: Login / Sign Up + Email Verification (CDP handles both) === */}
-        {/* CDP SignIn component displays Screen 1 (email input) and Screen 2 (OTP) automatically */}
         {flowState === 'cdp-signin' && (
           <div className="flex flex-col items-center">
             <div className="w-16 h-16 bg-[#0052FF] rounded-full flex items-center justify-center mb-4">
@@ -741,23 +398,19 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             </p>
 
             <div className="w-full">
-              {/* CDP SignIn handles both Screen 1 (email) and Screen 2 (OTP verification) */}
-              {/* It shows email input first, then OTP input after sending the code */}
               <SignIn onSuccess={() => {
-                console.log('[BaseWallet] CDP sign-in successful - wallet will be available shortly');
+                console.log('[BaseWallet] CDP sign-in successful');
               }}>
                 {(state: SignInState) => {
                   if (state.error) {
-                    console.log('[BaseWallet] CDP error:', state.error);
                     const errorStr = typeof state.error === 'string' ? state.error : (state.error as any)?.message || '';
                     const errorLower = errorStr.toLowerCase();
 
-                    // Handle specific error cases
                     if (errorLower.includes('already linked') || errorLower.includes('already associated')) {
                       return (
                         <div className="mt-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg" role="alert">
                           <p className="text-yellow-400 text-xs text-center">
-                            This email already has an account. Please enter the verification code sent to your email to sign in.
+                            This email already has an account. Please enter the verification code.
                           </p>
                         </div>
                       );
@@ -767,37 +420,16 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                       return (
                         <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg" role="alert">
                           <p className="text-red-400 text-xs text-center">
-                            Too many attempts. Please wait a moment before trying again.
-                          </p>
-                        </div>
-                      );
-                    }
-
-                    if (errorLower.includes('network') || errorLower.includes('connection') || errorLower.includes('timeout')) {
-                      return (
-                        <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg" role="alert">
-                          <p className="text-red-400 text-xs text-center">
-                            Network error. Please check your connection and try again.
-                          </p>
-                        </div>
-                      );
-                    }
-
-                    if (errorLower.includes('invalid email') || errorLower.includes('email format')) {
-                      return (
-                        <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg" role="alert">
-                          <p className="text-red-400 text-xs text-center">
-                            Please enter a valid email address.
+                            Too many attempts. Please wait a moment.
                           </p>
                         </div>
                       );
                     }
 
                     if (errorLower.includes('cancelled') || errorLower.includes('rejected') || errorLower.includes('denied')) {
-                      return null; // Don't show error for user cancellation
+                      return null;
                     }
 
-                    // Generic error fallback
                     return (
                       <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg" role="alert">
                         <p className="text-red-400 text-xs text-center">
@@ -806,9 +438,6 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                       </div>
                     );
                   }
-                  // Return null to let SignIn render its default UI
-                  // This shows Screen 1 (email input) with copy: "We'll send you a one-time code to verify your email."
-                  // After email submission, it shows Screen 2 (OTP input) with copy: "This is only required on your first login or when using a new device."
                   return null;
                 }}
               </SignIn>
@@ -827,16 +456,6 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
           </div>
         )}
 
-        {/* === SCREENS 3A, 3B, 5, 7, 8: Handled by CDP === */}
-        {/* Screen 3A: Returning User - Resolve Active Wallet (Available) */}
-        {/* Screen 3B: Returning User - Active Wallet Not Available */}
-        {/* Screen 5: Wallet Detection (Read-Only) - CDP checks for compatible Base wallets */}
-        {/* Screen 7: Network Enforcement - CDP ensures user is on Base network */}
-        {/* Screen 8: Signature & Login - CDP handles message signing to confirm wallet */}
-        {/* All of these are handled internally by the CDP SignIn component */}
-
-        {/* === SCREEN 4: Profile Completion (First-Time Users Only) === */}
-        {/* Displayed only if the email address does not already have a Prize account */}
         {flowState === 'profile-completion' && (
           <div className="flex flex-col">
             <div className="w-12 h-12 bg-[#0052FF] rounded-full flex items-center justify-center mb-4 mx-auto">
@@ -934,7 +553,6 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
           </div>
         )}
 
-        {/* === SCREEN 6: Explicit Wallet Choice (First-Time Users) === */}
         {flowState === 'wallet-choice' && (
           <div className="flex flex-col">
             <div className="w-16 h-16 bg-[#0052FF] rounded-full flex items-center justify-center mb-4 mx-auto">
@@ -947,7 +565,6 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             </p>
 
             <div className="w-full space-y-3 mb-6">
-              {/* Option 1: Use my Base App (Recommended) */}
               <div className="bg-[#0052FF]/10 border border-[#0052FF]/30 rounded-lg p-4">
                 <div className="flex flex-wrap items-center justify-center gap-2 mb-2">
                   <Smartphone size={20} className="text-[#0052FF] flex-shrink-0" />
@@ -973,7 +590,6 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                   </WalletComponent>
                 </div>
 
-                {/* Conditional: Show download link only if Base App is not installed */}
                 {!wagmiIsConnected && (
                   <a
                     href="https://www.base.org/wallet"
@@ -986,7 +602,6 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                 )}
               </div>
 
-              {/* Option 2: Connect MetaMask Wallet */}
               {!wagmiIsConnected && (
                 <div className="bg-[#F6851B]/10 border border-[#F6851B]/30 rounded-lg p-4">
                   <div className="flex items-center justify-center gap-3 mb-2">
@@ -1015,8 +630,6 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                 </div>
               )}
 
-
-              {/* Conditional Option: Create a free Prize wallet (only if no Base wallet detected) */}
               {!wagmiIsConnected && (
                 <div className="bg-[#DDE404]/10 border border-[#DDE404]/30 rounded-lg p-4">
                   <div className="flex items-center justify-center gap-3 mb-2">
@@ -1038,6 +651,13 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               )}
             </div>
 
+            {emailError && (
+              <div className="flex items-start gap-2 text-red-400 text-xs justify-center mb-4">
+                <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
+                <span className="break-words">{emailError}</span>
+              </div>
+            )}
+
             <button
               onClick={() => setFlowState('cdp-signin')}
               className="text-white/40 text-xs hover:text-white/60 text-center"
@@ -1047,8 +667,6 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
           </div>
         )}
 
-        {/* === SCREEN 9: Logged In (Success) === */}
-        {/* Title: "You're live." | Body: "The Platform Players Trust." */}
         {flowState === 'logged-in-success' && effectiveWalletAddress && (
           <div className="flex flex-col items-center">
             <div className="w-20 h-20 bg-gradient-to-br from-[#0052FF] to-[#DDE404] rounded-full flex items-center justify-center mb-4">
@@ -1060,7 +678,6 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               The Platform Players Trust.
             </p>
 
-            {/* Wallet Address */}
             <div className="w-full bg-[#0052FF]/20 border border-[#0052FF] rounded-xl p-4 mb-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-white/70 text-xs">Your Wallet Address</span>
@@ -1072,7 +689,6 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               <p className="text-white text-sm font-mono break-all text-center">{effectiveWalletAddress}</p>
             </div>
 
-            {/* Email */}
             {userEmail && (
               <div className="w-full bg-white/5 border border-white/10 rounded-lg p-3 mb-4 text-center">
                 <p className="text-white/50 text-xs mb-1">Account Email</p>
