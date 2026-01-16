@@ -58,7 +58,7 @@ function generateUuid(): string {
  * This function ensures all user identifiers are in a consistent,
  * case-insensitive format.
  * 
- * @param inputUserId - Any user identifier (wallet, email, UUID, Privy DID, etc.)
+ * @param inputUserId - Any user identifier (wallet, email, UUID, etc.)
  * @returns Canonical prize:pid: formatted user ID
  */
 export function toPrizePid(inputUserId: string | null | undefined): string {
@@ -91,21 +91,7 @@ export function toPrizePid(inputUserId: string | null | undefined): string {
     return `prize:pid:${trimmedId.toLowerCase()}`;
   }
 
-  // Check if it's a Privy DID (legacy) - convert to new format with UUID
-  if (trimmedId.startsWith('did:privy:')) {
-    // Generate deterministic UUID from Privy DID to maintain consistency
-    // Use the part after "did:privy:" as a base
-    const privyPart = trimmedId.substring('did:privy:'.length);
-    // For now, use the privy part as-is if it looks like a UUID
-    if (uuidPattern.test(privyPart)) {
-      return `prize:pid:${privyPart.toLowerCase()}`;
-    }
-    // Otherwise generate a new UUID
-    return `prize:pid:${generateUuid()}`;
-  }
-
-  // For email addresses or other identifiers, generate a new UUID
-  // In production, you might want to look up existing mappings first
+  // For any other identifier format, generate a new UUID
   return `prize:pid:${generateUuid()}`;
 }
 
