@@ -243,6 +243,17 @@ createRoot(document.getElementById('root')!).render(
                     // IMPORTANT: Use 'modal' display for proper Base popup experience on mobile
                     // This triggers the native Coinbase/Base wallet popup instead of inline UI
                     display: 'modal',
+                    // Disable Phantom and MetaMask from wallet modal - only show Coinbase/Smart Wallet
+                    // This ensures "Connect Wallet" uses native Coinbase SDK experience
+                    // See: https://docs.base.org/builderkits/onchainkit/wallet/wallet-modal
+                    supportedWallets: {
+                      phantom: false,
+                      metamask: false,
+                      // Explicitly disable other optional wallets to only show Coinbase Wallet
+                      rabby: false,
+                      trust: false,
+                      frame: false,
+                    },
                   },
                 }}
               >
