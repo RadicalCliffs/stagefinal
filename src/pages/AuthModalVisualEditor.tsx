@@ -168,6 +168,9 @@ export default function AuthModalVisualEditor() {
   const [showAddButton, setShowAddButton] = useState(false);
   const [savedPresets, setSavedPresets] = useState<ConfigPreset[]>([]);
   const [showPresetManager, setShowPresetManager] = useState(false);
+  const [showAssetBrowser, setShowAssetBrowser] = useState(false);
+  const [assetBrowserType, setAssetBrowserType] = useState<'font' | 'image'>('image');
+  const [assetBrowserCallback, setAssetBrowserCallback] = useState<((asset: string) => void) | null>(null);
   const [newButton, setNewButton] = useState<Partial<ButtonProperty>>({
     name: '',
     label: '',
@@ -848,6 +851,82 @@ export default function AuthModalVisualEditor() {
     }
   }, []);
 
+  // ============================================================================
+  // PROJECT ASSETS - Fonts and Images available in the project
+  // ============================================================================
+
+  const PROJECT_FONTS = [
+    { name: 'sequel-45', label: 'Sequel 45 (Light)', file: '/fonts/sequel-100-black-45.ttf' },
+    { name: 'sequel-75', label: 'Sequel 75 (Medium)', file: '/fonts/sequel-100-black-75.ttf' },
+    { name: 'sequel-95', label: 'Sequel 95 (Heavy)', file: '/fonts/sequel-100-black-95.ttf' },
+    { name: 'inherit', label: 'System Default (Inherit)', file: '' },
+  ];
+
+  const PROJECT_IMAGES = [
+    // Logos and Branding
+    { path: '/logo.svg', category: 'Logo', name: 'Main Logo' },
+    { path: '/images/footer-logo.svg', category: 'Logo', name: 'Footer Logo' },
+    { path: '/images/mobile-logo.svg', category: 'Logo', name: 'Mobile Logo' },
+    
+    // Payment Method Icons
+    { path: '/images/paymentMethods/PaymentMethod_Logos_EH-01.svg', category: 'Payment', name: 'Payment Method 1' },
+    { path: '/images/paymentMethods/PaymentMethod_Logos_EH-02.svg', category: 'Payment', name: 'Payment Method 2' },
+    { path: '/images/paymentMethods/PaymentMethod_Logos_EH-03.svg', category: 'Payment', name: 'Payment Method 3' },
+    { path: '/images/paymentMethods/PaymentMethod_Logos_EH-04.svg', category: 'Payment', name: 'Payment Method 4' },
+    { path: '/images/paymentMethods/PaymentMethod_Logos_EH-05.svg', category: 'Payment', name: 'Payment Method 5' },
+    { path: '/images/paymentMethods/PaymentMethod_Logos_EH-06.svg', category: 'Payment', name: 'Payment Method 6' },
+    { path: '/images/paymentMethods/PaymentMethod_Logos_EH-07.svg', category: 'Payment', name: 'Payment Method 7' },
+    { path: '/images/paymentMethods/PaymentMethod_Logos_EH-08.svg', category: 'Payment', name: 'Payment Method 8' },
+    { path: '/images/paymentMethods/PaymentMethod_Logos_EH-09.svg', category: 'Payment', name: 'Payment Method 9' },
+    { path: '/images/paymentMethods/PaymentMethod_Logos_EH-10.svg', category: 'Payment', name: 'Payment Method 10' },
+    { path: '/images/paymentMethods/PaymentMethod_Logos_EH-11.svg', category: 'Payment', name: 'Payment Method 11' },
+    
+    // Icons
+    { path: '/images/ticket.svg', category: 'Icon', name: 'Ticket' },
+    { path: '/images/trophy.svg', category: 'Icon', name: 'Trophy' },
+    { path: '/images/trophyV2.svg', category: 'Icon', name: 'Trophy V2' },
+    { path: '/images/crown.svg', category: 'Icon', name: 'Crown' },
+    { path: '/images/gift.svg', category: 'Icon', name: 'Gift' },
+    { path: '/images/rocket.svg', category: 'Icon', name: 'Rocket' },
+    { path: '/images/avatar.svg', category: 'Icon', name: 'Avatar' },
+    { path: '/images/userAvatar.svg', category: 'Icon', name: 'User Avatar' },
+    { path: '/images/price-tag.svg', category: 'Icon', name: 'Price Tag' },
+    
+    // Social Icons
+    { path: '/images/X.svg', category: 'Social', name: 'X (Twitter)' },
+    { path: '/images/instagram-2.svg', category: 'Social', name: 'Instagram' },
+    { path: '/images/discord-2.svg', category: 'Social', name: 'Discord' },
+    { path: '/images/telegram-2.svg', category: 'Social', name: 'Telegram' },
+    
+    // Competition Images
+    { path: '/images/watch.png', category: 'Competition', name: 'Watch' },
+    { path: '/images/rolex.png', category: 'Competition', name: 'Rolex' },
+    { path: '/images/Lambo.png', category: 'Competition', name: 'Lambo' },
+    { path: '/images/bitcoin-image.webp', category: 'Competition', name: 'Bitcoin' },
+    
+    // Trust/Partner Logos
+    { path: '/images/trust-pilot-logo.png', category: 'Trust', name: 'Trustpilot Logo' },
+    { path: '/images/Trust.png', category: 'Trust', name: 'Trust Badge' },
+    { path: '/images/featuredBrands.svg', category: 'Trust', name: 'Featured Brands' },
+  ];
+
+  const openAssetBrowser = (type: 'font' | 'image', callback: (asset: string) => void) => {
+    setAssetBrowserType(type);
+    setAssetBrowserCallback(() => callback);
+    setShowAssetBrowser(true);
+  };
+
+  const closeAssetBrowser = () => {
+    setShowAssetBrowser(false);
+    setAssetBrowserCallback(null);
+  };
+
+  const selectAsset = (assetPath: string) => {
+    if (assetBrowserCallback) {
+      assetBrowserCallback(assetPath);
+    }
+    closeAssetBrowser();
+  };
 
   /**
    * Generate a downloadable TypeScript file with all changes applied
@@ -1094,6 +1173,29 @@ TESTING CHECKLIST:
 
   const renderFontEditor = () => (
     <div className="space-y-4">
+      {/* Browse Project Fonts Button */}
+      <div className="p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="text-white font-semibold mb-1">Project Fonts</h4>
+            <p className="text-white/60 text-sm">Use fonts from the website (Sequel family)</p>
+          </div>
+          <button
+            onClick={() => openAssetBrowser('font', (fontFamily) => {
+              // Apply to first unlocked font as example
+              const firstUnlocked = state.fonts.find(f => !f.locked);
+              if (firstUnlocked) {
+                handleFontChange(firstUnlocked.name, 'family', fontFamily);
+              }
+            })}
+            className="px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 rounded text-purple-400 font-medium transition-colors flex items-center gap-2"
+          >
+            <ImageIcon size={16} />
+            Browse Fonts
+          </button>
+        </div>
+      </div>
+
       {state.fonts.map(font => (
         <div key={font.name} className="p-4 bg-white/5 border border-white/10 rounded-lg">
           <div className="flex items-center gap-2 mb-3">
@@ -1104,7 +1206,17 @@ TESTING CHECKLIST:
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-white/70 text-xs mb-1 block">Font Family</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-white/70 text-xs">Font Family</label>
+                {!font.locked && (
+                  <button
+                    onClick={() => openAssetBrowser('font', (fontFamily) => handleFontChange(font.name, 'family', fontFamily))}
+                    className="text-purple-400 hover:text-purple-300 text-xs underline"
+                  >
+                    Browse Project
+                  </button>
+                )}
+              </div>
               <select
                 value={font.family}
                 onChange={(e) => !font.locked && handleFontChange(font.name, 'family', e.target.value)}
@@ -1112,6 +1224,9 @@ TESTING CHECKLIST:
                 className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <option value="inherit">System Default</option>
+                <option value="sequel-45">Sequel 45 (Light)</option>
+                <option value="sequel-75">Sequel 75 (Medium)</option>
+                <option value="sequel-95">Sequel 95 (Heavy)</option>
                 <option value="'Inter', sans-serif">Inter</option>
                 <option value="'Roboto', sans-serif">Roboto</option>
                 <option value="'Open Sans', sans-serif">Open Sans</option>
@@ -1201,66 +1316,120 @@ TESTING CHECKLIST:
           No image properties available for this modal
         </div>
       ) : (
-        state.images.map(image => (
-          <div key={image.name} className="p-4 bg-white/5 border border-white/10 rounded-lg">
-            <div className="flex items-center gap-2 mb-3">
-              <label className="text-white font-medium">{image.label}</label>
-              {image.locked && (
-                <Lock size={14} className="text-yellow-400" title="Functional - locked from editing" />
-              )}
-              {image.type && (
-                <span className="text-xs px-2 py-0.5 rounded bg-blue-500/20 text-blue-400">
-                  {image.type.replace('_', ' ')}
-                </span>
-              )}
-            </div>
-            
-            {/* Image metadata info */}
-            {(image.format || image.dimensions) && (
-              <div className="mb-3 p-2 bg-blue-500/10 border border-blue-500/30 rounded text-xs text-blue-400">
-                {image.format && image.format !== 'any' && (
-                  <div>Preferred format: <strong>{image.format.toUpperCase()}</strong></div>
-                )}
-                {image.dimensions && (
-                  <div>Recommended dimensions: <strong>{image.dimensions.width}×{image.dimensions.height}px</strong></div>
-                )}
+        <>
+          {/* Browse Project Images Button */}
+          <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-white font-semibold mb-1">Project Images</h4>
+                <p className="text-white/60 text-sm">Use existing images from the website</p>
               </div>
-            )}
-
-            <div className="flex items-start gap-4">
-              {image.value && (
-                <img 
-                  src={image.value} 
-                  alt={image.alt || image.label}
-                  className="w-20 h-20 object-contain bg-white/5 rounded border border-white/10"
-                />
-              )}
-              <div className="flex-1">
-                <input
-                  type="file"
-                  accept={image.acceptFormats || "image/*"}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file && !image.locked) {
-                      handleImageUpload(image.name, file, image);
-                    }
-                  }}
-                  disabled={image.locked}
-                  className="w-full text-white/70 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                />
-                <p className="text-white/40 text-xs mt-2">
-                  {image.acceptFormats ? 
-                    `Accepts: ${image.acceptFormats.split(',').map(f => f.split('/')[1].toUpperCase()).join(', ')}` :
-                    'Upload a new image to replace the current one'
+              <button
+                onClick={() => openAssetBrowser('image', (imagePath) => {
+                  // Apply to first unlocked image as example
+                  const firstUnlocked = state.images.find(img => !img.locked);
+                  if (firstUnlocked) {
+                    setState(prev => ({
+                      ...prev,
+                      images: prev.images.map(img => 
+                        img.name === firstUnlocked.name ? { ...img, value: imagePath } : img
+                      ),
+                      hasChanges: true,
+                    }));
                   }
-                </p>
-                <p className="text-white/40 text-xs mt-1">
-                  Maximum file size: 2MB
-                </p>
-              </div>
+                })}
+                className="px-4 py-2 bg-green-500/20 hover:bg-green-500/30 rounded text-green-400 font-medium transition-colors flex items-center gap-2"
+              >
+                <ImageIcon size={16} />
+                Browse Images
+              </button>
             </div>
           </div>
-        ))
+
+          {state.images.map(image => (
+            <div key={image.name} className="p-4 bg-white/5 border border-white/10 rounded-lg">
+              <div className="flex items-center gap-2 mb-3">
+                <label className="text-white font-medium">{image.label}</label>
+                {image.locked && (
+                  <Lock size={14} className="text-yellow-400" title="Functional - locked from editing" />
+                )}
+                {image.type && (
+                  <span className="text-xs px-2 py-0.5 rounded bg-blue-500/20 text-blue-400">
+                    {image.type.replace('_', ' ')}
+                  </span>
+                )}
+              </div>
+              
+              {/* Image metadata info */}
+              {(image.format || image.dimensions) && (
+                <div className="mb-3 p-2 bg-blue-500/10 border border-blue-500/30 rounded text-xs text-blue-400">
+                  {image.format && image.format !== 'any' && (
+                    <div>Preferred format: <strong>{image.format.toUpperCase()}</strong></div>
+                  )}
+                  {image.dimensions && (
+                    <div>Recommended dimensions: <strong>{image.dimensions.width}×{image.dimensions.height}px</strong></div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex items-start gap-4">
+                {image.value && (
+                  <img 
+                    src={image.value} 
+                    alt={image.alt || image.label}
+                    className="w-20 h-20 object-contain bg-white/5 rounded border border-white/10"
+                  />
+                )}
+                <div className="flex-1 space-y-3">
+                  {/* Browse Project Images */}
+                  {!image.locked && (
+                    <button
+                      onClick={() => openAssetBrowser('image', (imagePath) => {
+                        setState(prev => ({
+                          ...prev,
+                          images: prev.images.map(img => 
+                            img.name === image.name ? { ...img, value: imagePath } : img
+                          ),
+                          hasChanges: true,
+                        }));
+                      })}
+                      className="w-full px-3 py-2 bg-green-500/20 hover:bg-green-500/30 rounded text-green-400 text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                      <ImageIcon size={14} />
+                      Browse Project Images
+                    </button>
+                  )}
+                  
+                  {/* File Upload */}
+                  <div>
+                    <label className="text-white/70 text-xs mb-1 block">Or upload a new image:</label>
+                    <input
+                      type="file"
+                      accept={image.acceptFormats || "image/*"}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file && !image.locked) {
+                          handleImageUpload(image.name, file, image);
+                        }
+                      }}
+                      disabled={image.locked}
+                      className="w-full text-white/70 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                    <p className="text-white/40 text-xs mt-2">
+                      {image.acceptFormats ? 
+                        `Accepts: ${image.acceptFormats.split(',').map(f => f.split('/')[1].toUpperCase()).join(', ')}` :
+                        'Upload a new image to replace the current one'
+                      }
+                    </p>
+                    <p className="text-white/40 text-xs mt-1">
+                      Maximum file size: 2MB
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </>
       )}
     </div>
   );
@@ -1436,7 +1605,15 @@ TESTING CHECKLIST:
                     </div>
 
                     <div>
-                      <label className="text-white/70 text-xs mb-1 block">Icon URL (optional)</label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-white/70 text-xs">Icon URL (optional)</label>
+                        <button
+                          onClick={() => openAssetBrowser('image', (imagePath) => setNewButton({ ...newButton, icon: imagePath }))}
+                          className="text-green-400 hover:text-green-300 text-xs underline"
+                        >
+                          Browse Project
+                        </button>
+                      </div>
                       <input
                         type="text"
                         value={newButton.icon}
@@ -1601,7 +1778,17 @@ TESTING CHECKLIST:
 
                 {/* Icon Input */}
                 <div>
-                  <label className="text-white/70 text-xs mb-1 block">Icon URL (optional)</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-white/70 text-xs">Icon URL (optional)</label>
+                    {!button.locked && (
+                      <button
+                        onClick={() => openAssetBrowser('image', (imagePath) => handleButtonIconChange(button.name, imagePath))}
+                        className="text-green-400 hover:text-green-300 text-xs underline"
+                      >
+                        Browse Project
+                      </button>
+                    )}
+                  </div>
                   <input
                     type="text"
                     value={button.icon || ''}
@@ -1843,6 +2030,129 @@ TESTING CHECKLIST:
             )}
           </div>
         )}
+      </div>
+    );
+  };
+
+  const renderAssetBrowser = () => {
+    if (!showAssetBrowser) return null;
+
+    const [selectedCategory, setSelectedCategory] = useState<string>('All');
+
+    const categories = ['All', ...Array.from(new Set(PROJECT_IMAGES.map(img => img.category)))];
+    const filteredImages = selectedCategory === 'All' 
+      ? PROJECT_IMAGES 
+      : PROJECT_IMAGES.filter(img => img.category === selectedCategory);
+
+    return (
+      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-[#0A0A0F] border border-white/20 rounded-lg max-w-4xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+          {/* Header */}
+          <div className="p-4 border-b border-white/10 flex items-center justify-between">
+            <h3 className="text-white font-semibold text-lg">
+              {assetBrowserType === 'font' ? 'Select Project Font' : 'Select Project Image'}
+            </h3>
+            <button
+              onClick={closeAssetBrowser}
+              className="text-white/50 hover:text-white transition-colors"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-4">
+            {assetBrowserType === 'font' ? (
+              <div className="space-y-2">
+                {PROJECT_FONTS.map(font => (
+                  <button
+                    key={font.name}
+                    onClick={() => selectAsset(font.name)}
+                    className="w-full p-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-left transition-colors group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-white font-medium" style={{ fontFamily: font.name }}>
+                          {font.label}
+                        </p>
+                        <p className="text-white/50 text-sm mt-1" style={{ fontFamily: font.name }}>
+                          The quick brown fox jumps over the lazy dog
+                        </p>
+                        {font.file && (
+                          <p className="text-white/40 text-xs mt-1">{font.file}</p>
+                        )}
+                      </div>
+                      <CheckCircle size={20} className="text-green-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <>
+                {/* Category Filter */}
+                <div className="mb-4 flex flex-wrap gap-2">
+                  {categories.map(category => (
+                    <button
+                      key={category}
+                      onClick={() => setSelectedCategory(category)}
+                      className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                        selectedCategory === category
+                          ? 'bg-[#0052FF] text-white'
+                          : 'bg-white/10 text-white/70 hover:bg-white/20'
+                      }`}
+                    >
+                      {category}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Image Grid */}
+                <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                  {filteredImages.map(image => (
+                    <button
+                      key={image.path}
+                      onClick={() => selectAsset(image.path)}
+                      className="aspect-square bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg p-3 transition-colors group relative overflow-hidden"
+                      title={image.name}
+                    >
+                      <img
+                        src={image.path}
+                        alt={image.name}
+                        className="w-full h-full object-contain"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                          (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                        }}
+                      />
+                      <div className="hidden absolute inset-0 flex items-center justify-center text-white/50 text-xs">
+                        ✕
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/80 p-1 text-white/70 text-xs truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                        {image.name}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                {filteredImages.length === 0 && (
+                  <div className="text-center text-white/50 py-8">
+                    No images in this category
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="p-4 border-t border-white/10 flex justify-end">
+            <button
+              onClick={closeAssetBrowser}
+              className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded text-white transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       </div>
     );
   };
@@ -2251,6 +2561,9 @@ TESTING CHECKLIST:
           )}
         </div>
       </div>
+
+      {/* Asset Browser Modal */}
+      {renderAssetBrowser()}
     </div>
   );
 }
