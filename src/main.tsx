@@ -21,7 +21,7 @@ import { base, baseSepolia } from 'viem/chains';
 import '@coinbase/onchainkit/styles.css';
 // Wagmi imports for wallet connection (Base App, Coinbase Wallet, etc.)
 import { WagmiProvider, createConfig, http } from 'wagmi';
-import { coinbaseWallet } from 'wagmi/connectors';
+import { coinbaseWallet, metaMask, injected } from 'wagmi/connectors';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Determine which network to use based on environment variable
@@ -31,9 +31,10 @@ const activeChain = isBaseMainnet ? base : baseSepolia;
 const supportedChainsList = isBaseMainnet ? [base] : [base, baseSepolia];
 
 // Wagmi configuration for wallet connections
-// IMPORTANT: We use smartWalletOnly preference to ensure users connect with Base/Coinbase Smart Wallet
-// This prevents MetaMask or other injected wallets from hijacking the connection on desktop
-// and ensures consistent behavior between mobile and desktop experiences
+// We support multiple wallet types with proper deep linking for mobile users:
+// 1. Coinbase Wallet / Smart Wallet - primary option, uses smartWalletOnly for consistent experience
+// 2. MetaMask - uses MetaMask SDK for proper mobile deep linking
+// 3. Injected wallets - catches other browser extension wallets (Phantom, etc.)
 //
 // CRITICAL: We must use explicit RPC URLs that are whitelisted in our CSP (public/_headers)
 // Using http() with no URL causes viem to use fallback RPCs like eth.merkle.io which may not be in CSP
@@ -47,6 +48,20 @@ const wagmiConfig = createConfig({
       // This ensures "Connect with Base" actually connects to Base, not MetaMask
       // On mobile, this triggers the native Base wallet popup with deep linking
       preference: { options: 'smartWalletOnly' },
+    }),
+    // MetaMask connector with mobile SDK support for deep linking
+    // When users click MetaMask on mobile, it will attempt to open the MetaMask app
+    metaMask({
+      dappMetadata: {
+        name: 'The Prize',
+        url: typeof window !== 'undefined' ? window.location.origin : 'https://theprize.io',
+        iconUrl: 'https://theprize.io/logo.png',
+      },
+    }),
+    // Injected connector catches other browser extension wallets like Phantom, Rainbow, etc.
+    // This allows users with these wallets installed to connect directly
+    injected({
+      shimDisconnect: true,
     }),
   ],
   transports: {
@@ -243,6 +258,21 @@ createRoot(document.getElementById('root')!).render(
                     // IMPORTANT: Use 'modal' display for proper Base popup experience on mobile
                     // This triggers the native Coinbase/Base wallet popup instead of inline UI
                     display: 'modal',
+                    // Enable MetaMask and Phantom wallet options with proper deep linking
+                    // These wallets will use the wagmi connectors configured above which handle:
+                    // - Browser extension detection (desktop)
+                    // - Mobile deep linking to open the wallet app
+                    // - QR code display for mobile-to-desktop connections
+                    supportedWallets: {
+                      // Enable MetaMask - uses MetaMask SDK for mobile deep linking
+                      metamask: true,
+                      // Enable Phantom - uses injected connector, opens app on mobile
+                      phantom: true,
+                      // Keep other wallets disabled for now
+                      rabby: false,
+                      trust: false,
+                      frame: false,
+                    },
                   },
                 }}
               >
