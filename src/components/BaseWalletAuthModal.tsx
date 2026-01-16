@@ -631,7 +631,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               <Wallet size={32} className="text-white" />
             </div>
 
-            <h2 className="text-white text-2xl font-bold mb-2">Log in or create an account</h2>
+            <h2 className="text-white text-2xl font-bold mb-2 text-center">Log in or create an account</h2>
             <p className="text-white/60 text-sm mb-6 text-center">
               Enter your email address to continue.
             </p>
@@ -716,7 +716,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
             <button
               onClick={() => setFlowState('wallet-choice')}
-              className="mt-4 text-[#0052FF] text-sm hover:text-[#0052FF]/80"
+              className="mt-4 text-[#0052FF] text-sm hover:text-[#0052FF]/80 text-center"
             >
               Or connect existing wallet →
             </button>
@@ -809,14 +809,17 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               </div>
 
               {emailError && (
-                <span className="text-red-400 text-xs">{emailError}</span>
+                <div className="flex items-start gap-2 text-red-400 text-xs justify-center">
+                  <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
+                  <span className="break-words">{emailError}</span>
+                </div>
               )}
             </div>
 
             <button
               onClick={handleCompleteProfile}
               disabled={!profileData.username || !profileData.fullName || !profileData.country}
-              className="w-full bg-[#0052FF] text-white font-bold py-3 rounded-lg hover:bg-[#0052FF]/90 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full bg-[#0052FF] text-white font-bold py-3 rounded-lg hover:bg-[#0052FF]/90 disabled:opacity-60 disabled:cursor-not-allowed text-center"
             >
               Continue
             </button>
@@ -842,16 +845,16 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             <div className="w-full space-y-3 mb-6">
               {/* Option 1: Use my Base App (Recommended) */}
               <div className="bg-[#0052FF]/10 border border-[#0052FF]/30 rounded-lg p-4">
-                <div className="flex items-center gap-3 mb-2">
-                  <Smartphone size={20} className="text-[#0052FF]" />
+                <div className="flex flex-wrap items-center justify-center gap-2 mb-2">
+                  <Smartphone size={20} className="text-[#0052FF] flex-shrink-0" />
                   <span className="text-white font-semibold">Use my Base App</span>
-                  <span className="text-[#DDE404] text-xs font-semibold ml-auto">Recommended</span>
+                  <span className="text-[#DDE404] text-xs font-semibold">Recommended</span>
                 </div>
-                <p className="text-white/60 text-xs mb-3">
+                <p className="text-white/60 text-xs mb-3 text-center">
                   Fastest option. Connect your Base app to continue.
                 </p>
                 <WalletComponent>
-                  <ConnectWallet className="w-full bg-[#0052FF] hover:bg-[#0052FF]/90 text-white font-bold py-2 rounded-lg">
+                  <ConnectWallet className="w-full bg-[#0052FF] hover:bg-[#0052FF]/90 text-white font-bold py-2 rounded-lg flex items-center justify-center">
                     <Avatar className="h-6 w-6" />
                     <Name />
                   </ConnectWallet>
@@ -863,14 +866,14 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                     </Identity>
                   </WalletDropdown>
                 </WalletComponent>
-                
+
                 {/* Conditional: Show download link only if Base App is not installed */}
                 {!wagmiIsConnected && (
                   <a
                     href="https://www.base.org/wallet"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[#0052FF] text-xs mt-2 inline-flex items-center gap-1 hover:underline"
+                    className="text-[#0052FF] text-xs mt-2 flex items-center justify-center gap-1 hover:underline"
                   >
                     Download Base App <ExternalLink size={12} />
                   </a>
@@ -879,15 +882,15 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
               {/* Option 2: Use an existing Base wallet */}
               <div className="bg-white/5 border border-white/10 rounded-lg p-4">
-                <div className="flex items-center gap-3 mb-2">
-                  <Wallet size={20} className="text-white/70" />
+                <div className="flex items-center justify-center gap-3 mb-2">
+                  <Wallet size={20} className="text-white/70 flex-shrink-0" />
                   <span className="text-white font-semibold">Use an existing Base wallet</span>
                 </div>
-                <p className="text-white/60 text-xs mb-3">
+                <p className="text-white/60 text-xs mb-3 text-center">
                   Connect another wallet that supports the Base network.
                 </p>
                 <WalletComponent>
-                  <ConnectWallet className="w-full bg-white/10 hover:bg-white/20 text-white font-bold py-2 rounded-lg border border-white/20">
+                  <ConnectWallet className="w-full bg-white/10 hover:bg-white/20 text-white font-bold py-2 rounded-lg border border-white/20 flex items-center justify-center">
                     <Avatar className="h-6 w-6" />
                     <Name />
                   </ConnectWallet>
@@ -904,16 +907,16 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               {/* Conditional Option: Create a free Prize wallet (only if no Base wallet detected) */}
               {!wagmiIsConnected && (
                 <div className="bg-[#DDE404]/10 border border-[#DDE404]/30 rounded-lg p-4">
-                  <div className="flex items-center gap-3 mb-2">
-                    <Shield size={20} className="text-[#DDE404]" />
+                  <div className="flex items-center justify-center gap-3 mb-2">
+                    <Shield size={20} className="text-[#DDE404] flex-shrink-0" />
                     <span className="text-white font-semibold">Create a free Prize wallet</span>
                   </div>
-                  <p className="text-white/60 text-xs mb-3">
+                  <p className="text-white/60 text-xs mb-3 text-center">
                     No Base wallet found. We'll create one for you automatically.
                   </p>
                   <button
                     onClick={() => setFlowState('cdp-signin')}
-                    className="w-full bg-[#DDE404] hover:bg-[#DDE404]/90 text-black font-bold py-2 rounded-lg"
+                    className="w-full bg-[#DDE404] hover:bg-[#DDE404]/90 text-black font-bold py-2 rounded-lg text-center"
                   >
                     Create wallet
                   </button>
@@ -923,7 +926,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
             <button
               onClick={() => setFlowState('cdp-signin')}
-              className="text-white/40 text-xs hover:text-white/60"
+              className="text-white/40 text-xs hover:text-white/60 text-center"
             >
               ← Back to sign in
             </button>
@@ -938,34 +941,34 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               <CheckCircle size={40} className="text-white" />
             </div>
 
-            <h2 className="text-white text-3xl font-bold mb-2">You're live.</h2>
+            <h2 className="text-white text-3xl font-bold mb-2 text-center">You're live.</h2>
             <p className="text-white/60 text-base mb-6 text-center">
               The Platform Players Trust.
             </p>
-            
+
             {/* Wallet Address */}
             <div className="w-full bg-[#0052FF]/20 border border-[#0052FF] rounded-xl p-4 mb-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-white/70 text-xs">Your Wallet Address</span>
                 <button onClick={handleCopy} className="flex items-center gap-1 text-[#0052FF] text-xs">
-                  {copied ? <Check size={12} /> : <Copy size={12} />}
-                  {copied ? 'Copied!' : 'Copy'}
+                  {copied ? <Check size={12} className="flex-shrink-0" /> : <Copy size={12} className="flex-shrink-0" />}
+                  <span>{copied ? 'Copied!' : 'Copy'}</span>
                 </button>
               </div>
-              <p className="text-white text-sm font-mono break-all">{effectiveWalletAddress}</p>
+              <p className="text-white text-sm font-mono break-all text-center">{effectiveWalletAddress}</p>
             </div>
 
             {/* Email */}
             {userEmail && (
-              <div className="w-full bg-white/5 border border-white/10 rounded-lg p-3 mb-4">
+              <div className="w-full bg-white/5 border border-white/10 rounded-lg p-3 mb-4 text-center">
                 <p className="text-white/50 text-xs mb-1">Account Email</p>
-                <p className="text-white text-sm">{userEmail}</p>
+                <p className="text-white text-sm break-all">{userEmail}</p>
               </div>
             )}
 
             <button
               onClick={handleAuthenticate}
-              className="w-full bg-[#DDE404] text-black font-bold py-3 rounded-lg hover:bg-[#DDE404]/90 mb-2"
+              className="w-full bg-[#DDE404] text-black font-bold py-3 rounded-lg hover:bg-[#DDE404]/90 mb-2 text-center"
             >
               Start Entering Competitions
             </button>
@@ -974,9 +977,9 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               href={`https://${import.meta.env.VITE_BASE_MAINNET === 'true' ? 'basescan.org' : 'sepolia.basescan.org'}/address/${effectiveWalletAddress}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 text-white/30 text-xs mt-3 hover:text-white/50"
+              className="flex items-center justify-center gap-1 text-white/30 text-xs mt-3 hover:text-white/50"
             >
-              View on BaseScan <ExternalLink size={10} />
+              View on BaseScan <ExternalLink size={10} className="flex-shrink-0" />
             </a>
           </div>
         )}
