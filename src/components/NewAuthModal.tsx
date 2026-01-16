@@ -341,10 +341,14 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
       if (!isReturningUser) {
         console.log('[NewAuthModal] Creating user via edge function...');
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
         
         const upsertResponse = await fetch(`${supabaseUrl}/functions/v1/upsert-user`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseAnonKey}`,
+          },
           body: JSON.stringify({
             username: profileData.username,
             email: profileData.email,
@@ -1225,3 +1229,4 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
     </div>
   );
 }
+
