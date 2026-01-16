@@ -43,6 +43,8 @@ import {
 } from 'lucide-react';
 import NewAuthModal from '../components/NewAuthModal';
 import BaseWalletAuthModal from '../components/BaseWalletAuthModal';
+import PaymentModal from '../components/PaymentModal';
+import TopUpWalletModal from '../components/TopUpWalletModal';
 
 interface ColorProperty {
   name: string;
@@ -156,7 +158,7 @@ export default function AuthModalVisualEditor() {
     buttons: [],
     sections: [],
     showPreview: true,
-    previewOpen: false,
+    previewOpen: true,
     hasChanges: false,
     history: [],
     historyIndex: -1,
@@ -2524,37 +2526,40 @@ TESTING CHECKLIST:
               <div className="bg-white/5 border border-white/10 rounded-lg p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold">Live Preview</h3>
-                  <button
-                    onClick={() => setState(prev => ({ ...prev, previewOpen: !prev.previewOpen }))}
-                    className="px-3 py-1 bg-[#0052FF] hover:bg-[#0041CC] rounded text-sm transition-colors"
-                  >
-                    {state.previewOpen ? 'Close' : 'Open'} Modal
-                  </button>
                 </div>
                 <div className="bg-[#0A0A0F] rounded-lg overflow-hidden min-h-[400px] flex items-center justify-center">
-                  {state.previewOpen ? (
-                    state.selectedModal === 'NewAuthModal' ? (
-                      <NewAuthModal 
-                        isOpen={true} 
-                        onClose={() => setState(prev => ({ ...prev, previewOpen: false }))} 
-                      />
-                    ) : state.selectedModal === 'BaseWalletAuthModal' ? (
-                      <BaseWalletAuthModal 
-                        isOpen={true} 
-                        onClose={() => setState(prev => ({ ...prev, previewOpen: false }))} 
-                      />
-                    ) : (
-                      <p className="text-white/50 text-center px-4">
-                        Preview not available for {state.selectedModal}.<br/>
-                        <span className="text-xs">Payment modals require additional context and cannot be previewed in isolation.</span>
-                      </p>
-                    )
+                  {state.selectedModal === 'NewAuthModal' ? (
+                    <NewAuthModal 
+                      isOpen={true} 
+                      onClose={() => {}} 
+                    />
+                  ) : state.selectedModal === 'BaseWalletAuthModal' ? (
+                    <BaseWalletAuthModal 
+                      isOpen={true} 
+                      onClose={() => {}} 
+                    />
+                  ) : state.selectedModal === 'PaymentModal' ? (
+                    <PaymentModal 
+                      isOpen={true} 
+                      onClose={() => {}}
+                      onOpen={() => {}}
+                      ticketCount={1}
+                      competitionId="preview-competition"
+                      ticketPrice={5}
+                    />
+                  ) : state.selectedModal === 'TopUpWalletModal' ? (
+                    <TopUpWalletModal 
+                      isOpen={true} 
+                      onClose={() => {}}
+                    />
                   ) : (
-                    <p className="text-white/50">Click "Open Modal" to preview changes</p>
+                    <p className="text-white/50 text-center px-4">
+                      Preview not available for {state.selectedModal}.
+                    </p>
                   )}
                 </div>
                 <p className="text-white/40 text-xs mt-3 text-center">
-                  Download file to save customizations for your developer.
+                  Live preview updates automatically as you make changes.
                 </p>
               </div>
             </div>
