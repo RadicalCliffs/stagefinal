@@ -31,7 +31,15 @@ import {
   ArrowRight,
   Download,
   Link as LinkIcon,
-  ExternalLink
+  ExternalLink,
+  Undo2,
+  Redo2,
+  Save,
+  Upload,
+  FileDown,
+  GripVertical,
+  Layers,
+  Copy
 } from 'lucide-react';
 import NewAuthModal from '../components/NewAuthModal';
 import BaseWalletAuthModal from '../components/BaseWalletAuthModal';
@@ -68,6 +76,10 @@ interface ImageProperty {
   value: string;
   alt?: string;
   locked?: boolean;
+  type?: 'logo' | 'icon' | 'wallet_icon' | 'payment_icon' | 'background' | 'other'; // New: Icon type categorization
+  format?: 'svg' | 'png' | 'webp' | 'jpg' | 'any'; // New: Preferred format
+  dimensions?: { width: number; height: number }; // New: Recommended dimensions
+  acceptFormats?: string; // New: Accept attribute for file input
 }
 
 interface FlowStep {
@@ -89,6 +101,30 @@ interface ButtonProperty {
   hasDependencies?: boolean;
   dependencies?: string[];
   locked?: boolean;
+  hidden?: boolean; // New: Controls visibility of button in the modal
+  icon?: string; // New: Icon/image URL for the button
+  order?: number; // New: Display order (for drag-and-drop)
+}
+
+interface SectionProperty {
+  name: string;
+  label: string;
+  description?: string;
+  hidden?: boolean; // Controls section visibility
+  locked?: boolean;
+}
+
+interface ConfigPreset {
+  name: string;
+  description: string;
+  timestamp: number;
+  modalType: ModalType;
+  colors: ColorProperty[];
+  fonts: FontProperty[];
+  texts: TextProperty[];
+  images: ImageProperty[];
+  buttons: ButtonProperty[];
+  flowSteps?: FlowStep[];
 }
 
 type ModalType = 'NewAuthModal' | 'BaseWalletAuthModal' | 'PaymentModal' | 'TopUpWalletModal';
@@ -101,9 +137,12 @@ interface EditorState {
   images: ImageProperty[];
   flowSteps: FlowStep[];
   buttons: ButtonProperty[];
+  sections: SectionProperty[]; // New: Section visibility management
   showPreview: boolean;
   previewOpen: boolean;
   hasChanges: boolean;
+  history: EditorState[]; // New: For undo/redo
+  historyIndex: number; // New: Current position in history
 }
 
 export default function AuthModalVisualEditor() {
@@ -115,20 +154,39 @@ export default function AuthModalVisualEditor() {
     images: [],
     flowSteps: [],
     buttons: [],
+    sections: [],
     showPreview: true,
     previewOpen: false,
     hasChanges: false,
+    history: [],
+    historyIndex: -1,
   });
 
-  const [activeTab, setActiveTab] = useState<'flow' | 'colors' | 'fonts' | 'text' | 'images' | 'buttons'>('flow');
-  const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<'flow' | 'colors' | 'fonts' | 'text' | 'images' | 'buttons' | 'sections' | 'presets'>('flow');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState('');
+  const [showAddButton, setShowAddButton] = useState(false);
+  const [savedPresets, setSavedPresets] = useState<ConfigPreset[]>([]);
+  const [showPresetManager, setShowPresetManager] = useState(false);
+  const [showAssetBrowser, setShowAssetBrowser] = useState(false);
+  const [assetBrowserType, setAssetBrowserType] = useState<'font' | 'image'>('image');
+  const [assetBrowserCallback, setAssetBrowserCallback] = useState<((asset: string) => void) | null>(null);
+  const [newButton, setNewButton] = useState<Partial<ButtonProperty>>({
+    name: '',
+    label: '',
+    linkType: 'none',
+    linkValue: '',
+    description: '',
+    hasDependencies: false,
+    dependencies: [],
+    locked: false,
+    hidden: false,
+    icon: '',
+  });
 
   // Load initial properties based on selected modal
   useEffect(() => {
     loadModalProperties(state.selectedModal);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.selectedModal]);
 
   const loadModalProperties = (modalType: ModalType) => {
@@ -177,7 +235,7 @@ export default function AuthModalVisualEditor() {
           { name: 'connectWalletSubtitle', label: 'Connect Wallet Subtitle', value: 'Connect an existing wallet or create a new one in seconds.' },
         ],
         images: [
-          { name: 'modalLogo', label: 'Modal Logo', value: '/logo.png', alt: 'The Prize Logo' },
+          { name: 'modalLogo', label: 'Modal Logo', value: '/logo.png', alt: 'The Prize Logo', type: 'logo', format: 'png', acceptFormats: 'image/png,image/svg+xml,image/webp' },
         ],
         buttons: [],
       }));
@@ -253,10 +311,15 @@ export default function AuthModalVisualEditor() {
         images: [],
         flowSteps: [],
         buttons: [
-          { name: 'payWithBalance', label: 'Pay with Balance Button', linkType: 'action', linkValue: 'balancePayment', description: 'Triggers balance payment', hasDependencies: true, dependencies: ['Balance check', 'Transaction API'], locked: false },
-          { name: 'payWithCard', label: 'Pay with Card Button', linkType: 'action', linkValue: 'cardPayment', description: 'Triggers card payment flow', hasDependencies: true, dependencies: ['Coinbase Commerce API'], locked: false },
-          { name: 'payWithCrypto', label: 'Pay with Crypto Button', linkType: 'action', linkValue: 'cryptoPayment', description: 'Triggers crypto payment flow', hasDependencies: true, dependencies: ['OnchainKit', 'Wallet connection'], locked: false },
-          { name: 'topUpBalance', label: 'Top Up Balance Link', linkType: 'action', linkValue: 'openTopUpModal', description: 'Opens top-up modal', hasDependencies: true, dependencies: ['TopUpWalletModal component'], locked: false },
+          { name: 'payWithBalance', label: 'Pay with Balance Button', linkType: 'action', linkValue: 'balancePayment', description: 'Triggers balance payment', hasDependencies: true, dependencies: ['Balance check', 'Transaction API'], locked: false, hidden: false, order: 1 },
+          { name: 'payWithCard', label: 'Pay with Card Button', linkType: 'action', linkValue: 'cardPayment', description: 'Triggers card payment flow', hasDependencies: true, dependencies: ['Coinbase Commerce API'], locked: false, hidden: false, order: 2 },
+          { name: 'payWithCrypto', label: 'Pay with Crypto Button', linkType: 'action', linkValue: 'cryptoPayment', description: 'Triggers crypto payment flow', hasDependencies: true, dependencies: ['OnchainKit', 'Wallet connection'], locked: false, hidden: false, order: 3 },
+          { name: 'topUpBalance', label: 'Top Up Balance Link', linkType: 'action', linkValue: 'openTopUpModal', description: 'Opens top-up modal', hasDependencies: true, dependencies: ['TopUpWalletModal component'], locked: false, hidden: false, order: 4 },
+        ],
+        sections: [
+          { name: 'paymentMethods', label: 'Payment Methods Section', description: 'All payment method buttons', hidden: false, locked: false },
+          { name: 'balanceInfo', label: 'Balance Information', description: 'Current balance display', hidden: false, locked: true },
+          { name: 'orderSummary', label: 'Order Summary', description: 'Purchase details', hidden: false, locked: true },
         ],
       }));
     } else if (modalType === 'TopUpWalletModal') {
@@ -294,9 +357,13 @@ export default function AuthModalVisualEditor() {
         images: [],
         flowSteps: [],
         buttons: [
-          { name: 'instantTopUp', label: 'Instant Top-Up Button', linkType: 'action', linkValue: 'instantTopUp', description: 'Direct USDC transfer', hasDependencies: true, dependencies: ['Wallet connection', 'USDC balance', 'Treasury address'], locked: false },
-          { name: 'cryptoTopUp', label: 'Crypto Top-Up Button', linkType: 'action', linkValue: 'cryptoCheckout', description: 'Opens OnchainKit checkout', hasDependencies: true, dependencies: ['OnchainKit', 'Coinbase Commerce'], locked: false },
-          { name: 'cardTopUp', label: 'Card Top-Up Button', linkType: 'action', linkValue: 'cardCheckout', description: 'Opens card payment flow', hasDependencies: true, dependencies: ['Coinbase Commerce API'], locked: false },
+          { name: 'instantTopUp', label: 'Instant Top-Up Button', linkType: 'action', linkValue: 'instantTopUp', description: 'Direct USDC transfer', hasDependencies: true, dependencies: ['Wallet connection', 'USDC balance', 'Treasury address'], locked: false, hidden: false, order: 1 },
+          { name: 'cryptoTopUp', label: 'Crypto Top-Up Button', linkType: 'action', linkValue: 'cryptoCheckout', description: 'Opens OnchainKit checkout', hasDependencies: true, dependencies: ['OnchainKit', 'Coinbase Commerce'], locked: false, hidden: false, order: 2 },
+          { name: 'cardTopUp', label: 'Card Top-Up Button', linkType: 'action', linkValue: 'cardCheckout', description: 'Opens card payment flow', hasDependencies: true, dependencies: ['Coinbase Commerce API'], locked: false, hidden: false, order: 3 },
+        ],
+        sections: [
+          { name: 'topUpMethods', label: 'Top-Up Methods Section', description: 'All top-up method buttons', hidden: false, locked: false },
+          { name: 'balanceDisplay', label: 'Current Balance', description: 'Shows current account balance', hidden: false, locked: true },
         ],
       }));
     }
@@ -358,7 +425,7 @@ export default function AuthModalVisualEditor() {
     }));
   };
 
-  const handleImageUpload = async (name: string, file: File) => {
+  const handleImageUpload = async (name: string, file: File, imageProperty: ImageProperty) => {
     // Validate file size (max 2MB to prevent memory issues)
     const maxSize = 2 * 1024 * 1024; // 2MB
     if (file.size > maxSize) {
@@ -369,6 +436,39 @@ export default function AuthModalVisualEditor() {
         setSaveMessage('');
       }, 5000);
       return;
+    }
+
+    // Validate file type if format is specified
+    if (imageProperty.format && imageProperty.format !== 'any') {
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
+      if (imageProperty.format !== fileExt) {
+        setSaveStatus('error');
+        setSaveMessage(`Preferred format is ${imageProperty.format.toUpperCase()}. Consider converting your image.`);
+        // Allow upload but warn user
+        setTimeout(() => {
+          setSaveStatus('idle');
+          setSaveMessage('');
+        }, 5000);
+      }
+    }
+
+    // Validate dimensions for specific icon types
+    if (imageProperty.dimensions) {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        const { width, height } = imageProperty.dimensions!;
+        if (img.width !== width || img.height !== height) {
+          setSaveStatus('error');
+          setSaveMessage(`Recommended dimensions: ${width}x${height}px. Your image: ${img.width}x${img.height}px.`);
+          setTimeout(() => {
+            setSaveStatus('idle');
+            setSaveMessage('');
+          }, 5000);
+        }
+        URL.revokeObjectURL(objectUrl);
+      };
+      img.src = objectUrl;
     }
 
     // In a real implementation, this would upload to storage
@@ -383,6 +483,12 @@ export default function AuthModalVisualEditor() {
         ),
         hasChanges: true,
       }));
+      setSaveStatus('success');
+      setSaveMessage('Image uploaded successfully!');
+      setTimeout(() => {
+        setSaveStatus('idle');
+        setSaveMessage('');
+      }, 3000);
     };
     reader.readAsDataURL(file);
   };
@@ -397,15 +503,440 @@ export default function AuthModalVisualEditor() {
     }));
   };
 
+  const handleButtonVisibilityToggle = (name: string, hidden: boolean) => {
+    setState(prev => ({
+      ...prev,
+      buttons: prev.buttons.map(b => 
+        b.name === name ? { ...b, hidden } : b
+      ),
+      hasChanges: true,
+    }));
+  };
+
+  const handleButtonIconChange = (name: string, icon: string) => {
+    setState(prev => ({
+      ...prev,
+      buttons: prev.buttons.map(b => 
+        b.name === name ? { ...b, icon } : b
+      ),
+      hasChanges: true,
+    }));
+  };
+
+  const handleAddNewButton = (button: ButtonProperty) => {
+    // Validate unique name
+    const exists = state.buttons.some(b => b.name === button.name);
+    if (exists) {
+      setSaveStatus('error');
+      setSaveMessage('Button name already exists. Please use a unique name.');
+      setTimeout(() => {
+        setSaveStatus('idle');
+        setSaveMessage('');
+      }, 5000);
+      return;
+    }
+
+    setState(prev => ({
+      ...prev,
+      buttons: [...prev.buttons, button],
+      hasChanges: true,
+    }));
+    
+    setSaveStatus('success');
+    setSaveMessage('New button added successfully!');
+    setTimeout(() => {
+      setSaveStatus('idle');
+      setSaveMessage('');
+    }, 3000);
+  };
+
+  // Commented out for now - can be used in future to allow button removal
+  // const handleRemoveButton = (name: string) => {
+  //   setState(prev => ({
+  //     ...prev,
+  //     buttons: prev.buttons.filter(b => b.name !== name),
+  //     hasChanges: true,
+  //   }));
+  // };
+
+  // ============================================================================
+  // NEW PROACTIVE FEATURES
+  // ============================================================================
+
+  /**
+   * Button Reordering - Drag and drop buttons to change display order
+   */
+  const handleButtonReorder = (fromIndex: number, toIndex: number) => {
+    const sortedButtons = [...state.buttons].sort((a, b) => (a.order || 0) - (b.order || 0));
+    const [movedButton] = sortedButtons.splice(fromIndex, 1);
+    sortedButtons.splice(toIndex, 0, movedButton);
+    
+    // Update order values
+    const reorderedButtons = sortedButtons.map((btn, idx) => ({
+      ...btn,
+      order: idx + 1,
+    }));
+
+    setState(prev => ({
+      ...prev,
+      buttons: reorderedButtons,
+      hasChanges: true,
+    }));
+  };
+
+  /**
+   * Section Visibility Toggle - Hide/show entire sections
+   */
+  const handleSectionVisibilityToggle = (name: string, hidden: boolean) => {
+    setState(prev => ({
+      ...prev,
+      sections: prev.sections.map(s => 
+        s.name === name ? { ...s, hidden } : s
+      ),
+      hasChanges: true,
+    }));
+  };
+
+  /**
+   * Bulk Button Operations - Apply changes to multiple buttons at once
+   */
+  const handleBulkButtonOperation = (operation: 'hide' | 'show' | 'delete', buttonNames: string[]) => {
+    if (operation === 'delete') {
+      setState(prev => ({
+        ...prev,
+        buttons: prev.buttons.filter(b => !buttonNames.includes(b.name)),
+        hasChanges: true,
+      }));
+    } else {
+      const hidden = operation === 'hide';
+      setState(prev => ({
+        ...prev,
+        buttons: prev.buttons.map(b => 
+          buttonNames.includes(b.name) ? { ...b, hidden } : b
+        ),
+        hasChanges: true,
+      }));
+    }
+  };
+
+  /**
+   * Undo/Redo - Revert or reapply changes
+   */
+  const saveToHistory = (newState: Partial<EditorState>) => {
+    setState(prev => {
+      const currentState = { ...prev };
+      const newHistory = prev.history.slice(0, prev.historyIndex + 1);
+      newHistory.push(currentState);
+      
+      return {
+        ...prev,
+        ...newState,
+        history: newHistory.length > 50 ? newHistory.slice(-50) : newHistory, // Keep last 50 states
+        historyIndex: newHistory.length,
+      };
+    });
+  };
+
+  const handleUndo = () => {
+    if (state.historyIndex > 0) {
+      const previousState = state.history[state.historyIndex - 1];
+      setState(prev => ({
+        ...previousState,
+        history: prev.history,
+        historyIndex: prev.historyIndex - 1,
+      }));
+    }
+  };
+
+  const handleRedo = () => {
+    if (state.historyIndex < state.history.length) {
+      const nextState = state.history[state.historyIndex];
+      setState(prev => ({
+        ...nextState,
+        history: prev.history,
+        historyIndex: prev.historyIndex + 1,
+      }));
+    }
+  };
+
+  /**
+   * Preset Management - Save and load configurations
+   */
+  const handleSavePreset = (name: string, description: string) => {
+    const preset: ConfigPreset = {
+      name,
+      description,
+      timestamp: Date.now(),
+      modalType: state.selectedModal,
+      colors: state.colors,
+      fonts: state.fonts,
+      texts: state.texts,
+      images: state.images,
+      buttons: state.buttons,
+      flowSteps: state.flowSteps,
+    };
+
+    const updatedPresets = [...savedPresets, preset];
+    setSavedPresets(updatedPresets);
+    
+    // Save to localStorage
+    try {
+      localStorage.setItem('modalEditorPresets', JSON.stringify(updatedPresets));
+      setSaveStatus('success');
+      setSaveMessage(`Preset "${name}" saved successfully!`);
+    } catch (error) {
+      setSaveStatus('error');
+      setSaveMessage('Failed to save preset. Storage limit may be exceeded.');
+    }
+    
+    setTimeout(() => {
+      setSaveStatus('idle');
+      setSaveMessage('');
+    }, 3000);
+  };
+
+  const handleLoadPreset = (preset: ConfigPreset) => {
+    if (preset.modalType !== state.selectedModal) {
+      setSaveStatus('error');
+      setSaveMessage(`This preset is for ${preset.modalType}, but you're editing ${state.selectedModal}.`);
+      setTimeout(() => {
+        setSaveStatus('idle');
+        setSaveMessage('');
+      }, 5000);
+      return;
+    }
+
+    saveToHistory({
+      colors: preset.colors,
+      fonts: preset.fonts,
+      texts: preset.texts,
+      images: preset.images,
+      buttons: preset.buttons,
+      flowSteps: preset.flowSteps || state.flowSteps,
+      hasChanges: true,
+    });
+
+    setState(prev => ({
+      ...prev,
+      colors: preset.colors,
+      fonts: preset.fonts,
+      texts: preset.texts,
+      images: preset.images,
+      buttons: preset.buttons,
+      flowSteps: preset.flowSteps || prev.flowSteps,
+      hasChanges: true,
+    }));
+
+    setSaveStatus('success');
+    setSaveMessage(`Preset "${preset.name}" loaded successfully!`);
+    setTimeout(() => {
+      setSaveStatus('idle');
+      setSaveMessage('');
+    }, 3000);
+  };
+
+  const handleDeletePreset = (presetName: string) => {
+    const updatedPresets = savedPresets.filter(p => p.name !== presetName);
+    setSavedPresets(updatedPresets);
+    
+    try {
+      localStorage.setItem('modalEditorPresets', JSON.stringify(updatedPresets));
+      setSaveStatus('success');
+      setSaveMessage('Preset deleted successfully!');
+    } catch (error) {
+      setSaveStatus('error');
+      setSaveMessage('Failed to delete preset.');
+    }
+    
+    setTimeout(() => {
+      setSaveStatus('idle');
+      setSaveMessage('');
+    }, 3000);
+  };
+
+  /**
+   * Export/Import Configuration - Share between modals or team members
+   */
+  const handleExportConfig = () => {
+    const config = {
+      modalType: state.selectedModal,
+      timestamp: Date.now(),
+      colors: state.colors,
+      fonts: state.fonts,
+      texts: state.texts,
+      images: state.images.map(img => ({ ...img, value: img.value.length > 100 ? '[Base64 data - too long for export]' : img.value })), // Truncate large images
+      buttons: state.buttons,
+      sections: state.sections,
+      flowSteps: state.flowSteps,
+    };
+
+    const jsonString = JSON.stringify(config, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${state.selectedModal}-config-${Date.now()}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+
+    setSaveStatus('success');
+    setSaveMessage('Configuration exported successfully!');
+    setTimeout(() => {
+      setSaveStatus('idle');
+      setSaveMessage('');
+    }, 3000);
+  };
+
+  const handleImportConfig = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const config = JSON.parse(e.target?.result as string);
+        
+        if (config.modalType !== state.selectedModal) {
+          setSaveStatus('error');
+          setSaveMessage(`Config is for ${config.modalType}, but you're editing ${state.selectedModal}.`);
+          setTimeout(() => {
+            setSaveStatus('idle');
+            setSaveMessage('');
+          }, 5000);
+          return;
+        }
+
+        saveToHistory({
+          colors: config.colors || state.colors,
+          fonts: config.fonts || state.fonts,
+          texts: config.texts || state.texts,
+          buttons: config.buttons || state.buttons,
+          sections: config.sections || state.sections,
+          flowSteps: config.flowSteps || state.flowSteps,
+          hasChanges: true,
+        });
+
+        setState(prev => ({
+          ...prev,
+          colors: config.colors || prev.colors,
+          fonts: config.fonts || prev.fonts,
+          texts: config.texts || prev.texts,
+          buttons: config.buttons || prev.buttons,
+          sections: config.sections || prev.sections,
+          flowSteps: config.flowSteps || prev.flowSteps,
+          hasChanges: true,
+        }));
+
+        setSaveStatus('success');
+        setSaveMessage('Configuration imported successfully!');
+      } catch (error) {
+        setSaveStatus('error');
+        setSaveMessage('Failed to import configuration. Invalid file format.');
+      }
+      
+      setTimeout(() => {
+        setSaveStatus('idle');
+        setSaveMessage('');
+      }, 3000);
+    };
+    reader.readAsText(file);
+  };
+
+  // Load saved presets on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('modalEditorPresets');
+      if (saved) {
+        setSavedPresets(JSON.parse(saved));
+      }
+    } catch (error) {
+      console.error('Failed to load presets:', error);
+    }
+  }, []);
+
+  // ============================================================================
+  // PROJECT ASSETS - Fonts and Images available in the project
+  // ============================================================================
+
+  const PROJECT_FONTS = [
+    { name: 'sequel-45', label: 'Sequel 45 (Light)', file: '/fonts/sequel-100-black-45.ttf' },
+    { name: 'sequel-75', label: 'Sequel 75 (Medium)', file: '/fonts/sequel-100-black-75.ttf' },
+    { name: 'sequel-95', label: 'Sequel 95 (Heavy)', file: '/fonts/sequel-100-black-95.ttf' },
+    { name: 'inherit', label: 'System Default (Inherit)', file: '' },
+  ];
+
+  const PROJECT_IMAGES = [
+    // Logos and Branding
+    { path: '/logo.svg', category: 'Logo', name: 'Main Logo' },
+    { path: '/images/footer-logo.svg', category: 'Logo', name: 'Footer Logo' },
+    { path: '/images/mobile-logo.svg', category: 'Logo', name: 'Mobile Logo' },
+    
+    // Payment Method Icons
+    { path: '/images/paymentMethods/PaymentMethod_Logos_EH-01.svg', category: 'Payment', name: 'Payment Method 1' },
+    { path: '/images/paymentMethods/PaymentMethod_Logos_EH-02.svg', category: 'Payment', name: 'Payment Method 2' },
+    { path: '/images/paymentMethods/PaymentMethod_Logos_EH-03.svg', category: 'Payment', name: 'Payment Method 3' },
+    { path: '/images/paymentMethods/PaymentMethod_Logos_EH-04.svg', category: 'Payment', name: 'Payment Method 4' },
+    { path: '/images/paymentMethods/PaymentMethod_Logos_EH-05.svg', category: 'Payment', name: 'Payment Method 5' },
+    { path: '/images/paymentMethods/PaymentMethod_Logos_EH-06.svg', category: 'Payment', name: 'Payment Method 6' },
+    { path: '/images/paymentMethods/PaymentMethod_Logos_EH-07.svg', category: 'Payment', name: 'Payment Method 7' },
+    { path: '/images/paymentMethods/PaymentMethod_Logos_EH-08.svg', category: 'Payment', name: 'Payment Method 8' },
+    { path: '/images/paymentMethods/PaymentMethod_Logos_EH-09.svg', category: 'Payment', name: 'Payment Method 9' },
+    { path: '/images/paymentMethods/PaymentMethod_Logos_EH-10.svg', category: 'Payment', name: 'Payment Method 10' },
+    { path: '/images/paymentMethods/PaymentMethod_Logos_EH-11.svg', category: 'Payment', name: 'Payment Method 11' },
+    
+    // Icons
+    { path: '/images/ticket.svg', category: 'Icon', name: 'Ticket' },
+    { path: '/images/trophy.svg', category: 'Icon', name: 'Trophy' },
+    { path: '/images/trophyV2.svg', category: 'Icon', name: 'Trophy V2' },
+    { path: '/images/crown.svg', category: 'Icon', name: 'Crown' },
+    { path: '/images/gift.svg', category: 'Icon', name: 'Gift' },
+    { path: '/images/rocket.svg', category: 'Icon', name: 'Rocket' },
+    { path: '/images/avatar.svg', category: 'Icon', name: 'Avatar' },
+    { path: '/images/userAvatar.svg', category: 'Icon', name: 'User Avatar' },
+    { path: '/images/price-tag.svg', category: 'Icon', name: 'Price Tag' },
+    
+    // Social Icons
+    { path: '/images/X.svg', category: 'Social', name: 'X (Twitter)' },
+    { path: '/images/instagram-2.svg', category: 'Social', name: 'Instagram' },
+    { path: '/images/discord-2.svg', category: 'Social', name: 'Discord' },
+    { path: '/images/telegram-2.svg', category: 'Social', name: 'Telegram' },
+    
+    // Competition Images
+    { path: '/images/watch.png', category: 'Competition', name: 'Watch' },
+    { path: '/images/rolex.png', category: 'Competition', name: 'Rolex' },
+    { path: '/images/Lambo.png', category: 'Competition', name: 'Lambo' },
+    { path: '/images/bitcoin-image.webp', category: 'Competition', name: 'Bitcoin' },
+    
+    // Trust/Partner Logos
+    { path: '/images/trust-pilot-logo.png', category: 'Trust', name: 'Trustpilot Logo' },
+    { path: '/images/Trust.png', category: 'Trust', name: 'Trust Badge' },
+    { path: '/images/featuredBrands.svg', category: 'Trust', name: 'Featured Brands' },
+  ];
+
+  const openAssetBrowser = (type: 'font' | 'image', callback: (asset: string) => void) => {
+    setAssetBrowserType(type);
+    setAssetBrowserCallback(() => callback);
+    setShowAssetBrowser(true);
+  };
+
+  const closeAssetBrowser = () => {
+    setShowAssetBrowser(false);
+    setAssetBrowserCallback(null);
+  };
+
+  const selectAsset = (assetPath: string) => {
+    if (assetBrowserCallback) {
+      assetBrowserCallback(assetPath);
+    }
+    closeAssetBrowser();
+  };
+
   /**
    * Generate a downloadable TypeScript file with all changes applied
    * This creates a complete .tsx file for developers to review and apply
    */
   const generateDownloadableFile = (): string => {
-    const { selectedModal, colors, fonts, texts, images, buttons, flowSteps } = state;
+    const { selectedModal, colors, fonts, texts, images, buttons, flowSteps, sections } = state;
     
     // Generate a comment block with all the changes
-    let fileContent = `/**
+    const fileContent = `/**
  * ${selectedModal} - Modified by Visual Editor
  * 
  * This file contains the customizations made in the Visual Editor.
@@ -460,12 +991,14 @@ ${images.filter(i => !i.locked).map(i => `  ${i.name}: '${i.value}', // ${i.alt 
 
 ${buttons.length > 0 ? `
 // ============================================================================
-// BUTTON LINK CUSTOMIZATIONS
+// BUTTON CUSTOMIZATIONS
 // ============================================================================
-${buttons.filter(b => !b.locked && b.linkType !== 'none').map(b => `
+${buttons.map(b => `
 // ${b.label}
 // Link Type: ${b.linkType}
 // Link Value: ${b.linkValue}
+// Hidden: ${b.hidden ? 'Yes (Button will not be shown)' : 'No (Button will be visible)'}
+${b.icon ? `// Icon: ${b.icon}` : ''}
 // Description: ${b.description || 'No description'}
 ${b.hasDependencies ? `// ⚠️  DEPENDENCIES: ${b.dependencies?.join(', ')}
 // WARNING: Changing this button may break functionality that depends on:
@@ -473,8 +1006,12 @@ ${b.dependencies?.map(d => `//   - ${d}`).join('\n')}` : ''}
 const ${b.name}Config = {
   linkType: '${b.linkType}',
   linkValue: '${b.linkValue}',
+  hidden: ${b.hidden || false},${b.icon ? `\n  icon: '${b.icon}',` : ''}
 };
 `).join('\n')}
+
+// NOTE: Buttons marked as hidden should be conditionally rendered
+// Example: {!${buttons[0]?.name}Config.hidden && <button>...</button>}
 ` : ''}
 
 ${flowSteps.length > 0 ? `
@@ -493,6 +1030,24 @@ ${flowSteps.sort((a, b) => a.order - b.order).map(s => `  {
 ];
 
 // NOTE: Apply these flow steps to your modal's step navigation logic
+` : ''}
+
+${sections.length > 0 ? `
+// ============================================================================
+// SECTION VISIBILITY CONFIGURATION
+// ============================================================================
+
+const sectionsConfig = [
+${sections.map(s => `  {
+    name: '${s.name}',
+    label: '${s.label}',
+    hidden: ${s.hidden || false},${s.locked ? '\n    locked: true, // Core section - cannot be hidden' : ''}
+    description: '${s.description || ''}',
+  },`).join('\n')}
+];
+
+// NOTE: Sections marked as hidden should be conditionally rendered
+// Example: {!sectionsConfig.find(s => s.name === 'paymentMethods')?.hidden && <div>...</div>}
 ` : ''}
 
 // ============================================================================
@@ -618,6 +1173,29 @@ TESTING CHECKLIST:
 
   const renderFontEditor = () => (
     <div className="space-y-4">
+      {/* Browse Project Fonts Button */}
+      <div className="p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="text-white font-semibold mb-1">Project Fonts</h4>
+            <p className="text-white/60 text-sm">Use fonts from the website (Sequel family)</p>
+          </div>
+          <button
+            onClick={() => openAssetBrowser('font', (fontFamily) => {
+              // Apply to first unlocked font as example
+              const firstUnlocked = state.fonts.find(f => !f.locked);
+              if (firstUnlocked) {
+                handleFontChange(firstUnlocked.name, 'family', fontFamily);
+              }
+            })}
+            className="px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 rounded text-purple-400 font-medium transition-colors flex items-center gap-2"
+          >
+            <ImageIcon size={16} />
+            Browse Fonts
+          </button>
+        </div>
+      </div>
+
       {state.fonts.map(font => (
         <div key={font.name} className="p-4 bg-white/5 border border-white/10 rounded-lg">
           <div className="flex items-center gap-2 mb-3">
@@ -628,7 +1206,17 @@ TESTING CHECKLIST:
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-white/70 text-xs mb-1 block">Font Family</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-white/70 text-xs">Font Family</label>
+                {!font.locked && (
+                  <button
+                    onClick={() => openAssetBrowser('font', (fontFamily) => handleFontChange(font.name, 'family', fontFamily))}
+                    className="text-purple-400 hover:text-purple-300 text-xs underline"
+                  >
+                    Browse Project
+                  </button>
+                )}
+              </div>
               <select
                 value={font.family}
                 onChange={(e) => !font.locked && handleFontChange(font.name, 'family', e.target.value)}
@@ -636,6 +1224,9 @@ TESTING CHECKLIST:
                 className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <option value="inherit">System Default</option>
+                <option value="sequel-45">Sequel 45 (Light)</option>
+                <option value="sequel-75">Sequel 75 (Medium)</option>
+                <option value="sequel-95">Sequel 95 (Heavy)</option>
                 <option value="'Inter', sans-serif">Inter</option>
                 <option value="'Roboto', sans-serif">Roboto</option>
                 <option value="'Open Sans', sans-serif">Open Sans</option>
@@ -725,39 +1316,565 @@ TESTING CHECKLIST:
           No image properties available for this modal
         </div>
       ) : (
-        state.images.map(image => (
-          <div key={image.name} className="p-4 bg-white/5 border border-white/10 rounded-lg">
-            <div className="flex items-center gap-2 mb-3">
-              <label className="text-white font-medium">{image.label}</label>
-              {image.locked && (
-                <Lock size={14} className="text-yellow-400" title="Functional - locked from editing" />
-              )}
-            </div>
-            <div className="flex items-start gap-4">
-              {image.value && (
-                <img 
-                  src={image.value} 
-                  alt={image.alt || image.label}
-                  className="w-20 h-20 object-contain bg-white/5 rounded border border-white/10"
-                />
-              )}
-              <div className="flex-1">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file && !image.locked) {
-                      handleImageUpload(image.name, file);
-                    }
-                  }}
-                  disabled={image.locked}
-                  className="w-full text-white/70 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                />
-                <p className="text-white/40 text-xs mt-2">
-                  Upload a new image to replace the current one
-                </p>
+        <>
+          {/* Browse Project Images Button */}
+          <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-white font-semibold mb-1">Project Images</h4>
+                <p className="text-white/60 text-sm">Use existing images from the website</p>
               </div>
+              <button
+                onClick={() => openAssetBrowser('image', (imagePath) => {
+                  // Apply to first unlocked image as example
+                  const firstUnlocked = state.images.find(img => !img.locked);
+                  if (firstUnlocked) {
+                    setState(prev => ({
+                      ...prev,
+                      images: prev.images.map(img => 
+                        img.name === firstUnlocked.name ? { ...img, value: imagePath } : img
+                      ),
+                      hasChanges: true,
+                    }));
+                  }
+                })}
+                className="px-4 py-2 bg-green-500/20 hover:bg-green-500/30 rounded text-green-400 font-medium transition-colors flex items-center gap-2"
+              >
+                <ImageIcon size={16} />
+                Browse Images
+              </button>
+            </div>
+          </div>
+
+          {state.images.map(image => (
+            <div key={image.name} className="p-4 bg-white/5 border border-white/10 rounded-lg">
+              <div className="flex items-center gap-2 mb-3">
+                <label className="text-white font-medium">{image.label}</label>
+                {image.locked && (
+                  <Lock size={14} className="text-yellow-400" title="Functional - locked from editing" />
+                )}
+                {image.type && (
+                  <span className="text-xs px-2 py-0.5 rounded bg-blue-500/20 text-blue-400">
+                    {image.type.replace('_', ' ')}
+                  </span>
+                )}
+              </div>
+              
+              {/* Image metadata info */}
+              {(image.format || image.dimensions) && (
+                <div className="mb-3 p-2 bg-blue-500/10 border border-blue-500/30 rounded text-xs text-blue-400">
+                  {image.format && image.format !== 'any' && (
+                    <div>Preferred format: <strong>{image.format.toUpperCase()}</strong></div>
+                  )}
+                  {image.dimensions && (
+                    <div>Recommended dimensions: <strong>{image.dimensions.width}×{image.dimensions.height}px</strong></div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex items-start gap-4">
+                {image.value && (
+                  <img 
+                    src={image.value} 
+                    alt={image.alt || image.label}
+                    className="w-20 h-20 object-contain bg-white/5 rounded border border-white/10"
+                  />
+                )}
+                <div className="flex-1 space-y-3">
+                  {/* Browse Project Images */}
+                  {!image.locked && (
+                    <button
+                      onClick={() => openAssetBrowser('image', (imagePath) => {
+                        setState(prev => ({
+                          ...prev,
+                          images: prev.images.map(img => 
+                            img.name === image.name ? { ...img, value: imagePath } : img
+                          ),
+                          hasChanges: true,
+                        }));
+                      })}
+                      className="w-full px-3 py-2 bg-green-500/20 hover:bg-green-500/30 rounded text-green-400 text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                      <ImageIcon size={14} />
+                      Browse Project Images
+                    </button>
+                  )}
+                  
+                  {/* File Upload */}
+                  <div>
+                    <label className="text-white/70 text-xs mb-1 block">Or upload a new image:</label>
+                    <input
+                      type="file"
+                      accept={image.acceptFormats || "image/*"}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file && !image.locked) {
+                          handleImageUpload(image.name, file, image);
+                        }
+                      }}
+                      disabled={image.locked}
+                      className="w-full text-white/70 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                    <p className="text-white/40 text-xs mt-2">
+                      {image.acceptFormats ? 
+                        `Accepts: ${image.acceptFormats.split(',').map(f => f.split('/')[1].toUpperCase()).join(', ')}` :
+                        'Upload a new image to replace the current one'
+                      }
+                    </p>
+                    <p className="text-white/40 text-xs mt-1">
+                      Maximum file size: 2MB
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+
+  const renderButtonEditor = () => {
+    const buttonTemplates = [
+      {
+        name: 'payment_method',
+        label: 'Payment Method Button',
+        linkType: 'action' as const,
+        linkValue: 'processPayment',
+        description: 'New payment method option',
+        hasDependencies: true,
+        dependencies: ['Payment API'],
+      },
+      {
+        name: 'wallet_connect',
+        label: 'Wallet Connection Button',
+        linkType: 'action' as const,
+        linkValue: 'connectWallet',
+        description: 'Connect a specific wallet',
+        hasDependencies: true,
+        dependencies: ['Wallet SDK', 'OnchainKit'],
+      },
+      {
+        name: 'external_link',
+        label: 'External Link Button',
+        linkType: 'url' as const,
+        linkValue: 'https://example.com',
+        description: 'Link to external resource',
+        hasDependencies: false,
+      },
+      {
+        name: 'internal_nav',
+        label: 'Internal Navigation Button',
+        linkType: 'route' as const,
+        linkValue: '/dashboard',
+        description: 'Navigate to internal route',
+        hasDependencies: false,
+      },
+    ];
+
+    const applyTemplate = (template: typeof buttonTemplates[0]) => {
+      setNewButton({
+        ...newButton,
+        ...template,
+        name: `${template.name}_${Date.now()}`,
+      });
+    };
+
+    const addButton = () => {
+      if (!newButton.name || !newButton.label) {
+        setSaveStatus('error');
+        setSaveMessage('Button name and label are required.');
+        setTimeout(() => {
+          setSaveStatus('idle');
+          setSaveMessage('');
+        }, 3000);
+        return;
+      }
+
+      handleAddNewButton(newButton as ButtonProperty);
+      setShowAddButton(false);
+      setNewButton({
+        name: '',
+        label: '',
+        linkType: 'none',
+        linkValue: '',
+        description: '',
+        hasDependencies: false,
+        dependencies: [],
+        locked: false,
+        hidden: false,
+        icon: '',
+      });
+    };
+
+    return (
+      <div className="space-y-4">
+        {state.buttons.length === 0 ? (
+          <div className="p-8 text-center text-white/50">
+            No button properties available for this modal
+          </div>
+        ) : (
+          <>
+            <div className="p-4 bg-[#0052FF]/10 border border-[#0052FF]/30 rounded-lg mb-6">
+              <h3 className="text-white font-semibold mb-2 flex items-center gap-2">
+                <LinkIcon size={18} className="text-[#0052FF]" />
+                Button Configuration
+              </h3>
+              <p className="text-white/70 text-sm mb-2">
+                Configure button visibility, links, and icons. Add new buttons using templates below.
+              </p>
+              <p className="text-white/60 text-xs">
+                <strong>Tip:</strong> Hide buttons to remove them from the modal without deleting configuration.
+              </p>
+            </div>
+
+            {/* Add New Button Section */}
+            {state.selectedModal === 'PaymentModal' || state.selectedModal === 'TopUpWalletModal' ? (
+              <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
+                <button
+                  onClick={() => setShowAddButton(!showAddButton)}
+                  className="w-full flex items-center justify-between text-white font-medium"
+                >
+                  <span className="flex items-center gap-2">
+                    <CheckCircle size={16} className="text-green-400" />
+                    Add New Button
+                  </span>
+                  <span className="text-green-400">{showAddButton ? '−' : '+'}</span>
+                </button>
+                
+                {showAddButton && (
+                  <div className="mt-4 space-y-3">
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                      {buttonTemplates.map((template) => (
+                        <button
+                          key={template.name}
+                          onClick={() => applyTemplate(template)}
+                          className="px-3 py-2 bg-white/10 hover:bg-white/20 rounded text-xs text-white text-left transition-colors"
+                        >
+                          {template.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div>
+                      <label className="text-white/70 text-xs mb-1 block">Button Name (unique ID)</label>
+                      <input
+                        type="text"
+                        value={newButton.name}
+                        onChange={(e) => setNewButton({ ...newButton, name: e.target.value })}
+                        placeholder="e.g., myNewButton"
+                        className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-white/70 text-xs mb-1 block">Button Label</label>
+                      <input
+                        type="text"
+                        value={newButton.label}
+                        onChange={(e) => setNewButton({ ...newButton, label: e.target.value })}
+                        placeholder="e.g., Pay with Apple Pay"
+                        className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-white/70 text-xs mb-1 block">Link Type</label>
+                        <select
+                          value={newButton.linkType}
+                          onChange={(e) => setNewButton({ ...newButton, linkType: e.target.value as any })}
+                          className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm"
+                        >
+                          <option value="none">None</option>
+                          <option value="url">External URL</option>
+                          <option value="route">Internal Route</option>
+                          <option value="action">Action/Function</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-white/70 text-xs mb-1 block">Link Value</label>
+                        <input
+                          type="text"
+                          value={newButton.linkValue}
+                          onChange={(e) => setNewButton({ ...newButton, linkValue: e.target.value })}
+                          placeholder="URL, route, or function"
+                          className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-white/70 text-xs">Icon URL (optional)</label>
+                        <button
+                          onClick={() => openAssetBrowser('image', (imagePath) => setNewButton({ ...newButton, icon: imagePath }))}
+                          className="text-green-400 hover:text-green-300 text-xs underline"
+                        >
+                          Browse Project
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={newButton.icon}
+                        onChange={(e) => setNewButton({ ...newButton, icon: e.target.value })}
+                        placeholder="https://example.com/icon.svg"
+                        className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-white/70 text-xs mb-1 block">Description</label>
+                      <input
+                        type="text"
+                        value={newButton.description}
+                        onChange={(e) => setNewButton({ ...newButton, description: e.target.value })}
+                        placeholder="Brief description"
+                        className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm"
+                      />
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={addButton}
+                        className="flex-1 px-4 py-2 bg-green-500 hover:bg-green-600 rounded text-white font-medium transition-colors"
+                      >
+                        Add Button
+                      </button>
+                      <button
+                        onClick={() => setShowAddButton(false)}
+                        className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded text-white transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            {/* Existing Buttons */}
+            {state.buttons
+              .sort((a, b) => (a.order || 0) - (b.order || 0))
+              .map((button, index) => (
+              <div 
+                key={button.name} 
+                className={`p-4 border rounded-lg ${
+                  button.hidden 
+                    ? 'bg-white/[0.02] border-white/5 opacity-60' 
+                    : 'bg-white/5 border-white/10'
+                }`}
+                draggable={!button.locked}
+                onDragStart={(e) => {
+                  if (!button.locked) {
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', index.toString());
+                  }
+                }}
+                onDragOver={(e) => {
+                  if (!button.locked) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                  }
+                }}
+                onDrop={(e) => {
+                  if (!button.locked) {
+                    e.preventDefault();
+                    const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
+                    if (fromIndex !== index) {
+                      handleButtonReorder(fromIndex, index);
+                    }
+                  }
+                }}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    {!button.locked && (
+                      <GripVertical size={16} className="text-white/40 cursor-move" title="Drag to reorder" />
+                    )}
+                    <label className="text-white font-medium">{button.label}</label>
+                    {button.locked && (
+                      <Lock size={14} className="text-yellow-400" title="Functional - locked from editing" />
+                    )}
+                    {button.hasDependencies && (
+                      <AlertCircle size={14} className="text-orange-400" title="Has dependencies" />
+                    )}
+                    {button.hidden && (
+                      <span className="text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-400">
+                        Hidden
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Visibility Toggle */}
+                  {!button.locked && (
+                    <button
+                      onClick={() => handleButtonVisibilityToggle(button.name, !button.hidden)}
+                      className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                        button.hidden
+                          ? 'bg-green-500/20 hover:bg-green-500/30 text-green-400'
+                          : 'bg-red-500/20 hover:bg-red-500/30 text-red-400'
+                      }`}
+                    >
+                      {button.hidden ? 'Show' : 'Hide'}
+                    </button>
+                  )}
+                </div>
+
+                {button.description && (
+                  <p className="text-white/60 text-sm mb-3">{button.description}</p>
+                )}
+
+                {button.hasDependencies && button.dependencies && (
+                  <div className="mb-3 p-3 bg-orange-500/10 border border-orange-500/30 rounded">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle size={16} className="text-orange-400 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-orange-400 text-xs font-medium mb-1">⚠️ Dependencies</p>
+                        <ul className="text-orange-400/80 text-xs space-y-0.5 list-disc list-inside">
+                          {button.dependencies.map((dep, idx) => (
+                            <li key={idx}>{dep}</li>
+                          ))}
+                        </ul>
+                        <p className="text-orange-400/70 text-xs mt-1">
+                          Changing this button's link may break these dependencies.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="text-white/70 text-xs mb-1 block">Link Type</label>
+                    <select
+                      value={button.linkType}
+                      onChange={(e) => !button.locked && handleButtonLinkChange(button.name, 'linkType', e.target.value)}
+                      disabled={button.locked}
+                      className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <option value="none">No Link (Default Action)</option>
+                      <option value="url">External URL</option>
+                      <option value="route">Internal Route</option>
+                      <option value="action">Action/Function</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-white/70 text-xs mb-1 block">Link Value</label>
+                    <input
+                      type="text"
+                      value={button.linkValue}
+                      onChange={(e) => !button.locked && handleButtonLinkChange(button.name, 'linkValue', e.target.value)}
+                      disabled={button.locked || button.linkType === 'none'}
+                      placeholder={
+                        button.linkType === 'url' ? 'https://example.com' :
+                        button.linkType === 'route' ? '/dashboard' :
+                        button.linkType === 'action' ? 'functionName' : 'N/A'
+                      }
+                      className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                  </div>
+                </div>
+
+                {/* Icon Input */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-white/70 text-xs">Icon URL (optional)</label>
+                    {!button.locked && (
+                      <button
+                        onClick={() => openAssetBrowser('image', (imagePath) => handleButtonIconChange(button.name, imagePath))}
+                        className="text-green-400 hover:text-green-300 text-xs underline"
+                      >
+                        Browse Project
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={button.icon || ''}
+                    onChange={(e) => !button.locked && handleButtonIconChange(button.name, e.target.value)}
+                    disabled={button.locked}
+                    placeholder="https://example.com/icon.svg or /icons/wallet.png"
+                    className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                  {button.icon && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <img src={button.icon} alt="Icon preview" className="w-6 h-6 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                      <span className="text-white/50 text-xs">Icon preview</span>
+                    </div>
+                  )}
+                </div>
+
+                {button.linkType === 'url' && button.linkValue && (
+                  <div className="mt-2 flex items-center gap-2 text-xs text-white/50">
+                    <ExternalLink size={12} />
+                    <span>Will open: {button.linkValue}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+    );
+  };
+
+  const renderSectionsEditor = () => (
+    <div className="space-y-4">
+      <div className="p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg mb-6">
+        <h3 className="text-white font-semibold mb-2 flex items-center gap-2">
+          <Layers size={18} className="text-purple-400" />
+          Section Visibility Management
+        </h3>
+        <p className="text-white/70 text-sm mb-2">
+          Hide or show entire sections of the modal. Sections group related content and buttons.
+        </p>
+        <p className="text-white/60 text-xs">
+          <strong>Tip:</strong> Hide sections to simplify the modal or test different layouts.
+        </p>
+      </div>
+
+      {state.sections.length === 0 ? (
+        <div className="p-8 text-center text-white/50">
+          No section properties available for this modal
+        </div>
+      ) : (
+        state.sections.map(section => (
+          <div key={section.name} className={`p-4 border rounded-lg ${
+            section.hidden 
+              ? 'bg-white/[0.02] border-white/5 opacity-60' 
+              : 'bg-white/5 border-white/10'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <h4 className="text-white font-semibold">{section.label}</h4>
+                  {section.locked && (
+                    <Lock size={14} className="text-yellow-400" title="Core section - cannot be hidden" />
+                  )}
+                  {section.hidden && (
+                    <span className="text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-400">
+                      Hidden
+                    </span>
+                  )}
+                </div>
+                {section.description && (
+                  <p className="text-white/60 text-sm">{section.description}</p>
+                )}
+              </div>
+              
+              {!section.locked && (
+                <button
+                  onClick={() => handleSectionVisibilityToggle(section.name, !section.hidden)}
+                  className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ml-4 ${
+                    section.hidden
+                      ? 'bg-green-500/20 hover:bg-green-500/30 text-green-400'
+                      : 'bg-red-500/20 hover:bg-red-500/30 text-red-400'
+                  }`}
+                >
+                  {section.hidden ? 'Show' : 'Hide'}
+                </button>
+              )}
             </div>
           </div>
         ))
@@ -765,106 +1882,280 @@ TESTING CHECKLIST:
     </div>
   );
 
-  const renderButtonEditor = () => (
-    <div className="space-y-4">
-      {state.buttons.length === 0 ? (
-        <div className="p-8 text-center text-white/50">
-          No button properties available for this modal
+  const renderPresetManager = () => {
+    const [presetName, setPresetName] = useState('');
+    const [presetDescription, setPresetDescription] = useState('');
+
+    const handleSave = () => {
+      if (!presetName) {
+        setSaveStatus('error');
+        setSaveMessage('Preset name is required.');
+        setTimeout(() => {
+          setSaveStatus('idle');
+          setSaveMessage('');
+        }, 3000);
+        return;
+      }
+
+      handleSavePreset(presetName, presetDescription);
+      setPresetName('');
+      setPresetDescription('');
+    };
+
+    return (
+      <div className="space-y-4">
+        <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg mb-6">
+          <h3 className="text-white font-semibold mb-2 flex items-center gap-2">
+            <Save size={18} className="text-blue-400" />
+            Preset & Configuration Management
+          </h3>
+          <p className="text-white/70 text-sm mb-2">
+            Save current configuration as a preset, or load/import saved configurations.
+          </p>
+          <p className="text-white/60 text-xs">
+            <strong>Tip:</strong> Use presets to quickly switch between different design themes or save work-in-progress.
+          </p>
         </div>
-      ) : (
-        <>
-          <div className="p-4 bg-[#0052FF]/10 border border-[#0052FF]/30 rounded-lg mb-6">
-            <h3 className="text-white font-semibold mb-2 flex items-center gap-2">
-              <LinkIcon size={18} className="text-[#0052FF]" />
-              Button Link Configuration
-            </h3>
-            <p className="text-white/70 text-sm mb-2">
-              Configure button links and actions. Be careful when changing buttons with dependencies.
-            </p>
-            <p className="text-white/60 text-xs">
-              <strong>Warning:</strong> Buttons with dependencies may break functionality if linked incorrectly.
-            </p>
+
+        {/* Save New Preset */}
+        <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
+          <h4 className="text-white font-semibold mb-3">Save Current Configuration</h4>
+          <div className="space-y-3">
+            <div>
+              <label className="text-white/70 text-xs mb-1 block">Preset Name</label>
+              <input
+                type="text"
+                value={presetName}
+                onChange={(e) => setPresetName(e.target.value)}
+                placeholder="e.g., Dark Theme"
+                className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-white/70 text-xs mb-1 block">Description (optional)</label>
+              <input
+                type="text"
+                value={presetDescription}
+                onChange={(e) => setPresetDescription(e.target.value)}
+                placeholder="e.g., Dark theme with blue accents"
+                className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white text-sm"
+              />
+            </div>
+            <button
+              onClick={handleSave}
+              className="w-full px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded text-white font-medium transition-colors flex items-center justify-center gap-2"
+            >
+              <Save size={16} />
+              Save as Preset
+            </button>
           </div>
+        </div>
 
-          {state.buttons.map(button => (
-            <div key={button.name} className="p-4 bg-white/5 border border-white/10 rounded-lg">
-              <div className="flex items-center gap-2 mb-3">
-                <label className="text-white font-medium">{button.label}</label>
-                {button.locked && (
-                  <Lock size={14} className="text-yellow-400" title="Functional - locked from editing" />
-                )}
-                {button.hasDependencies && (
-                  <AlertCircle size={14} className="text-orange-400" title="Has dependencies" />
-                )}
-              </div>
+        {/* Export/Import */}
+        <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
+          <h4 className="text-white font-semibold mb-3">Export / Import Configuration</h4>
+          <div className="flex gap-2">
+            <button
+              onClick={handleExportConfig}
+              className="flex-1 px-4 py-2 bg-green-500/20 hover:bg-green-500/30 rounded text-green-400 font-medium transition-colors flex items-center justify-center gap-2"
+            >
+              <FileDown size={16} />
+              Export JSON
+            </button>
+            <label className="flex-1 px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 rounded text-purple-400 font-medium transition-colors flex items-center justify-center gap-2 cursor-pointer">
+              <Upload size={16} />
+              Import JSON
+              <input
+                type="file"
+                accept=".json"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    handleImportConfig(file);
+                  }
+                }}
+                className="hidden"
+              />
+            </label>
+          </div>
+          <p className="text-white/50 text-xs mt-2">
+            Export to JSON to share with team members or import configurations from other modals.
+          </p>
+        </div>
 
-              {button.description && (
-                <p className="text-white/60 text-sm mb-3">{button.description}</p>
-              )}
-
-              {button.hasDependencies && button.dependencies && (
-                <div className="mb-3 p-3 bg-orange-500/10 border border-orange-500/30 rounded">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle size={16} className="text-orange-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-orange-400 text-xs font-medium mb-1">⚠️ Dependencies</p>
-                      <ul className="text-orange-400/80 text-xs space-y-0.5 list-disc list-inside">
-                        {button.dependencies.map((dep, idx) => (
-                          <li key={idx}>{dep}</li>
-                        ))}
-                      </ul>
-                      <p className="text-orange-400/70 text-xs mt-1">
-                        Changing this button's link may break these dependencies.
+        {/* Saved Presets */}
+        {savedPresets.length > 0 && (
+          <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
+            <h4 className="text-white font-semibold mb-3">Saved Presets ({savedPresets.length})</h4>
+            <div className="space-y-2">
+              {savedPresets
+                .filter(p => p.modalType === state.selectedModal)
+                .map(preset => (
+                  <div key={preset.name} className="p-3 bg-white/5 border border-white/10 rounded flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h5 className="text-white font-medium">{preset.name}</h5>
+                        <span className="text-xs px-2 py-0.5 rounded bg-blue-500/20 text-blue-400">
+                          {preset.modalType}
+                        </span>
+                      </div>
+                      {preset.description && (
+                        <p className="text-white/60 text-xs mb-1">{preset.description}</p>
+                      )}
+                      <p className="text-white/40 text-xs">
+                        {new Date(preset.timestamp).toLocaleString()}
                       </p>
                     </div>
+                    <div className="flex gap-2 ml-4">
+                      <button
+                        onClick={() => handleLoadPreset(preset)}
+                        className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 rounded text-blue-400 text-xs font-medium transition-colors"
+                      >
+                        Load
+                      </button>
+                      <button
+                        onClick={() => handleDeletePreset(preset.name)}
+                        className="px-3 py-1 bg-red-500/20 hover:bg-red-500/30 rounded text-red-400 text-xs font-medium transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-white/70 text-xs mb-1 block">Link Type</label>
-                  <select
-                    value={button.linkType}
-                    onChange={(e) => !button.locked && handleButtonLinkChange(button.name, 'linkType', e.target.value)}
-                    disabled={button.locked}
-                    className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <option value="none">No Link (Default Action)</option>
-                    <option value="url">External URL</option>
-                    <option value="route">Internal Route</option>
-                    <option value="action">Action/Function</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-white/70 text-xs mb-1 block">Link Value</label>
-                  <input
-                    type="text"
-                    value={button.linkValue}
-                    onChange={(e) => !button.locked && handleButtonLinkChange(button.name, 'linkValue', e.target.value)}
-                    disabled={button.locked || button.linkType === 'none'}
-                    placeholder={
-                      button.linkType === 'url' ? 'https://example.com' :
-                      button.linkType === 'route' ? '/dashboard' :
-                      button.linkType === 'action' ? 'functionName' : 'N/A'
-                    }
-                    className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                  />
-                </div>
-              </div>
-
-              {button.linkType === 'url' && button.linkValue && (
-                <div className="mt-2 flex items-center gap-2 text-xs text-white/50">
-                  <ExternalLink size={12} />
-                  <span>Will open: {button.linkValue}</span>
-                </div>
-              )}
+                ))}
             </div>
-          ))}
-        </>
-      )}
-    </div>
-  );
+            {savedPresets.filter(p => p.modalType === state.selectedModal).length === 0 && (
+              <p className="text-white/50 text-sm text-center py-4">
+                No saved presets for {state.selectedModal}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderAssetBrowser = () => {
+    if (!showAssetBrowser) return null;
+
+    const [selectedCategory, setSelectedCategory] = useState<string>('All');
+
+    const categories = ['All', ...Array.from(new Set(PROJECT_IMAGES.map(img => img.category)))];
+    const filteredImages = selectedCategory === 'All' 
+      ? PROJECT_IMAGES 
+      : PROJECT_IMAGES.filter(img => img.category === selectedCategory);
+
+    return (
+      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-[#0A0A0F] border border-white/20 rounded-lg max-w-4xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+          {/* Header */}
+          <div className="p-4 border-b border-white/10 flex items-center justify-between">
+            <h3 className="text-white font-semibold text-lg">
+              {assetBrowserType === 'font' ? 'Select Project Font' : 'Select Project Image'}
+            </h3>
+            <button
+              onClick={closeAssetBrowser}
+              className="text-white/50 hover:text-white transition-colors"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-4">
+            {assetBrowserType === 'font' ? (
+              <div className="space-y-2">
+                {PROJECT_FONTS.map(font => (
+                  <button
+                    key={font.name}
+                    onClick={() => selectAsset(font.name)}
+                    className="w-full p-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-left transition-colors group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-white font-medium" style={{ fontFamily: font.name }}>
+                          {font.label}
+                        </p>
+                        <p className="text-white/50 text-sm mt-1" style={{ fontFamily: font.name }}>
+                          The quick brown fox jumps over the lazy dog
+                        </p>
+                        {font.file && (
+                          <p className="text-white/40 text-xs mt-1">{font.file}</p>
+                        )}
+                      </div>
+                      <CheckCircle size={20} className="text-green-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <>
+                {/* Category Filter */}
+                <div className="mb-4 flex flex-wrap gap-2">
+                  {categories.map(category => (
+                    <button
+                      key={category}
+                      onClick={() => setSelectedCategory(category)}
+                      className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                        selectedCategory === category
+                          ? 'bg-[#0052FF] text-white'
+                          : 'bg-white/10 text-white/70 hover:bg-white/20'
+                      }`}
+                    >
+                      {category}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Image Grid */}
+                <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                  {filteredImages.map(image => (
+                    <button
+                      key={image.path}
+                      onClick={() => selectAsset(image.path)}
+                      className="aspect-square bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg p-3 transition-colors group relative overflow-hidden"
+                      title={image.name}
+                    >
+                      <img
+                        src={image.path}
+                        alt={image.name}
+                        className="w-full h-full object-contain"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                          (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                        }}
+                      />
+                      <div className="hidden absolute inset-0 flex items-center justify-center text-white/50 text-xs">
+                        ✕
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/80 p-1 text-white/70 text-xs truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                        {image.name}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                {filteredImages.length === 0 && (
+                  <div className="text-center text-white/50 py-8">
+                    No images in this category
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="p-4 border-t border-white/10 flex justify-end">
+            <button
+              onClick={closeAssetBrowser}
+              className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded text-white transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const renderFlowEditor = () => (
     <div className="space-y-4">
@@ -995,6 +2286,26 @@ TESTING CHECKLIST:
               <p className="text-white/50 text-sm">Admin-only editor with download functionality</p>
             </div>
             <div className="flex items-center gap-3">
+              {/* Undo/Redo Buttons */}
+              <div className="flex items-center gap-1 border-r border-white/10 pr-3">
+                <button
+                  onClick={handleUndo}
+                  disabled={state.historyIndex <= 0}
+                  className="px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="Undo"
+                >
+                  <Undo2 size={18} />
+                </button>
+                <button
+                  onClick={handleRedo}
+                  disabled={state.historyIndex >= state.history.length - 1}
+                  className="px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="Redo"
+                >
+                  <Redo2 size={18} />
+                </button>
+              </div>
+              
               <button
                 onClick={() => setState(prev => ({ ...prev, showPreview: !prev.showPreview }))}
                 className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg flex items-center gap-2 transition-colors"
@@ -1134,6 +2445,34 @@ TESTING CHECKLIST:
                   <span>Buttons</span>
                 </button>
               )}
+              
+              {/* Sections Tab */}
+              {(state.selectedModal === 'PaymentModal' || state.selectedModal === 'TopUpWalletModal') && (
+                <button
+                  onClick={() => setActiveTab('sections')}
+                  className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors flex-shrink-0 ${
+                    activeTab === 'sections' 
+                      ? 'border-purple-500 text-white' 
+                      : 'border-transparent text-white/50 hover:text-white/70'
+                  }`}
+                >
+                  <Layers size={18} />
+                  <span>Sections</span>
+                </button>
+              )}
+              
+              {/* Presets Tab */}
+              <button
+                onClick={() => setActiveTab('presets')}
+                className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors flex-shrink-0 ${
+                  activeTab === 'presets' 
+                    ? 'border-blue-500 text-white' 
+                    : 'border-transparent text-white/50 hover:text-white/70'
+                }`}
+              >
+                <Save size={18} />
+                <span>Presets</span>
+              </button>
             </div>
 
             {/* Editor Content */}
@@ -1144,6 +2483,8 @@ TESTING CHECKLIST:
               {activeTab === 'text' && renderTextEditor()}
               {activeTab === 'images' && renderImageEditor()}
               {activeTab === 'buttons' && renderButtonEditor()}
+              {activeTab === 'sections' && renderSectionsEditor()}
+              {activeTab === 'presets' && renderPresetManager()}
             </div>
 
             {/* Info Box */}
@@ -1220,6 +2561,9 @@ TESTING CHECKLIST:
           )}
         </div>
       </div>
+
+      {/* Asset Browser Modal */}
+      {renderAssetBrowser()}
     </div>
   );
 }
