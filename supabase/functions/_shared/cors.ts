@@ -1,10 +1,10 @@
 // Dynamic CORS configuration for Supabase Edge Functions
 // Allows stage.theprize.io and localhost development origins
 
-const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://stage.theprize.io';
+const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://substage.theprize.io';
 const ALLOWED_ORIGINS = [
   SITE_URL,
-  'https://stage.theprize.io',
+  'https://substage.theprize.io',
   'https://theprize.io',
   'https://theprizeio.netlify.app', // Netlify hosted site
   'https://www.theprize.io',
