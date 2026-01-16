@@ -154,6 +154,15 @@ const PREVIEW_PROPS = {
     competitionId: 'preview-competition',
     ticketPrice: 5,
   },
+  TopUpWalletModal: {
+    // No additional props required for preview
+  },
+};
+
+// Preview handlers (no-op functions for preview mode)
+const PREVIEW_HANDLERS = {
+  onClose: () => { /* Preview mode - no action on close */ },
+  onOpen: () => { /* Preview mode - no action on open */ },
 };
 
 export default function AuthModalVisualEditor() {
@@ -2540,18 +2549,18 @@ TESTING CHECKLIST:
                   {state.selectedModal === 'NewAuthModal' ? (
                     <NewAuthModal 
                       isOpen={true} 
-                      onClose={() => { /* Preview mode - no action on close */ }} 
+                      onClose={PREVIEW_HANDLERS.onClose} 
                     />
                   ) : state.selectedModal === 'BaseWalletAuthModal' ? (
                     <BaseWalletAuthModal 
                       isOpen={true} 
-                      onClose={() => { /* Preview mode - no action on close */ }} 
+                      onClose={PREVIEW_HANDLERS.onClose} 
                     />
                   ) : state.selectedModal === 'PaymentModal' ? (
                     <PaymentModal 
                       isOpen={true} 
-                      onClose={() => { /* Preview mode - no action on close */ }}
-                      onOpen={() => { /* Preview mode - no action on open */ }}
+                      onClose={PREVIEW_HANDLERS.onClose}
+                      onOpen={PREVIEW_HANDLERS.onOpen}
                       ticketCount={PREVIEW_PROPS.PaymentModal.ticketCount}
                       competitionId={PREVIEW_PROPS.PaymentModal.competitionId}
                       ticketPrice={PREVIEW_PROPS.PaymentModal.ticketPrice}
@@ -2559,7 +2568,7 @@ TESTING CHECKLIST:
                   ) : state.selectedModal === 'TopUpWalletModal' ? (
                     <TopUpWalletModal 
                       isOpen={true} 
-                      onClose={() => { /* Preview mode - no action on close */ }}
+                      onClose={PREVIEW_HANDLERS.onClose}
                     />
                   ) : (
                     <p className="text-white/50 text-center px-4">
