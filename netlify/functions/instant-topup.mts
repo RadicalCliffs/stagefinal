@@ -171,10 +171,9 @@ async function verifyTransaction(
       return { verified: false, error: "Transaction failed on chain" };
     }
 
-    // Check if it's a USDC transfer
-    if (receipt.to?.toLowerCase() !== USDC_ADDRESS) {
-      return { verified: false, error: "Transaction is not a USDC transfer" };
-    }
+    // Note: We don't check receipt.to because smart contract wallets (Coinbase, etc.)
+    // route transactions through their own contracts. Instead, we verify the USDC
+    // Transfer event in the logs below, which is the definitive proof of USDC transfer.
 
     // Parse logs to find the Transfer event
     // Transfer event signature: Transfer(address indexed from, address indexed to, uint256 value)
