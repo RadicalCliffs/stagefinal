@@ -1,35 +1,37 @@
 /**
- * Visual Editor for Auth Modals
+ * Visual Editor for Modals
  * 
  * Admin-only visual editor for modifying aesthetic properties of:
  * - NewAuthModal.tsx
  * - BaseWalletAuthModal.tsx
+ * - PaymentModal.tsx
+ * - TopUpWalletModal.tsx
  * 
  * Features:
  * - Color pickers for all color properties
  * - Font controls (family, size, weight, style)
  * - Image/icon upload and replacement
  * - Text content editing
+ * - Button linking with dependency warnings
  * - Live preview
- * - Direct file writing
+ * - File download for developers (not GitHub write)
  */
 
 import React, { useState, useEffect } from 'react';
 import { 
-  X, 
-  Save, 
   Eye, 
   EyeOff, 
   RotateCcw, 
-  Upload,
   Palette,
   Type,
   Image as ImageIcon,
   Lock,
-  Unlock,
   AlertCircle,
   CheckCircle,
-  ArrowRight
+  ArrowRight,
+  Download,
+  Link as LinkIcon,
+  ExternalLink
 } from 'lucide-react';
 import NewAuthModal from '../components/NewAuthModal';
 import BaseWalletAuthModal from '../components/BaseWalletAuthModal';
@@ -78,7 +80,18 @@ interface FlowStep {
   order: number;
 }
 
-type ModalType = 'NewAuthModal' | 'BaseWalletAuthModal';
+interface ButtonProperty {
+  name: string;
+  label: string;
+  linkType: 'none' | 'url' | 'route' | 'action';
+  linkValue: string;
+  description?: string;
+  hasDependencies?: boolean;
+  dependencies?: string[];
+  locked?: boolean;
+}
+
+type ModalType = 'NewAuthModal' | 'BaseWalletAuthModal' | 'PaymentModal' | 'TopUpWalletModal';
 
 interface EditorState {
   selectedModal: ModalType;
@@ -87,6 +100,7 @@ interface EditorState {
   texts: TextProperty[];
   images: ImageProperty[];
   flowSteps: FlowStep[];
+  buttons: ButtonProperty[];
   showPreview: boolean;
   previewOpen: boolean;
   hasChanges: boolean;
@@ -100,12 +114,13 @@ export default function AuthModalVisualEditor() {
     texts: [],
     images: [],
     flowSteps: [],
+    buttons: [],
     showPreview: true,
     previewOpen: false,
     hasChanges: false,
   });
 
-  const [activeTab, setActiveTab] = useState<'flow' | 'colors' | 'fonts' | 'text' | 'images'>('flow');
+  const [activeTab, setActiveTab] = useState<'flow' | 'colors' | 'fonts' | 'text' | 'images' | 'buttons'>('flow');
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState('');
@@ -164,8 +179,9 @@ export default function AuthModalVisualEditor() {
         images: [
           { name: 'modalLogo', label: 'Modal Logo', value: '/logo.png', alt: 'The Prize Logo' },
         ],
+        buttons: [],
       }));
-    } else {
+    } else if (modalType === 'BaseWalletAuthModal') {
       // BaseWalletAuthModal properties
       setState(prev => ({
         ...prev,
@@ -201,6 +217,87 @@ export default function AuthModalVisualEditor() {
           { name: 'successSubtitle', label: 'Success Subtitle', value: 'The Platform Players Trust.' },
         ],
         images: [],
+        buttons: [],
+      }));
+    } else if (modalType === 'PaymentModal') {
+      // PaymentModal properties
+      setState(prev => ({
+        ...prev,
+        colors: [
+          { name: 'modalBg', label: 'Modal Background', value: '#0A0A0F', description: 'Main modal background' },
+          { name: 'primaryButton', label: 'Primary Button', value: '#0052FF', description: 'Main action button color' },
+          { name: 'primaryButtonHover', label: 'Primary Button Hover', value: '#0041CC', description: 'Button hover state' },
+          { name: 'secondaryButton', label: 'Secondary Button', value: '#DDE404', description: 'Secondary action button' },
+          { name: 'balanceButton', label: 'Balance Button', value: '#10B981', description: 'Pay with balance button' },
+          { name: 'textPrimary', label: 'Primary Text', value: '#ffffff', description: 'Main text color' },
+          { name: 'textSecondary', label: 'Secondary Text', value: 'rgba(255, 255, 255, 0.7)', description: 'Secondary text color' },
+          { name: 'successBg', label: 'Success Background', value: 'rgba(34, 197, 94, 0.1)', description: 'Success message background' },
+          { name: 'successText', label: 'Success Text', value: '#22c55e', description: 'Success message text' },
+          { name: 'errorBg', label: 'Error Background', value: 'rgba(239, 68, 68, 0.1)', description: 'Error message background' },
+          { name: 'errorText', label: 'Error Text', value: '#ef4444', description: 'Error message text' },
+        ],
+        fonts: [
+          { name: 'heading', label: 'Heading Font', family: 'inherit', size: '1.5rem', weight: '700' },
+          { name: 'subheading', label: 'Subheading Font', family: 'inherit', size: '1rem', weight: '600' },
+          { name: 'body', label: 'Body Font', family: 'inherit', size: '0.875rem', weight: '400' },
+          { name: 'price', label: 'Price Font', family: 'inherit', size: '2rem', weight: '700' },
+        ],
+        texts: [
+          { name: 'modalTitle', label: 'Modal Title', value: 'Complete Your Purchase' },
+          { name: 'modalSubtitle', label: 'Modal Subtitle', value: 'Choose your payment method' },
+          { name: 'balanceLabel', label: 'Balance Label', value: 'Your Balance' },
+          { name: 'totalLabel', label: 'Total Label', value: 'Total' },
+          { name: 'confirmButtonText', label: 'Confirm Button Text', value: 'Confirm Payment' },
+          { name: 'successMessage', label: 'Success Message', value: 'Payment successful! Your tickets are confirmed.' },
+        ],
+        images: [],
+        flowSteps: [],
+        buttons: [
+          { name: 'payWithBalance', label: 'Pay with Balance Button', linkType: 'action', linkValue: 'balancePayment', description: 'Triggers balance payment', hasDependencies: true, dependencies: ['Balance check', 'Transaction API'], locked: false },
+          { name: 'payWithCard', label: 'Pay with Card Button', linkType: 'action', linkValue: 'cardPayment', description: 'Triggers card payment flow', hasDependencies: true, dependencies: ['Coinbase Commerce API'], locked: false },
+          { name: 'payWithCrypto', label: 'Pay with Crypto Button', linkType: 'action', linkValue: 'cryptoPayment', description: 'Triggers crypto payment flow', hasDependencies: true, dependencies: ['OnchainKit', 'Wallet connection'], locked: false },
+          { name: 'topUpBalance', label: 'Top Up Balance Link', linkType: 'action', linkValue: 'openTopUpModal', description: 'Opens top-up modal', hasDependencies: true, dependencies: ['TopUpWalletModal component'], locked: false },
+        ],
+      }));
+    } else if (modalType === 'TopUpWalletModal') {
+      // TopUpWalletModal properties
+      setState(prev => ({
+        ...prev,
+        colors: [
+          { name: 'modalBg', label: 'Modal Background', value: '#0A0A0F', description: 'Main modal background' },
+          { name: 'primaryButton', label: 'Primary Button', value: '#0052FF', description: 'Main action button color' },
+          { name: 'primaryButtonHover', label: 'Primary Button Hover', value: '#0041CC', description: 'Button hover state' },
+          { name: 'secondaryButton', label: 'Secondary Button', value: 'rgba(255, 255, 255, 0.1)', description: 'Secondary action button' },
+          { name: 'accentGreen', label: 'Accent Green', value: '#10B981', description: 'Instant top-up accent' },
+          { name: 'accentBlue', label: 'Accent Blue', value: '#3B82F6', description: 'Crypto accent' },
+          { name: 'textPrimary', label: 'Primary Text', value: '#ffffff', description: 'Main text color' },
+          { name: 'textSecondary', label: 'Secondary Text', value: 'rgba(255, 255, 255, 0.7)', description: 'Secondary text color' },
+          { name: 'successBg', label: 'Success Background', value: 'rgba(34, 197, 94, 0.1)', description: 'Success message background' },
+          { name: 'successText', label: 'Success Text', value: '#22c55e', description: 'Success message text' },
+        ],
+        fonts: [
+          { name: 'heading', label: 'Heading Font', family: 'inherit', size: '1.5rem', weight: '700' },
+          { name: 'subheading', label: 'Subheading Font', family: 'inherit', size: '1rem', weight: '600' },
+          { name: 'body', label: 'Body Font', family: 'inherit', size: '0.875rem', weight: '400' },
+          { name: 'amount', label: 'Amount Font', family: 'inherit', size: '2rem', weight: '700' },
+        ],
+        texts: [
+          { name: 'modalTitle', label: 'Modal Title', value: 'Top Up Your Balance' },
+          { name: 'modalSubtitle', label: 'Modal Subtitle', value: 'Add funds to your account' },
+          { name: 'methodSelectionTitle', label: 'Method Selection Title', value: 'Choose payment method' },
+          { name: 'instantTopUpLabel', label: 'Instant Top Up Label', value: 'Instant Top-Up' },
+          { name: 'instantTopUpDesc', label: 'Instant Top Up Description', value: 'Transfer USDC directly from your wallet' },
+          { name: 'cryptoTopUpLabel', label: 'Crypto Top Up Label', value: 'Pay with Crypto' },
+          { name: 'cryptoTopUpDesc', label: 'Crypto Top Up Description', value: 'Pay with Bitcoin, Ethereum, and 60+ cryptocurrencies' },
+          { name: 'successMessage', label: 'Success Message', value: 'Top-up successful! Your balance has been updated.' },
+        ],
+        images: [],
+        flowSteps: [],
+        buttons: [
+          { name: 'instantTopUp', label: 'Instant Top-Up Button', linkType: 'action', linkValue: 'instantTopUp', description: 'Direct USDC transfer', hasDependencies: true, dependencies: ['Wallet connection', 'USDC balance', 'Treasury address'], locked: false },
+          { name: 'cryptoTopUp', label: 'Crypto Top-Up Button', linkType: 'action', linkValue: 'cryptoCheckout', description: 'Opens OnchainKit checkout', hasDependencies: true, dependencies: ['OnchainKit', 'Coinbase Commerce'], locked: false },
+          { name: 'cardTopUp', label: 'Card Top-Up Button', linkType: 'action', linkValue: 'cardCheckout', description: 'Opens card payment flow', hasDependencies: true, dependencies: ['Coinbase Commerce API'], locked: false },
+        ],
       }));
     }
   };
@@ -290,57 +387,191 @@ export default function AuthModalVisualEditor() {
     reader.readAsDataURL(file);
   };
 
+  const handleButtonLinkChange = (name: string, property: 'linkType' | 'linkValue', value: string) => {
+    setState(prev => ({
+      ...prev,
+      buttons: prev.buttons.map(b => 
+        b.name === name ? { ...b, [property]: value } : b
+      ),
+      hasChanges: true,
+    }));
+  };
+
+  /**
+   * Generate a downloadable TypeScript file with all changes applied
+   * This creates a complete .tsx file for developers to review and apply
+   */
+  const generateDownloadableFile = (): string => {
+    const { selectedModal, colors, fonts, texts, images, buttons, flowSteps } = state;
+    
+    // Generate a comment block with all the changes
+    let fileContent = `/**
+ * ${selectedModal} - Modified by Visual Editor
+ * 
+ * This file contains the customizations made in the Visual Editor.
+ * 
+ * INSTRUCTIONS FOR DEVELOPERS:
+ * 1. Review all changes below
+ * 2. Manually apply changes to the actual ${selectedModal}.tsx file
+ * 3. Test thoroughly before committing
+ * 4. Ensure all dependencies are still functional
+ * 
+ * Generated: ${new Date().toISOString()}
+ */
+
+// ============================================================================
+// COLOR CUSTOMIZATIONS
+// ============================================================================
+
+const customColors = {
+${colors.filter(c => !c.locked).map(c => `  ${c.name}: '${c.value}', // ${c.description || ''}`).join('\n')}
+};
+
+// ============================================================================
+// FONT CUSTOMIZATIONS
+// ============================================================================
+
+const customFonts = {
+${fonts.filter(f => !f.locked).map(f => `  ${f.name}: {
+    fontFamily: '${f.family}',
+    fontSize: '${f.size}',
+    fontWeight: '${f.weight}',
+    fontStyle: '${f.style || 'normal'}',
+  },`).join('\n')}
+};
+
+// ============================================================================
+// TEXT CONTENT CUSTOMIZATIONS
+// ============================================================================
+
+const customTexts = {
+${texts.filter(t => !t.locked).map(t => `  ${t.name}: '${t.value}',`).join('\n')}
+};
+
+${images.length > 0 ? `
+// ============================================================================
+// IMAGE CUSTOMIZATIONS
+// ============================================================================
+
+const customImages = {
+${images.filter(i => !i.locked).map(i => `  ${i.name}: '${i.value}', // ${i.alt || ''}`).join('\n')}
+};
+` : ''}
+
+${buttons.length > 0 ? `
+// ============================================================================
+// BUTTON LINK CUSTOMIZATIONS
+// ============================================================================
+${buttons.filter(b => !b.locked && b.linkType !== 'none').map(b => `
+// ${b.label}
+// Link Type: ${b.linkType}
+// Link Value: ${b.linkValue}
+// Description: ${b.description || 'No description'}
+${b.hasDependencies ? `// ⚠️  DEPENDENCIES: ${b.dependencies?.join(', ')}
+// WARNING: Changing this button may break functionality that depends on:
+${b.dependencies?.map(d => `//   - ${d}`).join('\n')}` : ''}
+const ${b.name}Config = {
+  linkType: '${b.linkType}',
+  linkValue: '${b.linkValue}',
+};
+`).join('\n')}
+` : ''}
+
+${flowSteps.length > 0 ? `
+// ============================================================================
+// FLOW STEPS CONFIGURATION
+// ============================================================================
+
+const flowStepsOrder = [
+${flowSteps.sort((a, b) => a.order - b.order).map(s => `  {
+    id: '${s.id}',
+    name: '${s.name}',
+    label: '${s.label}',
+    order: ${s.order},
+    enabled: ${s.required},${s.locked ? '\n    locked: true, // Cannot be reordered or disabled' : ''}
+  },`).join('\n')}
+];
+
+// NOTE: Apply these flow steps to your modal's step navigation logic
+` : ''}
+
+// ============================================================================
+// INTEGRATION NOTES
+// ============================================================================
+
+/*
+MANUAL INTEGRATION REQUIRED:
+
+1. **Colors**: Apply customColors to your styled components or className props
+   - Example: style={{ backgroundColor: customColors.modalBg }}
+   
+2. **Fonts**: Apply customFonts to text elements
+   - Example: style={{ ...customFonts.heading }}
+   
+3. **Text Content**: Replace hardcoded strings with customTexts values
+   - Example: <h1>{customTexts.modalTitle}</h1>
+   
+4. **Images**: Update image src attributes
+   - Example: <img src={customImages.modalLogo} alt="Logo" />
+
+${buttons.length > 0 ? `
+5. **Button Links**: Review and apply button link configurations
+   - Check dependencies before applying
+   - Test all button functionality after changes
+   - Ensure error handling is preserved
+` : ''}
+
+${flowSteps.length > 0 ? `
+6. **Flow Steps**: Update your authentication flow logic
+   - Respect the enabled/disabled states
+   - Maintain the specified order
+   - Keep locked steps in their required positions
+` : ''}
+
+TESTING CHECKLIST:
+- [ ] Visual appearance matches preview
+- [ ] All buttons work correctly
+- [ ] Navigation flow is correct
+- [ ] Error handling still works
+- [ ] Dependencies are not broken
+- [ ] Responsive design is maintained
+*/
+`;
+
+    return fileContent;
+  };
+
+  /**
+   * Download the generated file to the user's computer
+   * This saves a .tsx file that can be sent to developers
+   */
+  const handleDownloadFile = () => {
+    const fileContent = generateDownloadableFile();
+    const filename = `${state.selectedModal}-customizations-${Date.now()}.tsx`;
+    
+    // Create a blob and download
+    const blob = new Blob([fileContent], { type: 'text/typescript' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    setSaveStatus('success');
+    setSaveMessage(`File downloaded as ${filename}. Send this to your developer to apply changes.`);
+    
+    setTimeout(() => {
+      setSaveStatus('idle');
+      setSaveMessage('');
+    }, 8000);
+  };
+
   const handleSave = async () => {
-    setSaving(true);
-    setSaveStatus('idle');
-    setSaveMessage('');
-
-    try {
-      // Get wallet address for authentication
-      const walletAddress = localStorage.getItem('cdp:wallet_address');
-      if (!walletAddress) {
-        throw new Error('Not authenticated. Please log in first.');
-      }
-
-      // Call API endpoint to write changes to files
-      const response = await fetch('/api/update-auth-modal-styles', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `wallet:${walletAddress}`,
-        },
-        body: JSON.stringify({
-          modalType: state.selectedModal,
-          colors: state.colors,
-          fonts: state.fonts,
-          texts: state.texts,
-          images: state.images,
-          flowSteps: state.flowSteps,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to save changes');
-      }
-
-      setSaveStatus('success');
-      setSaveMessage('Changes saved successfully! The modal files have been updated.');
-      setState(prev => ({ ...prev, hasChanges: false }));
-
-      // Clear success message after 5 seconds
-      setTimeout(() => {
-        setSaveStatus('idle');
-        setSaveMessage('');
-      }, 5000);
-    } catch (err) {
-      console.error('[AuthModalEditor] Error saving changes:', err);
-      setSaveStatus('error');
-      setSaveMessage(err instanceof Error ? err.message : 'Failed to save changes. Please try again.');
-    } finally {
-      setSaving(false);
-    }
+    // Instead of writing to GitHub, download the file
+    handleDownloadFile();
   };
 
   const handleReset = () => {
@@ -534,6 +765,107 @@ export default function AuthModalVisualEditor() {
     </div>
   );
 
+  const renderButtonEditor = () => (
+    <div className="space-y-4">
+      {state.buttons.length === 0 ? (
+        <div className="p-8 text-center text-white/50">
+          No button properties available for this modal
+        </div>
+      ) : (
+        <>
+          <div className="p-4 bg-[#0052FF]/10 border border-[#0052FF]/30 rounded-lg mb-6">
+            <h3 className="text-white font-semibold mb-2 flex items-center gap-2">
+              <LinkIcon size={18} className="text-[#0052FF]" />
+              Button Link Configuration
+            </h3>
+            <p className="text-white/70 text-sm mb-2">
+              Configure button links and actions. Be careful when changing buttons with dependencies.
+            </p>
+            <p className="text-white/60 text-xs">
+              <strong>Warning:</strong> Buttons with dependencies may break functionality if linked incorrectly.
+            </p>
+          </div>
+
+          {state.buttons.map(button => (
+            <div key={button.name} className="p-4 bg-white/5 border border-white/10 rounded-lg">
+              <div className="flex items-center gap-2 mb-3">
+                <label className="text-white font-medium">{button.label}</label>
+                {button.locked && (
+                  <Lock size={14} className="text-yellow-400" title="Functional - locked from editing" />
+                )}
+                {button.hasDependencies && (
+                  <AlertCircle size={14} className="text-orange-400" title="Has dependencies" />
+                )}
+              </div>
+
+              {button.description && (
+                <p className="text-white/60 text-sm mb-3">{button.description}</p>
+              )}
+
+              {button.hasDependencies && button.dependencies && (
+                <div className="mb-3 p-3 bg-orange-500/10 border border-orange-500/30 rounded">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle size={16} className="text-orange-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-orange-400 text-xs font-medium mb-1">⚠️ Dependencies</p>
+                      <ul className="text-orange-400/80 text-xs space-y-0.5 list-disc list-inside">
+                        {button.dependencies.map((dep, idx) => (
+                          <li key={idx}>{dep}</li>
+                        ))}
+                      </ul>
+                      <p className="text-orange-400/70 text-xs mt-1">
+                        Changing this button's link may break these dependencies.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-white/70 text-xs mb-1 block">Link Type</label>
+                  <select
+                    value={button.linkType}
+                    onChange={(e) => !button.locked && handleButtonLinkChange(button.name, 'linkType', e.target.value)}
+                    disabled={button.locked}
+                    className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <option value="none">No Link (Default Action)</option>
+                    <option value="url">External URL</option>
+                    <option value="route">Internal Route</option>
+                    <option value="action">Action/Function</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-white/70 text-xs mb-1 block">Link Value</label>
+                  <input
+                    type="text"
+                    value={button.linkValue}
+                    onChange={(e) => !button.locked && handleButtonLinkChange(button.name, 'linkValue', e.target.value)}
+                    disabled={button.locked || button.linkType === 'none'}
+                    placeholder={
+                      button.linkType === 'url' ? 'https://example.com' :
+                      button.linkType === 'route' ? '/dashboard' :
+                      button.linkType === 'action' ? 'functionName' : 'N/A'
+                    }
+                    className="w-full px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                </div>
+              </div>
+
+              {button.linkType === 'url' && button.linkValue && (
+                <div className="mt-2 flex items-center gap-2 text-xs text-white/50">
+                  <ExternalLink size={12} />
+                  <span>Will open: {button.linkValue}</span>
+                </div>
+              )}
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+
   const renderFlowEditor = () => (
     <div className="space-y-4">
       <div className="p-4 bg-[#0052FF]/10 border border-[#0052FF]/30 rounded-lg mb-6">
@@ -659,8 +991,8 @@ export default function AuthModalVisualEditor() {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold">Auth Modal Visual Editor</h1>
-              <p className="text-white/50 text-sm">Admin-only aesthetic editor</p>
+              <h1 className="text-2xl font-bold">Modal Visual Editor</h1>
+              <p className="text-white/50 text-sm">Admin-only editor with download functionality</p>
             </div>
             <div className="flex items-center gap-3">
               <button
@@ -680,11 +1012,11 @@ export default function AuthModalVisualEditor() {
               </button>
               <button
                 onClick={handleSave}
-                disabled={!state.hasChanges || saving}
+                disabled={!state.hasChanges}
                 className="px-4 py-2 bg-[#0052FF] hover:bg-[#0041CC] disabled:bg-white/10 disabled:text-white/40 rounded-lg flex items-center gap-2 transition-colors"
               >
-                <Save size={18} />
-                <span>{saving ? 'Saving...' : 'Save Changes'}</span>
+                <Download size={18} />
+                <span>Download File</span>
               </button>
             </div>
           </div>
@@ -725,22 +1057,26 @@ export default function AuthModalVisualEditor() {
               >
                 <option value="NewAuthModal">New Auth Modal (NewAuthModal.tsx)</option>
                 <option value="BaseWalletAuthModal">Base Wallet Auth Modal (BaseWalletAuthModal.tsx)</option>
+                <option value="PaymentModal">Payment Modal (PaymentModal.tsx)</option>
+                <option value="TopUpWalletModal">Top Up Wallet Modal (TopUpWalletModal.tsx)</option>
               </select>
             </div>
 
             {/* Tab Navigation */}
-            <div className="flex gap-2 mb-6 border-b border-white/10">
-              <button
-                onClick={() => setActiveTab('flow')}
-                className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors ${
-                  activeTab === 'flow' 
-                    ? 'border-[#0052FF] text-white' 
-                    : 'border-transparent text-white/50 hover:text-white/70'
-                }`}
-              >
-                <ArrowRight size={18} />
-                <span>Flow Order</span>
-              </button>
+            <div className="flex gap-2 mb-6 border-b border-white/10 overflow-x-auto">
+              {state.flowSteps.length > 0 && (
+                <button
+                  onClick={() => setActiveTab('flow')}
+                  className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors flex-shrink-0 ${
+                    activeTab === 'flow' 
+                      ? 'border-[#0052FF] text-white' 
+                      : 'border-transparent text-white/50 hover:text-white/70'
+                  }`}
+                >
+                  <ArrowRight size={18} />
+                  <span>Flow Order</span>
+                </button>
+              )}
               <button
                 onClick={() => setActiveTab('colors')}
                 className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors ${
@@ -776,7 +1112,7 @@ export default function AuthModalVisualEditor() {
               </button>
               <button
                 onClick={() => setActiveTab('images')}
-                className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors ${
+                className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors flex-shrink-0 ${
                   activeTab === 'images' 
                     ? 'border-[#0052FF] text-white' 
                     : 'border-transparent text-white/50 hover:text-white/70'
@@ -785,6 +1121,19 @@ export default function AuthModalVisualEditor() {
                 <ImageIcon size={18} />
                 <span>Images</span>
               </button>
+              {state.buttons.length > 0 && (
+                <button
+                  onClick={() => setActiveTab('buttons')}
+                  className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors flex-shrink-0 ${
+                    activeTab === 'buttons' 
+                      ? 'border-[#0052FF] text-white' 
+                      : 'border-transparent text-white/50 hover:text-white/70'
+                  }`}
+                >
+                  <LinkIcon size={18} />
+                  <span>Buttons</span>
+                </button>
+              )}
             </div>
 
             {/* Editor Content */}
@@ -794,21 +1143,38 @@ export default function AuthModalVisualEditor() {
               {activeTab === 'fonts' && renderFontEditor()}
               {activeTab === 'text' && renderTextEditor()}
               {activeTab === 'images' && renderImageEditor()}
+              {activeTab === 'buttons' && renderButtonEditor()}
             </div>
 
             {/* Info Box */}
             <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
               <div className="flex items-start gap-2">
-                <Lock size={16} className="text-yellow-400 flex-shrink-0 mt-0.5" />
+                <Download size={16} className="text-yellow-400 flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-yellow-400 text-sm font-medium mb-1">Locked Elements</p>
+                  <p className="text-yellow-400 text-sm font-medium mb-1">File Download</p>
                   <p className="text-yellow-400/80 text-xs">
-                    Elements marked with a lock icon are functional components (inputs, buttons, logic) 
-                    and cannot be modified to ensure authentication continues to work properly.
+                    Clicking "Download File" will save a .tsx file to your computer with all customizations. 
+                    Send this file to your developer to manually apply the changes. 
+                    This does NOT update files on GitHub directly.
                   </p>
                 </div>
               </div>
             </div>
+
+            {state.buttons.length > 0 && (
+              <div className="mt-4 p-4 bg-orange-500/10 border border-orange-500/30 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <AlertCircle size={16} className="text-orange-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-orange-400 text-sm font-medium mb-1">Button Dependencies</p>
+                    <p className="text-orange-400/80 text-xs">
+                      Buttons marked with ⚠️ have functional dependencies. Changing their links may break 
+                      important functionality. Review dependency warnings carefully before modifying.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Preview Panel */}
@@ -831,18 +1197,23 @@ export default function AuthModalVisualEditor() {
                         isOpen={true} 
                         onClose={() => setState(prev => ({ ...prev, previewOpen: false }))} 
                       />
-                    ) : (
+                    ) : state.selectedModal === 'BaseWalletAuthModal' ? (
                       <BaseWalletAuthModal 
                         isOpen={true} 
                         onClose={() => setState(prev => ({ ...prev, previewOpen: false }))} 
                       />
+                    ) : (
+                      <p className="text-white/50 text-center px-4">
+                        Preview not available for {state.selectedModal}.<br/>
+                        <span className="text-xs">Payment modals require additional context and cannot be previewed in isolation.</span>
+                      </p>
                     )
                   ) : (
                     <p className="text-white/50">Click "Open Modal" to preview changes</p>
                   )}
                 </div>
                 <p className="text-white/40 text-xs mt-3 text-center">
-                  Changes are previewed in real-time. Click Save to write to files.
+                  Download file to save customizations for your developer.
                 </p>
               </div>
             </div>

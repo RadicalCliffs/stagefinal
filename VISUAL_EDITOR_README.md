@@ -1,8 +1,14 @@
-# Auth Modal Visual Editor
+# Modal Visual Editor
 
 ## Overview
 
-The Auth Modal Visual Editor is an admin-only tool for modifying both the aesthetic properties AND authentication flow order of the authentication modals (`NewAuthModal.tsx` and `BaseWalletAuthModal.tsx`) without touching code.
+The Modal Visual Editor is an admin-only tool for modifying aesthetic properties, authentication flow order, and button links for multiple modals:
+- `NewAuthModal.tsx` - Main authentication flow
+- `BaseWalletAuthModal.tsx` - Wallet connection modal  
+- `PaymentModal.tsx` - Payment and checkout modal
+- `TopUpWalletModal.tsx` - Balance top-up modal
+
+**Important:** This editor generates downloadable TypeScript files for developers to apply manually. It does NOT write directly to GitHub.
 
 ## Access
 
@@ -15,8 +21,17 @@ This route is:
 
 ## Features
 
-### 1. Flow Order Editor (NEW!)
-- **Reorder authentication steps** via drag-and-drop
+### 1. Modal Selection (NEW!)
+- **Select from 4 modals** to edit:
+  - NewAuthModal - Authentication flow
+  - BaseWalletAuthModal - Wallet connection
+  - PaymentModal - Payment processing
+  - TopUpWalletModal - Balance top-up
+- Each modal has specific editable properties
+- Tabs shown dynamically based on modal capabilities
+
+### 2. Flow Order Editor
+- **Reorder authentication steps** via drag-and-drop (auth modals only)
 - **Enable/disable steps** to skip or include them in the flow
 - **Customize user experience** while ensuring required data is collected
 - **Requirements enforced:** Username, email, country, wallet, and OTP verification must be collected
@@ -28,23 +43,25 @@ This route is:
 - Change order: wallet → email → profile instead of email → profile → wallet
 - Remove optional steps from the flow entirely
 
-### 2. Color Editor
+### 3. Color Editor
 - Modify all color properties including:
   - Background colors
   - Text colors (primary, secondary, muted)
   - Button colors (primary, secondary, hover states)
   - Success/error/warning message colors
   - Input field colors
+  - Accent colors (payment modals)
 - Uses standard color picker and hex input
 - **Locked elements:** Functional components (input backgrounds, focus states) are locked to preserve authentication flow
 
-### 3. Font Editor
+### 4. Font Editor
 - Adjust typography for:
   - Headings (size, weight, family)
   - Subheadings
   - Body text
   - Buttons
   - Inputs
+  - Special text (prices, amounts)
 - Supports:
   - Font family selection (System Default, Inter, Roboto, Open Sans, Poppins)
   - Font size (rem, px, em)
@@ -52,46 +69,83 @@ This route is:
   - Font style (normal, italic)
 - **Locked elements:** Button and input fonts are locked to maintain usability
 
-### 4. Text Content Editor
+### 5. Text Content Editor
 - Edit text content including:
   - Modal titles and subtitles
   - Success messages
   - Helper text
   - Instructions
+  - Payment descriptions
+  - Method labels
 - Supports single-line and multi-line text fields
 - **Locked elements:** Functional labels and error messages are locked
 
-### 5. Image Editor
+### 6. Image Editor
 - Upload and replace images/icons
 - Supports:
   - Logo replacements
   - Icon uploads
   - Background images
 - File upload with preview
+- Maximum file size: 2MB
 - **Locked elements:** Functional icons (loading spinners, checkmarks for validation) are locked
 
-### 5. Live Preview
-- Real-time preview of changes
+### 7. Button Link Editor (NEW!)
+- **Configure button links** with multiple options:
+  - **None** - Keep default action
+  - **External URL** - Link to external website
+  - **Internal Route** - Navigate to app route
+  - **Action/Function** - Trigger specific function
+- **Dependency Warnings:**
+  - Buttons with ⚠️ icon have functional dependencies
+  - Shows list of dependencies that may break
+  - Warns before allowing link changes
+  - Examples: Payment buttons, top-up buttons
+- **Use Cases:**
+  - Link "Top Up Balance" to external payment page
+  - Redirect "Learn More" button to FAQ
+  - Change payment method links
+  
+### 8. Live Preview
+- Real-time preview of changes (auth modals only)
 - Can be toggled on/off
 - Opens modal in preview mode
-- Shows exactly how changes will appear
+- Payment modals show notice (require additional context)
+- Preview helps visualize color/font changes
+
+### 9. File Download System (NEW!)
+- **Downloads TypeScript file** instead of writing to GitHub
+- **Generated file includes:**
+  - All customizations (colors, fonts, texts, buttons)
+  - Detailed integration instructions
+  - Dependency warnings
+  - Testing checklist
+  - Manual application guide
+- **Filename format:** `{ModalName}-customizations-{timestamp}.tsx`
+- **Send to developer** to manually apply changes
+- **Safe approach** - no automatic GitHub writes
 
 ## Security
 
 ### Admin Authentication
 1. User must be logged in with a wallet address
 2. Wallet address must have `is_admin = true` in `canonical_users` table
-3. API endpoint validates admin status before allowing writes
+3. Route protected with AdminGuard component
 
-### File Writing Safety
+### File Safety
+- **No automatic GitHub writes** - all changes downloaded as files
 - Only modifies specified aesthetic properties
 - Never touches functional code
 - Validates all inputs
 - Locked elements cannot be modified
-- Uses TypeScript AST parsing (planned) for safe code manipulation
+- Developer reviews all changes before applying
 
 ### Current Implementation
-The current implementation generates CSS override files instead of directly modifying TypeScript files for safety. A future enhancement will implement full TypeScript AST parsing for direct file modifications.
+The editor generates complete TypeScript files with customizations for developers to manually integrate. This ensures:
+- Human review of all changes
+- No accidental breaking changes
+- Full control over what gets deployed
+- Testing before merging
 
 ## Usage Guide
 
@@ -102,28 +156,82 @@ The current implementation generates CSS override files instead of directly modi
 
 ### Step 2: Select Modal to Edit
 1. Use the dropdown at the top to select which modal to edit:
-   - **NewAuthModal.tsx** - Main authentication flow modal
-   - **BaseWalletAuthModal.tsx** - Wallet connection modal
+   - **NewAuthModal.tsx** - Main authentication flow
+   - **BaseWalletAuthModal.tsx** - Wallet connection
+   - **PaymentModal.tsx** - Payment processing (NEW!)
+   - **TopUpWalletModal.tsx** - Balance top-up (NEW!)
 
 ### Step 3: Make Changes
-1. Click on the tabs: **Colors**, **Fonts**, **Text Content**, or **Images**
+1. Click on the tabs (available tabs vary by modal):
+   - **Flow Order** - Reorder auth steps (auth modals only)
+   - **Colors** - Modify color properties
+   - **Fonts** - Adjust typography
+   - **Text Content** - Edit text strings
+   - **Images** - Upload/replace images
+   - **Buttons** - Configure button links (payment modals)
 2. Modify properties as needed
-3. Toggle **Show Preview** to see changes in real-time
-4. Click **Open Modal** in the preview panel to interact with the modal
+3. See changes reflected in "hasChanges" indicator
 
-### Step 4: Save Changes
-1. Click **Save Changes** button
-2. Wait for confirmation message
-3. Changes are written to the respective files
-4. A rebuild/redeploy may be required to see changes in production
+### Step 4: Download Changes
+1. Click **Download File** button (replaces "Save Changes")
+2. File downloads to your computer as `{ModalName}-customizations-{timestamp}.tsx`
+3. Success message shows filename
+4. File includes all customizations and integration instructions
 
-### Step 5: Reset if Needed
+### Step 5: Send to Developer
+1. **Email or share** the downloaded file with your developer
+2. Developer reviews the customizations
+3. Developer manually applies changes to actual modal file
+4. Developer tests thoroughly
+5. Developer commits and deploys changes
+
+### Step 6: Reset if Needed
 - Click **Reset** to discard unsaved changes
-- Reload the page to get fresh data from files
+- Reload the page to start fresh
+
+## Button Link Configuration
+
+### Link Types
+
+1. **None (Default Action)**
+   - Keeps the button's original functionality
+   - No custom linking applied
+   - Safest option for buttons with dependencies
+
+2. **External URL**
+   - Opens a website in new tab
+   - Example: `https://help.theprize.io`
+   - Use for: Help links, documentation, external resources
+
+3. **Internal Route**
+   - Navigates within the app
+   - Example: `/dashboard`, `/competitions`
+   - Use for: Navigation to app pages
+
+4. **Action/Function**
+   - Triggers a specific function
+   - Example: `openTopUpModal`, `processPayment`
+   - Use for: Custom actions, modal triggers
+
+### Dependency Warnings
+
+Buttons with ⚠️ icon have functional dependencies:
+- **PaymentModal Buttons:**
+  - Balance Payment → Depends on balance check, transaction API
+  - Card Payment → Depends on Coinbase Commerce API
+  - Crypto Payment → Depends on OnchainKit, wallet connection
+  - Top Up Link → Depends on TopUpWalletModal component
+  
+- **TopUpWalletModal Buttons:**
+  - Instant Top-Up → Depends on wallet, USDC balance, treasury
+  - Crypto Top-Up → Depends on OnchainKit, Coinbase Commerce
+  - Card Top-Up → Depends on Coinbase Commerce API
+
+**Best Practice:** Only change button links if you understand the dependencies and have developer support.
 
 ## Locked Elements Explanation
 
-Some elements are marked with a 🔒 lock icon. These are **functional components** that are essential for authentication to work properly. They cannot be modified to prevent breaking the login flow.
+Some elements are marked with a 🔒 lock icon. These are **functional components** that are essential for the modal to work properly. They cannot be modified to prevent breaking functionality.
 
 **Examples of locked elements:**
 - Input field backgrounds (need contrast for visibility)
@@ -132,6 +240,7 @@ Some elements are marked with a 🔒 lock icon. These are **functional component
 - Loading indicators
 - Validation icons
 - Form submission logic
+- Core payment buttons
 
 ## Technical Details
 
@@ -139,11 +248,13 @@ Some elements are marked with a 🔒 lock icon. These are **functional component
 ```
 Visual Editor (React Component)
     ↓
-Auth Modal Files (NewAuthModal.tsx, BaseWalletAuthModal.tsx)
+Modal Selection & Customization
     ↓
-Netlify Function (/api/update-auth-modal-styles)
+Download TypeScript File
     ↓
-File System (TypeScript files)
+Developer Review & Integration
+    ↓
+Manual Application to Actual Files
 ```
 
 ### Files Involved
