@@ -1,0 +1,12 @@
+# Robots.txt - The Prize
+# Allow all pages except admin routes
+
+User-agent: *
+Allow: /
+
+# Disallow admin-only visual editor route
+Disallow: /a/e/o/x/u
+Disallow: /a/e/o/
+
+# Sitemap
+Sitemap: https://theprize.io/sitemap.xml
