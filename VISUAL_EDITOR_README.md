@@ -30,9 +30,10 @@ This route is:
 - Each modal has specific editable properties
 - Tabs shown dynamically based on modal capabilities
 
-### 2. Button Visibility & Management (NEW! ⭐)
+### 2. Button Visibility & Management (⭐ ENHANCED)
 - **Hide/Show Buttons:** Toggle button visibility without deleting configuration
 - **Dynamic Button Creation:** Add new buttons using predefined templates
+- **Button Reordering:** Drag-and-drop to change display order (⭐ NEW)
 - **Button Templates:**
   - Payment Method Button - For new payment options
   - Wallet Connection Button - For specific wallet providers
@@ -47,6 +48,25 @@ This route is:
 - Add Apple Pay as a new payment option with custom icon
 - Propose new wallet connection options (MetaMask, WalletConnect, etc.)
 - Test button configurations before making them live
+- Reorder buttons to feature preferred payment methods first
+
+### 3. Section Visibility Management (⭐ NEW)
+- **Hide/Show Sections:** Control visibility of entire modal sections
+- **Section Groups:** Manage related content together
+- **Locked Sections:** Core sections cannot be hidden for functionality
+- **Visual Feedback:** Hidden sections clearly marked
+
+**Available Sections:**
+- Payment Methods Section (can hide)
+- Balance Information (locked - core)
+- Order Summary (locked - core)
+- Top-Up Methods Section (can hide)
+
+**Use Cases:**
+- Simplify modals for specific user segments
+- A/B test different layouts
+- Regional customization
+- Progressive disclosure strategies
 
 ### 3. Flow Order Editor
 - **Reorder authentication steps** via drag-and-drop (auth modals only)
@@ -149,14 +169,55 @@ This route is:
   - Redirect "Learn More" button to FAQ
   - Change payment method links
   
-### 9. Live Preview
+### 9. Preset Management (⭐ NEW)
+- **Save Configurations:** Save complete editor state as named presets
+- **Load Presets:** Instantly switch between saved configurations
+- **Persistent Storage:** Presets saved in browser localStorage
+- **Modal-Specific:** Only see presets for current modal type
+- **Metadata Tracking:** Name, description, timestamp for each preset
+
+**Use Cases:**
+- Save seasonal themes ("Holiday 2026", "Summer Theme")
+- A/B testing configurations ("Variant A", "Variant B")
+- Work-in-progress saves
+- Quick design switching
+- Team standardization
+
+### 10. Undo/Redo System (⭐ NEW)
+- **History Tracking:** Up to 50 previous states saved
+- **Undo Changes:** Revert to previous state with one click
+- **Redo Changes:** Reapply undone changes
+- **Visual Feedback:** Buttons disabled at history limits
+- **Safe Experimentation:** Try changes risk-free
+
+**Use Cases:**
+- Recover from mistakes quickly
+- Compare different states by toggling
+- Iterative design workflow
+- Test multiple variations safely
+
+### 11. Export/Import Configuration (⭐ NEW)
+- **Export to JSON:** Download complete configuration as file
+- **Import from JSON:** Load configurations from file
+- **Team Collaboration:** Share configurations between team members
+- **Validation:** Ensures modal type compatibility
+- **Backup:** Save configurations externally
+
+**Use Cases:**
+- Share configurations with developers
+- Version control configurations externally
+- Copy settings between environments
+- Backup important configurations
+- Client approval workflows
+
+### 12. Live Preview
 - Real-time preview of changes (auth modals only)
 - Can be toggled on/off
 - Opens modal in preview mode
 - Payment modals show notice (require additional context)
 - Preview helps visualize color/font changes
 
-### 10. File Download System
+### 13. File Download System
 - **Downloads TypeScript file** instead of writing to GitHub
 - **Generated file includes:**
   - All customizations (colors, fonts, texts, buttons)
@@ -469,6 +530,37 @@ WHERE wallet_address = 'YOUR_WALLET_ADDRESS';
    - Concurrent editing locks
    - Change notifications
    - Conflict resolution
+
+## Quick Reference
+
+### Available Features by Modal Type
+
+| Feature | NewAuthModal | BaseWalletAuthModal | PaymentModal | TopUpWalletModal |
+|---------|--------------|---------------------|--------------|------------------|
+| Flow Order | ✅ | ✅ | ❌ | ❌ |
+| Colors | ✅ | ✅ | ✅ | ✅ |
+| Fonts | ✅ | ✅ | ✅ | ✅ |
+| Text Content | ✅ | ✅ | ✅ | ✅ |
+| Images | ✅ | ❌ | ❌ | ❌ |
+| Buttons | ❌ | ❌ | ✅ | ✅ |
+| Sections | ❌ | ❌ | ✅ | ✅ |
+| Presets | ✅ | ✅ | ✅ | ✅ |
+| Undo/Redo | ✅ | ✅ | ✅ | ✅ |
+| Export/Import | ✅ | ✅ | ✅ | ✅ |
+
+### Keyboard Shortcuts
+- Currently none implemented
+- Future: Ctrl+Z (Undo), Ctrl+Y (Redo), Ctrl+S (Save Preset)
+
+### Related Documentation
+- **[UI Editor Enhancements Summary](./UI_EDITOR_ENHANCEMENTS_SUMMARY.md)** - Original features implementation
+- **[Proactive Features Summary](./PROACTIVE_FEATURES_SUMMARY.md)** - Advanced features deep dive
+- **[Enhanced Editor Summary](./ENHANCED_EDITOR_SUMMARY.md)** - Historical context
+
+### Feature Status
+- ✅ **Implemented:** Button visibility, button creation, image validation, button reordering, section visibility, presets, undo/redo, export/import
+- 🚧 **Framework Ready:** Bulk operations (UI pending)
+- 💡 **Planned:** Keyboard shortcuts, theme presets, version history
 
 ## Support
 
