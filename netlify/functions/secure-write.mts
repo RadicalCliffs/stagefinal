@@ -657,7 +657,7 @@ async function handleReserveTickets(
     return errorResponse(`Invalid ticket numbers: ${invalidTickets.join(", ")}`);
   }
 
-  const validTicketPrice = typeof ticket_price === "number" && ticket_price > 0 ? ticket_price : 1;
+  // Will fetch from competition below
 
   try {
     // Step 1: Verify competition exists and is active
@@ -665,7 +665,7 @@ async function handleReserveTickets(
     // may contain either field depending on when the entry was created
     const { data: competition, error: compError } = await serviceClient
       .from("competitions")
-      .select("id, uid, status, total_tickets, end_date")
+      .select("id, uid, status, total_tickets, end_date, ticket_price")
       .eq("id", competition_id)
       .single();
 
@@ -704,6 +704,12 @@ async function handleReserveTickets(
       }, 500);
     }
     const maxTicket = competition.total_tickets;
+
+    // Use ticket_price from competition if available, otherwise use provided ticket_price or default to 1
+    const competitionTicketPrice = competition.ticket_price;
+    const validTicketPrice = typeof ticket_price === "number" && ticket_price > 0 
+      ? ticket_price 
+      : (typeof competitionTicketPrice === "number" && competitionTicketPrice > 0 ? competitionTicketPrice : 1);
     const outOfRange = selected_tickets.filter((t: number) => t > maxTicket);
     if (outOfRange.length > 0) {
       return errorResponse(`Tickets out of range (max ${maxTicket}): ${outOfRange.join(", ")}`, 400);
