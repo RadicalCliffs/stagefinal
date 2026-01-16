@@ -1,12 +1,58 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "jsr:@supabase/supabase-js@2";
-import { toPrizePid, normalizeWalletAddress } from "../_shared/userId.ts";
+
+// Inlined userId utilities (bundler doesn't support shared module imports)
+function isWalletAddress(identifier: string): boolean {
+  return /^0x[a-fA-F0-9]{40}$/.test(identifier);
+}
+
+function isPrizePid(identifier: string): boolean {
+  return identifier.startsWith('prize:pid:');
+}
+
+function extractPrizePid(prizePid: string): string {
+  if (!isPrizePid(prizePid)) {
+    return prizePid;
+  }
+  return prizePid.substring('prize:pid:'.length);
+}
+
+function toPrizePid(inputUserId: string | null | undefined): string {
+  if (!inputUserId || inputUserId.trim() === '') {
+    return `prize:pid:${crypto.randomUUID()}`;
+  }
+  const trimmedId = inputUserId.trim();
+  if (isPrizePid(trimmedId)) {
+    const extracted = extractPrizePid(trimmedId);
+    if (isWalletAddress(extracted)) {
+      return `prize:pid:${extracted.toLowerCase()}`;
+    }
+    return trimmedId.toLowerCase();
+  }
+  if (isWalletAddress(trimmedId)) {
+    return `prize:pid:${trimmedId.toLowerCase()}`;
+  }
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (uuidPattern.test(trimmedId)) {
+    return `prize:pid:${trimmedId.toLowerCase()}`;
+  }
+  return `prize:pid:${crypto.randomUUID()}`;
+}
+
+function normalizeWalletAddress(address: string | null | undefined): string | null {
+  if (!address) return null;
+  const trimmed = address.trim();
+  if (isWalletAddress(trimmed)) {
+    return trimmed.toLowerCase();
+  }
+  return trimmed;
+}
 
 // Inlined CORS configuration (bundler doesn't support shared module imports)
-const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://stage.theprize.io';
+const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://substage.theprize.io';
 const ALLOWED_ORIGINS = [
   SITE_URL,
-  'https://stage.theprize.io',
+  'https://substage.theprize.io',
   'https://theprize.io',
   'https://theprizeio.netlify.app',
   'https://www.theprize.io',
@@ -933,17 +979,41 @@ Deno.serve(async (req: Request) => {
       .update({ status: "pending", updated_at: new Date().toISOString() })
       .eq("id", reservation.id);
 
-    // Use atomic RPC for conversion: pending -> tickets + joincompetition + confirmed
-    // This handles all the conversion in a single database transaction
-    const { data: rpcResult, error: rpcError } = await supabase.rpc(
-      'confirm_pending_to_sold',
-      {
-        p_reservation_id: reservation.id,
-        p_transaction_hash: finalTransactionHash,
-        p_payment_provider: paymentProvider || 'balance',
-        p_wallet_address: userWalletAddress
-      }
-    );
+    // Choose RPC based on payment method:
+    // - 'balance' payments: Use confirm_ticket_purchase (debits sub_account_balance)
+    // - External payments (coinbase, etc): Use confirm_pending_to_sold (no debit - user already paid)
+    const isBalancePayment = paymentProvider === 'balance' || !paymentProvider;
+    
+    let rpcResult: Record<string, unknown> | null = null;
+    let rpcError: Error | null = null;
+
+    if (isBalancePayment) {
+      // Use confirm_ticket_purchase which debits from sub_account_balance
+      console.log(`[Confirm Tickets] Using confirm_ticket_purchase for balance payment`);
+      const { data, error } = await supabase.rpc(
+        'confirm_ticket_purchase',
+        {
+          p_pending_ticket_id: reservation.id,
+          p_payment_provider: 'balance'
+        }
+      );
+      rpcResult = data as Record<string, unknown>;
+      rpcError = error;
+    } else {
+      // Use confirm_pending_to_sold for external payments (no balance debit)
+      console.log(`[Confirm Tickets] Using confirm_pending_to_sold for ${paymentProvider} payment`);
+      const { data, error } = await supabase.rpc(
+        'confirm_pending_to_sold',
+        {
+          p_reservation_id: reservation.id,
+          p_transaction_hash: finalTransactionHash,
+          p_payment_provider: paymentProvider,
+          p_wallet_address: userWalletAddress
+        }
+      );
+      rpcResult = data as Record<string, unknown>;
+      rpcError = error;
+    }
 
     if (rpcError) {
       console.error("[Confirm Tickets] RPC error:", rpcError);
