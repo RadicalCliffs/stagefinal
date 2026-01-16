@@ -31,7 +31,15 @@ import {
   ArrowRight,
   Download,
   Link as LinkIcon,
-  ExternalLink
+  ExternalLink,
+  Undo2,
+  Redo2,
+  Save,
+  Upload,
+  FileDown,
+  GripVertical,
+  Layers,
+  Copy
 } from 'lucide-react';
 import NewAuthModal from '../components/NewAuthModal';
 import BaseWalletAuthModal from '../components/BaseWalletAuthModal';
@@ -95,6 +103,28 @@ interface ButtonProperty {
   locked?: boolean;
   hidden?: boolean; // New: Controls visibility of button in the modal
   icon?: string; // New: Icon/image URL for the button
+  order?: number; // New: Display order (for drag-and-drop)
+}
+
+interface SectionProperty {
+  name: string;
+  label: string;
+  description?: string;
+  hidden?: boolean; // Controls section visibility
+  locked?: boolean;
+}
+
+interface ConfigPreset {
+  name: string;
+  description: string;
+  timestamp: number;
+  modalType: ModalType;
+  colors: ColorProperty[];
+  fonts: FontProperty[];
+  texts: TextProperty[];
+  images: ImageProperty[];
+  buttons: ButtonProperty[];
+  flowSteps?: FlowStep[];
 }
 
 type ModalType = 'NewAuthModal' | 'BaseWalletAuthModal' | 'PaymentModal' | 'TopUpWalletModal';
@@ -107,9 +137,12 @@ interface EditorState {
   images: ImageProperty[];
   flowSteps: FlowStep[];
   buttons: ButtonProperty[];
+  sections: SectionProperty[]; // New: Section visibility management
   showPreview: boolean;
   previewOpen: boolean;
   hasChanges: boolean;
+  history: EditorState[]; // New: For undo/redo
+  historyIndex: number; // New: Current position in history
 }
 
 export default function AuthModalVisualEditor() {
@@ -121,15 +154,20 @@ export default function AuthModalVisualEditor() {
     images: [],
     flowSteps: [],
     buttons: [],
+    sections: [],
     showPreview: true,
     previewOpen: false,
     hasChanges: false,
+    history: [],
+    historyIndex: -1,
   });
 
-  const [activeTab, setActiveTab] = useState<'flow' | 'colors' | 'fonts' | 'text' | 'images' | 'buttons'>('flow');
+  const [activeTab, setActiveTab] = useState<'flow' | 'colors' | 'fonts' | 'text' | 'images' | 'buttons' | 'sections' | 'presets'>('flow');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState('');
   const [showAddButton, setShowAddButton] = useState(false);
+  const [savedPresets, setSavedPresets] = useState<ConfigPreset[]>([]);
+  const [showPresetManager, setShowPresetManager] = useState(false);
   const [newButton, setNewButton] = useState<Partial<ButtonProperty>>({
     name: '',
     label: '',
@@ -270,10 +308,15 @@ export default function AuthModalVisualEditor() {
         images: [],
         flowSteps: [],
         buttons: [
-          { name: 'payWithBalance', label: 'Pay with Balance Button', linkType: 'action', linkValue: 'balancePayment', description: 'Triggers balance payment', hasDependencies: true, dependencies: ['Balance check', 'Transaction API'], locked: false, hidden: false },
-          { name: 'payWithCard', label: 'Pay with Card Button', linkType: 'action', linkValue: 'cardPayment', description: 'Triggers card payment flow', hasDependencies: true, dependencies: ['Coinbase Commerce API'], locked: false, hidden: false },
-          { name: 'payWithCrypto', label: 'Pay with Crypto Button', linkType: 'action', linkValue: 'cryptoPayment', description: 'Triggers crypto payment flow', hasDependencies: true, dependencies: ['OnchainKit', 'Wallet connection'], locked: false, hidden: false },
-          { name: 'topUpBalance', label: 'Top Up Balance Link', linkType: 'action', linkValue: 'openTopUpModal', description: 'Opens top-up modal', hasDependencies: true, dependencies: ['TopUpWalletModal component'], locked: false, hidden: false },
+          { name: 'payWithBalance', label: 'Pay with Balance Button', linkType: 'action', linkValue: 'balancePayment', description: 'Triggers balance payment', hasDependencies: true, dependencies: ['Balance check', 'Transaction API'], locked: false, hidden: false, order: 1 },
+          { name: 'payWithCard', label: 'Pay with Card Button', linkType: 'action', linkValue: 'cardPayment', description: 'Triggers card payment flow', hasDependencies: true, dependencies: ['Coinbase Commerce API'], locked: false, hidden: false, order: 2 },
+          { name: 'payWithCrypto', label: 'Pay with Crypto Button', linkType: 'action', linkValue: 'cryptoPayment', description: 'Triggers crypto payment flow', hasDependencies: true, dependencies: ['OnchainKit', 'Wallet connection'], locked: false, hidden: false, order: 3 },
+          { name: 'topUpBalance', label: 'Top Up Balance Link', linkType: 'action', linkValue: 'openTopUpModal', description: 'Opens top-up modal', hasDependencies: true, dependencies: ['TopUpWalletModal component'], locked: false, hidden: false, order: 4 },
+        ],
+        sections: [
+          { name: 'paymentMethods', label: 'Payment Methods Section', description: 'All payment method buttons', hidden: false, locked: false },
+          { name: 'balanceInfo', label: 'Balance Information', description: 'Current balance display', hidden: false, locked: true },
+          { name: 'orderSummary', label: 'Order Summary', description: 'Purchase details', hidden: false, locked: true },
         ],
       }));
     } else if (modalType === 'TopUpWalletModal') {
@@ -311,9 +354,13 @@ export default function AuthModalVisualEditor() {
         images: [],
         flowSteps: [],
         buttons: [
-          { name: 'instantTopUp', label: 'Instant Top-Up Button', linkType: 'action', linkValue: 'instantTopUp', description: 'Direct USDC transfer', hasDependencies: true, dependencies: ['Wallet connection', 'USDC balance', 'Treasury address'], locked: false, hidden: false },
-          { name: 'cryptoTopUp', label: 'Crypto Top-Up Button', linkType: 'action', linkValue: 'cryptoCheckout', description: 'Opens OnchainKit checkout', hasDependencies: true, dependencies: ['OnchainKit', 'Coinbase Commerce'], locked: false, hidden: false },
-          { name: 'cardTopUp', label: 'Card Top-Up Button', linkType: 'action', linkValue: 'cardCheckout', description: 'Opens card payment flow', hasDependencies: true, dependencies: ['Coinbase Commerce API'], locked: false, hidden: false },
+          { name: 'instantTopUp', label: 'Instant Top-Up Button', linkType: 'action', linkValue: 'instantTopUp', description: 'Direct USDC transfer', hasDependencies: true, dependencies: ['Wallet connection', 'USDC balance', 'Treasury address'], locked: false, hidden: false, order: 1 },
+          { name: 'cryptoTopUp', label: 'Crypto Top-Up Button', linkType: 'action', linkValue: 'cryptoCheckout', description: 'Opens OnchainKit checkout', hasDependencies: true, dependencies: ['OnchainKit', 'Coinbase Commerce'], locked: false, hidden: false, order: 2 },
+          { name: 'cardTopUp', label: 'Card Top-Up Button', linkType: 'action', linkValue: 'cardCheckout', description: 'Opens card payment flow', hasDependencies: true, dependencies: ['Coinbase Commerce API'], locked: false, hidden: false, order: 3 },
+        ],
+        sections: [
+          { name: 'topUpMethods', label: 'Top-Up Methods Section', description: 'All top-up method buttons', hidden: false, locked: false },
+          { name: 'balanceDisplay', label: 'Current Balance', description: 'Shows current account balance', hidden: false, locked: true },
         ],
       }));
     }
@@ -509,12 +556,305 @@ export default function AuthModalVisualEditor() {
   //   }));
   // };
 
+  // ============================================================================
+  // NEW PROACTIVE FEATURES
+  // ============================================================================
+
+  /**
+   * Button Reordering - Drag and drop buttons to change display order
+   */
+  const handleButtonReorder = (fromIndex: number, toIndex: number) => {
+    const sortedButtons = [...state.buttons].sort((a, b) => (a.order || 0) - (b.order || 0));
+    const [movedButton] = sortedButtons.splice(fromIndex, 1);
+    sortedButtons.splice(toIndex, 0, movedButton);
+    
+    // Update order values
+    const reorderedButtons = sortedButtons.map((btn, idx) => ({
+      ...btn,
+      order: idx + 1,
+    }));
+
+    setState(prev => ({
+      ...prev,
+      buttons: reorderedButtons,
+      hasChanges: true,
+    }));
+  };
+
+  /**
+   * Section Visibility Toggle - Hide/show entire sections
+   */
+  const handleSectionVisibilityToggle = (name: string, hidden: boolean) => {
+    setState(prev => ({
+      ...prev,
+      sections: prev.sections.map(s => 
+        s.name === name ? { ...s, hidden } : s
+      ),
+      hasChanges: true,
+    }));
+  };
+
+  /**
+   * Bulk Button Operations - Apply changes to multiple buttons at once
+   */
+  const handleBulkButtonOperation = (operation: 'hide' | 'show' | 'delete', buttonNames: string[]) => {
+    if (operation === 'delete') {
+      setState(prev => ({
+        ...prev,
+        buttons: prev.buttons.filter(b => !buttonNames.includes(b.name)),
+        hasChanges: true,
+      }));
+    } else {
+      const hidden = operation === 'hide';
+      setState(prev => ({
+        ...prev,
+        buttons: prev.buttons.map(b => 
+          buttonNames.includes(b.name) ? { ...b, hidden } : b
+        ),
+        hasChanges: true,
+      }));
+    }
+  };
+
+  /**
+   * Undo/Redo - Revert or reapply changes
+   */
+  const saveToHistory = (newState: Partial<EditorState>) => {
+    setState(prev => {
+      const currentState = { ...prev };
+      const newHistory = prev.history.slice(0, prev.historyIndex + 1);
+      newHistory.push(currentState);
+      
+      return {
+        ...prev,
+        ...newState,
+        history: newHistory.length > 50 ? newHistory.slice(-50) : newHistory, // Keep last 50 states
+        historyIndex: newHistory.length,
+      };
+    });
+  };
+
+  const handleUndo = () => {
+    if (state.historyIndex > 0) {
+      const previousState = state.history[state.historyIndex - 1];
+      setState(prev => ({
+        ...previousState,
+        history: prev.history,
+        historyIndex: prev.historyIndex - 1,
+      }));
+    }
+  };
+
+  const handleRedo = () => {
+    if (state.historyIndex < state.history.length) {
+      const nextState = state.history[state.historyIndex];
+      setState(prev => ({
+        ...nextState,
+        history: prev.history,
+        historyIndex: prev.historyIndex + 1,
+      }));
+    }
+  };
+
+  /**
+   * Preset Management - Save and load configurations
+   */
+  const handleSavePreset = (name: string, description: string) => {
+    const preset: ConfigPreset = {
+      name,
+      description,
+      timestamp: Date.now(),
+      modalType: state.selectedModal,
+      colors: state.colors,
+      fonts: state.fonts,
+      texts: state.texts,
+      images: state.images,
+      buttons: state.buttons,
+      flowSteps: state.flowSteps,
+    };
+
+    const updatedPresets = [...savedPresets, preset];
+    setSavedPresets(updatedPresets);
+    
+    // Save to localStorage
+    try {
+      localStorage.setItem('modalEditorPresets', JSON.stringify(updatedPresets));
+      setSaveStatus('success');
+      setSaveMessage(`Preset "${name}" saved successfully!`);
+    } catch (error) {
+      setSaveStatus('error');
+      setSaveMessage('Failed to save preset. Storage limit may be exceeded.');
+    }
+    
+    setTimeout(() => {
+      setSaveStatus('idle');
+      setSaveMessage('');
+    }, 3000);
+  };
+
+  const handleLoadPreset = (preset: ConfigPreset) => {
+    if (preset.modalType !== state.selectedModal) {
+      setSaveStatus('error');
+      setSaveMessage(`This preset is for ${preset.modalType}, but you're editing ${state.selectedModal}.`);
+      setTimeout(() => {
+        setSaveStatus('idle');
+        setSaveMessage('');
+      }, 5000);
+      return;
+    }
+
+    saveToHistory({
+      colors: preset.colors,
+      fonts: preset.fonts,
+      texts: preset.texts,
+      images: preset.images,
+      buttons: preset.buttons,
+      flowSteps: preset.flowSteps || state.flowSteps,
+      hasChanges: true,
+    });
+
+    setState(prev => ({
+      ...prev,
+      colors: preset.colors,
+      fonts: preset.fonts,
+      texts: preset.texts,
+      images: preset.images,
+      buttons: preset.buttons,
+      flowSteps: preset.flowSteps || prev.flowSteps,
+      hasChanges: true,
+    }));
+
+    setSaveStatus('success');
+    setSaveMessage(`Preset "${preset.name}" loaded successfully!`);
+    setTimeout(() => {
+      setSaveStatus('idle');
+      setSaveMessage('');
+    }, 3000);
+  };
+
+  const handleDeletePreset = (presetName: string) => {
+    const updatedPresets = savedPresets.filter(p => p.name !== presetName);
+    setSavedPresets(updatedPresets);
+    
+    try {
+      localStorage.setItem('modalEditorPresets', JSON.stringify(updatedPresets));
+      setSaveStatus('success');
+      setSaveMessage('Preset deleted successfully!');
+    } catch (error) {
+      setSaveStatus('error');
+      setSaveMessage('Failed to delete preset.');
+    }
+    
+    setTimeout(() => {
+      setSaveStatus('idle');
+      setSaveMessage('');
+    }, 3000);
+  };
+
+  /**
+   * Export/Import Configuration - Share between modals or team members
+   */
+  const handleExportConfig = () => {
+    const config = {
+      modalType: state.selectedModal,
+      timestamp: Date.now(),
+      colors: state.colors,
+      fonts: state.fonts,
+      texts: state.texts,
+      images: state.images.map(img => ({ ...img, value: img.value.length > 100 ? '[Base64 data - too long for export]' : img.value })), // Truncate large images
+      buttons: state.buttons,
+      sections: state.sections,
+      flowSteps: state.flowSteps,
+    };
+
+    const jsonString = JSON.stringify(config, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${state.selectedModal}-config-${Date.now()}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+
+    setSaveStatus('success');
+    setSaveMessage('Configuration exported successfully!');
+    setTimeout(() => {
+      setSaveStatus('idle');
+      setSaveMessage('');
+    }, 3000);
+  };
+
+  const handleImportConfig = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const config = JSON.parse(e.target?.result as string);
+        
+        if (config.modalType !== state.selectedModal) {
+          setSaveStatus('error');
+          setSaveMessage(`Config is for ${config.modalType}, but you're editing ${state.selectedModal}.`);
+          setTimeout(() => {
+            setSaveStatus('idle');
+            setSaveMessage('');
+          }, 5000);
+          return;
+        }
+
+        saveToHistory({
+          colors: config.colors || state.colors,
+          fonts: config.fonts || state.fonts,
+          texts: config.texts || state.texts,
+          buttons: config.buttons || state.buttons,
+          sections: config.sections || state.sections,
+          flowSteps: config.flowSteps || state.flowSteps,
+          hasChanges: true,
+        });
+
+        setState(prev => ({
+          ...prev,
+          colors: config.colors || prev.colors,
+          fonts: config.fonts || prev.fonts,
+          texts: config.texts || prev.texts,
+          buttons: config.buttons || prev.buttons,
+          sections: config.sections || prev.sections,
+          flowSteps: config.flowSteps || prev.flowSteps,
+          hasChanges: true,
+        }));
+
+        setSaveStatus('success');
+        setSaveMessage('Configuration imported successfully!');
+      } catch (error) {
+        setSaveStatus('error');
+        setSaveMessage('Failed to import configuration. Invalid file format.');
+      }
+      
+      setTimeout(() => {
+        setSaveStatus('idle');
+        setSaveMessage('');
+      }, 3000);
+    };
+    reader.readAsText(file);
+  };
+
+  // Load saved presets on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('modalEditorPresets');
+      if (saved) {
+        setSavedPresets(JSON.parse(saved));
+      }
+    } catch (error) {
+      console.error('Failed to load presets:', error);
+    }
+  }, []);
+
+
   /**
    * Generate a downloadable TypeScript file with all changes applied
    * This creates a complete .tsx file for developers to review and apply
    */
   const generateDownloadableFile = (): string => {
-    const { selectedModal, colors, fonts, texts, images, buttons, flowSteps } = state;
+    const { selectedModal, colors, fonts, texts, images, buttons, flowSteps, sections } = state;
     
     // Generate a comment block with all the changes
     const fileContent = `/**
@@ -611,6 +951,24 @@ ${flowSteps.sort((a, b) => a.order - b.order).map(s => `  {
 ];
 
 // NOTE: Apply these flow steps to your modal's step navigation logic
+` : ''}
+
+${sections.length > 0 ? `
+// ============================================================================
+// SECTION VISIBILITY CONFIGURATION
+// ============================================================================
+
+const sectionsConfig = [
+${sections.map(s => `  {
+    name: '${s.name}',
+    label: '${s.label}',
+    hidden: ${s.hidden || false},${s.locked ? '\n    locked: true, // Core section - cannot be hidden' : ''}
+    description: '${s.description || ''}',
+  },`).join('\n')}
+];
+
+// NOTE: Sections marked as hidden should be conditionally rendered
+// Example: {!sectionsConfig.find(s => s.name === 'paymentMethods')?.hidden && <div>...</div>}
 ` : ''}
 
 // ============================================================================
@@ -1119,14 +1477,44 @@ TESTING CHECKLIST:
             ) : null}
 
             {/* Existing Buttons */}
-            {state.buttons.map(button => (
-              <div key={button.name} className={`p-4 border rounded-lg ${
-                button.hidden 
-                  ? 'bg-white/[0.02] border-white/5 opacity-60' 
-                  : 'bg-white/5 border-white/10'
-              }`}>
+            {state.buttons
+              .sort((a, b) => (a.order || 0) - (b.order || 0))
+              .map((button, index) => (
+              <div 
+                key={button.name} 
+                className={`p-4 border rounded-lg ${
+                  button.hidden 
+                    ? 'bg-white/[0.02] border-white/5 opacity-60' 
+                    : 'bg-white/5 border-white/10'
+                }`}
+                draggable={!button.locked}
+                onDragStart={(e) => {
+                  if (!button.locked) {
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', index.toString());
+                  }
+                }}
+                onDragOver={(e) => {
+                  if (!button.locked) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                  }
+                }}
+                onDrop={(e) => {
+                  if (!button.locked) {
+                    e.preventDefault();
+                    const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
+                    if (fromIndex !== index) {
+                      handleButtonReorder(fromIndex, index);
+                    }
+                  }
+                }}
+              >
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
+                    {!button.locked && (
+                      <GripVertical size={16} className="text-white/40 cursor-move" title="Drag to reorder" />
+                    )}
                     <label className="text-white font-medium">{button.label}</label>
                     {button.locked && (
                       <Lock size={14} className="text-yellow-400" title="Functional - locked from editing" />
@@ -1239,6 +1627,221 @@ TESTING CHECKLIST:
               </div>
             ))}
           </>
+        )}
+      </div>
+    );
+  };
+
+  const renderSectionsEditor = () => (
+    <div className="space-y-4">
+      <div className="p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg mb-6">
+        <h3 className="text-white font-semibold mb-2 flex items-center gap-2">
+          <Layers size={18} className="text-purple-400" />
+          Section Visibility Management
+        </h3>
+        <p className="text-white/70 text-sm mb-2">
+          Hide or show entire sections of the modal. Sections group related content and buttons.
+        </p>
+        <p className="text-white/60 text-xs">
+          <strong>Tip:</strong> Hide sections to simplify the modal or test different layouts.
+        </p>
+      </div>
+
+      {state.sections.length === 0 ? (
+        <div className="p-8 text-center text-white/50">
+          No section properties available for this modal
+        </div>
+      ) : (
+        state.sections.map(section => (
+          <div key={section.name} className={`p-4 border rounded-lg ${
+            section.hidden 
+              ? 'bg-white/[0.02] border-white/5 opacity-60' 
+              : 'bg-white/5 border-white/10'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <h4 className="text-white font-semibold">{section.label}</h4>
+                  {section.locked && (
+                    <Lock size={14} className="text-yellow-400" title="Core section - cannot be hidden" />
+                  )}
+                  {section.hidden && (
+                    <span className="text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-400">
+                      Hidden
+                    </span>
+                  )}
+                </div>
+                {section.description && (
+                  <p className="text-white/60 text-sm">{section.description}</p>
+                )}
+              </div>
+              
+              {!section.locked && (
+                <button
+                  onClick={() => handleSectionVisibilityToggle(section.name, !section.hidden)}
+                  className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ml-4 ${
+                    section.hidden
+                      ? 'bg-green-500/20 hover:bg-green-500/30 text-green-400'
+                      : 'bg-red-500/20 hover:bg-red-500/30 text-red-400'
+                  }`}
+                >
+                  {section.hidden ? 'Show' : 'Hide'}
+                </button>
+              )}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+
+  const renderPresetManager = () => {
+    const [presetName, setPresetName] = useState('');
+    const [presetDescription, setPresetDescription] = useState('');
+
+    const handleSave = () => {
+      if (!presetName) {
+        setSaveStatus('error');
+        setSaveMessage('Preset name is required.');
+        setTimeout(() => {
+          setSaveStatus('idle');
+          setSaveMessage('');
+        }, 3000);
+        return;
+      }
+
+      handleSavePreset(presetName, presetDescription);
+      setPresetName('');
+      setPresetDescription('');
+    };
+
+    return (
+      <div className="space-y-4">
+        <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg mb-6">
+          <h3 className="text-white font-semibold mb-2 flex items-center gap-2">
+            <Save size={18} className="text-blue-400" />
+            Preset & Configuration Management
+          </h3>
+          <p className="text-white/70 text-sm mb-2">
+            Save current configuration as a preset, or load/import saved configurations.
+          </p>
+          <p className="text-white/60 text-xs">
+            <strong>Tip:</strong> Use presets to quickly switch between different design themes or save work-in-progress.
+          </p>
+        </div>
+
+        {/* Save New Preset */}
+        <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
+          <h4 className="text-white font-semibold mb-3">Save Current Configuration</h4>
+          <div className="space-y-3">
+            <div>
+              <label className="text-white/70 text-xs mb-1 block">Preset Name</label>
+              <input
+                type="text"
+                value={presetName}
+                onChange={(e) => setPresetName(e.target.value)}
+                placeholder="e.g., Dark Theme"
+                className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-white/70 text-xs mb-1 block">Description (optional)</label>
+              <input
+                type="text"
+                value={presetDescription}
+                onChange={(e) => setPresetDescription(e.target.value)}
+                placeholder="e.g., Dark theme with blue accents"
+                className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white text-sm"
+              />
+            </div>
+            <button
+              onClick={handleSave}
+              className="w-full px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded text-white font-medium transition-colors flex items-center justify-center gap-2"
+            >
+              <Save size={16} />
+              Save as Preset
+            </button>
+          </div>
+        </div>
+
+        {/* Export/Import */}
+        <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
+          <h4 className="text-white font-semibold mb-3">Export / Import Configuration</h4>
+          <div className="flex gap-2">
+            <button
+              onClick={handleExportConfig}
+              className="flex-1 px-4 py-2 bg-green-500/20 hover:bg-green-500/30 rounded text-green-400 font-medium transition-colors flex items-center justify-center gap-2"
+            >
+              <FileDown size={16} />
+              Export JSON
+            </button>
+            <label className="flex-1 px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 rounded text-purple-400 font-medium transition-colors flex items-center justify-center gap-2 cursor-pointer">
+              <Upload size={16} />
+              Import JSON
+              <input
+                type="file"
+                accept=".json"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    handleImportConfig(file);
+                  }
+                }}
+                className="hidden"
+              />
+            </label>
+          </div>
+          <p className="text-white/50 text-xs mt-2">
+            Export to JSON to share with team members or import configurations from other modals.
+          </p>
+        </div>
+
+        {/* Saved Presets */}
+        {savedPresets.length > 0 && (
+          <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
+            <h4 className="text-white font-semibold mb-3">Saved Presets ({savedPresets.length})</h4>
+            <div className="space-y-2">
+              {savedPresets
+                .filter(p => p.modalType === state.selectedModal)
+                .map(preset => (
+                  <div key={preset.name} className="p-3 bg-white/5 border border-white/10 rounded flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h5 className="text-white font-medium">{preset.name}</h5>
+                        <span className="text-xs px-2 py-0.5 rounded bg-blue-500/20 text-blue-400">
+                          {preset.modalType}
+                        </span>
+                      </div>
+                      {preset.description && (
+                        <p className="text-white/60 text-xs mb-1">{preset.description}</p>
+                      )}
+                      <p className="text-white/40 text-xs">
+                        {new Date(preset.timestamp).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="flex gap-2 ml-4">
+                      <button
+                        onClick={() => handleLoadPreset(preset)}
+                        className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 rounded text-blue-400 text-xs font-medium transition-colors"
+                      >
+                        Load
+                      </button>
+                      <button
+                        onClick={() => handleDeletePreset(preset.name)}
+                        className="px-3 py-1 bg-red-500/20 hover:bg-red-500/30 rounded text-red-400 text-xs font-medium transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+            </div>
+            {savedPresets.filter(p => p.modalType === state.selectedModal).length === 0 && (
+              <p className="text-white/50 text-sm text-center py-4">
+                No saved presets for {state.selectedModal}
+              </p>
+            )}
+          </div>
         )}
       </div>
     );
@@ -1373,6 +1976,26 @@ TESTING CHECKLIST:
               <p className="text-white/50 text-sm">Admin-only editor with download functionality</p>
             </div>
             <div className="flex items-center gap-3">
+              {/* Undo/Redo Buttons */}
+              <div className="flex items-center gap-1 border-r border-white/10 pr-3">
+                <button
+                  onClick={handleUndo}
+                  disabled={state.historyIndex <= 0}
+                  className="px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="Undo"
+                >
+                  <Undo2 size={18} />
+                </button>
+                <button
+                  onClick={handleRedo}
+                  disabled={state.historyIndex >= state.history.length - 1}
+                  className="px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="Redo"
+                >
+                  <Redo2 size={18} />
+                </button>
+              </div>
+              
               <button
                 onClick={() => setState(prev => ({ ...prev, showPreview: !prev.showPreview }))}
                 className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg flex items-center gap-2 transition-colors"
@@ -1512,6 +2135,34 @@ TESTING CHECKLIST:
                   <span>Buttons</span>
                 </button>
               )}
+              
+              {/* Sections Tab */}
+              {(state.selectedModal === 'PaymentModal' || state.selectedModal === 'TopUpWalletModal') && (
+                <button
+                  onClick={() => setActiveTab('sections')}
+                  className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors flex-shrink-0 ${
+                    activeTab === 'sections' 
+                      ? 'border-purple-500 text-white' 
+                      : 'border-transparent text-white/50 hover:text-white/70'
+                  }`}
+                >
+                  <Layers size={18} />
+                  <span>Sections</span>
+                </button>
+              )}
+              
+              {/* Presets Tab */}
+              <button
+                onClick={() => setActiveTab('presets')}
+                className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors flex-shrink-0 ${
+                  activeTab === 'presets' 
+                    ? 'border-blue-500 text-white' 
+                    : 'border-transparent text-white/50 hover:text-white/70'
+                }`}
+              >
+                <Save size={18} />
+                <span>Presets</span>
+              </button>
             </div>
 
             {/* Editor Content */}
@@ -1522,6 +2173,8 @@ TESTING CHECKLIST:
               {activeTab === 'text' && renderTextEditor()}
               {activeTab === 'images' && renderImageEditor()}
               {activeTab === 'buttons' && renderButtonEditor()}
+              {activeTab === 'sections' && renderSectionsEditor()}
+              {activeTab === 'presets' && renderPresetManager()}
             </div>
 
             {/* Info Box */}
