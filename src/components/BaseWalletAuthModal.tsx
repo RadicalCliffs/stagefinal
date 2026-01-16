@@ -933,19 +933,21 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                 <p className="text-white/60 text-xs mb-3 text-center">
                   Fastest option. Connect your Base app to continue.
                 </p>
-                <WalletComponent>
-                  <ConnectWallet className="w-full bg-[#0052FF] hover:bg-[#0052FF]/90 text-white font-bold py-2 rounded-lg flex items-center justify-center">
-                    <Avatar className="h-6 w-6" />
-                    <Name />
-                  </ConnectWallet>
-                  <WalletDropdown>
-                    <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
-                      <Avatar />
+                <div className="flex justify-center w-full">
+                  <WalletComponent>
+                    <ConnectWallet className="w-full bg-[#0052FF] hover:bg-[#0052FF]/90 text-white font-bold py-2 px-6 rounded-lg flex items-center justify-center">
+                      <Avatar className="h-6 w-6" />
                       <Name />
-                      <Address />
-                    </Identity>
-                  </WalletDropdown>
-                </WalletComponent>
+                    </ConnectWallet>
+                    <WalletDropdown>
+                      <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
+                        <Avatar />
+                        <Name />
+                        <Address />
+                      </Identity>
+                    </WalletDropdown>
+                  </WalletComponent>
+                </div>
 
                 {/* Conditional: Show download link only if Base App is not installed */}
                 {!wagmiIsConnected && (
@@ -960,29 +962,6 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                 )}
               </div>
 
-              {/* Option 2: Use an existing Base wallet */}
-              <div className="bg-white/5 border border-white/10 rounded-lg p-4">
-                <div className="flex items-center justify-center gap-3 mb-2">
-                  <Wallet size={20} className="text-white/70 flex-shrink-0" />
-                  <span className="text-white font-semibold">Use an existing Base wallet</span>
-                </div>
-                <p className="text-white/60 text-xs mb-3 text-center">
-                  Connect another wallet that supports the Base network.
-                </p>
-                <WalletComponent>
-                  <ConnectWallet className="w-full bg-white/10 hover:bg-white/20 text-white font-bold py-2 rounded-lg border border-white/20 flex items-center justify-center">
-                    <Avatar className="h-6 w-6" />
-                    <Name />
-                  </ConnectWallet>
-                  <WalletDropdown>
-                    <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
-                      <Avatar />
-                      <Name />
-                      <Address />
-                    </Identity>
-                  </WalletDropdown>
-                </WalletComponent>
-              </div>
 
               {/* Conditional Option: Create a free Prize wallet (only if no Base wallet detected) */}
               {!wagmiIsConnected && (
@@ -994,12 +973,14 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                   <p className="text-white/60 text-xs mb-3 text-center">
                     No Base wallet found. We'll create one for you automatically.
                   </p>
-                  <button
-                    onClick={() => setFlowState('cdp-signin')}
-                    className="w-full bg-[#DDE404] hover:bg-[#DDE404]/90 text-black font-bold py-2 rounded-lg text-center"
-                  >
-                    Create wallet
-                  </button>
+                  <div className="flex justify-center w-full">
+                    <button
+                      onClick={() => setFlowState('cdp-signin')}
+                      className="w-full bg-[#DDE404] hover:bg-[#DDE404]/90 text-black font-bold py-2 px-6 rounded-lg text-center"
+                    >
+                      Create wallet
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
