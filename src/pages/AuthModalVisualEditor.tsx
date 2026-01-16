@@ -147,6 +147,15 @@ interface EditorState {
   historyIndex: number; // New: Current position in history
 }
 
+// Preview props for modals that require additional context
+const PREVIEW_PROPS = {
+  PaymentModal: {
+    ticketCount: 1,
+    competitionId: 'preview-competition',
+    ticketPrice: 5,
+  },
+};
+
 export default function AuthModalVisualEditor() {
   const [state, setState] = useState<EditorState>({
     selectedModal: 'NewAuthModal',
@@ -2531,26 +2540,26 @@ TESTING CHECKLIST:
                   {state.selectedModal === 'NewAuthModal' ? (
                     <NewAuthModal 
                       isOpen={true} 
-                      onClose={() => {}} 
+                      onClose={() => { /* Preview mode - no action on close */ }} 
                     />
                   ) : state.selectedModal === 'BaseWalletAuthModal' ? (
                     <BaseWalletAuthModal 
                       isOpen={true} 
-                      onClose={() => {}} 
+                      onClose={() => { /* Preview mode - no action on close */ }} 
                     />
                   ) : state.selectedModal === 'PaymentModal' ? (
                     <PaymentModal 
                       isOpen={true} 
-                      onClose={() => {}}
-                      onOpen={() => {}}
-                      ticketCount={1}
-                      competitionId="preview-competition"
-                      ticketPrice={5}
+                      onClose={() => { /* Preview mode - no action on close */ }}
+                      onOpen={() => { /* Preview mode - no action on open */ }}
+                      ticketCount={PREVIEW_PROPS.PaymentModal.ticketCount}
+                      competitionId={PREVIEW_PROPS.PaymentModal.competitionId}
+                      ticketPrice={PREVIEW_PROPS.PaymentModal.ticketPrice}
                     />
                   ) : state.selectedModal === 'TopUpWalletModal' ? (
                     <TopUpWalletModal 
                       isOpen={true} 
-                      onClose={() => {}}
+                      onClose={() => { /* Preview mode - no action on close */ }}
                     />
                   ) : (
                     <p className="text-white/50 text-center px-4">
