@@ -4,7 +4,7 @@ import { SignIn, type SignInState } from "@coinbase/cdp-react";
 import { useCurrentUser, useEvmAddress, useIsSignedIn, useSignOut } from "@coinbase/cdp-hooks";
 import { ConnectWallet, Wallet as WalletComponent, WalletDropdown } from '@coinbase/onchainkit/wallet';
 import { Identity, Avatar, Name, Address } from '@coinbase/onchainkit/identity';
-import { useAccount, useDisconnect } from 'wagmi';
+import { useAccount, useDisconnect, useConnect } from 'wagmi';
 import { supabase } from "../lib/supabase";
 import { userDataService } from "../services/userDataService";
 import { toPrizePid } from "../utils/userId";
@@ -291,6 +291,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
   // Wagmi hooks for external wallet connection (Base App, Coinbase Wallet, etc.)
   const { address: wagmiAddress, isConnected: wagmiIsConnected } = useAccount();
   const { disconnect: _wagmiDisconnect } = useDisconnect();
+  const { connect, connectors, isPending: isConnecting } = useConnect();
 
   // Get the effective wallet address (CDP or wagmi)
   const effectiveWalletAddress = evmAddress || wagmiAddress;
@@ -686,6 +687,29 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
     }
   }, [effectiveWalletAddress]);
 
+  // Handle MetaMask connection directly
+  const handleConnectMetaMask = useCallback(() => {
+    // Find the MetaMask connector from wagmi connectors
+    const metaMaskConnector = connectors.find(
+      (c) => c.id === 'metaMaskSDK' || c.id === 'metaMask' || c.name.toLowerCase().includes('metamask')
+    );
+
+    if (metaMaskConnector) {
+      console.log('[BaseWallet] Connecting to MetaMask via connector:', metaMaskConnector.name);
+      connect({ connector: metaMaskConnector });
+    } else {
+      // Fallback: try injected connector which may detect MetaMask
+      const injectedConnector = connectors.find((c) => c.id === 'injected');
+      if (injectedConnector) {
+        console.log('[BaseWallet] Falling back to injected connector for MetaMask');
+        connect({ connector: injectedConnector });
+      } else {
+        console.error('[BaseWallet] No MetaMask connector found');
+        setEmailError('MetaMask not found. Please install the MetaMask browser extension.');
+      }
+    }
+  }, [connectors, connect]);
+
   if (!isOpen) return null;
 
   return (
@@ -961,6 +985,35 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                   </a>
                 )}
               </div>
+
+              {/* Option 2: Connect MetaMask Wallet */}
+              {!wagmiIsConnected && (
+                <div className="bg-[#F6851B]/10 border border-[#F6851B]/30 rounded-lg p-4">
+                  <div className="flex items-center justify-center gap-3 mb-2">
+                    <Wallet size={20} className="text-[#F6851B] flex-shrink-0" />
+                    <span className="text-white font-semibold">Connect MetaMask</span>
+                  </div>
+                  <p className="text-white/60 text-xs mb-3 text-center">
+                    Use your existing MetaMask browser wallet.
+                  </p>
+                  <div className="flex justify-center w-full">
+                    <button
+                      onClick={handleConnectMetaMask}
+                      disabled={isConnecting}
+                      className="w-full bg-[#F6851B] hover:bg-[#F6851B]/90 text-white font-bold py-2 px-6 rounded-lg text-center disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {isConnecting ? (
+                        <>
+                          <Loader2 size={16} className="animate-spin" />
+                          Connecting...
+                        </>
+                      ) : (
+                        'Connect MetaMask'
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
 
 
               {/* Conditional Option: Create a free Prize wallet (only if no Base wallet detected) */}
