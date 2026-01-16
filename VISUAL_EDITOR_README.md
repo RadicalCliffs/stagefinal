@@ -21,7 +21,7 @@ This route is:
 
 ## Features
 
-### 1. Modal Selection (NEW!)
+### 1. Modal Selection
 - **Select from 4 modals** to edit:
   - NewAuthModal - Authentication flow
   - BaseWalletAuthModal - Wallet connection
@@ -30,7 +30,25 @@ This route is:
 - Each modal has specific editable properties
 - Tabs shown dynamically based on modal capabilities
 
-### 2. Flow Order Editor
+### 2. Button Visibility & Management (NEW! ⭐)
+- **Hide/Show Buttons:** Toggle button visibility without deleting configuration
+- **Dynamic Button Creation:** Add new buttons using predefined templates
+- **Button Templates:**
+  - Payment Method Button - For new payment options
+  - Wallet Connection Button - For specific wallet providers
+  - External Link Button - Link to external resources
+  - Internal Navigation Button - Navigate within the app
+- **Icon Support:** Add custom icons to buttons via URL
+- **Visual Indicators:** Hidden buttons are clearly marked with badges
+- **Safe Editing:** Hidden buttons won't appear in modal but retain all settings
+
+**Use Cases:**
+- Temporarily hide a payment method without losing configuration
+- Add Apple Pay as a new payment option with custom icon
+- Propose new wallet connection options (MetaMask, WalletConnect, etc.)
+- Test button configurations before making them live
+
+### 3. Flow Order Editor
 - **Reorder authentication steps** via drag-and-drop (auth modals only)
 - **Enable/disable steps** to skip or include them in the flow
 - **Customize user experience** while ensuring required data is collected
@@ -43,7 +61,7 @@ This route is:
 - Change order: wallet → email → profile instead of email → profile → wallet
 - Remove optional steps from the flow entirely
 
-### 3. Color Editor
+### 4. Color Editor
 - Modify all color properties including:
   - Background colors
   - Text colors (primary, secondary, muted)
@@ -54,7 +72,7 @@ This route is:
 - Uses standard color picker and hex input
 - **Locked elements:** Functional components (input backgrounds, focus states) are locked to preserve authentication flow
 
-### 4. Font Editor
+### 5. Font Editor
 - Adjust typography for:
   - Headings (size, weight, family)
   - Subheadings
@@ -69,7 +87,7 @@ This route is:
   - Font style (normal, italic)
 - **Locked elements:** Button and input fonts are locked to maintain usability
 
-### 5. Text Content Editor
+### 6. Text Content Editor
 - Edit text content including:
   - Modal titles and subtitles
   - Success messages
@@ -80,17 +98,42 @@ This route is:
 - Supports single-line and multi-line text fields
 - **Locked elements:** Functional labels and error messages are locked
 
-### 6. Image Editor
-- Upload and replace images/icons
-- Supports:
-  - Logo replacements
-  - Icon uploads
-  - Background images
-- File upload with preview
-- Maximum file size: 2MB
-- **Locked elements:** Functional icons (loading spinners, checkmarks for validation) are locked
+### 7. Image Editor (ENHANCED! ⭐)
+- Upload and replace images/icons with intelligent validation
+- **Image Type Classification:**
+  - Logo - Brand logos with flexible dimensions
+  - Icon - UI icons with specific size requirements
+  - Wallet Icon - Wallet provider icons (standardized)
+  - Payment Icon - Payment method icons
+  - Background - Background images
+- **Format Validation:**
+  - Preferred formats displayed (SVG, PNG, WebP)
+  - Format mismatch warnings (allows upload but suggests conversion)
+  - Accept attribute customized per image type
+- **Dimension Recommendations:**
+  - Shows recommended dimensions for each image type
+  - Validates uploaded image dimensions
+  - Warns if dimensions don't match recommendations
+- **Size Validation:**
+  - Maximum file size: 2MB
+  - Clear error messages for oversized files
+- **Enhanced Preview:**
+  - Better formatted previews
+  - Image metadata badges (type, format)
+  - Visual feedback on successful upload
+- **Flexible Input:**
+  - File upload support
+  - URL input for icons (hosted elsewhere)
 
-### 7. Button Link Editor (NEW!)
+**Use Cases:**
+- Upload wallet icons with proper format validation (SVG preferred)
+- Replace payment method icons with standardized dimensions
+- Add custom branding with appropriate format recommendations
+- Ensure icons meet quality standards before integration
+
+**Locked elements:** Functional icons (loading spinners, checkmarks) are locked
+
+### 8. Button Link Editor (ENHANCED! ⭐)
 - **Configure button links** with multiple options:
   - **None** - Keep default action
   - **External URL** - Link to external website
@@ -106,14 +149,14 @@ This route is:
   - Redirect "Learn More" button to FAQ
   - Change payment method links
   
-### 8. Live Preview
+### 9. Live Preview
 - Real-time preview of changes (auth modals only)
 - Can be toggled on/off
 - Opens modal in preview mode
 - Payment modals show notice (require additional context)
 - Preview helps visualize color/font changes
 
-### 9. File Download System (NEW!)
+### 10. File Download System
 - **Downloads TypeScript file** instead of writing to GitHub
 - **Generated file includes:**
   - All customizations (colors, fonts, texts, buttons)
@@ -188,6 +231,82 @@ The editor generates complete TypeScript files with customizations for developer
 ### Step 6: Reset if Needed
 - Click **Reset** to discard unsaved changes
 - Reload the page to start fresh
+
+## Button Visibility & Creation Guide (NEW! ⭐)
+
+### Hiding/Showing Buttons
+
+**To hide a button:**
+1. Navigate to the **Buttons** tab
+2. Find the button you want to hide
+3. Click the **Hide** button on the right side
+4. Button becomes visually dimmed with a "Hidden" badge
+5. Hidden buttons won't appear in the modal but retain all settings
+
+**To show a hidden button:**
+1. Find the hidden button (marked with "Hidden" badge)
+2. Click the **Show** button
+3. Button becomes active again
+
+**Use Cases:**
+- Temporarily disable a payment method during maintenance
+- A/B test different button configurations
+- Hide seasonal payment options when not available
+- Test new button configurations before enabling
+
+### Adding New Buttons
+
+**Prerequisites:**
+- Only available for PaymentModal and TopUpWalletModal
+- Must be on the **Buttons** tab
+
+**Steps to add a new button:**
+1. Click **"Add New Button"** section (expands form)
+2. Choose a template or create custom:
+   - **Payment Method** - New payment option
+   - **Wallet Connection** - Specific wallet provider
+   - **External Link** - Link to external resource
+   - **Internal Navigation** - Navigate within app
+3. Fill in required fields:
+   - **Button Name** - Unique identifier (e.g., `applePayButton`)
+   - **Button Label** - Display text (e.g., "Pay with Apple Pay")
+   - **Link Type** - Action, URL, Route, or None
+   - **Link Value** - The action/URL/route
+   - **Icon URL** (optional) - Icon image URL
+   - **Description** - Brief description
+4. Click **"Add Button"**
+5. Button appears in the list
+
+**Button Name Guidelines:**
+- Must be unique (not already used)
+- Use camelCase (e.g., `myNewButton`)
+- Descriptive but concise
+- No spaces or special characters
+
+**Icon URL Examples:**
+- `https://example.com/icons/applepay.svg`
+- `/public/icons/metamask.png`
+- CDN URLs for common icons
+
+**Validation:**
+- Duplicate names are rejected
+- Icon preview shown if URL is valid
+- Name and label are required fields
+
+### Managing Button Icons
+
+**To add/change a button icon:**
+1. In the Buttons tab, find the button
+2. Locate the "Icon URL" field
+3. Enter the full URL to the icon image
+4. Icon preview appears below if valid
+5. Icon is included in the downloaded configuration
+
+**Icon Recommendations:**
+- Format: SVG (scalable), PNG (with transparency), or WebP
+- Size: 24×24px to 40×40px for optimal display
+- Hosted: Use CDN or public URL for reliability
+- Quality: High-resolution for Retina displays
 
 ## Button Link Configuration
 
