@@ -177,9 +177,8 @@ const PREVIEW_HANDLERS = {
 // Constants for layout
 const EDITOR_MAX_WIDTH = '2000px';
 
-// Mock Auth Context Provider for preview mode
-// Provides authenticated=true state so PaymentModal shows all buttons
-const MockAuthContext = createContext<any>({
+// Mock user data for preview - provides authenticated state
+const MOCK_USER_DATA = {
   authenticated: true,
   baseUser: { id: '0x1234567890123456789012345678901234567890' },
   profile: { 
@@ -192,25 +191,30 @@ const MockAuthContext = createContext<any>({
     { address: '0x1234567890123456789012345678901234567890', type: 'embedded' }
   ],
   refreshUserData: () => Promise.resolve(),
-});
+};
+
+// Type definition for mock auth context
+interface MockAuthContextType {
+  authenticated: boolean;
+  baseUser: { id: string };
+  profile: {
+    email: string;
+    name: string;
+    country: string;
+    wallet_address: string;
+  };
+  linkedWallets: Array<{ address: string; type: string }>;
+  refreshUserData: () => Promise<void>;
+}
+
+// Mock Auth Context Provider for preview mode
+// Provides authenticated=true state so PaymentModal shows all buttons
+const MockAuthContext = createContext<MockAuthContextType>(MOCK_USER_DATA);
 
 // Wrapper component that provides mock auth context for preview
 const PreviewWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
-    <MockAuthContext.Provider value={{
-      authenticated: true,
-      baseUser: { id: '0x1234567890123456789012345678901234567890' },
-      profile: { 
-        email: 'preview@theprize.io',
-        name: 'Preview User',
-        country: 'US',
-        wallet_address: '0x1234567890123456789012345678901234567890',
-      },
-      linkedWallets: [
-        { address: '0x1234567890123456789012345678901234567890', type: 'embedded' }
-      ],
-      refreshUserData: () => Promise.resolve(),
-    }}>
+    <MockAuthContext.Provider value={MOCK_USER_DATA}>
       {children}
     </MockAuthContext.Provider>
   );
@@ -2351,6 +2355,15 @@ TESTING CHECKLIST:
   // This makes the preview ACTUALLY LIVE without modifying modal component code
   // Uses specific selectors to target modal elements and apply editor changes in real-time
   const generatePreviewStyles = () => {
+    // Constants for common color values used in selectors
+    const MODAL_BG_DARK = '#1A1A1A';
+    const MODAL_BG_DARKER = '#0A0A0F';
+    const PRIMARY_BLUE = '#0052FF';
+    const ACCENT_YELLOW = '#DDE404';
+    
+    // Alpha transparency level for accent backgrounds (20% opacity)
+    const ACCENT_ALPHA = '20';
+
     // Sanitize CSS variable name to prevent injection
     const sanitizeCSSVarName = (name: string): string => {
       // Only allow alphanumeric and hyphens
@@ -2426,8 +2439,8 @@ TESTING CHECKLIST:
     /* Primary background color */
     #modal-preview-container [role="dialog"],
     #modal-preview-container > div > div:first-child,
-    #modal-preview-container [class*="bg-\\[#1A1A1A\\]"],
-    #modal-preview-container [class*="bg-\\[#0A0A0F\\]"] {
+    #modal-preview-container [class*="bg-\\[${MODAL_BG_DARK.replace('#', '\\#')}\\]"],
+    #modal-preview-container [class*="bg-\\[${MODAL_BG_DARKER.replace('#', '\\#')}\\]"] {
       background-color: ${safeValue} !important;
     }`;
         
@@ -2436,8 +2449,8 @@ TESTING CHECKLIST:
     /* Primary button color */
     #modal-preview-container button[class*="bg-"][class*="blue"],
     #modal-preview-container button[class*="bg-purple"],
-    #modal-preview-container button[class*="bg-\\[#0052FF\\]"],
-    #modal-preview-container button[class*="from-\\[#0052FF\\]"],
+    #modal-preview-container button[class*="bg-\\[${PRIMARY_BLUE.replace('#', '\\#')}\\]"],
+    #modal-preview-container button[class*="from-\\[${PRIMARY_BLUE.replace('#', '\\#')}\\]"],
     #modal-preview-container button[class*="gradient"]:not([class*="violet"]):not([class*="orange"]):not([class*="gray"]) {
       background: linear-gradient(to right, ${safeValue}, ${safeValue}) !important;
       border-color: ${safeValue} !important;
@@ -2501,13 +2514,13 @@ TESTING CHECKLIST:
       color: ${safeValue} !important;
     }
     #modal-preview-container [class*="bg-green"] {
-      background-color: ${safeValue}20 !important;
+      background-color: ${safeValue}${ACCENT_ALPHA} !important;
     }`;
         
         case 'accentBlue':
           return `
     /* Accent blue color */
-    #modal-preview-container [class*="text-\\[#0052FF\\]"],
+    #modal-preview-container [class*="text-\\[${PRIMARY_BLUE.replace('#', '\\#')}\\]"],
     #modal-preview-container [class*="text-blue-"] {
       color: ${safeValue} !important;
     }`;
