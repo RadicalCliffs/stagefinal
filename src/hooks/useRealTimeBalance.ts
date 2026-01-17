@@ -393,13 +393,12 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'joincompetition',
+          table: 'v_joincompetition_active',
         },
         (payload) => {
           // Filter in callback for case-insensitive matching using userIdsEqual
           const record = payload.new as {
             walletaddress?: string;
-            privy_user_id?: string;
             userid?: string;
           };
 

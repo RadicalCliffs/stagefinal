@@ -449,10 +449,10 @@ export async function fetchUserEntriesWithIdentity(identifier: string): Promise<
 
   try {
     const { data, error } = await supabase
-      .from('joincompetition')
+      .from('v_joincompetition_active')
       .select(`
         *,
-        competitions!joincompetition_competitionid_fkey (
+        competitions!inner (
           id,
           uid,
           title,

@@ -621,19 +621,19 @@ export const userAuth = {
     if (isWallet && normalizedWallet) {
       // Query by wallet address (PRIMARY for Base auth) - use ilike for case-insensitive matching
       const result = await supabase
-        .from('joincompetition')
+        .from('v_joincompetition_active')
         .select(`
           *,
           competitions(*)
         `)
-        .or(`walletaddress.ilike.${normalizedWallet},privy_user_id.ilike.${normalizedWallet},userid.eq.${canonicalId}`)
+        .or(`walletaddress.ilike.${normalizedWallet},userid.eq.${canonicalId}`)
         .order('buytime', { ascending: false });
       data = result.data;
       error = result.error;
     } else {
-      // Query by privy_user_id for legacy DIDs
+      // Query by userid for legacy IDs
       const result = await supabase
-        .from('joincompetition')
+        .from('v_joincompetition_active')
         .select(`
           *,
           competitions(*)

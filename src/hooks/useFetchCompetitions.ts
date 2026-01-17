@@ -134,7 +134,7 @@ export function useCompetitions() {
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "joincompetition" },
+        { event: "*", schema: "public", table: "v_joincompetition_active" },
         () => fetchCompetitions()
       )
       .on(

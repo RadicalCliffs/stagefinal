@@ -144,7 +144,7 @@ export function useUserProfile(privyUserId: string | null | undefined): UseUserP
     });
 
     const { data: ticketsData, error: ticketsError } = await supabase
-      .from('joincompetition')
+      .from('v_joincompetition_active')
       .select('uid, competitionid, ticketnumbers, purchasedate')
       .or(ticketFilter);
 
@@ -252,7 +252,7 @@ export function useUserProfile(privyUserId: string | null | undefined): UseUserP
         {
           event: '*',
           schema: 'public',
-          table: 'joincompetition',
+          table: 'v_joincompetition_active',
           filter: userIsWallet
             ? `walletaddress=eq.${privyUserId.toLowerCase()}`
             : `userid=eq.${privyUserId}`

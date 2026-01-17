@@ -195,13 +195,12 @@ export default function EntriesList() {
           {
             event: '*',
             schema: 'public',
-            table: 'joincompetition',
+            table: 'v_joincompetition_active',
           },
           (payload) => {
             // Use the helper function for robust case-insensitive matching
             const record = payload.new as {
               walletaddress?: string;
-              privy_user_id?: string;
               userid?: string;
             };
 

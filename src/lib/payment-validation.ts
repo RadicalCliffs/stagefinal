@@ -179,7 +179,7 @@ export async function validateEntryCreation(
   try {
     // Query for entries
     const { data, error } = await supabase
-      .from('joincompetition')
+      .from('v_joincompetition_active')
       .select('*')
       .eq('userid', userId)
       .eq('competitionid', competitionId)

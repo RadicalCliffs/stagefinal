@@ -230,13 +230,13 @@ export const userDataService = {
           tickets = rpcData;
         } else {
           // Fallback: Direct query to joincompetition table
-          // Note: Removed privy_user_id from OR filter to avoid REST API errors with complex identifiers
+          // Note: Using v_joincompetition_active view for stable read interface
           // Supabase client library handles parameter escaping to prevent SQL injection
           console.log('[userDataService] get_user_tickets RPC unavailable, using direct query');
           const { data: directData, error: directError } = await supabase
-            .from('joincompetition')
+            .from('v_joincompetition_active')
             .select('*')
-            .or(`canonical_user_id.eq.${canonicalId},walletaddress.ilike.${normalizedWallet},userid.eq.${canonicalId}`)
+            .or(`walletaddress.ilike.${normalizedWallet},userid.eq.${canonicalId}`)
             .order('purchasedate', { ascending: false });
 
           if (!directError && directData) {
@@ -295,12 +295,12 @@ export const userDataService = {
           const thirtyDaysAgo = new Date();
           thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-          // Note: Removed privy_user_id from OR filter to avoid REST API errors with complex identifiers
+          // Note: Using v_joincompetition_active view for stable read interface
           // Supabase client library handles parameter escaping to prevent SQL injection
           const { count, error: countError } = await supabase
-            .from('joincompetition')
+            .from('v_joincompetition_active')
             .select('*', { count: 'exact', head: true })
-            .or(`canonical_user_id.eq.${canonicalId},walletaddress.ilike.${normalizedWallet},userid.eq.${canonicalId}`)
+            .or(`walletaddress.ilike.${normalizedWallet},userid.eq.${canonicalId}`)
             .gte('purchasedate', thirtyDaysAgo.toISOString());
 
           if (!countError) {
@@ -350,9 +350,9 @@ export const userDataService = {
       // Fallback: Direct query
       console.log('[userDataService] get_user_tickets RPC unavailable for count, using direct query');
       const { count, error } = await supabase
-        .from('joincompetition')
+        .from('v_joincompetition_active')
         .select('*', { count: 'exact', head: true })
-        .or(`walletaddress.ilike.${normalizedWallet},privy_user_id.eq.${canonicalId},userid.eq.${canonicalId}`);
+        .or(`walletaddress.ilike.${normalizedWallet},userid.eq.${canonicalId}`);
 
       if (error) {
         console.error('Error fetching user ticket count:', error);
@@ -380,13 +380,12 @@ export const userDataService = {
         return rpcData.filter((t: any) => t.is_active !== false).length || 0;
       }
 
-      // Fallback: Direct query - assumes all entries in joincompetition are active
-      // (no is_active column in joincompetition, so we return the total count)
+      // Fallback: Direct query - uses v_joincompetition_active which only includes active entries
       console.log('[userDataService] get_user_tickets RPC unavailable for active count, using direct query');
       const { count, error } = await supabase
-        .from('joincompetition')
+        .from('v_joincompetition_active')
         .select('*', { count: 'exact', head: true })
-        .or(`walletaddress.ilike.${normalizedWallet},privy_user_id.eq.${canonicalId},userid.eq.${canonicalId}`);
+        .or(`walletaddress.ilike.${normalizedWallet},userid.eq.${canonicalId}`);
 
       if (error) {
         console.error('Error fetching user active tickets:', error);

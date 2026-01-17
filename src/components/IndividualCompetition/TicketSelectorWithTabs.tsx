@@ -142,7 +142,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
             const available = await database.getAvailableTicketsForCompetition(competitionId, totalTickets);
 
             // Validate against ticketsSold prop - if RPC returns more available than expected,
-            // the RPC may have failed to find sold tickets in joincompetition table
+            // the RPC may have failed to find sold tickets in v_joincompetition_active view
             const expectedAvailable = totalTickets - ticketsSold;
             let validatedAvailable = available;
 
@@ -153,7 +153,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                     ticketsSold
                 });
                 // Limit to expected available count (use first N tickets as available)
-                // This prevents showing sold tickets as available when RPC fails to find joincompetition entries
+                // This prevents showing sold tickets as available when RPC fails to find v_joincompetition_active entries
                 validatedAvailable = available.slice(0, expectedAvailable);
             }
 
@@ -207,25 +207,19 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                 return;
             }
 
-            // Fallback: Query joincompetition directly for user's tickets in this competition
+            // Fallback: Query v_joincompetition_active directly for user's tickets in this competition
             // Use the resolved competition ID to avoid uuid/text type mismatch in OR queries
-            // Since joincompetition.competitionid is TEXT, we use single eq filter with the resolved ID
             const resolvedCompetitionId = competitionId; // Already resolved by caller
 
             // Use separate queries for different user identifiers to ensure we find all entries
             const queries = [
                 supabase
-                    .from('joincompetition')
+                    .from('v_joincompetition_active')
                     .select('ticketnumbers')
                     .eq('competitionid', resolvedCompetitionId)
                     .eq('walletaddress', baseUser.id),
                 supabase
-                    .from('joincompetition')
-                    .select('ticketnumbers')
-                    .eq('competitionid', resolvedCompetitionId)
-                    .eq('privy_user_id', baseUser.id),
-                supabase
-                    .from('joincompetition')
+                    .from('v_joincompetition_active')
                     .select('ticketnumbers')
                     .eq('competitionid', resolvedCompetitionId)
                     .eq('userid', baseUser.id)
@@ -325,7 +319,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
             .channel(`tickets-${competitionId}`)
             .on(
                 'postgres_changes',
-                { event: '*', schema: 'public', table: 'joincompetition', filter: `competitionid=eq.${competitionId}` },
+                { event: '*', schema: 'public', table: 'v_joincompetition_active', filter: `competitionid=eq.${competitionId}` },
                 () => {
                     // Use debounced soft refresh for realtime updates during high traffic
                     debouncedRefresh();
