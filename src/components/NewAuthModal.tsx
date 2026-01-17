@@ -934,10 +934,9 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
                   profileData,
                   isReturningUser: true,
                   returningUserWalletAddress,
-                  timestamp: Date.now(),
-                  connectExisting: true
+                  timestamp: Date.now()
                 }));
-                console.log('[NewAuthModal] Opening wallet connector for returning user');
+                console.log('[NewAuthModal] Opening CDP sign-in for returning user authentication');
                 // Close this modal and dispatch event to open Base wallet auth modal
                 onClose();
                 // Small delay to ensure modal closes before opening new one
@@ -946,7 +945,6 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
                     detail: { 
                       resumeSignup: true, 
                       email: profileData.email,
-                      connectExisting: true,
                       isReturningUser: true,
                       returningUserWalletAddress
                     }
