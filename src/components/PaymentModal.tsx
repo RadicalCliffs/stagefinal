@@ -1467,115 +1467,58 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
               {/* === PAYMENT OPTIONS === */}
 
-              {/* 1. Pay with Balance */}
-              {authenticated && (
-                <div className={`relative ${userBalance >= amount ? '' : 'opacity-60'}`}>
-                  <div className="border border-violet-500/50 rounded-xl p-5 bg-gradient-to-br from-violet-900/20 to-purple-900/10 hover:border-violet-400/60 transition-all">
+              {/* Balance Payment - Quick and Instant */}
+              {authenticated && userBalance >= amount && (
+                <div className="relative">
+                  <div className="border-2 border-violet-500/50 rounded-xl p-5 bg-gradient-to-br from-violet-900/20 to-purple-900/10 hover:border-violet-400/70 transition-all">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
                         <DollarSign className="text-violet-400" size={20} />
-                        <p className="text-violet-300 sequel-75 text-sm">Pay with Balance</p>
+                        <p className="text-white sequel-75 text-sm">Pay with Balance</p>
                       </div>
-                      <div className={`px-3 py-1 rounded-full ${userBalance > 0 ? 'bg-violet-500/20' : 'bg-gray-500/20'}`}>
-                        <p className={`sequel-75 text-sm ${userBalance > 0 ? 'text-[#DDE404]' : 'text-white/40'}`}>
+                      <div className="px-3 py-1 rounded-full bg-violet-500/20">
+                        <p className="sequel-75 text-sm text-[#DDE404]">
                           {loadingBalance ? 'Loading...' : `$${userBalance.toFixed(2)}`}
                         </p>
                       </div>
                     </div>
                     <button
                       onClick={handleBalancePayment}
-                      disabled={balanceLoading || loadingBalance || userBalance < amount}
+                      disabled={balanceLoading || loadingBalance}
                       className="w-full flex items-center justify-center gap-3 py-3.5 px-6 bg-gradient-to-r from-violet-600 to-purple-600 text-white sequel-75 uppercase rounded-lg hover:from-violet-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                     >
                       <DollarSign size={18} />
                       {balanceLoading ? 'Processing...' : `Pay $${amount.toFixed(2)} Instantly`}
                     </button>
-                    {userBalance < amount && (
-                      <p className="text-violet-400/60 text-xs sequel-45 text-center mt-2">
-                        Need ${(amount - userBalance).toFixed(2)} more • Top up to use
-                      </p>
-                    )}
                   </div>
                 </div>
               )}
 
-              {/* 2. Pay with USDC (Base) */}
+              {/* Primary Payment Method - USDC on Base */}
               {authenticated && (
                 <div className="relative">
-                  <div className="border-2 border-[#0052FF] rounded-xl p-5 bg-gradient-to-br from-[#0052FF]/15 to-blue-900/10 hover:border-[#0052FF]/80 transition-all">
+                  <div className="border-2 border-[#0052FF] rounded-xl p-6 bg-gradient-to-br from-[#0052FF]/15 to-blue-900/10 hover:border-[#0052FF]/80 transition-all">
                     <div className="absolute top-0 right-0 bg-[#0052FF] text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg flex items-center gap-1">
                       <Sparkles size={12} />
                       RECOMMENDED
                     </div>
-                    <div className="flex items-center justify-center gap-2 mb-3">
-                      <Wallet className="text-[#0052FF]" size={20} />
-                      <p className="text-[#0052FF] sequel-75 text-sm">Pay with USDC (Base)</p>
+                    <div className="text-center mb-4">
+                      <Wallet className="text-[#0052FF] mx-auto mb-2" size={32} />
+                      <p className="text-white sequel-75 text-lg mb-1">Pay with Wallet</p>
+                      <p className="text-white/60 sequel-45 text-xs">USDC on Base • Card • Crypto</p>
                     </div>
                     <button
                       onClick={handleOnchainKitPayment}
                       disabled={onchainKitLoading}
-                      className="w-full flex items-center justify-center gap-3 py-3.5 px-6 bg-gradient-to-r from-[#0052FF] to-blue-500 text-white sequel-75 uppercase rounded-lg hover:from-[#0052FF]/90 hover:to-blue-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      className="w-full flex items-center justify-center gap-3 py-4 px-6 bg-gradient-to-r from-[#0052FF] to-blue-500 text-white sequel-75 uppercase rounded-lg hover:from-[#0052FF]/90 hover:to-blue-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-base"
                     >
-                      <Wallet size={20} />
-                      {onchainKitLoading ? 'Connecting...' : `Pay $${amount.toFixed(2)} USDC`}
-                      <ChevronRight size={16} className="opacity-60" />
+                      {onchainKitLoading ? 'Connecting...' : `Pay $${amount.toFixed(2)}`}
+                      <ChevronRight size={18} />
                     </button>
-                    <p className="text-[#0052FF]/60 text-xs sequel-45 text-center mt-2">
-                      Coinbase Wallet, MetaMask, or any EVM wallet
+                    <p className="text-[#0052FF]/60 text-xs sequel-45 text-center mt-3">
+                      Supports Coinbase Wallet, MetaMask, WalletConnect, Card & 60+ cryptocurrencies
                     </p>
                   </div>
-                </div>
-              )}
-
-              {/* 3. Pay with Other Crypto */}
-              {authenticated && (
-                <div className="relative">
-                  <div className="border border-orange-500/50 rounded-xl p-5 bg-gradient-to-br from-orange-900/20 to-amber-900/10 hover:border-orange-400/60 transition-all">
-                    <div className="flex items-center justify-center gap-2 mb-3">
-                      <Coins className="text-orange-400" size={20} />
-                      <p className="text-orange-300 sequel-75 text-sm">Pay with Other Crypto</p>
-                    </div>
-                    <button
-                      onClick={handleOtherCryptoPayment}
-                      disabled={otherCryptoLoading}
-                      className="w-full flex items-center justify-center gap-3 py-3.5 px-6 bg-gradient-to-r from-orange-600 to-amber-600 text-white sequel-75 uppercase rounded-lg hover:from-orange-500 hover:to-amber-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                    >
-                      <span className="text-lg">₿ Ξ ◎</span>
-                      {otherCryptoLoading ? 'Loading...' : 'Select Cryptocurrency'}
-                      <ChevronRight size={16} className="opacity-60" />
-                    </button>
-                    <p className="text-orange-400/60 text-xs sequel-45 text-center mt-2">
-                      Bitcoin, Ethereum, Solana, Dogecoin & 60+ coins
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Card payment - secondary */}
-              {authenticated && (
-                <div className="border border-white/20 rounded-xl p-4 bg-[#1a1a1a]/80 hover:border-white/30 transition-all">
-                  <button
-                    onClick={handleCardPayment}
-                    disabled={cardLoading}
-                    className="w-full flex items-center justify-center gap-2 py-3 px-6 bg-[#3c3d3c] text-white sequel-75 uppercase rounded-lg hover:bg-[#4c4d4c] disabled:opacity-50 transition-all"
-                  >
-                    <CreditCard size={18} />
-                    {cardLoading ? 'Opening...' : `Pay $${amount.toFixed(2)} with Card`}
-                  </button>
-                  <div className="flex items-center justify-center gap-3 mt-2">
-                    <img src={visaLogo} alt="Visa" className="h-4 opacity-60" />
-                    <img src={masterCardLogo} alt="Mastercard" className="h-4 opacity-60" />
-                    <img src={applePay} alt="Apple Pay" className="h-4 opacity-60" />
-                  </div>
-                </div>
-              )}
-
-              {/* Informational Note */}
-              {authenticated && (
-                <div className="bg-white/5 border border-white/10 rounded-lg px-4 py-3">
-                  <p className="text-white/50 text-xs sequel-45 text-center">
-                    <span className="text-white/70">Note:</span> These methods open similar checkout flows. Simply ensure your Base account is funded with <span className="text-[#0052FF]">USDC</span> or <span className="text-[#627EEA]">ETH</span> on Base network. Once funded, use the <span className="text-[#DDE404]">Top Up</span> button to load your balance for instant plays!
-                  </p>
                 </div>
               )}
 
@@ -1588,18 +1531,6 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                 Cancel
               </button>
 
-              {/* Security & Trust Footer */}
-              <div className="flex items-center justify-center gap-4 pt-2">
-                <div className="flex items-center gap-1.5 text-white/30">
-                  <Shield size={14} />
-                  <span className="text-xs sequel-45">Secure Checkout</span>
-                </div>
-                <div className="w-1 h-1 rounded-full bg-white/20"></div>
-                <div className="flex items-center gap-1.5 text-white/30">
-                  <img src={footerLogo} alt="Prize" className="h-3 opacity-50" />
-                  <span className="text-xs sequel-45">by Prize.io</span>
-                </div>
-              </div>
             </div>
           )}
 
