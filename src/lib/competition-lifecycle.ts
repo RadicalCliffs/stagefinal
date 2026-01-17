@@ -345,26 +345,45 @@ export class CompetitionLifecycleService {
       }
 
       // Get user details
-      const { data: user } = await withRetry(
+      let user = null;
+
+      // Try by uuid id first
+      const byUuid = await withRetry(
         () => supabase
           .from('canonical_users')
-          .select('id, username, country, wallet_address')
+          .select('id, username, country, wallet_address, canonical_user_id')
           .eq('id', entry.userid)
           .maybeSingle(),
-        'fetch user details'
+        'fetch user details by UUID'
       );
+      
+      if (byUuid?.data) {
+        user = byUuid.data;
+      } else {
+        // Fallback to canonical_user_id
+        const byCanonical = await withRetry(
+          () => supabase
+            .from('canonical_users')
+            .select('id, username, country, wallet_address, canonical_user_id')
+            .eq('canonical_user_id', entry.userid)
+            .maybeSingle(),
+          'fetch user details by canonical_user_id'
+        );
+        user = byCanonical?.data ?? null;
+      }
 
       // Create winner record
       const winnerData = {
-        competition_id: competition.id,
-        user_id: entry.userid,
-        ticket_number: ticketNumber,
-        prize_value: competition.prize_value || 0,
+        competition_id: competition.id, // uuid
+        user_id: user?.id ?? String(entry.userid), // winners.user_id is text; store uuid as text if available
+        ticket_number: ticketNumber, // int
+        prize_position: 1, // REQUIRED by schema (adjust if multiple winners)
+        prize_value: competition.prize_value || 0, // numeric
         prize_claimed: false,
         username: user?.username || 'Unknown',
         country: user?.country || null,
         wallet_address: entry.walletaddress || user?.wallet_address || null,
-        crdate: new Date().toISOString()
+        created_at: new Date().toISOString()
       };
 
       const { error } = await withRetry(

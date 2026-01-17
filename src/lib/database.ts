@@ -926,33 +926,51 @@ export const database = {
   },
 
   async getUser(userId: string) {
-    const { data, error } = await supabase
+    // 1) Try canonical_user_id (prize:pid:0x...)
+    const byCanonical = await supabase
       .from('canonical_users')
       .select('*')
-      .eq('uid', userId)
+      .eq('canonical_user_id', userId)
+      .maybeSingle();
+    
+    if (byCanonical.data) return byCanonical.data;
+
+    // 2) Fallback: try primary uuid id
+    const byUuid = await supabase
+      .from('canonical_users')
+      .select('*')
+      .eq('id', userId)
       .maybeSingle();
 
-    if (error) {
-      console.error('Error fetching user:', error);
+    if (byUuid.error) {
+      console.error('Error fetching user:', byUuid.error);
       return null;
     }
-
-    return data;
+    
+    return byUuid.data;
   },
 
   async getUserProfile(userId: string) {
-    const { data, error } = await supabase
+    const byCanonical = await supabase
       .from('canonical_users')
       .select('*')
-      .eq('uid', userId)
+      .eq('canonical_user_id', userId)
+      .maybeSingle();
+    
+    if (byCanonical.data) return byCanonical.data;
+
+    const byUuid = await supabase
+      .from('canonical_users')
+      .select('*')
+      .eq('id', userId)
       .maybeSingle();
 
-    if (error) {
-      console.error('Error fetching user profile:', error);
+    if (byUuid.error) {
+      console.error('Error fetching user profile:', byUuid.error);
       return null;
     }
-
-    return data;
+    
+    return byUuid.data;
   },
 
   async updateUserProfile(
@@ -964,18 +982,31 @@ export const database = {
       telephone_number?: string;
     }
   ) {
-    const { data, error } = await supabase
+    // Prefer canonical_user_id targeting
+    let { data, error } = await supabase
       .from('canonical_users')
       .update(profile)
-      .eq('uid', userId)
+      .eq('canonical_user_id', userId)
       .select()
       .maybeSingle();
+
+    // Fallback to id (uuid) if needed
+    if ((!data && error) || (!data && !error)) {
+      const alt = await supabase
+        .from('canonical_users')
+        .update(profile)
+        .eq('id', userId)
+        .select()
+        .maybeSingle();
+      data = alt.data;
+      error = alt.error;
+    }
 
     if (error) {
       console.error('Error updating user profile:', error);
       throw error;
     }
-
+    
     return data;
   },
 
@@ -1194,15 +1225,15 @@ export const database = {
     const { data: winnerUsersData } = winnerIdentifiers.length > 0
       ? await supabase
           .from('canonical_users')
-          .select('uid, username, avatar_url, wallet_address')
-          .or(winnerIdentifiers.map(id => `uid.eq.${id},wallet_address.eq.${id}`).join(','))
+          .select('canonical_user_id, id, username, avatar_url, wallet_address')
+          .or(winnerIdentifiers.map(id => `canonical_user_id.eq.${id},wallet_address.eq.${id}`).join(','))
       : { data: [] };
 
     // Create winner user lookup map
     const winnerUserMap = new Map<string, { username: string | null; avatar_url: string | null }>();
     for (const user of winnerUsersData || []) {
-      if (user.uid) {
-        winnerUserMap.set(user.uid, { username: user.username, avatar_url: user.avatar_url });
+      if (user.canonical_user_id) {
+        winnerUserMap.set(user.canonical_user_id, { username: user.username, avatar_url: user.avatar_url });
       }
       if (user.wallet_address) {
         winnerUserMap.set(user.wallet_address.toLowerCase(), { username: user.username, avatar_url: user.avatar_url });

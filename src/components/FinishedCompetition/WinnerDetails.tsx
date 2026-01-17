@@ -29,7 +29,7 @@ const WinnerDetails = ({ competitionId }: WinnerDetailsProps) => {
 
             try {
                 // Fetch competition data including VRF info and winner info
-                const { data: compData, error: compError } = await supabase
+                const { data: compDataById, error: compError } = await supabase
                     .from('competitions')
                     .select('winner_address, outcomes_vrf_seed, tickets_sold, vrf_pregenerated_tx_hash')
                     .eq('id', competitionId)
@@ -39,6 +39,18 @@ const WinnerDetails = ({ competitionId }: WinnerDetailsProps) => {
                     console.error('Error fetching competition winner data:', compError);
                     setLoading(false);
                     return;
+                }
+
+                let compData = compDataById;
+                
+                // Fallback to uid if not found by id
+                if (!compData) {
+                    const { data: byUid } = await supabase
+                        .from('competitions')
+                        .select('winner_address, outcomes_vrf_seed, tickets_sold, vrf_pregenerated_tx_hash')
+                        .eq('uid', competitionId)
+                        .maybeSingle();
+                    compData = byUid || null;
                 }
 
                 if (compData) {
