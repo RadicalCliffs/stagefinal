@@ -2,11 +2,17 @@
 
 ## Overview
 
-The Modal Visual Editor is an admin-only tool for modifying aesthetic properties, authentication flow order, and button links for multiple modals:
+The Modal Visual Editor is an admin-only tool for modifying aesthetic properties, authentication flow order, and button links for multiple modals with **LIVE REAL-TIME PREVIEW**:
 - `NewAuthModal.tsx` - Main authentication flow
 - `BaseWalletAuthModal.tsx` - Wallet connection modal  
-- `PaymentModal.tsx` - Payment and checkout modal
+- `PaymentModal.tsx` - Payment and checkout modal (with all 4 payment buttons visible!)
 - `TopUpWalletModal.tsx` - Balance top-up modal
+
+**NEW IN THIS VERSION:**
+- ✨ **LIVE PREVIEW**: Changes to colors and fonts apply INSTANTLY as you edit
+- ✨ **All Buttons Visible**: PaymentModal now shows all 4 payment methods in preview
+- ✨ **Real-Time Updates**: No refresh needed - see changes immediately
+- ✨ **Enhanced Coverage**: 15+ CSS selectors per property for comprehensive styling
 
 **Important:** This editor generates downloadable TypeScript files for developers to apply manually. It does NOT write directly to GitHub.
 
@@ -210,12 +216,37 @@ This route is:
 - Backup important configurations
 - Client approval workflows
 
-### 12. Live Preview
-- Real-time preview of changes (auth modals only)
-- Can be toggled on/off
-- Opens modal in preview mode
-- Payment modals show notice (require additional context)
-- Preview helps visualize color/font changes
+### 12. Live Preview ✨ NEW!
+
+**NOW FULLY FUNCTIONAL** - The preview is no longer static!
+
+- **Real-time updates** - Changes apply INSTANTLY as you edit
+- **No refresh needed** - See your changes immediately
+- **Color changes** - All color edits apply via CSS injection
+- **Font changes** - Typography updates in real-time
+- **All buttons visible** - PaymentModal shows all 4 payment methods
+- **Mock auth context** - Preview provides authenticated state
+- **Responsive** - Split-screen on desktop, stacked on mobile
+
+**How it works:**
+- Editor generates CSS rules targeting specific modal elements
+- Uses `!important` to override Tailwind utility classes
+- Mock authentication context ensures all features render
+- 15+ CSS selectors per property for comprehensive coverage
+
+**What updates live:**
+- ✅ Background colors (modal, buttons, sections)
+- ✅ Text colors (primary, secondary, muted)
+- ✅ Button colors (primary, balance, secondary)
+- ✅ Accent colors (green, blue)
+- ✅ Font families (heading, body, button)
+- ✅ Font sizes (all text elements)
+- ✅ Font weights (normal, bold, etc.)
+
+**Limitations:**
+- Text content changes require download & manual application
+- Image uploads require download & manual application
+- Button links require download & manual application
 
 ### 13. File Download System
 - **Downloads TypeScript file** instead of writing to GitHub
@@ -532,6 +563,24 @@ WHERE wallet_address = 'YOUR_WALLET_ADDRESS';
    - Conflict resolution
 
 ## Quick Reference
+
+### Live Preview Capabilities (NEW!)
+
+**What changes apply in real-time:**
+| Property Type | Updates Live? | Method |
+|--------------|---------------|--------|
+| Colors | ✅ Yes | CSS injection with !important |
+| Fonts | ✅ Yes | CSS injection with !important |
+| Text Content | ❌ No | Requires manual application |
+| Images | ❌ No | Requires manual application |
+| Button Links | ❌ No | Requires manual application |
+| Flow Order | ❌ No | Requires manual application |
+
+**Payment Modal Preview:**
+- ✅ All 4 payment buttons now visible
+- ✅ Mock authenticated state provided
+- ✅ Balance display shows sample data
+- ✅ All styling updates apply live
 
 ### Available Features by Modal Type
 
