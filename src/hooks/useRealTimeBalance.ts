@@ -403,13 +403,11 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
           };
 
           // Check if this entry is for the current user
-          // Must check all three fields: walletaddress, privy_user_id, and userid
-          // as different code paths may populate different fields
+          // Check walletaddress and userid as the view uses canonical identifiers
           const matchesWallet = userIdsEqual(record.walletaddress, userId);
-          const matchesPrivyId = userIdsEqual(record.privy_user_id, userId);
           const matchesUserId = userIdsEqual(record.userid, userId);
 
-          if (matchesWallet || matchesPrivyId || matchesUserId) {
+          if (matchesWallet || matchesUserId) {
             console.log('[RealTimeBalance] New entry, refreshing balance');
             fetchBalance();
           }
