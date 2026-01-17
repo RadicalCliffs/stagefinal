@@ -194,7 +194,6 @@ export interface Competition {
   onchain_competition_id?: number | null;
   vrf_error?: string | null;
   vrf_draw_requested_at?: string | null;
-  vrf_draw_completed_at?: string | null;
 }
 
 export interface CompetitionWrapper {
