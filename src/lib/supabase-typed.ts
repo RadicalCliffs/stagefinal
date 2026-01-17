@@ -51,6 +51,43 @@ export type GetUserTicketsArgs = Database['public']['Functions']['get_user_ticke
 export type GetUserTicketsReturn = Database['public']['Functions']['get_user_tickets_for_competition']['Returns'];
 
 // ============================================================================
+// Detailed Return Type Interfaces
+// ============================================================================
+
+/** Structure of reserve_tickets RPC response (JSONB) */
+export interface ReserveTicketsResponse {
+  success?: boolean;
+  reservation_id?: string;
+  error?: string;
+  message?: string;
+  [key: string]: unknown;
+}
+
+/** Structure of finalize_order RPC response (JSONB) */
+export interface FinalizeOrderResponse {
+  success?: boolean;
+  order_id?: string;
+  transaction_id?: string;
+  amount_charged?: number;
+  ticket_count?: number;
+  remaining_balance?: number;
+  already_confirmed?: boolean;
+  error?: string;
+  message?: string;
+  balance?: number;
+  required?: number;
+  [key: string]: unknown;
+}
+
+/** Structure of release_reservation RPC response (JSONB) */
+export interface ReleaseReservationResponse {
+  success?: boolean;
+  message?: string;
+  error?: string;
+  [key: string]: unknown;
+}
+
+// ============================================================================
 // View: v_joincompetition_active
 // ============================================================================
 
@@ -65,11 +102,11 @@ export async function getActiveEntriesByUser(userIdentifier: string): Promise<Ac
   const { data, error } = await supabase
     .from('v_joincompetition_active')
     .select('*')
-    .or(`userid.eq.${userIdentifier},walletaddress.eq.${userIdentifier}`)
+    .or(`userid.eq."${userIdentifier.replace(/"/g, '""')}",walletaddress.eq."${userIdentifier.replace(/"/g, '""')}"`)
     .order('purchasedate', { ascending: false });
 
   if (error) throw error;
-  return data as ActiveEntry[];
+  return data ?? [];
 }
 
 /**
@@ -87,7 +124,7 @@ export async function getActiveEntriesByCompetition(competitionUid: string): Pro
     .order('purchasedate', { ascending: false });
 
   if (error) throw error;
-  return data as ActiveEntry[];
+  return data ?? [];
 }
 
 // ============================================================================
@@ -114,7 +151,12 @@ export async function reserveTickets(params: {
   ticketNumbers: number[];
   userIdentifier: string;
   holdMinutes?: number;
-}): Promise<ReserveTicketsReturn> {
+export async function reserveTickets(params: {
+  competitionId: string;
+  ticketNumbers: number[];
+  userIdentifier: string;
+  holdMinutes?: number;
+}): Promise<ReserveTicketsResponse> {
   const { data, error } = await supabase.rpc('reserve_tickets', {
     p_competition_id: params.competitionId,
     p_ticket_numbers: params.ticketNumbers,
@@ -123,7 +165,7 @@ export async function reserveTickets(params: {
   } satisfies ReserveTicketsArgs);
 
   if (error) throw error;
-  return data as ReserveTicketsReturn;
+  return (data ?? {}) as ReserveTicketsResponse;
 }
 
 // ============================================================================
@@ -153,7 +195,7 @@ export async function finalizeOrder(params: {
   userIdentifier: string;
   competitionId: string;
   unitPrice: number;
-}): Promise<FinalizeOrderReturn> {
+}): Promise<FinalizeOrderResponse> {
   const { data, error } = await supabase.rpc('finalize_order', {
     p_reservation_id: params.reservationId,
     p_user_id: params.userIdentifier,
@@ -162,7 +204,7 @@ export async function finalizeOrder(params: {
   } satisfies FinalizeOrderArgs);
 
   if (error) throw error;
-  return data as FinalizeOrderReturn;
+  return (data ?? {}) as FinalizeOrderResponse;
 }
 
 // ============================================================================
@@ -184,14 +226,14 @@ export async function finalizeOrder(params: {
 export async function releaseReservation(params: {
   reservationId: string;
   userIdentifier: string;
-}): Promise<ReleaseReservationReturn> {
+}): Promise<ReleaseReservationResponse> {
   const { data, error } = await supabase.rpc('release_reservation', {
     p_reservation_id: params.reservationId,
     p_user_id: params.userIdentifier,
   } satisfies ReleaseReservationArgs);
 
   if (error) throw error;
-  return data as ReleaseReservationReturn;
+  return (data ?? {}) as ReleaseReservationResponse;
 }
 
 // ============================================================================
@@ -214,7 +256,7 @@ export async function getUnavailableTickets(competitionId: string): Promise<numb
   } satisfies GetUnavailableTicketsArgs);
 
   if (error) throw error;
-  return data as number[];
+  return data ?? [];
 }
 
 // ============================================================================
@@ -242,7 +284,7 @@ export async function getUserTicketsForCompetition(
   } satisfies GetUserTicketsArgs);
 
   if (error) throw error;
-  return data as GetUserTicketsReturn;
+  return data ?? [];
 }
 
 // ============================================================================
@@ -292,7 +334,7 @@ export async function purchaseTicketsWithBalance(params: {
   ticketNumbers: number[];
   unitPrice: number;
   userIdentifier: string;
-}): Promise<FinalizeOrderReturn> {
+}): Promise<FinalizeOrderResponse> {
   // Step 1: Reserve tickets
   const reservation = await reserveTickets({
     competitionId: params.competitionId,
@@ -302,29 +344,27 @@ export async function purchaseTicketsWithBalance(params: {
   });
 
   // Check if reservation succeeded
-  const reservationData = reservation as any;
-  if (!reservationData?.reservation_id) {
-    throw new Error(reservationData?.error || 'Failed to reserve tickets');
+  if (!reservation.reservation_id) {
+    throw new Error(reservation.error || 'Failed to reserve tickets');
   }
 
   // Step 2: Finalize the order
   const result = await finalizeOrder({
-    reservationId: reservationData.reservation_id,
+    reservationId: reservation.reservation_id,
     userIdentifier: params.userIdentifier,
     competitionId: params.competitionId,
     unitPrice: params.unitPrice,
   });
 
   // Check if finalization succeeded
-  const resultData = result as any;
-  if (!resultData?.success) {
+  if (!result.success) {
     // Optional: Release the reservation on failure
     // await releaseReservation({
-    //   reservationId: reservationData.reservation_id,
+    //   reservationId: reservation.reservation_id,
     //   userIdentifier: params.userIdentifier
     // });
     
-    throw new Error(resultData?.error || 'Failed to finalize order');
+    throw new Error(result.error || 'Failed to finalize order');
   }
 
   return result;
