@@ -1890,6 +1890,27 @@ export type Database = {
         }
         Relationships: []
       }
+      v_joincompetition_active: {
+        Row: {
+          id: string | null
+          uid: string | null
+          userid: string | null
+          walletaddress: string | null
+          competitionid: string | null
+          numberoftickets: number | null
+          ticketnumbers: string | null
+          amountspent: string | null
+          purchasedate: string | null
+          buytime: string | null
+          transactionhash: string | null
+          chain: string | null
+          created_at: string | null
+          competition_title: string | null
+          competition_status: string | null
+          competition_draw_date: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       check_external_usdc_balance: {
@@ -2003,6 +2024,49 @@ export type Database = {
           balance_before: number
           success: boolean
           user_id: string
+        }[]
+      }
+      finalize_order: {
+        Args: {
+          p_reservation_id: string
+          p_user_id: string
+          p_competition_id: string
+          p_unit_price: number
+        }
+        Returns: Json
+      }
+      release_reservation: {
+        Args: {
+          p_reservation_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      reserve_tickets: {
+        Args: {
+          p_competition_id: string
+          p_ticket_numbers: number[]
+          p_user_id: string
+          p_hold_minutes: number
+        }
+        Returns: Json
+      }
+      get_unavailable_tickets: {
+        Args: {
+          competition_id: string
+        }
+        Returns: number[]
+      }
+      get_user_tickets_for_competition: {
+        Args: {
+          competition_id: string
+          user_id: string
+        }
+        Returns: {
+          ticket_number: number
+          source: string
+          purchased_at: string
+          wallet_address: string
         }[]
       }
     }
