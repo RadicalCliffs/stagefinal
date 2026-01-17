@@ -2385,6 +2385,39 @@ TESTING CHECKLIST:
     #modal-preview-container {
       ${colorVars}
       ${fontVars}
+      position: relative;
+      isolation: isolate;
+    }
+    
+    /* Contain modals within preview area - prevent fixed positioning from escaping */
+    #modal-preview-container > div[class*="fixed"],
+    #modal-preview-container > div[class*="inset-0"] {
+      position: absolute !important;
+      inset: 0 !important;
+    }
+    
+    /* Override modal backdrop to be contained within preview */
+    #modal-preview-container > div > div[class*="backdrop"],
+    #modal-preview-container > div > div[class*="bg-black"] {
+      position: absolute !important;
+      background: transparent !important;
+    }
+    
+    /* Ensure modal content is centered within preview container */
+    #modal-preview-container > div {
+      position: absolute !important;
+      inset: 0 !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      z-index: 1 !important;
+    }
+    
+    /* Scale modal if needed to fit preview */
+    #modal-preview-container [role="dialog"] {
+      max-height: 100% !important;
+      max-width: 100% !important;
+      overflow-y: auto !important;
     }
     
     /* Apply color overrides to modal elements */
@@ -2466,9 +2499,9 @@ TESTING CHECKLIST:
       </header>
 
       <div className="mx-auto px-4 py-8" style={{ maxWidth: EDITOR_MAX_WIDTH }}>
-        <div className="grid grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Editor Panel - Left Side */}
-          <div className="overflow-y-auto max-h-[calc(100vh-180px)]">
+          <div className="overflow-y-auto max-h-[calc(100vh-180px)] lg:max-h-[calc(100vh-180px)]">
             {/* Modal Selector */}
             <div className="mb-6">
               <label className="block text-white/70 text-sm mb-2">Select Modal to Edit</label>
@@ -2603,15 +2636,20 @@ TESTING CHECKLIST:
             </div>
 
             {/* Info Box */}
-            <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-              <div className="flex items-start gap-2">
-                <Eye size={16} className="text-blue-400 flex-shrink-0 mt-0.5" />
+            <div className="mt-6 p-4 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-lg shadow-lg">
+              <div className="flex items-start gap-3">
+                <Eye size={20} className="text-blue-400 flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-blue-400 text-sm font-medium mb-1">Split-Screen Live Editor</p>
-                  <p className="text-blue-400/80 text-xs">
-                    The editor is now split into two panels: editor controls on the left, and the modal preview on the right.
-                    The preview is always visible so you can see the modal while making edits.
+                  <p className="text-blue-400 text-sm font-semibold mb-2">✨ Split-Screen Live Editor</p>
+                  <p className="text-blue-400/80 text-xs mb-2">
+                    The editor features a professional split-screen layout:
                   </p>
+                  <ul className="text-blue-400/70 text-xs space-y-1 list-disc list-inside ml-2">
+                    <li><strong>Left Panel:</strong> Full editor controls with all configuration options</li>
+                    <li><strong>Right Panel:</strong> Live modal preview that updates as you edit</li>
+                    <li><strong>Responsive:</strong> Stacks vertically on mobile, side-by-side on desktop</li>
+                    <li><strong>Contained Preview:</strong> Modal stays within preview area (no full-screen overlay)</li>
+                  </ul>
                 </div>
               </div>
             </div>
@@ -2647,16 +2685,19 @@ TESTING CHECKLIST:
           </div>
 
           {/* Preview Panel - Right Side - Always Visible */}
-          <div className="sticky top-24 h-fit">
-            <div className="bg-white/5 border border-white/10 rounded-lg p-6">
+          <div className="lg:sticky lg:top-24 h-fit">
+            <div className="bg-white/5 border border-white/10 rounded-lg p-6 shadow-2xl">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Live Preview</h3>
-                <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded flex items-center gap-1">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Eye size={20} className="text-green-400" />
+                  Live Preview
+                </h3>
+                <span className="px-3 py-1.5 bg-green-500/20 text-green-400 text-xs font-semibold rounded-full flex items-center gap-2 border border-green-500/30">
                   <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-                  Live
+                  LIVE
                 </span>
               </div>
-              <div className="bg-[#0A0A0F] rounded-lg overflow-hidden min-h-[400px] flex items-center justify-center" id="modal-preview-container">
+              <div className="bg-[#0A0A0F] rounded-lg overflow-hidden border-2 border-white/20 shadow-inner" style={{ minHeight: '600px', height: '600px', position: 'relative' }} id="modal-preview-container">
                 {state.selectedModal === 'NewAuthModal' ? (
                   <NewAuthModal 
                     isOpen={true} 
@@ -2687,7 +2728,8 @@ TESTING CHECKLIST:
                   </p>
                 )}
               </div>
-              <p className="text-white/40 text-xs mt-3 text-center">
+              <p className="text-white/40 text-xs mt-3 text-center flex items-center justify-center gap-2">
+                <span className="inline-block w-1.5 h-1.5 bg-blue-400 rounded-full"></span>
                 Preview updates in real-time as you edit
               </p>
             </div>
