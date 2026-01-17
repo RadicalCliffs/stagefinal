@@ -191,8 +191,22 @@ export const notificationService = {
       });
 
       if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        console.error('[NotificationService] Error fetching notifications:', data.error || response.statusText);
+        // Check if response is JSON before trying to parse
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const data = await response.json().catch(() => ({}));
+          console.error('[NotificationService] Error fetching notifications:', data.error || response.statusText);
+        } else {
+          // HTML error page returned (likely 404/500)
+          console.error('[NotificationService] Error fetching notifications - HTML error page returned:', response.statusText);
+        }
+        return [];
+      }
+
+      // Verify response is JSON before parsing
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.error('[NotificationService] Invalid response - expected JSON but got:', contentType);
         return [];
       }
 
@@ -221,6 +235,13 @@ export const notificationService = {
       });
 
       if (!response.ok) {
+        return 0;
+      }
+
+      // Verify response is JSON before parsing
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.error('[NotificationService] Invalid unread count response - expected JSON but got:', contentType);
         return 0;
       }
 
