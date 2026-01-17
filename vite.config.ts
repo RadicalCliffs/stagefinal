@@ -1,3 +1,4 @@
+import path from 'path'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -13,6 +14,9 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
+      // Path aliases for cleaner imports
+      '@': path.resolve(__dirname, './src'),
+      '@/supabase': path.resolve(__dirname, './supabase'),
       // Resolve buffer to the polyfill for browser environment (required by wallet SDKs)
       buffer: 'buffer',
     },
