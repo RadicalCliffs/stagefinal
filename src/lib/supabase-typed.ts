@@ -99,6 +99,11 @@ export interface ReleaseReservationResponse {
  * @throws Error if the query fails
  */
 export async function getActiveEntriesByUser(userIdentifier: string): Promise<ActiveEntry[]> {
+  // Validate user identifier to prevent injection
+  if (!userIdentifier || typeof userIdentifier !== 'string') {
+    throw new Error('Invalid user identifier');
+  }
+
   const { data, error } = await supabase
     .from('v_joincompetition_active')
     .select('*')
@@ -146,11 +151,6 @@ export async function getActiveEntriesByCompetition(competitionUid: string): Pro
  * @returns Reservation details including reservation_id
  * @throws Error if the RPC call fails
  */
-export async function reserveTickets(params: {
-  competitionId: string;
-  ticketNumbers: number[];
-  userIdentifier: string;
-  holdMinutes?: number;
 export async function reserveTickets(params: {
   competitionId: string;
   ticketNumbers: number[];
