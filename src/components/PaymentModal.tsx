@@ -1468,7 +1468,9 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
               {/* === PAYMENT OPTIONS === */}
 
               {/* Balance Payment - Quick and Instant */}
-              {authenticated && userBalance >= amount && (
+              {(() => {
+                const canUseBalance = authenticated && userBalance >= amount;
+                return canUseBalance && (
                 <div className="relative">
                   <div className="border-2 border-violet-500/50 rounded-xl p-5 bg-gradient-to-br from-violet-900/20 to-purple-900/10 hover:border-violet-400/70 transition-all">
                     <div className="flex items-center justify-between mb-3">
@@ -1492,7 +1494,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                     </button>
                   </div>
                 </div>
-              )}
+              )})()}
 
               {/* Primary Payment Method - USDC on Base */}
               {authenticated && (
