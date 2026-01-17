@@ -115,6 +115,8 @@ Returns int4[] of ticket numbers that are NOT available for purchase.';
 -- However, the problem statement requests NOT using privy_user_id in direct REST queries
 -- because complex OR filters with privy_user_id cause 400 errors in Supabase REST API.
 -- This RPC recreates the function to use canonical_user_id, walletaddress, and userid instead.
+-- Note: The RPC itself does NOT use privy_user_id for joincompetition queries (only for other tables
+-- where it's safe), matching the frontend changes that removed privy_user_id from OR filters.
 
 CREATE OR REPLACE FUNCTION public.get_comprehensive_user_dashboard_entries(user_identifier TEXT)
 RETURNS TABLE (
