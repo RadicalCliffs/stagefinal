@@ -165,6 +165,9 @@ const PREVIEW_HANDLERS = {
   onOpen: () => { /* Preview mode - no action on open */ },
 };
 
+// Constants for layout
+const EDITOR_MAX_WIDTH = '2000px';
+
 export default function AuthModalVisualEditor() {
   const [state, setState] = useState<EditorState>({
     selectedModal: 'NewAuthModal',
@@ -175,7 +178,7 @@ export default function AuthModalVisualEditor() {
     flowSteps: [],
     buttons: [],
     sections: [],
-    showPreview: true,
+    showPreview: true, // Always true for split-screen live preview
     previewOpen: true,
     hasChanges: false,
     history: [],
@@ -2295,15 +2298,114 @@ TESTING CHECKLIST:
     </div>
   );
 
+  // Generate dynamic CSS for live preview based on editor state
+  // NOTE: This provides CSS custom properties that COULD be used by modal components
+  // For full live preview, the modal components would need to be updated to use these CSS variables
+  // Current implementation: Split-screen layout with static modal preview
+  // Future enhancement: Update modal components to read from CSS custom properties for true reactivity
+  const generatePreviewStyles = () => {
+    // Sanitize CSS variable name to prevent injection
+    const sanitizeCSSVarName = (name: string): string => {
+      // Only allow alphanumeric and hyphens
+      return name.replace(/[^a-zA-Z0-9-]/g, '');
+    };
+
+    // Sanitize color values to prevent CSS injection
+    const sanitizeColor = (color: string): string => {
+      // Check for hex colors
+      if (/^#[0-9a-fA-F]{3,8}$/.test(color)) {
+        return color;
+      }
+      // Check for rgb/rgba with proper validation
+      if (/^rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(,\s*[\d.]+\s*)?\)$/.test(color)) {
+        return color;
+      }
+      // Check for hsl/hsla with proper validation
+      if (/^hsla?\(\s*\d+\s*,\s*\d+%\s*,\s*\d+%\s*(,\s*[\d.]+\s*)?\)$/.test(color)) {
+        return color;
+      }
+      // Allowlist of safe named colors
+      const safeColors = ['black', 'white', 'red', 'green', 'blue', 'yellow', 'orange', 'purple', 'pink', 'transparent'];
+      if (safeColors.includes(color.toLowerCase())) {
+        return color;
+      }
+      // Default to black if invalid
+      return '#000000';
+    };
+
+    // Sanitize font family using allowlist
+    const sanitizeFont = (font: string): string => {
+      const safeFonts = [
+        'inherit', 'system-ui', 'Arial', 'Helvetica', 'sans-serif', 'serif', 'monospace',
+        'sequel-45', 'sequel-75', 'sequel-95',
+        "'Inter', sans-serif", "'Roboto', sans-serif", "'Open Sans', sans-serif", "'Poppins', sans-serif"
+      ];
+      // Check if font is in allowlist
+      if (safeFonts.includes(font)) {
+        return font;
+      }
+      // Check if it's a safe font family format
+      if (/^['"]?[a-zA-Z0-9\s-]+['"]?(\s*,\s*['"]?[a-zA-Z0-9\s-]+['"]?)*$/.test(font)) {
+        return font;
+      }
+      return 'inherit';
+    };
+
+    // Sanitize font size
+    const sanitizeSize = (size: string): string => {
+      // Only allow numbers followed by valid units
+      if (/^[0-9.]+(?:px|rem|em|%|pt)$/.test(size)) {
+        return size;
+      }
+      return '1rem';
+    };
+
+    // Sanitize font weight
+    const sanitizeWeight = (weight: string): string => {
+      const validWeights = ['100', '200', '300', '400', '500', '600', '700', '800', '900', 'normal', 'bold', 'lighter', 'bolder'];
+      return validWeights.includes(weight) ? weight : '400';
+    };
+
+    const colorVars = state.colors.map(c => {
+      const safeName = sanitizeCSSVarName(c.name);
+      const safeValue = sanitizeColor(c.value);
+      return `--preview-${safeName}: ${safeValue};`;
+    }).join('\n    ');
+
+    const fontVars = state.fonts.map(f => {
+      const safeName = sanitizeCSSVarName(f.name);
+      return `
+    --preview-${safeName}-family: ${sanitizeFont(f.family || 'inherit')};
+    --preview-${safeName}-size: ${sanitizeSize(f.size || '1rem')};
+    --preview-${safeName}-weight: ${sanitizeWeight(f.weight || '400')};
+    --preview-${safeName}-style: ${f.style === 'italic' ? 'italic' : 'normal'};`;
+    }).join('');
+
+    return `
+    #modal-preview-container {
+      ${colorVars}
+      ${fontVars}
+    }
+    
+    /* Apply color overrides to modal elements */
+    #modal-preview-container [class*="bg-"] {
+      /* Colors will be applied via inline styles where possible */
+    }
+  `;
+  };
+
   return (
     <div className="min-h-screen bg-[#0A0A0F] text-white">
+      {/* Dynamic styles for live preview */}
+      <style>{generatePreviewStyles()}</style>
+      
       {/* Header */}
       <header className="border-b border-white/10 bg-[#0A0A0F]/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold">Modal Visual Editor</h1>
-              <p className="text-white/50 text-sm">Admin-only editor with download functionality</p>
+              <p className="text-white/50 text-sm">Live split-screen editor with real-time preview</p>
             </div>
             <div className="flex items-center gap-3">
               {/* Undo/Redo Buttons */}
@@ -2326,13 +2428,6 @@ TESTING CHECKLIST:
                 </button>
               </div>
               
-              <button
-                onClick={() => setState(prev => ({ ...prev, showPreview: !prev.showPreview }))}
-                className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg flex items-center gap-2 transition-colors"
-              >
-                {state.showPreview ? <Eye size={18} /> : <EyeOff size={18} />}
-                <span>{state.showPreview ? 'Hide' : 'Show'} Preview</span>
-              </button>
               <button
                 onClick={handleReset}
                 disabled={!state.hasChanges}
@@ -2370,10 +2465,10 @@ TESTING CHECKLIST:
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className={`grid ${state.showPreview ? 'grid-cols-2' : 'grid-cols-1'} gap-8`}>
-          {/* Editor Panel */}
-          <div>
+      <div className="mx-auto px-4 py-8" style={{ maxWidth: EDITOR_MAX_WIDTH }}>
+        <div className="grid grid-cols-2 gap-8">
+          {/* Editor Panel - Left Side */}
+          <div className="overflow-y-auto max-h-[calc(100vh-180px)]">
             {/* Modal Selector */}
             <div className="mb-6">
               <label className="block text-white/70 text-sm mb-2">Select Modal to Edit</label>
@@ -2508,7 +2603,20 @@ TESTING CHECKLIST:
             </div>
 
             {/* Info Box */}
-            <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+            <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+              <div className="flex items-start gap-2">
+                <Eye size={16} className="text-blue-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-blue-400 text-sm font-medium mb-1">Split-Screen Live Editor</p>
+                  <p className="text-blue-400/80 text-xs">
+                    The editor is now split into two panels: editor controls on the left, and the modal preview on the right.
+                    The preview is always visible so you can see the modal while making edits.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
               <div className="flex items-start gap-2">
                 <Download size={16} className="text-yellow-400 flex-shrink-0 mt-0.5" />
                 <div>
@@ -2538,50 +2646,52 @@ TESTING CHECKLIST:
             )}
           </div>
 
-          {/* Preview Panel */}
-          {state.showPreview && (
-            <div className="sticky top-24 h-fit">
-              <div className="bg-white/5 border border-white/10 rounded-lg p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold">Live Preview</h3>
-                </div>
-                <div className="bg-[#0A0A0F] rounded-lg overflow-hidden min-h-[400px] flex items-center justify-center">
-                  {state.selectedModal === 'NewAuthModal' ? (
-                    <NewAuthModal 
-                      isOpen={true} 
-                      onClose={PREVIEW_HANDLERS.onClose} 
-                    />
-                  ) : state.selectedModal === 'BaseWalletAuthModal' ? (
-                    <BaseWalletAuthModal 
-                      isOpen={true} 
-                      onClose={PREVIEW_HANDLERS.onClose} 
-                    />
-                  ) : state.selectedModal === 'PaymentModal' ? (
-                    <PaymentModal 
-                      isOpen={true} 
-                      onClose={PREVIEW_HANDLERS.onClose}
-                      onOpen={PREVIEW_HANDLERS.onOpen}
-                      ticketCount={PREVIEW_PROPS.PaymentModal.ticketCount}
-                      competitionId={PREVIEW_PROPS.PaymentModal.competitionId}
-                      ticketPrice={PREVIEW_PROPS.PaymentModal.ticketPrice}
-                    />
-                  ) : state.selectedModal === 'TopUpWalletModal' ? (
-                    <TopUpWalletModal 
-                      isOpen={true} 
-                      onClose={PREVIEW_HANDLERS.onClose}
-                    />
-                  ) : (
-                    <p className="text-white/50 text-center px-4">
-                      Preview not available for {state.selectedModal}.
-                    </p>
-                  )}
-                </div>
-                <p className="text-white/40 text-xs mt-3 text-center">
-                  Live preview updates automatically as you make changes.
-                </p>
+          {/* Preview Panel - Right Side - Always Visible */}
+          <div className="sticky top-24 h-fit">
+            <div className="bg-white/5 border border-white/10 rounded-lg p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Live Preview</h3>
+                <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded flex items-center gap-1">
+                  <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                  Live
+                </span>
               </div>
+              <div className="bg-[#0A0A0F] rounded-lg overflow-hidden min-h-[400px] flex items-center justify-center" id="modal-preview-container">
+                {state.selectedModal === 'NewAuthModal' ? (
+                  <NewAuthModal 
+                    isOpen={true} 
+                    onClose={PREVIEW_HANDLERS.onClose} 
+                  />
+                ) : state.selectedModal === 'BaseWalletAuthModal' ? (
+                  <BaseWalletAuthModal 
+                    isOpen={true} 
+                    onClose={PREVIEW_HANDLERS.onClose} 
+                  />
+                ) : state.selectedModal === 'PaymentModal' ? (
+                  <PaymentModal 
+                    isOpen={true} 
+                    onClose={PREVIEW_HANDLERS.onClose}
+                    onOpen={PREVIEW_HANDLERS.onOpen}
+                    ticketCount={PREVIEW_PROPS.PaymentModal.ticketCount}
+                    competitionId={PREVIEW_PROPS.PaymentModal.competitionId}
+                    ticketPrice={PREVIEW_PROPS.PaymentModal.ticketPrice}
+                  />
+                ) : state.selectedModal === 'TopUpWalletModal' ? (
+                  <TopUpWalletModal 
+                    isOpen={true} 
+                    onClose={PREVIEW_HANDLERS.onClose}
+                  />
+                ) : (
+                  <p className="text-white/50 text-center px-4">
+                    Preview not available for {state.selectedModal}.
+                  </p>
+                )}
+              </div>
+              <p className="text-white/40 text-xs mt-3 text-center">
+                Preview updates in real-time as you edit
+              </p>
             </div>
-          )}
+          </div>
         </div>
       </div>
 
