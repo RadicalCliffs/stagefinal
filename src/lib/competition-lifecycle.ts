@@ -186,10 +186,9 @@ export class CompetitionLifecycleService {
       for (const competition of activeCompetitions) {
         try {
           // Count sold tickets for this competition
-          // Use single eq filter to avoid uuid/text type mismatch in OR queries
           const { data: entries } = await withRetry(
             () => supabase
-              .from('joincompetition')
+              .from('v_joincompetition_active')
               .select('ticketnumbers')
               .eq('competitionid', competition.id),
             `fetch entries for ${competition.id}`
@@ -302,11 +301,9 @@ export class CompetitionLifecycleService {
    * Get all entries for a competition
    */
   private static async getCompetitionEntries(competitionId: string): Promise<CompetitionEntry[]> {
-    // Use single eq filter to avoid uuid/text type mismatch in OR queries
-    // joincompetition.competitionid is TEXT, so we use the resolved ID directly
     const { data, error } = await withRetry(
       () => supabase
-        .from('joincompetition')
+        .from('v_joincompetition_active')
         .select('*')
         .eq('competitionid', competitionId),
       `fetch entries for ${competitionId}`

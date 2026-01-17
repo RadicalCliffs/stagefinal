@@ -120,7 +120,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
               }
             });
           } else if (rpcError) {
-            entriesLogger.rpcError('get_competition_entries', rpcError, 'direct joincompetition query');
+            entriesLogger.rpcError('get_competition_entries', rpcError, 'direct v_joincompetition_active query');
             showDebugHintOnError();
 
             requestTracker.addRequest({
@@ -138,10 +138,10 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
           showDebugHintOnError();
         }
 
-        // Strategy 2: Query joincompetition directly if RPC failed or returned no data
+        // Strategy 2: Query v_joincompetition_active directly if RPC failed or returned no data
         // Try multiple ID formats since competitionid might be stored as UUID or legacy uid
         if (!rpcSucceeded || transformedEntries.length === 0) {
-          entriesLogger.info('Trying direct joincompetition query');
+          entriesLogger.info('Trying direct v_joincompetition_active query');
 
           // First try exact match
           let jcData: any[] | null = null;
@@ -149,8 +149,8 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
 
           const exactStartTime = Date.now();
           const { data: exactData, error: exactError } = await supabase
-            .from('joincompetition')
-            .select('ticketnumbers, purchasedate, walletaddress, privy_user_id')
+            .from('v_joincompetition_active')
+            .select('ticketnumbers, purchasedate, walletaddress, userid')
             .eq('competitionid', idToUse);
 
           if (!exactError && exactData && exactData.length > 0) {
@@ -162,7 +162,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
 
             requestTracker.addRequest({
               timestamp: Date.now(),
-              endpoint: 'joincompetition.select',
+              endpoint: 'v_joincompetition_active.select',
               method: 'QUERY',
               success: true,
               duration: Date.now() - exactStartTime
@@ -181,8 +181,8 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
             if (compData?.uid && compData.uid !== idToUse) {
               const uidStartTime = Date.now();
               const { data: uidData, error: uidError } = await supabase
-                .from('joincompetition')
-                .select('ticketnumbers, purchasedate, walletaddress, privy_user_id')
+                .from('v_joincompetition_active')
+                .select('ticketnumbers, purchasedate, walletaddress, userid')
                 .eq('competitionid', compData.uid);
 
               if (!uidError && uidData && uidData.length > 0) {
@@ -194,7 +194,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
 
                 requestTracker.addRequest({
                   timestamp: Date.now(),
-                  endpoint: 'joincompetition.select.by_uid',
+                  endpoint: 'v_joincompetition_active.select.by_uid',
                   method: 'QUERY',
                   success: true,
                   duration: Date.now() - uidStartTime
@@ -208,7 +208,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
           }
 
           if (jcData && jcData.length > 0) {
-            entriesLogger.info('Direct joincompetition query returned data', {
+            entriesLogger.info('Direct v_joincompetition_active query returned data', {
               count: jcData.length
             });
 
@@ -233,18 +233,18 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
                         second: '2-digit',
                         hour12: false
                       }) : 'Unknown',
-                      walletAddress: entry.walletaddress || entry.privy_user_id || 'Unknown'
+                      walletAddress: entry.walletaddress || entry.userid || 'Unknown'
                     });
                   }
                 });
               }
             });
           } else if (jcError) {
-            entriesLogger.warn('joincompetition query error', jcError);
+            entriesLogger.warn('v_joincompetition_active query error', jcError);
 
             requestTracker.addRequest({
               timestamp: Date.now(),
-              endpoint: 'joincompetition.select',
+              endpoint: 'v_joincompetition_active.select',
               method: 'QUERY',
               success: false,
               error: jcError.message

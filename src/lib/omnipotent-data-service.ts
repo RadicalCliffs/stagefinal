@@ -475,9 +475,9 @@ class OmnipotentDataService {
           });
         }
 
-        // Get sold tickets from joincompetition
+        // Get sold tickets from v_joincompetition_active
         const { data: soldData } = await supabase
-          .from('joincompetition')
+          .from('v_joincompetition_active')
           .select('ticketnumbers')
           .eq('competitionid', competitionId);
 
@@ -586,11 +586,9 @@ class OmnipotentDataService {
         });
       }
 
-      // Get sold tickets from joincompetition
-      // Use single eq filter to avoid uuid/text type mismatch in OR queries
-      // joincompetition.competitionid is TEXT, so we use the resolved ID directly
+      // Get sold tickets from v_joincompetition_active
       const { data: soldData } = await supabase
-        .from('joincompetition')
+        .from('v_joincompetition_active')
         .select('ticketnumbers')
         .eq('competitionid', competitionId);
 

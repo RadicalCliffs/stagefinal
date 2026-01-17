@@ -300,9 +300,9 @@ export const database = {
             ticketsSold = availability.sold_count;
           } else {
             // Fallback: Direct query using only the competition ID (not OR)
-            // joincompetition.competitionid is TEXT, so we use the ID directly
+            // Use v_joincompetition_active view for stable read interface
             const { count } = await supabase
-              .from('joincompetition')
+              .from('v_joincompetition_active')
               .select('*', { count: 'exact', head: true })
               .eq('competitionid', data.id);
 
@@ -731,7 +731,7 @@ export const database = {
 
   async getUserTickets(userId: string): Promise<EntryCard[]> {
     const { data, error } = await supabase
-      .from('joincompetition')
+      .from('v_joincompetition_active')
       .select('*')
       .eq('userid', userId)
       .order('buytime', { ascending: false });
@@ -784,7 +784,7 @@ export const database = {
 
   async getUserPurchaseOrders(userId: string): Promise<PurchaseOrder[]> {
     const { data, error } = await supabase
-      .from('joincompetition')
+      .from('v_joincompetition_active')
       .select('*')
       .eq('userid', userId)
       .order('buytime', { ascending: false });
@@ -1013,7 +1013,7 @@ export const database = {
   async getRecentActivity(limit: number = 20): Promise<TableRow[]> {
     // Fetch all recent entries without date filter
     const { data: entryData, error: entryError } = await supabase
-      .from('joincompetition')
+      .from('v_joincompetition_active')
       .select('*')
       .order('purchasedate', { ascending: false })
       .limit(limit);
@@ -1423,9 +1423,9 @@ export const database = {
         }
 
         // Fallback: Direct query using only the competition ID (not OR)
-        // joincompetition.competitionid is TEXT, so we use single eq filter
+        // Use v_joincompetition_active view for stable read interface
         const { data: soldTicketData, error } = await supabase
-          .from('joincompetition')
+          .from('v_joincompetition_active')
           .select('ticketnumbers')
           .eq('competitionid', competitionId.trim());
 
@@ -1515,9 +1515,9 @@ export const database = {
         databaseLogger.info('Using fallback: direct joincompetition query');
 
         // Use single eq filter to avoid uuid/text type mismatch in OR queries
-        // joincompetition.competitionid is TEXT, so we use the resolved ID directly
+        // Use v_joincompetition_active view for stable read interface
         const { data: soldData } = await supabase
-          .from('joincompetition')
+          .from('v_joincompetition_active')
           .select('ticketnumbers')
           .eq('competitionid', competitionId);
 
@@ -1846,10 +1846,10 @@ export const database = {
             // Fallback to simple direct query by wallet address
             if (identity.walletAddress) {
               const { data: directData, error: directError } = await supabase
-                .from('joincompetition')
+                .from('v_joincompetition_active')
                 .select(`
                   *,
-                  competitions!joincompetition_competitionid_fkey (
+                  competitions!inner (
                     id,
                     uid,
                     title,
@@ -1874,10 +1874,10 @@ export const database = {
             }
           } else {
             const { data: joinData, error: joinError } = await supabase
-              .from('joincompetition')
+              .from('v_joincompetition_active')
               .select(`
                 *,
-                competitions!joincompetition_competitionid_fkey (
+                competitions!inner (
                   id,
                   uid,
                   title,
@@ -1997,7 +1997,7 @@ export const database = {
 
     const selectQuery = `
       *,
-      competitions!joincompetition_competitionid_fkey (
+      competitions!inner (
         id,
         uid,
         title,
@@ -2015,7 +2015,7 @@ export const database = {
     if (identity.walletAddress) {
       try {
         const { data, error } = await supabase
-          .from('joincompetition')
+          .from('v_joincompetition_active')
           .select(selectQuery)
           .eq('walletaddress', identity.walletAddress)
           .order('purchasedate', { ascending: false });
@@ -2037,13 +2037,13 @@ export const database = {
       }
     }
 
-    // Try privy_user_id if it's a valid Privy DID
-    if (identity.privyUserId && identity.privyUserId.startsWith('did:privy:')) {
+    // Try canonical_user_id if available
+    if (identity.canonicalUserId) {
       try {
         const { data, error } = await supabase
-          .from('joincompetition')
+          .from('v_joincompetition_active')
           .select(selectQuery)
-          .eq('privy_user_id', identity.privyUserId)
+          .eq('userid', identity.canonicalUserId)
           .order('purchasedate', { ascending: false });
 
         if (!error && data) {
@@ -2054,12 +2054,12 @@ export const database = {
               allEntries.push(transformJoinCompetitionEntry(jc, identity));
             }
           });
-          databaseLogger.debug('Individual query (privy) found entries', { count: data.length });
+          databaseLogger.debug('Individual query (canonical) found entries', { count: data.length });
         } else if (error) {
-          databaseLogger.error('Individual query (privy) error', error);
+          databaseLogger.error('Individual query (canonical) error', error);
         }
       } catch (e) {
-        databaseLogger.error('Individual query (privy) exception', e);
+        databaseLogger.error('Individual query (canonical) exception', e);
       }
     }
 
@@ -2067,7 +2067,7 @@ export const database = {
     if (identity.legacyUserId) {
       try {
         const { data, error } = await supabase
-          .from('joincompetition')
+          .from('v_joincompetition_active')
           .select(selectQuery)
           .eq('userid', identity.legacyUserId)
           .order('purchasedate', { ascending: false });

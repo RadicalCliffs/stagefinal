@@ -208,7 +208,7 @@ export function useRealTimeCompetition(options: UseRealTimeCompetitionOptions): 
           {
             event: 'INSERT',
             schema: 'public',
-            table: 'joincompetition',
+            table: 'v_joincompetition_active',
             filter: `competitionid=eq.${competitionId}`,
           },
           (payload) => {

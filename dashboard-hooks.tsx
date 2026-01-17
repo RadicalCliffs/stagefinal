@@ -235,17 +235,17 @@ export const useFallbackUserEntries = (userIdentifier: string | null) => {
       setError(null);
 
       // Fallback to direct table queries
-      // Note: Removed privy_user_id from OR filter to avoid REST API errors with complex identifiers
+      // Note: Using v_joincompetition_active view for stable read interface
       // Supabase client library handles parameter escaping to prevent SQL injection
       const [joinCompResult, transactionsResult, pendingResult] = await Promise.all([
-        supabase.from('joincompetition').select('*').or(`canonical_user_id.eq.${userIdentifier},userid.eq.${userIdentifier},walletaddress.ilike.${userIdentifier.toLowerCase()}`),
+        supabase.from('v_joincompetition_active').select('*').or(`userid.eq.${userIdentifier},walletaddress.ilike.${userIdentifier.toLowerCase()}`),
         supabase.from('user_transactions').select('*, competitions(*)').or(`canonical_user_id.eq.${userIdentifier},user_privy_id.eq.${userIdentifier},user_id.eq.${userIdentifier},wallet_address.ilike.${userIdentifier.toLowerCase()}`),
         supabase.from('pending_tickets').select('*, competitions(*)').eq('user_id', userIdentifier).eq('status', 'pending')
       ]);
 
       const transformedEntries: DashboardEntry[] = [];
 
-      // Transform joincompetition entries
+      // Transform v_joincompetition_active entries
       if (joinCompResult.data) {
         joinCompResult.data.forEach(item => {
           // Case-insensitive status comparison
