@@ -672,7 +672,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                     </p>
                   </div>
 
-                  {/* Don't show create new wallet option for returning users */}
+                  {/* Show create new wallet option only for new users, not returning users */}
                   {!options?.isReturningUser && (
                     <>
                       {/* Divider */}
