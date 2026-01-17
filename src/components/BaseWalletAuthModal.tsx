@@ -502,8 +502,8 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               className="mt-4 text-[#0052FF] text-sm hover:text-[#0052FF]/80 text-center"
             >
               {options?.isReturningUser 
-                ? '(changed your mind? Go back to sign in with your existing wallet →)'
-                : '(realized you've already got a Base wallet? No problems, click here to connect that instead→)'}
+                ? `(changed your mind? Go back to sign in with your existing wallet)`
+                : `(realized you've already got a Base wallet? No problems, click here to connect that instead)`}
             </button>
           </div>
         )}
