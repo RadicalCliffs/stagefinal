@@ -12,6 +12,12 @@ import { toPrizePid } from "../utils/userId";
 interface BaseWalletAuthModalProps {
   isOpen: boolean;
   onClose: () => void;
+  options?: {
+    resumeSignup?: boolean;
+    email?: string;
+    connectExisting?: boolean;
+    createNew?: boolean;
+  };
 }
 
 type FlowState = 
@@ -174,6 +180,7 @@ async function saveUserWithProfile(email: string, walletAddress: string, profile
 export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
   isOpen,
   onClose,
+  options,
 }) => {
   const { currentUser } = useCurrentUser();
   const { isSignedIn: cdpIsSignedIn } = useIsSignedIn();
@@ -209,7 +216,24 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
       savedToDbRef.current = false;
       profileCheckedRef.current = false;
       setEmailError('');
-      setFlowState('cdp-signin');
+      
+      // Set userEmail from options if provided
+      if (options?.email) {
+        setUserEmail(options.email);
+      }
+      
+      // Determine initial flow state based on options
+      if (options?.connectExisting) {
+        // User wants to connect an existing wallet - go straight to wallet choice
+        setFlowState('wallet-choice');
+      } else if (options?.createNew) {
+        // User wants to create a new wallet - go to CDP sign-in
+        setFlowState('cdp-signin');
+      } else {
+        // Default to CDP sign-in
+        setFlowState('cdp-signin');
+      }
+      
       setProfileData({
         username: '',
         fullName: '',
@@ -219,7 +243,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
         socialProfiles: '',
       });
     }
-  }, [isOpen]);
+  }, [isOpen, options]);
 
   // Handle CDP sign-in success - find user by email and link wallet
   useEffect(() => {
@@ -264,17 +288,37 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
   // Handle external wallet connection (wagmi)
   useEffect(() => {
     const handleWagmiConnection = async () => {
-      if (flowState === 'wallet-choice' && wagmiIsConnected && wagmiAddress && !savedToDbRef.current && userEmail) {
+      if (flowState === 'wallet-choice' && wagmiIsConnected && wagmiAddress && !savedToDbRef.current) {
         console.log('[BaseWallet] External wallet connected:', wagmiAddress);
         
-        const result = await linkWalletToExistingUser(userEmail, wagmiAddress);
-        
-        if (result.success) {
+        // If we have an email (returning user or from NewAuthModal), link wallet to existing user
+        if (userEmail) {
+          const result = await linkWalletToExistingUser(userEmail, wagmiAddress);
+          
+          if (result.success) {
+            savedToDbRef.current = true;
+            localStorage.setItem('cdp:wallet_address', wagmiAddress);
+            
+            window.dispatchEvent(new CustomEvent('auth-complete', {
+              detail: { walletAddress: wagmiAddress, email: userEmail }
+            }));
+            
+            setFlowState('logged-in-success');
+          } else {
+            setEmailError('No account found with this email. Please sign up first.');
+          }
+        } else {
+          // No email - this is a new user connecting wallet directly
+          // We need them to complete profile first, but without email OTP
+          // For now, just show success and let AuthContext handle the rest
           savedToDbRef.current = true;
           localStorage.setItem('cdp:wallet_address', wagmiAddress);
+          
+          window.dispatchEvent(new CustomEvent('auth-complete', {
+            detail: { walletAddress: wagmiAddress }
+          }));
+          
           setFlowState('logged-in-success');
-        } else {
-          setEmailError('No account found with this email. Please sign up first.');
         }
       }
     };
@@ -392,9 +436,9 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               <Wallet size={32} className="text-white" />
             </div>
 
-            <h2 className="text-white text-2xl font-bold mb-2 text-center">Log in or create an account</h2>
+            <h2 className="text-white text-2xl font-bold mb-2 text-center">Create an account</h2>
             <p className="text-white/60 text-sm mb-6 text-center">
-              Enter your email address to continue.
+              Enter your email address to continue, Base will send you an OTP to verify your registration:
             </p>
 
             <div className="w-full">
@@ -444,14 +488,14 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             </div>
 
             <p className="text-white/40 text-xs mt-4 text-center">
-              We'll send you a one-time code to verify your email.
+              Base will send you a one-time code to verify your registration.
             </p>
 
             <button
               onClick={() => setFlowState('wallet-choice')}
               className="mt-4 text-[#0052FF] text-sm hover:text-[#0052FF]/80 text-center"
             >
-              Or connect existing wallet →
+              (realised you've already got a Base wallet? No problems, click here to connect that instead→)
             </button>
           </div>
         )}
@@ -559,94 +603,84 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               <Wallet size={32} className="text-white" />
             </div>
 
-            <h2 className="text-white text-2xl font-bold mb-2 text-center">Choose how you want to use ThePrize</h2>
+            <h2 className="text-white text-2xl font-bold mb-2 text-center">Connect your wallet</h2>
             <p className="text-white/60 text-sm mb-6 text-center">
-              This wallet will be used to sign in, enter competitions, and receive tickets.
+              {options?.resumeSignup 
+                ? 'Signup with an existing Base wallet'
+                : 'Connect an existing wallet or create a new one in seconds.'
+              }
             </p>
 
-            <div className="w-full space-y-3 mb-6">
-              <div className="bg-[#0052FF]/10 border border-[#0052FF]/30 rounded-lg p-4">
-                <div className="flex flex-wrap items-center justify-center gap-2 mb-2">
-                  <Smartphone size={20} className="text-[#0052FF] flex-shrink-0" />
-                  <span className="text-white font-semibold">Use my Base App</span>
-                  <span className="text-[#DDE404] text-xs font-semibold">Recommended</span>
-                </div>
-                <p className="text-white/60 text-xs mb-3 text-center">
-                  Fastest option. Connect your Base app to continue.
-                </p>
-                <div className="flex justify-center w-full">
-                  <WalletComponent>
-                    <ConnectWallet className="w-full bg-[#0052FF] hover:bg-[#0052FF]/90 text-white font-bold py-2 px-6 rounded-lg flex items-center justify-center">
-                      <Avatar className="h-6 w-6" />
-                      <Name />
-                    </ConnectWallet>
-                    <WalletDropdown>
-                      <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
-                        <Avatar />
-                        <Name />
-                        <Address />
-                      </Identity>
-                    </WalletDropdown>
-                  </WalletComponent>
-                </div>
+            <div className="w-full space-y-4 mb-6">
+              {/* Primary Button - Connect Existing Wallet (Blue) */}
+              {!wagmiIsConnected ? (
+                <>
+                  <div className="space-y-3">
+                    <div className="flex justify-center w-full">
+                      <WalletComponent>
+                        <ConnectWallet className="w-full bg-[#0052FF] hover:bg-[#0052FF]/90 text-white font-bold py-3 px-6 rounded-lg flex items-center justify-center gap-2">
+                          <Wallet size={20} className="flex-shrink-0" />
+                          <span>Connect an existing Base wallet</span>
+                        </ConnectWallet>
+                        <WalletDropdown>
+                          <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
+                            <Avatar />
+                            <Name />
+                            <Address />
+                          </Identity>
+                        </WalletDropdown>
+                      </WalletComponent>
+                    </div>
+                    
+                    <p className="text-white/60 text-xs text-center">
+                      {options?.resumeSignup 
+                        ? 'Base, Coinbase, Metamask, Phantom, Rainbow, theprize.io supports many of the major wallet providers. Simply click the button to continue.'
+                        : 'If you have MetaMask, Coinbase Wallet, Base, or another supported wallet installed, it will be detected automatically. Otherwise, you can create a new wallet with your email below.'
+                      }
+                    </p>
+                  </div>
 
-                {!wagmiIsConnected && (
-                  <a
-                    href="https://www.base.org/wallet"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[#0052FF] text-xs mt-2 flex items-center justify-center gap-1 hover:underline"
+                  {/* Divider */}
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-white/10"></div>
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-[#101010] px-2 text-white/50">OR</span>
+                    </div>
+                  </div>
+
+                  {/* Secondary text */}
+                  {options?.resumeSignup && (
+                    <p className="text-white/60 text-xs text-center">
+                      Decided you would rather a free Base native wallet instead? Click below to create a new wallet (note, if you create a new wallet but regularly use another wallet, this may lead to conflicts*):
+                    </p>
+                  )}
+
+                  {/* Secondary Button - Create New Wallet (Yellow) */}
+                  <button
+                    onClick={() => setFlowState('cdp-signin')}
+                    className="w-full bg-[#DDE404] hover:bg-[#DDE404]/90 text-black font-bold py-3 px-6 rounded-lg flex items-center justify-center gap-2"
                   >
-                    Download Base App <ExternalLink size={12} />
-                  </a>
-                )}
-              </div>
+                    <Shield size={20} className="flex-shrink-0" />
+                    <span>CREATE A FREE BASE WALLET</span>
+                  </button>
 
-              {!wagmiIsConnected && (
-                <div className="bg-[#F6851B]/10 border border-[#F6851B]/30 rounded-lg p-4">
-                  <div className="flex items-center justify-center gap-3 mb-2">
-                    <Wallet size={20} className="text-[#F6851B] flex-shrink-0" />
-                    <span className="text-white font-semibold">Connect MetaMask</span>
+                  {!options?.resumeSignup && (
+                    <p className="text-white/60 text-xs text-center">
+                      No wallet yet? Create one now and get started instantly.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg text-center">
+                  <div className="flex items-center justify-center gap-2 text-green-400 mb-2">
+                    <CheckCircle size={20} className="flex-shrink-0" />
+                    <span className="font-semibold">Wallet Connected!</span>
                   </div>
-                  <p className="text-white/60 text-xs mb-3 text-center">
-                    Use your existing MetaMask browser wallet.
+                  <p className="text-white/70 text-sm break-all">
+                    {wagmiAddress?.substring(0, 6)}...{wagmiAddress?.substring(wagmiAddress.length - 4)}
                   </p>
-                  <div className="flex justify-center w-full">
-                    <button
-                      onClick={handleConnectMetaMask}
-                      disabled={isConnecting}
-                      className="w-full bg-[#F6851B] hover:bg-[#F6851B]/90 text-white font-bold py-2 px-6 rounded-lg text-center disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                      {isConnecting ? (
-                        <>
-                          <Loader2 size={16} className="animate-spin" />
-                          Connecting...
-                        </>
-                      ) : (
-                        'Connect MetaMask'
-                      )}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {!wagmiIsConnected && (
-                <div className="bg-[#DDE404]/10 border border-[#DDE404]/30 rounded-lg p-4">
-                  <div className="flex items-center justify-center gap-3 mb-2">
-                    <Shield size={20} className="text-[#DDE404] flex-shrink-0" />
-                    <span className="text-white font-semibold">Create a free Prize wallet</span>
-                  </div>
-                  <p className="text-white/60 text-xs mb-3 text-center">
-                    No Base wallet found. We'll create one for you automatically.
-                  </p>
-                  <div className="flex justify-center w-full">
-                    <button
-                      onClick={() => setFlowState('cdp-signin')}
-                      className="w-full bg-[#DDE404] hover:bg-[#DDE404]/90 text-black font-bold py-2 px-6 rounded-lg text-center"
-                    >
-                      Create wallet
-                    </button>
-                  </div>
                 </div>
               )}
             </div>
@@ -658,12 +692,15 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               </div>
             )}
 
-            <button
-              onClick={() => setFlowState('cdp-signin')}
-              className="text-white/40 text-xs hover:text-white/60 text-center"
-            >
-              ← Back to sign in
-            </button>
+            <div className="p-4 bg-white/5 rounded-lg text-center space-y-2">
+              <p className="text-xs text-white/50">Powered by Coinbase</p>
+              <p className="text-xs text-white/40">
+                Secure wallet infrastructure and payments powered by Coinbase.
+              </p>
+              <p className="text-xs text-white/40">
+                We never store your private keys. Your wallet is used for entries, top-ups, and ownership verification.
+              </p>
+            </div>
           </div>
         )}
 
