@@ -67,6 +67,10 @@ interface ProfileData {
   socialProfiles?: string;
 }
 
+// Constants for timing
+const AUTO_CLOSE_DELAY_MS = 2000; // 2 seconds before auto-closing success screen
+const EVENT_PROCESSING_DELAY_MS = 100; // Small delay to ensure event listeners process before modal closes
+
 function validateNotTreasuryAddress(walletAddress: string): void {
   const treasuryAddress = import.meta.env.VITE_TREASURY_ADDRESS?.toLowerCase();
   if (treasuryAddress && walletAddress.toLowerCase() === treasuryAddress) {
@@ -381,7 +385,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
       autoCloseTimerRef.current = setTimeout(() => {
         console.log('[BaseWallet] Auto-closing modal after success');
         onClose();
-      }, 2000);
+      }, AUTO_CLOSE_DELAY_MS);
       
       // Cleanup function to clear timer if component unmounts or state changes
       return () => {
@@ -391,7 +395,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
         }
       };
     }
-  }, [flowState, effectiveWalletAddress, onClose]);
+  }, [flowState, effectiveWalletAddress]); // Note: onClose intentionally excluded to prevent re-triggering
 
   const handleCompleteProfile = useCallback(async () => {
     if (!profileData.username || !profileData.fullName || !profileData.country) {
@@ -448,7 +452,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
     }));
 
     // Small delay to ensure event listeners have time to process auth-complete event
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, EVENT_PROCESSING_DELAY_MS));
     onClose();
   }, [onClose, effectiveWalletAddress, userEmail]);
 
