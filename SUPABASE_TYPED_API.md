@@ -132,6 +132,10 @@ type ActiveEntry = {
 
 Creates a temporary ticket reservation that holds specific ticket numbers for a limited time.
 
+**Note:** This wrapper assumes a `reserve_tickets` RPC function exists in the database. If you're currently using the `reserve_tickets` edge function instead, you may need to either:
+1. Create a matching RPC function in a migration, or
+2. Update this wrapper to call `supabase.functions.invoke('reserve-tickets', ...)` instead
+
 ```typescript
 const reservation = await reserveTickets({
   competitionId: 'competition-uuid',
