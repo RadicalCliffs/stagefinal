@@ -15,6 +15,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { X, CheckCircle, AlertCircle, Loader2, User, Mail, Globe, Wallet as WalletIcon, ArrowRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { toPrizePid } from '../utils/userId';
+import { truncateWalletAddress } from '../utils/util';
 import { useCurrentUser, useEvmAddress, useIsSignedIn } from '@coinbase/cdp-hooks';
 import { useAccount, useDisconnect } from 'wagmi';
 
@@ -917,11 +918,7 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
             <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
               <div className="text-xs text-white/50 mb-1">Active wallet</div>
               <div className="text-white font-mono text-sm break-all">
-                {returningUserWalletAddress
-                  ? returningUserWalletAddress.length > 10
-                    ? `${returningUserWalletAddress.substring(0, 6)}...${returningUserWalletAddress.substring(returningUserWalletAddress.length - 4)}`
-                    : returningUserWalletAddress
-                  : 'Loading...'}
+                {truncateWalletAddress(returningUserWalletAddress)}
               </div>
               <div className="text-xs text-white/50 mt-2">
                 This is the wallet you used last time.
@@ -1112,7 +1109,7 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
                       <span className="font-semibold">Wallet Connected!</span>
                     </div>
                     <p className="text-white/70 text-sm mt-2 break-all">
-                      {effectiveWalletAddress?.substring(0, 6)}...{effectiveWalletAddress?.substring(effectiveWalletAddress.length - 4)}
+                      {truncateWalletAddress(effectiveWalletAddress)}
                     </p>
                   </div>
 

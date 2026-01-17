@@ -8,6 +8,7 @@ import { useAccount, useDisconnect, useConnect } from 'wagmi';
 import { supabase } from "../lib/supabase";
 import { userDataService } from "../services/userDataService";
 import { toPrizePid } from "../utils/userId";
+import { truncateWalletAddress } from "../utils/util";
 
 interface BaseWalletAuthModalProps {
   isOpen: boolean;
@@ -628,9 +629,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               <div className="mb-4 p-4 bg-white/5 border border-white/10 rounded-lg">
                 <div className="text-xs text-white/50 mb-1">Expected wallet</div>
                 <div className="text-white font-mono text-sm break-all">
-                  {options.returningUserWalletAddress.length > 10
-                    ? `${options.returningUserWalletAddress.substring(0, 6)}...${options.returningUserWalletAddress.substring(options.returningUserWalletAddress.length - 4)}`
-                    : options.returningUserWalletAddress}
+                  {truncateWalletAddress(options.returningUserWalletAddress)}
                 </div>
                 <div className="text-xs text-white/50 mt-2">
                   Connect this wallet to access your account.
@@ -717,7 +716,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                     <span className="font-semibold">Wallet Connected!</span>
                   </div>
                   <p className="text-white/70 text-sm break-all">
-                    {wagmiAddress?.substring(0, 6)}...{wagmiAddress?.substring(wagmiAddress.length - 4)}
+                    {truncateWalletAddress(wagmiAddress)}
                   </p>
                 </div>
               )}
