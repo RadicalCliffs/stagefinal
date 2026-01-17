@@ -2455,6 +2455,14 @@ TESTING CHECKLIST:
     #modal-preview-container button[class*="gradient"]:not([class*="violet"]):not([class*="orange"]):not([class*="gray"]) {
       background: linear-gradient(to right, ${safeValue}, ${safeValue}) !important;
       border-color: ${safeValue} !important;
+    }
+    /* Primary button container borders and backgrounds */
+    #modal-preview-container div[class*="border-[${PRIMARY_BLUE}]"],
+    #modal-preview-container div[class*="border-2"][class*="border-[${PRIMARY_BLUE}]"] {
+      border-color: ${safeValue} !important;
+    }
+    #modal-preview-container div[class*="from-[${PRIMARY_BLUE}]"] {
+      background: linear-gradient(to bottom right, ${safeValue}26, transparent) !important;
     }`;
         
         case 'textPrimary':
@@ -2497,6 +2505,10 @@ TESTING CHECKLIST:
     #modal-preview-container [class*="border-violet"] {
       background: linear-gradient(to right, ${safeValue}, ${safeValue}) !important;
       border-color: ${safeValue} !important;
+    }
+    /* Balance button container backgrounds */
+    #modal-preview-container div[class*="from-violet"] {
+      background: linear-gradient(to bottom right, ${safeValue}33, transparent) !important;
     }`;
         
         case 'secondaryButton':
