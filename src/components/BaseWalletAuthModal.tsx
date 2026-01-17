@@ -447,6 +447,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
       detail: { walletAddress: effectiveWalletAddress, email: userEmail }
     }));
 
+    // Small delay to ensure event listeners have time to process auth-complete event
     await new Promise(resolve => setTimeout(resolve, 100));
     onClose();
   }, [onClose, effectiveWalletAddress, userEmail]);
