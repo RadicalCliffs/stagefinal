@@ -1,5 +1,34 @@
 # UI Editor Live Preview Fix - Implementation Summary
 
+## Latest Update (2026-01-17)
+
+### CSS Selector Escaping Bug Fixed
+
+**Problem Discovered:**
+The CSS attribute selectors were incorrectly escaping brackets and hash symbols, preventing them from matching Tailwind arbitrary value classes.
+
+**Before Fix:**
+```typescript
+[class*="bg-\\[${MODAL_BG_DARK.replace('#', '\\#')}\\]"]
+// Generated: [class*="bg-\[\#1A1A1A\]"]
+// ❌ Does NOT match: bg-[#1A1A1A]
+```
+
+**After Fix:**
+```typescript
+[class*="bg-[${MODAL_BG_DARK}]"]
+// Generated: [class*="bg-[#1A1A1A]"]
+// ✅ DOES match: bg-[#1A1A1A]
+```
+
+**Impact:**
+- Live preview now correctly applies color/font changes in real-time
+- All button gradients, backgrounds, and borders update immediately
+- Fixed selectors for: primaryBg, modalBg, primaryButton, secondaryButton, accentBlue, balanceButton
+- Enhanced coverage with container border and background selectors
+
+---
+
 ## Problem Statement
 
 The UI Editor at `/a/e/o/x/u` had several critical issues:
