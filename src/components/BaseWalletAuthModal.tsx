@@ -10,6 +10,35 @@ import { userDataService } from "../services/userDataService";
 import { toPrizePid } from "../utils/userId";
 import { truncateWalletAddress } from "../utils/util";
 
+/**
+ * Base Wallet Authentication Modal
+ * 
+ * This modal handles wallet connection and authentication using Coinbase CDP.
+ * 
+ * AUTHENTICATION METHODS SUPPORTED:
+ * - Email OTP (current implementation via CDP SignIn component)
+ * - External wallet connection (via wagmi - MetaMask, Coinbase Wallet, etc.)
+ * 
+ * AUTHENTICATION METHODS NOT SUPPORTED:
+ * - TOTP/Authenticator apps (Google Authenticator, Authy, etc.)
+ *   - Coinbase CDP does not natively support TOTP authentication
+ *   - To implement TOTP would require:
+ *     1. Setting up custom backend authentication with TOTP support
+ *     2. Generating JWTs after TOTP verification
+ *     3. Configuring CDP to trust your custom JWT provider
+ *     4. See: https://docs.cdp.coinbase.com/embedded-wallets/custom-authentication
+ * 
+ * ALTERNATIVE AUTHENTICATION OPTIONS:
+ * - SMS OTP (available in CDP config via authMethods: ["sms"])
+ * - Social OAuth (Google, Apple, X via authMethods: ["oauth:google", "oauth:apple"])
+ * 
+ * FLOW:
+ * 1. CDP sign-in (email OTP) or external wallet connection
+ * 2. Link wallet to existing user account (find by email)
+ * 3. Show success screen with wallet details
+ * 4. Auto-close after 2 seconds and dispatch auth-complete event
+ */
+
 interface BaseWalletAuthModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -37,6 +66,10 @@ interface ProfileData {
   mobile?: string;
   socialProfiles?: string;
 }
+
+// Constants for timing
+const AUTO_CLOSE_DELAY_MS = 2000; // 2 seconds before auto-closing success screen
+const EVENT_PROCESSING_DELAY_MS = 100; // Small delay to ensure event listeners process before modal closes
 
 function validateNotTreasuryAddress(walletAddress: string): void {
   const treasuryAddress = import.meta.env.VITE_TREASURY_ADDRESS?.toLowerCase();
@@ -212,6 +245,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
   const [copied, setCopied] = useState(false);
   const savedToDbRef = useRef(false);
   const profileCheckedRef = useRef(false);
+  const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Reset state when modal opens
   useEffect(() => {
@@ -219,6 +253,12 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
       savedToDbRef.current = false;
       profileCheckedRef.current = false;
       setEmailError('');
+      
+      // Clear any existing auto-close timer
+      if (autoCloseTimerRef.current) {
+        clearTimeout(autoCloseTimerRef.current);
+        autoCloseTimerRef.current = null;
+      }
       
       // Set userEmail from options if provided
       if (options?.email) {
@@ -246,6 +286,13 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
         socialProfiles: '',
       });
     }
+    
+    // Cleanup timer on unmount
+    return () => {
+      if (autoCloseTimerRef.current) {
+        clearTimeout(autoCloseTimerRef.current);
+      }
+    };
   }, [isOpen, options]);
 
   // Handle CDP sign-in success - find user by email and link wallet
@@ -329,6 +376,27 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
     handleWagmiConnection();
   }, [flowState, wagmiIsConnected, wagmiAddress, userEmail]);
 
+  // Auto-close modal after showing success screen for 2 seconds
+  useEffect(() => {
+    if (flowState === 'logged-in-success' && effectiveWalletAddress) {
+      console.log('[BaseWallet] Success state reached, scheduling auto-close in 2 seconds');
+      
+      // Set a timer to auto-close the modal after 2 seconds
+      autoCloseTimerRef.current = setTimeout(() => {
+        console.log('[BaseWallet] Auto-closing modal after success');
+        onClose();
+      }, AUTO_CLOSE_DELAY_MS);
+      
+      // Cleanup function to clear timer if component unmounts or state changes
+      return () => {
+        if (autoCloseTimerRef.current) {
+          clearTimeout(autoCloseTimerRef.current);
+          autoCloseTimerRef.current = null;
+        }
+      };
+    }
+  }, [flowState, effectiveWalletAddress, onClose]);
+
   const handleCompleteProfile = useCallback(async () => {
     if (!profileData.username || !profileData.fullName || !profileData.country) {
       setEmailError('Please complete all required fields.');
@@ -383,7 +451,8 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
       detail: { walletAddress: effectiveWalletAddress, email: userEmail }
     }));
 
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Small delay to ensure event listeners have time to process auth-complete event
+    await new Promise(resolve => setTimeout(resolve, EVENT_PROCESSING_DELAY_MS));
     onClose();
   }, [onClose, effectiveWalletAddress, userEmail]);
 
@@ -778,6 +847,10 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             >
               Start Entering Competitions
             </button>
+            
+            <p className="text-white/50 text-xs text-center">
+              Redirecting automatically in 2 seconds...
+            </p>
 
             <a
               href={`https://${import.meta.env.VITE_BASE_MAINNET === 'true' ? 'basescan.org' : 'sepolia.basescan.org'}/address/${effectiveWalletAddress}`}
