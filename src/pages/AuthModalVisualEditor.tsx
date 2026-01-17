@@ -2425,7 +2425,9 @@ TESTING CHECKLIST:
           return `
     /* Primary background color */
     #modal-preview-container [role="dialog"],
-    #modal-preview-container > div > div:first-child {
+    #modal-preview-container > div > div:first-child,
+    #modal-preview-container [class*="bg-\\[#1A1A1A\\]"],
+    #modal-preview-container [class*="bg-\\[#0A0A0F\\]"] {
       background-color: ${safeValue} !important;
     }`;
         
@@ -2434,8 +2436,11 @@ TESTING CHECKLIST:
     /* Primary button color */
     #modal-preview-container button[class*="bg-"][class*="blue"],
     #modal-preview-container button[class*="bg-purple"],
-    #modal-preview-container button[class*="gradient"]:not([class*="violet"]):not([class*="orange"]) {
+    #modal-preview-container button[class*="bg-\\[#0052FF\\]"],
+    #modal-preview-container button[class*="from-\\[#0052FF\\]"],
+    #modal-preview-container button[class*="gradient"]:not([class*="violet"]):not([class*="orange"]):not([class*="gray"]) {
       background: linear-gradient(to right, ${safeValue}, ${safeValue}) !important;
+      border-color: ${safeValue} !important;
     }`;
         
         case 'textPrimary':
@@ -2444,6 +2449,7 @@ TESTING CHECKLIST:
     #modal-preview-container h1,
     #modal-preview-container h2,
     #modal-preview-container h3,
+    #modal-preview-container h4,
     #modal-preview-container p[class*="text-white"]:not([class*="text-white/"]) {
       color: ${safeValue} !important;
     }`;
@@ -2452,7 +2458,19 @@ TESTING CHECKLIST:
           return `
     /* Secondary text color */
     #modal-preview-container p[class*="text-white/"][class*="70"],
-    #modal-preview-container span[class*="text-white/"][class*="60"] {
+    #modal-preview-container p[class*="text-white/"][class*="60"],
+    #modal-preview-container span[class*="text-white/"][class*="60"],
+    #modal-preview-container span[class*="text-gray"] {
+      color: ${safeValue} !important;
+    }`;
+        
+        case 'textMuted':
+          return `
+    /* Muted text color */
+    #modal-preview-container p[class*="text-white/"][class*="50"],
+    #modal-preview-container span[class*="text-white/"][class*="40"],
+    #modal-preview-container p[class*="text-gray-"][class*="400"],
+    #modal-preview-container [class*="sequel-45"] {
       color: ${safeValue} !important;
     }`;
         
@@ -2460,16 +2478,38 @@ TESTING CHECKLIST:
           return `
     /* Balance button color */
     #modal-preview-container button[class*="violet"],
-    #modal-preview-container [class*="from-violet"] {
+    #modal-preview-container [class*="from-violet"],
+    #modal-preview-container [class*="border-violet"] {
       background: linear-gradient(to right, ${safeValue}, ${safeValue}) !important;
+      border-color: ${safeValue} !important;
     }`;
         
         case 'secondaryButton':
           return `
     /* Secondary button color */
     #modal-preview-container button[class*="bg-\\[#3c3d3c\\]"],
-    #modal-preview-container button[class*="bg-gray"] {
+    #modal-preview-container button[class*="bg-gray"],
+    #modal-preview-container button[class*="bg-white/10"] {
       background-color: ${safeValue} !important;
+    }`;
+        
+        case 'accentGreen':
+          return `
+    /* Accent green color */
+    #modal-preview-container [class*="text-green"],
+    #modal-preview-container [class*="bg-green"] {
+      color: ${safeValue} !important;
+    }
+    #modal-preview-container [class*="bg-green"] {
+      background-color: ${safeValue}20 !important;
+    }`;
+        
+        case 'accentBlue':
+          return `
+    /* Accent blue color */
+    #modal-preview-container [class*="text-\\[#0052FF\\]"],
+    #modal-preview-container [class*="text-blue-"] {
+      color: ${safeValue} !important;
     }`;
         
         default:
@@ -2490,7 +2530,8 @@ TESTING CHECKLIST:
           return `
     /* Heading font */
     #modal-preview-container h1,
-    #modal-preview-container h2[class*="sequel"] {
+    #modal-preview-container h2[class*="sequel"],
+    #modal-preview-container [class*="sequel-95"] {
       font-family: ${safeFamily} !important;
       font-size: ${safeSize} !important;
       font-weight: ${safeWeight} !important;
@@ -2501,7 +2542,9 @@ TESTING CHECKLIST:
           return `
     /* Subheading font */
     #modal-preview-container h3,
-    #modal-preview-container p[class*="sequel-75"] {
+    #modal-preview-container h4,
+    #modal-preview-container p[class*="sequel-75"],
+    #modal-preview-container [class*="font-semibold"] {
       font-family: ${safeFamily} !important;
       font-size: ${safeSize} !important;
       font-weight: ${safeWeight} !important;
@@ -2512,6 +2555,7 @@ TESTING CHECKLIST:
           return `
     /* Body font */
     #modal-preview-container p[class*="sequel-45"],
+    #modal-preview-container p[class*="text-sm"],
     #modal-preview-container span[class*="text-xs"],
     #modal-preview-container span[class*="text-sm"] {
       font-family: ${safeFamily} !important;
@@ -2535,7 +2579,8 @@ TESTING CHECKLIST:
           return `
     /* Price/Amount font */
     #modal-preview-container p[class*="text-2xl"],
-    #modal-preview-container p[class*="text-xl"][class*="sequel-"] {
+    #modal-preview-container p[class*="text-xl"][class*="sequel-"],
+    #modal-preview-container [class*="text-\\[#DDE404\\]"][class*="text-2xl"] {
       font-family: ${safeFamily} !important;
       font-size: ${safeSize} !important;
       font-weight: ${safeWeight} !important;
