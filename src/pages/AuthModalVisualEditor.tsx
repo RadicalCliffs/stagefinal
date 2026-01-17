@@ -175,7 +175,7 @@ export default function AuthModalVisualEditor() {
     flowSteps: [],
     buttons: [],
     sections: [],
-    showPreview: true,
+    showPreview: true, // Always true for split-screen live preview
     previewOpen: true,
     hasChanges: false,
     history: [],
@@ -2295,15 +2295,42 @@ TESTING CHECKLIST:
     </div>
   );
 
+  // Generate dynamic CSS for live preview based on editor state
+  const generatePreviewStyles = () => {
+    const colorVars = state.colors.map(c => `--preview-${c.name}: ${c.value};`).join('\n    ');
+    const fontVars = state.fonts.map(f => {
+      return `
+    --preview-${f.name}-family: ${f.family};
+    --preview-${f.name}-size: ${f.size};
+    --preview-${f.name}-weight: ${f.weight};
+    --preview-${f.name}-style: ${f.style || 'normal'};`;
+    }).join('');
+
+    return `
+    #modal-preview-container {
+      ${colorVars}
+      ${fontVars}
+    }
+    
+    /* Apply color overrides to modal elements */
+    #modal-preview-container [class*="bg-"] {
+      /* Colors will be applied via inline styles where possible */
+    }
+  `;
+  };
+
   return (
     <div className="min-h-screen bg-[#0A0A0F] text-white">
+      {/* Dynamic styles for live preview */}
+      <style>{generatePreviewStyles()}</style>
+      
       {/* Header */}
       <header className="border-b border-white/10 bg-[#0A0A0F]/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold">Modal Visual Editor</h1>
-              <p className="text-white/50 text-sm">Admin-only editor with download functionality</p>
+              <p className="text-white/50 text-sm">Live split-screen editor with real-time preview</p>
             </div>
             <div className="flex items-center gap-3">
               {/* Undo/Redo Buttons */}
@@ -2326,13 +2353,6 @@ TESTING CHECKLIST:
                 </button>
               </div>
               
-              <button
-                onClick={() => setState(prev => ({ ...prev, showPreview: !prev.showPreview }))}
-                className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg flex items-center gap-2 transition-colors"
-              >
-                {state.showPreview ? <Eye size={18} /> : <EyeOff size={18} />}
-                <span>{state.showPreview ? 'Hide' : 'Show'} Preview</span>
-              </button>
               <button
                 onClick={handleReset}
                 disabled={!state.hasChanges}
@@ -2370,10 +2390,10 @@ TESTING CHECKLIST:
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className={`grid ${state.showPreview ? 'grid-cols-2' : 'grid-cols-1'} gap-8`}>
-          {/* Editor Panel */}
-          <div>
+      <div className="max-w-[2000px] mx-auto px-4 py-8">
+        <div className="grid grid-cols-2 gap-8">
+          {/* Editor Panel - Left Side */}
+          <div className="overflow-y-auto max-h-[calc(100vh-180px)]">
             {/* Modal Selector */}
             <div className="mb-6">
               <label className="block text-white/70 text-sm mb-2">Select Modal to Edit</label>
@@ -2538,50 +2558,52 @@ TESTING CHECKLIST:
             )}
           </div>
 
-          {/* Preview Panel */}
-          {state.showPreview && (
-            <div className="sticky top-24 h-fit">
-              <div className="bg-white/5 border border-white/10 rounded-lg p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold">Live Preview</h3>
-                </div>
-                <div className="bg-[#0A0A0F] rounded-lg overflow-hidden min-h-[400px] flex items-center justify-center">
-                  {state.selectedModal === 'NewAuthModal' ? (
-                    <NewAuthModal 
-                      isOpen={true} 
-                      onClose={PREVIEW_HANDLERS.onClose} 
-                    />
-                  ) : state.selectedModal === 'BaseWalletAuthModal' ? (
-                    <BaseWalletAuthModal 
-                      isOpen={true} 
-                      onClose={PREVIEW_HANDLERS.onClose} 
-                    />
-                  ) : state.selectedModal === 'PaymentModal' ? (
-                    <PaymentModal 
-                      isOpen={true} 
-                      onClose={PREVIEW_HANDLERS.onClose}
-                      onOpen={PREVIEW_HANDLERS.onOpen}
-                      ticketCount={PREVIEW_PROPS.PaymentModal.ticketCount}
-                      competitionId={PREVIEW_PROPS.PaymentModal.competitionId}
-                      ticketPrice={PREVIEW_PROPS.PaymentModal.ticketPrice}
-                    />
-                  ) : state.selectedModal === 'TopUpWalletModal' ? (
-                    <TopUpWalletModal 
-                      isOpen={true} 
-                      onClose={PREVIEW_HANDLERS.onClose}
-                    />
-                  ) : (
-                    <p className="text-white/50 text-center px-4">
-                      Preview not available for {state.selectedModal}.
-                    </p>
-                  )}
-                </div>
-                <p className="text-white/40 text-xs mt-3 text-center">
-                  Live preview updates automatically as you make changes.
-                </p>
+          {/* Preview Panel - Right Side - Always Visible */}
+          <div className="sticky top-24 h-fit">
+            <div className="bg-white/5 border border-white/10 rounded-lg p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Live Preview</h3>
+                <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded flex items-center gap-1">
+                  <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                  Live
+                </span>
               </div>
+              <div className="bg-[#0A0A0F] rounded-lg overflow-hidden min-h-[400px] flex items-center justify-center" id="modal-preview-container">
+                {state.selectedModal === 'NewAuthModal' ? (
+                  <NewAuthModal 
+                    isOpen={true} 
+                    onClose={PREVIEW_HANDLERS.onClose} 
+                  />
+                ) : state.selectedModal === 'BaseWalletAuthModal' ? (
+                  <BaseWalletAuthModal 
+                    isOpen={true} 
+                    onClose={PREVIEW_HANDLERS.onClose} 
+                  />
+                ) : state.selectedModal === 'PaymentModal' ? (
+                  <PaymentModal 
+                    isOpen={true} 
+                    onClose={PREVIEW_HANDLERS.onClose}
+                    onOpen={PREVIEW_HANDLERS.onOpen}
+                    ticketCount={PREVIEW_PROPS.PaymentModal.ticketCount}
+                    competitionId={PREVIEW_PROPS.PaymentModal.competitionId}
+                    ticketPrice={PREVIEW_PROPS.PaymentModal.ticketPrice}
+                  />
+                ) : state.selectedModal === 'TopUpWalletModal' ? (
+                  <TopUpWalletModal 
+                    isOpen={true} 
+                    onClose={PREVIEW_HANDLERS.onClose}
+                  />
+                ) : (
+                  <p className="text-white/50 text-center px-4">
+                    Preview not available for {state.selectedModal}.
+                  </p>
+                )}
+              </div>
+              <p className="text-white/40 text-xs mt-3 text-center">
+                Preview updates in real-time as you edit
+              </p>
             </div>
-          )}
+          </div>
         </div>
       </div>
 
