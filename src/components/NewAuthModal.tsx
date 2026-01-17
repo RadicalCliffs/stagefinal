@@ -27,7 +27,8 @@ type AuthStep =
   | 'username'           // Step 1: Enter or create username
   | 'profile'            // Step 2: Complete profile (email OTP, name, country, avatar, social)
   | 'email-otp'          // Step 2a: Email verification with OTP
-  | 'wallet'             // Step 3: Connect Base wallet
+  | 'returning-user-wallet' // Step 3A: Returning user with existing wallet - Welcome back screen
+  | 'wallet'             // Step 3: Connect Base wallet (new users or users without wallet)
   | 'success'            // Step 4: Success confirmation
   | 'existing-account'   // Step: Show existing account options
   | 'username-recovery'  // Step: Send username reminder email
@@ -63,6 +64,7 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
   const [otpCode, setOtpCode] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [isReturningUser, setIsReturningUser] = useState(false);
+  const [returningUserWalletAddress, setReturningUserWalletAddress] = useState<string>('');
   const [existingAccountInfo, setExistingAccountInfo] = useState<ExistingAccountInfo | null>(null);
   const [recoveryEmailSent, setRecoveryEmailSent] = useState(false);
 
@@ -87,6 +89,7 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
       setOtpCode('');
       setOtpSent(false);
       setIsReturningUser(false);
+      setReturningUserWalletAddress('');
       setExistingAccountInfo(null);
       setRecoveryEmailSent(false);
       setWalletProcessing(false);
@@ -148,8 +151,10 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
         setProfileData(prev => ({ ...prev, email: data.email || '' }));
         
         if (data.wallet_address || data.base_wallet_address) {
-          // Has wallet, go directly to wallet connection
-          setStep('wallet');
+          // Has wallet, store it and show welcome back screen (Screen 3A)
+          const walletAddr = data.wallet_address || data.base_wallet_address;
+          setReturningUserWalletAddress(walletAddr);
+          setStep('returning-user-wallet');
         } else {
           // No wallet, need to complete profile first
           setStep('profile');
@@ -891,6 +896,98 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
             >
               Resend code
             </button>
+          </div>
+        );
+
+      case 'returning-user-wallet':
+        // Screen 3A: Returning User - Active Wallet Available
+        return (
+          <div className="space-y-6">
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-4 bg-[#0052FF]/10 rounded-full flex items-center justify-center">
+                <WalletIcon size={32} className="text-[#0052FF]" />
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-2">Continue with your wallet</h2>
+              <p className="text-white/70 mb-4">
+                To access your account, please continue using your Base wallet.
+              </p>
+            </div>
+
+            {/* Display existing wallet address */}
+            <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
+              <div className="text-xs text-white/50 mb-1">Active wallet</div>
+              <div className="text-white font-mono text-sm break-all">
+                {returningUserWalletAddress
+                  ? returningUserWalletAddress.length > 10
+                    ? `${returningUserWalletAddress.substring(0, 6)}...${returningUserWalletAddress.substring(returningUserWalletAddress.length - 4)}`
+                    : returningUserWalletAddress
+                  : 'Loading...'}
+              </div>
+              <div className="text-xs text-white/50 mt-2">
+                This is the wallet you used last time.
+              </div>
+            </div>
+
+            {/* Primary CTA: Continue with Base wallet */}
+            <button
+              onClick={() => {
+                // Save current profile data to localStorage before opening wallet auth
+                localStorage.setItem('pendingSignupData', JSON.stringify({
+                  profileData,
+                  isReturningUser: true,
+                  returningUserWalletAddress,
+                  timestamp: Date.now()
+                }));
+                console.log('[NewAuthModal] Opening CDP sign-in for returning user authentication');
+                // Close this modal and dispatch event to open Base wallet auth modal
+                onClose();
+                // Small delay to ensure modal closes before opening new one
+                setTimeout(() => {
+                  window.dispatchEvent(new CustomEvent('open-base-wallet-auth', {
+                    detail: { 
+                      resumeSignup: true, 
+                      email: profileData.email,
+                      isReturningUser: true,
+                      returningUserWalletAddress
+                    }
+                  }));
+                }, 100);
+              }}
+              disabled={isLoading}
+              className="w-full py-3 bg-[#0052FF] hover:bg-[#0041CC] disabled:bg-white/10 disabled:text-white/40 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="animate-spin flex-shrink-0" size={20} />
+                  <span>Connecting...</span>
+                </>
+              ) : (
+                <>
+                  <WalletIcon size={20} className="flex-shrink-0" />
+                  <span>Continue with Base wallet</span>
+                  <ArrowRight size={20} className="flex-shrink-0" />
+                </>
+              )}
+            </button>
+
+            {/* Link: Can't access this wallet? */}
+            <div className="text-center">
+              <button
+                onClick={() => {
+                  setStep('wallet');
+                }}
+                className="text-sm text-white/60 hover:text-white/90 underline transition-colors"
+              >
+                Can't access this wallet?
+              </button>
+            </div>
+
+            {error && (
+              <div className="flex items-start gap-2 text-red-400 text-sm justify-center">
+                <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+                <span className="break-words">{error}</span>
+              </div>
+            )}
           </div>
         );
 
