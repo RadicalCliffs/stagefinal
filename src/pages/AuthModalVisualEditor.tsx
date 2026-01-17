@@ -2439,8 +2439,8 @@ TESTING CHECKLIST:
     /* Primary background color */
     #modal-preview-container [role="dialog"],
     #modal-preview-container > div > div:first-child,
-    #modal-preview-container [class*="bg-\\[${MODAL_BG_DARK.replace('#', '\\#')}\\]"],
-    #modal-preview-container [class*="bg-\\[${MODAL_BG_DARKER.replace('#', '\\#')}\\]"] {
+    #modal-preview-container [class*="bg-[${MODAL_BG_DARK}]"],
+    #modal-preview-container [class*="bg-[${MODAL_BG_DARKER}]"] {
       background-color: ${safeValue} !important;
     }`;
         
@@ -2449,11 +2449,20 @@ TESTING CHECKLIST:
     /* Primary button color */
     #modal-preview-container button[class*="bg-"][class*="blue"],
     #modal-preview-container button[class*="bg-purple"],
-    #modal-preview-container button[class*="bg-\\[${PRIMARY_BLUE.replace('#', '\\#')}\\]"],
-    #modal-preview-container button[class*="from-\\[${PRIMARY_BLUE.replace('#', '\\#')}\\]"],
+    #modal-preview-container button[class*="bg-[${PRIMARY_BLUE}]"],
+    #modal-preview-container button[class*="from-[${PRIMARY_BLUE}]"],
+    #modal-preview-container button[class*="to-blue-"],
     #modal-preview-container button[class*="gradient"]:not([class*="violet"]):not([class*="orange"]):not([class*="gray"]) {
       background: linear-gradient(to right, ${safeValue}, ${safeValue}) !important;
       border-color: ${safeValue} !important;
+    }
+    /* Primary button container borders and backgrounds */
+    #modal-preview-container div[class*="border-[${PRIMARY_BLUE}]"],
+    #modal-preview-container div[class*="border-2"][class*="border-[${PRIMARY_BLUE}]"] {
+      border-color: ${safeValue} !important;
+    }
+    #modal-preview-container div[class*="from-[${PRIMARY_BLUE}]"] {
+      background: linear-gradient(to bottom right, ${safeValue}26, transparent) !important;
     }`;
         
         case 'textPrimary':
@@ -2491,16 +2500,21 @@ TESTING CHECKLIST:
           return `
     /* Balance button color */
     #modal-preview-container button[class*="violet"],
-    #modal-preview-container [class*="from-violet"],
+    #modal-preview-container button[class*="from-violet"],
+    #modal-preview-container button[class*="to-purple"],
     #modal-preview-container [class*="border-violet"] {
       background: linear-gradient(to right, ${safeValue}, ${safeValue}) !important;
       border-color: ${safeValue} !important;
+    }
+    /* Balance button container backgrounds */
+    #modal-preview-container div[class*="from-violet"] {
+      background: linear-gradient(to bottom right, ${safeValue}33, transparent) !important;
     }`;
         
         case 'secondaryButton':
           return `
     /* Secondary button color */
-    #modal-preview-container button[class*="bg-\\[#3c3d3c\\]"],
+    #modal-preview-container button[class*="bg-[#3c3d3c]"],
     #modal-preview-container button[class*="bg-gray"],
     #modal-preview-container button[class*="bg-white/10"] {
       background-color: ${safeValue} !important;
@@ -2520,7 +2534,7 @@ TESTING CHECKLIST:
         case 'accentBlue':
           return `
     /* Accent blue color */
-    #modal-preview-container [class*="text-\\[${PRIMARY_BLUE.replace('#', '\\#')}\\]"],
+    #modal-preview-container [class*="text-[${PRIMARY_BLUE}]"],
     #modal-preview-container [class*="text-blue-"] {
       color: ${safeValue} !important;
     }`;
@@ -2593,7 +2607,7 @@ TESTING CHECKLIST:
     /* Price/Amount font */
     #modal-preview-container p[class*="text-2xl"],
     #modal-preview-container p[class*="text-xl"][class*="sequel-"],
-    #modal-preview-container [class*="text-\\[#DDE404\\]"][class*="text-2xl"] {
+    #modal-preview-container [class*="text-[#DDE404]"][class*="text-2xl"] {
       font-family: ${safeFamily} !important;
       font-size: ${safeSize} !important;
       font-weight: ${safeWeight} !important;
