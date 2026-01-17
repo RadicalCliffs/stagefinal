@@ -914,6 +914,8 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
                   <button
                     onClick={() => {
                       // Save current profile data to localStorage before opening wallet auth
+                      // This data will be consumed by BaseWalletAuthModal when it opens
+                      // to resume the signup process after wallet connection
                       localStorage.setItem('pendingSignupData', JSON.stringify({
                         profileData,
                         isReturningUser,

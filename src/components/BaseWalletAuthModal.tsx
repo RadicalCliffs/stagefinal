@@ -495,7 +495,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               onClick={() => setFlowState('wallet-choice')}
               className="mt-4 text-[#0052FF] text-sm hover:text-[#0052FF]/80 text-center"
             >
-              (realised you've already got a Base wallet? No problems, click here to connect that instead→)
+              (realized you've already got a Base wallet? No problems, click here to connect that instead→)
             </button>
           </div>
         )}
@@ -646,14 +646,14 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                       <div className="w-full border-t border-white/10"></div>
                     </div>
                     <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-[#101010] px-2 text-white/50">OR</span>
+                      <span className="bg-[#0A0A0F] px-2 text-white/50">OR</span>
                     </div>
                   </div>
 
                   {/* Secondary text */}
                   {options?.resumeSignup && (
                     <p className="text-white/60 text-xs text-center">
-                      Decided you would rather a free Base native wallet instead? Click below to create a new wallet (note, if you create a new wallet but regularly use another wallet, this may lead to conflicts*):
+                      Decided you would rather a free Base native wallet instead? Click below to create a new wallet. Note: If you create a new wallet but regularly use another wallet, you may need to remember which wallet is associated with your theprize.io account.
                     </p>
                   )}
 
