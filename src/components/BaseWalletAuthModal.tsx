@@ -17,6 +17,8 @@ interface BaseWalletAuthModalProps {
     email?: string;
     connectExisting?: boolean;
     createNew?: boolean;
+    isReturningUser?: boolean;
+    returningUserWalletAddress?: string;
   };
 }
 
@@ -436,9 +438,13 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               <Wallet size={32} className="text-white" />
             </div>
 
-            <h2 className="text-white text-2xl font-bold mb-2 text-center">Create an account</h2>
+            <h2 className="text-white text-2xl font-bold mb-2 text-center">
+              {options?.isReturningUser ? 'Create a new wallet' : 'Create an account'}
+            </h2>
             <p className="text-white/60 text-sm mb-6 text-center">
-              Enter your email address to continue, Base will send you an OTP to verify your registration:
+              {options?.isReturningUser
+                ? 'Create a new Base wallet to use instead of your previous wallet.'
+                : 'Enter your email address to continue, Base will send you an OTP to verify your registration:'}
             </p>
 
             <div className="w-full">
@@ -495,7 +501,9 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               onClick={() => setFlowState('wallet-choice')}
               className="mt-4 text-[#0052FF] text-sm hover:text-[#0052FF]/80 text-center"
             >
-              (realized you've already got a Base wallet? No problems, click here to connect that instead→)
+              {options?.isReturningUser 
+                ? '(changed your mind? Go back to sign in with your existing wallet →)'
+                : '(realized you've already got a Base wallet? No problems, click here to connect that instead→)'}
             </button>
           </div>
         )}
@@ -603,13 +611,32 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               <Wallet size={32} className="text-white" />
             </div>
 
-            <h2 className="text-white text-2xl font-bold mb-2 text-center">Connect your wallet</h2>
+            <h2 className="text-white text-2xl font-bold mb-2 text-center">
+              {options?.isReturningUser ? 'Sign in with your wallet' : 'Connect your wallet'}
+            </h2>
             <p className="text-white/60 text-sm mb-6 text-center">
-              {options?.resumeSignup 
-                ? 'Signup with an existing Base wallet'
-                : 'Connect an existing wallet or create a new one in seconds.'
+              {options?.isReturningUser
+                ? 'Connect your existing Base wallet to sign in to your account.'
+                : options?.resumeSignup 
+                  ? 'Signup with an existing Base wallet'
+                  : 'Connect an existing wallet or create a new one in seconds.'
               }
             </p>
+
+            {/* Display returning user's wallet address if available */}
+            {options?.isReturningUser && options?.returningUserWalletAddress && (
+              <div className="mb-4 p-4 bg-white/5 border border-white/10 rounded-lg">
+                <div className="text-xs text-white/50 mb-1">Expected wallet</div>
+                <div className="text-white font-mono text-sm break-all">
+                  {options.returningUserWalletAddress.length > 10
+                    ? `${options.returningUserWalletAddress.substring(0, 6)}...${options.returningUserWalletAddress.substring(options.returningUserWalletAddress.length - 4)}`
+                    : options.returningUserWalletAddress}
+                </div>
+                <div className="text-xs text-white/50 mt-2">
+                  Connect this wallet to access your account.
+                </div>
+              </div>
+            )}
 
             <div className="w-full space-y-4 mb-6">
               {/* Primary Button - Connect Existing Wallet (Blue) */}
@@ -620,7 +647,11 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                       <WalletComponent>
                         <ConnectWallet className="w-full bg-[#0052FF] hover:bg-[#0052FF]/90 text-white font-bold py-3 px-6 rounded-lg flex items-center justify-center gap-2">
                           <Wallet size={20} className="flex-shrink-0" />
-                          <span>Connect an existing Base wallet</span>
+                          <span>
+                            {options?.isReturningUser 
+                              ? 'Sign in with Base wallet'
+                              : 'Connect an existing Base wallet'}
+                          </span>
                         </ConnectWallet>
                         <WalletDropdown>
                           <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
@@ -633,43 +664,50 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                     </div>
                     
                     <p className="text-white/60 text-xs text-center">
-                      {options?.resumeSignup 
-                        ? 'Base, Coinbase, Metamask, Phantom, Rainbow, theprize.io supports many of the major wallet providers. Simply click the button to continue.'
-                        : 'If you have MetaMask, Coinbase Wallet, Base, or another supported wallet installed, it will be detected automatically. Otherwise, you can create a new wallet with your email below.'
+                      {options?.isReturningUser
+                        ? 'Connect your existing wallet to access your account and continue where you left off.'
+                        : options?.resumeSignup 
+                          ? 'Base, Coinbase, Metamask, Phantom, Rainbow, theprize.io supports many of the major wallet providers. Simply click the button to continue.'
+                          : 'If you have MetaMask, Coinbase Wallet, Base, or another supported wallet installed, it will be detected automatically. Otherwise, you can create a new wallet with your email below.'
                       }
                     </p>
                   </div>
 
-                  {/* Divider */}
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-white/10"></div>
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-[#0A0A0F] px-2 text-white/50">OR</span>
-                    </div>
-                  </div>
+                  {/* Don't show create new wallet option for returning users */}
+                  {!options?.isReturningUser && (
+                    <>
+                      {/* Divider */}
+                      <div className="relative">
+                        <div className="absolute inset-0 flex items-center">
+                          <div className="w-full border-t border-white/10"></div>
+                        </div>
+                        <div className="relative flex justify-center text-xs uppercase">
+                          <span className="bg-[#0A0A0F] px-2 text-white/50">OR</span>
+                        </div>
+                      </div>
 
-                  {/* Secondary text */}
-                  {options?.resumeSignup && (
-                    <p className="text-white/60 text-xs text-center">
-                      Decided you would rather a free Base native wallet instead? Click below to create a new wallet. Note: If you create a new wallet but regularly use another wallet, you may need to remember which wallet is associated with your theprize.io account.
-                    </p>
-                  )}
+                      {/* Secondary text */}
+                      {options?.resumeSignup && (
+                        <p className="text-white/60 text-xs text-center">
+                          Decided you would rather a free Base native wallet instead? Click below to create a new wallet. Note: If you create a new wallet but regularly use another wallet, you may need to remember which wallet is associated with your theprize.io account.
+                        </p>
+                      )}
 
-                  {/* Secondary Button - Create New Wallet (Yellow) */}
-                  <button
-                    onClick={() => setFlowState('cdp-signin')}
-                    className="w-full bg-[#DDE404] hover:bg-[#DDE404]/90 text-black font-bold py-3 px-6 rounded-lg flex items-center justify-center gap-2"
-                  >
-                    <Shield size={20} className="flex-shrink-0" />
-                    <span>CREATE A FREE BASE WALLET</span>
-                  </button>
+                      {/* Secondary Button - Create New Wallet (Yellow) */}
+                      <button
+                        onClick={() => setFlowState('cdp-signin')}
+                        className="w-full bg-[#DDE404] hover:bg-[#DDE404]/90 text-black font-bold py-3 px-6 rounded-lg flex items-center justify-center gap-2"
+                      >
+                        <Shield size={20} className="flex-shrink-0" />
+                        <span>CREATE A FREE BASE WALLET</span>
+                      </button>
 
-                  {!options?.resumeSignup && (
-                    <p className="text-white/60 text-xs text-center">
-                      No wallet yet? Create one now and get started instantly.
-                    </p>
+                      {!options?.resumeSignup && (
+                        <p className="text-white/60 text-xs text-center">
+                          No wallet yet? Create one now and get started instantly.
+                        </p>
+                      )}
+                    </>
                   )}
                 </>
               ) : (
