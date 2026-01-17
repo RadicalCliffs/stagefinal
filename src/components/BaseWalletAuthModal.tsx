@@ -245,7 +245,13 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
   const [copied, setCopied] = useState(false);
   const savedToDbRef = useRef(false);
   const profileCheckedRef = useRef(false);
-  const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onCloseRef = useRef(onClose);
+  
+  // Keep onCloseRef updated with latest onClose function
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   // Reset state when modal opens
   useEffect(() => {
@@ -382,9 +388,10 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
       console.log('[BaseWallet] Success state reached, scheduling auto-close in 2 seconds');
       
       // Set a timer to auto-close the modal after 2 seconds
+      // Use ref to always get the latest onClose function, avoiding stale closure issues
       autoCloseTimerRef.current = setTimeout(() => {
         console.log('[BaseWallet] Auto-closing modal after success');
-        onClose();
+        onCloseRef.current();
       }, AUTO_CLOSE_DELAY_MS);
       
       // Cleanup function to clear timer if component unmounts or state changes
@@ -395,7 +402,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
         }
       };
     }
-  }, [flowState, effectiveWalletAddress]); // Note: onClose intentionally excluded to prevent re-triggering
+  }, [flowState, effectiveWalletAddress]);
 
   const handleCompleteProfile = useCallback(async () => {
     if (!profileData.username || !profileData.fullName || !profileData.country) {
