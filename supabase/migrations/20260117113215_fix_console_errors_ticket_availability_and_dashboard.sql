@@ -111,9 +111,10 @@ Returns int4[] of ticket numbers that are NOT available for purchase.';
 -- PART 2: Fix get_comprehensive_user_dashboard_entries RPC
 -- ============================================================================
 -- The issue reported is: "column jc.privy_user_id does not exist"
--- However, privy_user_id DOES exist on joincompetition (added in migration 20251201000000)
--- The error might be due to a specific query context or cached schema.
--- Let's recreate the function to ensure it's correct.
+-- Actually, privy_user_id DOES exist on joincompetition (added in migration 20251201000000)
+-- However, the problem statement requests NOT using privy_user_id in direct REST queries
+-- because complex OR filters with privy_user_id cause 400 errors in Supabase REST API.
+-- This RPC recreates the function to use canonical_user_id, walletaddress, and userid instead.
 
 CREATE OR REPLACE FUNCTION public.get_comprehensive_user_dashboard_entries(user_identifier TEXT)
 RETURNS TABLE (

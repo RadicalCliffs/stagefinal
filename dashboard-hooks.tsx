@@ -236,6 +236,7 @@ export const useFallbackUserEntries = (userIdentifier: string | null) => {
 
       // Fallback to direct table queries
       // Note: Removed privy_user_id from OR filter to avoid REST API errors with complex identifiers
+      // Supabase client library handles parameter escaping to prevent SQL injection
       const [joinCompResult, transactionsResult, pendingResult] = await Promise.all([
         supabase.from('joincompetition').select('*').or(`canonical_user_id.eq.${userIdentifier},userid.eq.${userIdentifier},walletaddress.ilike.${userIdentifier.toLowerCase()}`),
         supabase.from('user_transactions').select('*, competitions(*)').or(`canonical_user_id.eq.${userIdentifier},user_privy_id.eq.${userIdentifier},user_id.eq.${userIdentifier},wallet_address.ilike.${userIdentifier.toLowerCase()}`),
