@@ -9,13 +9,17 @@ import { toPrizePid, isWalletAddress } from "./_shared/userId.mts";
  * client-side RLS restrictions. It ensures proper user ownership validation
  * before performing any operations.
  *
- * Routes:
+ * User Routes:
  * - GET /api/notifications - Get user's notifications
  * - GET /api/notifications/unread-count - Get unread notification count
- * - POST /api/notifications - Create a notification
+ * - POST /api/notifications - Create a notification for self
  * - PATCH /api/notifications/:id/read - Mark notification as read
  * - PATCH /api/notifications/read-all - Mark all notifications as read
  * - DELETE /api/notifications/:id - Delete a notification
+ *
+ * Admin Routes (requires is_admin = true):
+ * - POST /api/notifications/admin/push - Push notification to specific users or all users
+ * - GET /api/notifications/admin/stats - Get notification statistics
  */
 
 // Response helpers
@@ -58,7 +62,7 @@ function getSupabaseClient(): SupabaseClient {
 async function verifyWalletToken(
   token: string,
   supabase: SupabaseClient
-): Promise<{ userId: string; profileId: string } | null> {
+): Promise<{ userId: string; profileId: string; isAdmin: boolean } | null> {
   if (!token.startsWith("wallet:")) return null;
 
   const walletAddress = token.replace("wallet:", "").trim().toLowerCase();
@@ -67,7 +71,7 @@ async function verifyWalletToken(
   // Look up user by wallet address
   const { data: user, error } = await supabase
     .from("canonical_users")
-    .select("id, privy_user_id, wallet_address, base_wallet_address, canonical_user_id")
+    .select("id, privy_user_id, wallet_address, base_wallet_address, canonical_user_id, is_admin")
     .or(`wallet_address.ilike.${walletAddress},base_wallet_address.ilike.${walletAddress}`)
     .maybeSingle();
 
@@ -81,6 +85,7 @@ async function verifyWalletToken(
     return {
       userId: canonicalUserId,
       profileId: user.id,
+      isAdmin: user.is_admin === true,
     };
   }
 
@@ -95,7 +100,7 @@ async function verifyWalletToken(
 async function getAuthenticatedUser(
   request: Request,
   supabase: SupabaseClient
-): Promise<{ userId: string; profileId: string } | null> {
+): Promise<{ userId: string; profileId: string; isAdmin: boolean } | null> {
   const authHeader = request.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) return null;
 
@@ -117,7 +122,14 @@ async function getAuthenticatedUser(
 
   if (error || !user) return null;
 
-  return { userId: user.id, profileId: user.id };
+  // Check if Supabase user is admin
+  const { data: profile } = await supabase
+    .from("canonical_users")
+    .select("is_admin")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  return { userId: user.id, profileId: user.id, isAdmin: profile?.is_admin === true };
 }
 
 // Route handlers
@@ -284,6 +296,167 @@ async function handleDeleteNotification(
   return jsonResponse({ ok: true });
 }
 
+// Admin: Push notification to specific users or all users
+async function handleAdminPush(
+  body: Record<string, unknown>,
+  supabase: SupabaseClient,
+  origin?: string | null
+): Promise<Response> {
+  const {
+    type = 'announcement',
+    title,
+    message,
+    user_ids,
+    competition_id,
+    prize_info,
+    expires_at,
+    send_to_all = false
+  } = body;
+
+  if (!title || !message) {
+    return errorResponse("Missing required fields: title, message", 400, origin);
+  }
+
+  // Validate type
+  const validTypes = ['win', 'competition_ended', 'special_offer', 'announcement', 'payment', 'topup', 'entry'];
+  if (!validTypes.includes(type as string)) {
+    return errorResponse(`Invalid type. Must be one of: ${validTypes.join(', ')}`, 400, origin);
+  }
+
+  let targetUserIds: string[] = [];
+
+  if (send_to_all) {
+    // Get all users
+    const { data: users, error } = await supabase
+      .from("canonical_users")
+      .select("id")
+      .limit(10000); // Safety limit
+
+    if (error) {
+      console.error("[notification-service] Error fetching users:", error);
+      return errorResponse("Failed to fetch users", 500, origin);
+    }
+
+    targetUserIds = (users || []).map(u => u.id);
+  } else if (Array.isArray(user_ids) && user_ids.length > 0) {
+    // Validate user IDs exist
+    const { data: users, error } = await supabase
+      .from("canonical_users")
+      .select("id")
+      .in("id", user_ids);
+
+    if (error) {
+      console.error("[notification-service] Error validating users:", error);
+      return errorResponse("Failed to validate user IDs", 500, origin);
+    }
+
+    targetUserIds = (users || []).map(u => u.id);
+
+    if (targetUserIds.length === 0) {
+      return errorResponse("No valid user IDs provided", 400, origin);
+    }
+  } else {
+    return errorResponse("Must provide user_ids array or set send_to_all=true", 400, origin);
+  }
+
+  // Create notifications for all target users
+  const notifications = targetUserIds.map(userId => ({
+    user_id: userId,
+    type,
+    title,
+    message,
+    competition_id: competition_id || null,
+    prize_info: prize_info || null,
+    expires_at: expires_at || null,
+    read: false,
+    created_at: new Date().toISOString(),
+  }));
+
+  // Insert in batches of 100 to avoid timeout
+  const batchSize = 100;
+  let inserted = 0;
+  let failed = 0;
+
+  for (let i = 0; i < notifications.length; i += batchSize) {
+    const batch = notifications.slice(i, i + batchSize);
+    const { error } = await supabase
+      .from("user_notifications")
+      .insert(batch);
+
+    if (error) {
+      console.error("[notification-service] Batch insert error:", error);
+      failed += batch.length;
+    } else {
+      inserted += batch.length;
+    }
+  }
+
+  console.log(`[notification-service] Admin push: ${inserted} sent, ${failed} failed`);
+
+  return jsonResponse({
+    ok: true,
+    sent: inserted,
+    failed,
+    total_targeted: targetUserIds.length,
+  }, 200, origin);
+}
+
+// Admin: Get notification statistics
+async function handleAdminStats(
+  supabase: SupabaseClient,
+  origin?: string | null
+): Promise<Response> {
+  // Get total notification count
+  const { count: totalCount, error: totalError } = await supabase
+    .from("user_notifications")
+    .select("*", { count: "exact", head: true });
+
+  if (totalError) {
+    console.error("[notification-service] Error fetching total count:", totalError);
+    return errorResponse("Failed to fetch statistics", 500, origin);
+  }
+
+  // Get unread count
+  const { count: unreadCount, error: unreadError } = await supabase
+    .from("user_notifications")
+    .select("*", { count: "exact", head: true })
+    .eq("read", false);
+
+  if (unreadError) {
+    console.error("[notification-service] Error fetching unread count:", unreadError);
+    return errorResponse("Failed to fetch statistics", 500, origin);
+  }
+
+  // Get counts by type
+  const { data: typeCounts, error: typeError } = await supabase
+    .from("user_notifications")
+    .select("type")
+    .limit(100000);
+
+  let byType: Record<string, number> = {};
+  if (!typeError && typeCounts) {
+    byType = typeCounts.reduce((acc, n) => {
+      acc[n.type] = (acc[n.type] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+  }
+
+  // Get user count
+  const { count: userCount, error: userError } = await supabase
+    .from("canonical_users")
+    .select("*", { count: "exact", head: true });
+
+  return jsonResponse({
+    ok: true,
+    stats: {
+      total_notifications: totalCount || 0,
+      unread_notifications: unreadCount || 0,
+      by_type: byType,
+      total_users: userCount || 0,
+    }
+  }, 200, origin);
+}
+
 // Main handler
 export default async (req: Request, context: Context): Promise<Response> => {
   const origin = req.headers.get("origin");
@@ -324,6 +497,25 @@ export default async (req: Request, context: Context): Promise<Response> => {
     }
 
     // Route handling
+
+    // Admin routes - require is_admin
+    if (pathParts[0] === "admin") {
+      if (!authUser.isAdmin) {
+        return errorResponse("Forbidden - admin access required", 403, origin);
+      }
+
+      if (req.method === "POST" && pathParts[1] === "push") {
+        return handleAdminPush(body, supabase, origin);
+      }
+
+      if (req.method === "GET" && pathParts[1] === "stats") {
+        return handleAdminStats(supabase, origin);
+      }
+
+      return errorResponse("Not found", 404, origin);
+    }
+
+    // User routes
     if (req.method === "GET") {
       if (pathParts[0] === "unread-count") {
         return handleGetUnreadCount(authUser.profileId, supabase);
@@ -360,5 +552,5 @@ export default async (req: Request, context: Context): Promise<Response> => {
 };
 
 export const config: Config = {
-  path: "/api/notifications/*",
+  path: ["/api/notifications", "/api/notifications/*"],
 };

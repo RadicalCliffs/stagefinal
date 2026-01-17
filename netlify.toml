@@ -12,6 +12,7 @@ node_bundler = "esbuild"
 # - coinbase-onramp.mts: /api/coinbase-onramp/*
 # - cdp-analytics-webhook.mts: /api/cdp-analytics/webhook (receives CDP on-chain activity webhooks)
 # - cdp-analytics-subscriptions.mts: /api/cdp-analytics/subscriptions/* (manages webhook subscriptions)
+# - notification-service.mts: /api/notifications/* (user notifications CRUD + admin push)
 [[redirects]]
 from = "/*"
 to = "/index.html"
