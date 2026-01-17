@@ -34,6 +34,18 @@ export const truncateString = (
     : id;
 };
 
+/**
+ * Truncate a wallet address for display
+ * Shows first 6 characters and last 4 characters
+ * Example: 0x1234...5678
+ */
+export const truncateWalletAddress = (address: string | undefined): string => {
+  if (!address) return "";
+  return address.length > 10
+    ? `${address.substring(0, 6)}...${address.substring(address.length - 4)}`
+    : address;
+};
+
 // Debounce utility function
 export function debounce<T extends (...args: any[]) => any>(
   func: T,
