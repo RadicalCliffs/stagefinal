@@ -115,30 +115,83 @@ async function getCompetitionEntries(
     ? `competitionid.eq.${competitionId},competitionid.eq.${competitionUid}`
     : `competitionid.eq.${competitionId}`;
 
-  // Try with the provided ID first (could be UUID or uid)
-  let { data, error } = await withRetries("fetch entries", () =>
+  // Get entries from joincompetition table
+  let { data: joinData, error: joinError } = await withRetries("fetch joincompetition entries", () =>
     supabase
       .from("joincompetition")
       .select("*")
       .or(orFilter)
   );
 
-  if (error) {
-    console.error("[Lifecycle] Error fetching entries:", error);
-    console.error("[Lifecycle] Error details:", JSON.stringify(error, null, 2));
-    return [];
+  if (joinError) {
+    console.error("[Lifecycle] Error fetching joincompetition entries:", joinError);
   }
 
-  const entriesCount = data?.length || 0;
-  console.log(`[Lifecycle] Found ${entriesCount} entries using combined query`);
-  
-  if (entriesCount > 0 && data) {
+  const entries: CompetitionEntry[] = joinData || [];
+
+  // Also get tickets from tickets table that are not in joincompetition
+  const { data: ticketsData, error: ticketsError } = await withRetries("fetch tickets entries", () =>
+    supabase
+      .from("tickets")
+      .select("ticket_number, competition_id, privy_user_id, user_id, created_at, purchase_price")
+      .eq("competition_id", competitionId)
+  );
+
+  if (ticketsError) {
+    console.error("[Lifecycle] Error fetching tickets entries:", ticketsError);
+  }
+
+  // Collect existing ticket numbers from joincompetition to avoid duplicates
+  const existingTicketNumbers = new Set<number>();
+  entries.forEach(entry => {
+    if (entry.ticketnumbers) {
+      const nums = entry.ticketnumbers.split(",").map(n => parseInt(n.trim())).filter(n => !isNaN(n));
+      nums.forEach(num => existingTicketNumbers.add(num));
+    }
+  });
+
+  // Group tickets by user and add as entries if not already in joincompetition
+  if (ticketsData && ticketsData.length > 0) {
+    const ticketsByUser = new Map<string, any[]>();
+
+    for (const ticket of ticketsData) {
+      // Skip if this ticket is already counted in joincompetition
+      if (existingTicketNumbers.has(ticket.ticket_number)) continue;
+
+      const userId = ticket.privy_user_id || ticket.user_id || 'unknown';
+      if (!ticketsByUser.has(userId)) {
+        ticketsByUser.set(userId, []);
+      }
+      ticketsByUser.get(userId)!.push(ticket);
+    }
+
+    // Convert grouped tickets into CompetitionEntry format
+    for (const [userId, userTickets] of ticketsByUser) {
+      const ticketNumbers = userTickets.map(t => t.ticket_number).sort((a, b) => a - b);
+      const entry: CompetitionEntry = {
+        uid: `tickets-${userId}-${competitionId}`,
+        competitionid: competitionId,
+        userid: userId,
+        walletaddress: null,
+        numberoftickets: ticketNumbers.length,
+        ticketnumbers: ticketNumbers.join(','),
+        amountspent: userTickets.reduce((sum, t) => sum + (t.purchase_price || 0), 0),
+        purchasedate: userTickets[0]?.created_at || new Date().toISOString(),
+      };
+      entries.push(entry);
+    }
+  }
+
+  const entriesCount = entries.length;
+  console.log(`[Lifecycle] Found ${entriesCount} entries using combined query (joincompetition + tickets)`);
+
+  if (entriesCount > 0) {
     // Log sample of competitionid values to verify format matching
-    const sampleIds = data.slice(0, 3).map(e => e.competitionid);
+    const sampleIds = entries.slice(0, 3).map(e => e.competitionid);
     console.log(`[Lifecycle] Sample competitionid values from entries: ${sampleIds.join(', ')}`);
   }
 
-  return data || [];
+  return entries;
 }
 
 /**
@@ -561,7 +614,8 @@ async function processSoldOutCompetitions(supabase: SupabaseClient): Promise<num
       } else {
         // Fallback: Count manually if RPC fails
         console.warn(`[Lifecycle] RPC count failed (${countError?.message}), using fallback for ${competition.id}`);
-        
+
+        // Count from joincompetition table
         let { data: entries } = await supabase
           .from("joincompetition")
           .select("ticketnumbers")
@@ -578,12 +632,34 @@ async function processSoldOutCompetitions(supabase: SupabaseClient): Promise<num
           }
         }
 
+        // Collect all ticket numbers from joincompetition
+        const joincompetitionTickets = new Set<number>();
         (entries || []).forEach((entry: any) => {
           if (entry.ticketnumbers) {
             const nums = entry.ticketnumbers.split(",").filter((n: string) => n.trim() !== "");
-            totalSoldTickets += nums.length;
+            nums.forEach((n: string) => {
+              const num = parseInt(n.trim());
+              if (!isNaN(num)) {
+                joincompetitionTickets.add(num);
+              }
+            });
           }
         });
+
+        // Also count from tickets table (for tickets not in joincompetition)
+        const { data: ticketsTableData } = await supabase
+          .from("tickets")
+          .select("ticket_number")
+          .eq("competition_id", competition.id);
+
+        // Add tickets from tickets table that aren't already counted
+        (ticketsTableData || []).forEach((ticket: any) => {
+          if (ticket.ticket_number != null && !joincompetitionTickets.has(ticket.ticket_number)) {
+            joincompetitionTickets.add(ticket.ticket_number);
+          }
+        });
+
+        totalSoldTickets = joincompetitionTickets.size;
         console.log(`[Lifecycle] Competition ${competition.id}: ${totalSoldTickets}/${competition.total_tickets} tickets sold (via fallback)`);
       }
 
