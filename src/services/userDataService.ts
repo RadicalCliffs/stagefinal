@@ -230,11 +230,13 @@ export const userDataService = {
           tickets = rpcData;
         } else {
           // Fallback: Direct query to joincompetition table
+          // Note: Removed privy_user_id from OR filter to avoid REST API errors with complex identifiers
+          // Supabase client library handles parameter escaping to prevent SQL injection
           console.log('[userDataService] get_user_tickets RPC unavailable, using direct query');
           const { data: directData, error: directError } = await supabase
             .from('joincompetition')
             .select('*')
-            .or(`walletaddress.ilike.${normalizedWallet},privy_user_id.eq.${canonicalId},userid.eq.${canonicalId}`)
+            .or(`canonical_user_id.eq.${canonicalId},walletaddress.ilike.${normalizedWallet},userid.eq.${canonicalId}`)
             .order('purchasedate', { ascending: false });
 
           if (!directError && directData) {
@@ -293,10 +295,12 @@ export const userDataService = {
           const thirtyDaysAgo = new Date();
           thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
+          // Note: Removed privy_user_id from OR filter to avoid REST API errors with complex identifiers
+          // Supabase client library handles parameter escaping to prevent SQL injection
           const { count, error: countError } = await supabase
             .from('joincompetition')
             .select('*', { count: 'exact', head: true })
-            .or(`walletaddress.ilike.${normalizedWallet},privy_user_id.eq.${canonicalId},userid.eq.${canonicalId}`)
+            .or(`canonical_user_id.eq.${canonicalId},walletaddress.ilike.${normalizedWallet},userid.eq.${canonicalId}`)
             .gte('purchasedate', thirtyDaysAgo.toISOString());
 
           if (!countError) {
