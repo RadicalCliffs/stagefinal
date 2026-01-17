@@ -2296,6 +2296,10 @@ TESTING CHECKLIST:
   );
 
   // Generate dynamic CSS for live preview based on editor state
+  // NOTE: This provides CSS custom properties that COULD be used by modal components
+  // For full live preview, the modal components would need to be updated to use these CSS variables
+  // Current implementation: Split-screen layout with static modal preview
+  // Future enhancement: Update modal components to read from CSS custom properties for true reactivity
   const generatePreviewStyles = () => {
     const colorVars = state.colors.map(c => `--preview-${c.name}: ${c.value};`).join('\n    ');
     const fontVars = state.fonts.map(f => {
@@ -2528,7 +2532,20 @@ TESTING CHECKLIST:
             </div>
 
             {/* Info Box */}
-            <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+            <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+              <div className="flex items-start gap-2">
+                <Eye size={16} className="text-blue-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-blue-400 text-sm font-medium mb-1">Split-Screen Live Editor</p>
+                  <p className="text-blue-400/80 text-xs">
+                    The editor is now split into two panels: editor controls on the left, and the modal preview on the right.
+                    The preview is always visible so you can see the modal while making edits.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
               <div className="flex items-start gap-2">
                 <Download size={16} className="text-yellow-400 flex-shrink-0 mt-0.5" />
                 <div>
