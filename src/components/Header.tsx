@@ -29,6 +29,7 @@ const Header: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showBaseWalletAuthModal, setShowBaseWalletAuthModal] = useState(false);
+  const [baseWalletAuthOptions, setBaseWalletAuthOptions] = useState<any>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const { authenticated, ready, logout } = useAuthUser();
@@ -51,6 +52,7 @@ const Header: React.FC = () => {
   useEffect(() => {
     const handleOpenBaseWalletAuth = (event: CustomEvent) => {
       console.log('[Header] Opening Base wallet auth modal', event.detail);
+      setBaseWalletAuthOptions(event.detail || {});
       setShowBaseWalletAuthModal(true);
     };
 
@@ -292,7 +294,11 @@ const Header: React.FC = () => {
         <Suspense fallback={null}>
           <BaseWalletAuthModal
             isOpen={showBaseWalletAuthModal}
-            onClose={() => setShowBaseWalletAuthModal(false)}
+            onClose={() => {
+              setShowBaseWalletAuthModal(false);
+              setBaseWalletAuthOptions(null);
+            }}
+            options={baseWalletAuthOptions}
           />
         </Suspense>
       )}

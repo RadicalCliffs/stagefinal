@@ -900,49 +900,112 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
             <div className="text-center">
               <h2 className="text-2xl font-bold text-white mb-2">Connect your wallet</h2>
               <p className="text-white/70">
-                Connect an existing wallet or create a new one in seconds.
+                {isReturningUser 
+                  ? 'Login with your existing Base wallet'
+                  : 'Connect an existing wallet or create a new one in seconds.'
+                }
               </p>
             </div>
 
             <div className="space-y-4">
               {!isSignedIn && !wagmiIsConnected ? (
                 <>
-                  {/* Single wallet connection option - Opens Base wallet auth flow */}
-                  <div className="p-4 bg-[#0052FF]/10 border border-[#0052FF]/30 rounded-lg">
-                    <div className="flex items-center justify-center gap-3 mb-2">
-                      <WalletIcon size={20} className="text-[#0052FF] flex-shrink-0" />
-                      <span className="text-white font-semibold">Connect or Create Wallet</span>
-                    </div>
-                    <p className="text-white/60 text-sm mb-3 text-center">
-                      If you have MetaMask, Coinbase Wallet, Base, or another supported wallet installed, it will be detected automatically. Otherwise, you can create a new wallet with your email.
-                    </p>
-                    <button
-                      onClick={() => {
-                        // Save current profile data to localStorage before opening wallet auth
-                        localStorage.setItem('pendingSignupData', JSON.stringify({
-                          profileData,
-                          isReturningUser,
-                          timestamp: Date.now()
+                  {/* Primary button - Connect existing wallet (Blue) */}
+                  <button
+                    onClick={() => {
+                      // Save current profile data to localStorage before opening wallet auth
+                      // This data will be consumed by BaseWalletAuthModal when it opens
+                      // to resume the signup process after wallet connection
+                      localStorage.setItem('pendingSignupData', JSON.stringify({
+                        profileData,
+                        isReturningUser,
+                        timestamp: Date.now(),
+                        connectExisting: true // Flag to indicate user wants to connect existing wallet
+                      }));
+                      console.log('[NewAuthModal] Opening wallet connector for existing wallet');
+                      // Close this modal and dispatch event to open Base wallet auth modal
+                      onClose();
+                      // Small delay to ensure modal closes before opening new one
+                      setTimeout(() => {
+                        window.dispatchEvent(new CustomEvent('open-base-wallet-auth', {
+                          detail: { 
+                            resumeSignup: true, 
+                            email: profileData.email,
+                            connectExisting: true // Tell BaseWalletAuthModal to skip email and go straight to wallet choice
+                          }
                         }));
-                        console.log('[NewAuthModal] Saved signup data, opening Base wallet auth flow');
-                        // Close this modal and dispatch event to open Base wallet auth modal
-                        onClose();
-                        // Small delay to ensure modal closes before opening new one
-                        setTimeout(() => {
-                          window.dispatchEvent(new CustomEvent('open-base-wallet-auth', {
-                            detail: { resumeSignup: true, email: profileData.email }
-                          }));
-                        }, 100);
-                      }}
-                      className="w-full py-3 bg-[#0052FF] hover:bg-[#0041CC] text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
-                    >
-                      <WalletIcon size={20} className="flex-shrink-0" />
-                      <span>Continue with Wallet</span>
-                    </button>
-                    <p className="text-white/40 text-xs mt-3 text-center">
-                      Follow the instructions on the next screen to connect your existing wallet or create a new one.
+                      }, 100);
+                    }}
+                    className="w-full py-3 bg-[#0052FF] hover:bg-[#0041CC] text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    <WalletIcon size={20} className="flex-shrink-0" />
+                    <span>Connect an existing Base wallet</span>
+                  </button>
+
+                  {/* Helper text for returning users */}
+                  {isReturningUser ? (
+                    <p className="text-white/60 text-xs text-center">
+                      Welcome back to theprize.io
                     </p>
+                  ) : (
+                    <p className="text-white/60 text-xs text-center">
+                      If you have MetaMask, Coinbase Wallet, Base, or another supported wallet installed, it will be detected automatically. Otherwise, you can create a new wallet with your email below.
+                    </p>
+                  )}
+
+                  {/* Divider */}
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-white/10"></div>
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-[#0A0A0F] px-2 text-white/50">OR</span>
+                    </div>
                   </div>
+
+                  {/* Secondary text for returning users */}
+                  {isReturningUser && (
+                    <p className="text-white/60 text-xs text-center">
+                      Don't have access to that account anymore? Click below to create a new wallet:
+                    </p>
+                  )}
+
+                  {/* Secondary button - Create new wallet (Yellow) */}
+                  <button
+                    onClick={() => {
+                      // Save current profile data to localStorage before opening wallet auth
+                      localStorage.setItem('pendingSignupData', JSON.stringify({
+                        profileData,
+                        isReturningUser,
+                        timestamp: Date.now(),
+                        createNew: true // Flag to indicate user wants to create new wallet
+                      }));
+                      console.log('[NewAuthModal] Opening CDP flow to create new wallet');
+                      // Close this modal and dispatch event to open Base wallet auth modal
+                      onClose();
+                      // Small delay to ensure modal closes before opening new one
+                      setTimeout(() => {
+                        window.dispatchEvent(new CustomEvent('open-base-wallet-auth', {
+                          detail: { 
+                            resumeSignup: true, 
+                            email: profileData.email,
+                            createNew: true // Tell BaseWalletAuthModal to go to CDP email flow
+                          }
+                        }));
+                      }, 100);
+                    }}
+                    className="w-full py-3 bg-[#DDE404] hover:bg-[#DDE404]/90 text-black font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    <WalletIcon size={20} className="flex-shrink-0" />
+                    <span>Create a free Base wallet</span>
+                  </button>
+
+                  {/* Additional info for new users */}
+                  {!isReturningUser && (
+                    <p className="text-white/60 text-xs text-center">
+                      No wallet yet? Create one now and get started instantly.
+                    </p>
+                  )}
                 </>
               ) : (
                 <div className="space-y-4">
@@ -988,8 +1051,11 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
               </div>
             )}
 
-            <div className="p-4 bg-white/5 rounded-lg text-center">
-              <p className="text-xs text-white/50 mb-2">Powered by Coinbase</p>
+            <div className="p-4 bg-white/5 rounded-lg text-center space-y-2">
+              <p className="text-xs text-white/50">Powered by Coinbase</p>
+              <p className="text-xs text-white/40">
+                Secure wallet infrastructure and payments powered by Coinbase.
+              </p>
               <p className="text-xs text-white/40">
                 We never store your private keys. Your wallet is used for entries, top-ups, and ownership verification.
               </p>
