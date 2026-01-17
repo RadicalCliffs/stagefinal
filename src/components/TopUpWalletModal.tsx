@@ -14,10 +14,24 @@ import { useRealTimeBalance } from '../hooks/useRealTimeBalance';
 import { useWalletTokens } from '../hooks/useWalletTokens';
 import { useWalletClient } from 'wagmi';
 
+// Text overrides for visual editor live preview
+export interface TopUpWalletModalTextOverrides {
+  modalTitle?: string;
+  modalSubtitle?: string;
+  methodSelectionTitle?: string;
+  instantTopUpLabel?: string;
+  instantTopUpDesc?: string;
+  cryptoTopUpLabel?: string;
+  cryptoTopUpDesc?: string;
+  successMessage?: string;
+}
+
 interface TopUpWalletModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  // Optional text overrides for visual editor live preview
+  textOverrides?: TopUpWalletModalTextOverrides;
 }
 
 type PaymentStep = 'method' | 'amount' | 'loading' | 'checkout' | 'crypto-checkout' | 'commerce-checkout' | 'instant-processing' | 'onramp-processing' | 'fund-button' | 'success' | 'error';
@@ -66,6 +80,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
+  textOverrides,
 }) => {
   const { baseUser, linkedWallets, refreshUserData } = useAuthUser();
   const { hasUsedBonus } = useRealTimeBalance();
@@ -498,7 +513,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
         <div className="flex items-center justify-between p-6 border-b border-gray-700">
           <div className="flex items-center gap-3">
             <Wallet className="text-[#DDE404]" size={24} />
-            <h2 className="text-xl sequel-75 text-white uppercase">Top Up Balance</h2>
+            <h2 className="text-xl sequel-75 text-white uppercase">{textOverrides?.modalTitle || 'Top Up Balance'}</h2>
           </div>
           <button
             onClick={onClose}
@@ -525,7 +540,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
           {step === 'method' && (
             <div className="space-y-6">
               <div>
-                <p className="text-white sequel-45 mb-4 text-sm">Select payment method:</p>
+                <p className="text-white sequel-45 mb-4 text-sm">{textOverrides?.methodSelectionTitle || 'Select payment method:'}</p>
                 <div className="grid grid-cols-1 gap-3">
                   {/* Option 1: Top up with another wallet (Instant wallet transfer) */}
                   {hasWalletBalance && (
@@ -542,10 +557,10 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                       </div>
                       <div className="flex-1">
                         <h3 className={`sequel-75 mb-1 ${paymentMethod === 'instant' ? 'text-green-400' : 'text-white'}`}>
-                          Top up with another wallet
+                          {textOverrides?.instantTopUpLabel || 'Top up with another wallet'}
                         </h3>
                         <p className="text-gray-400 text-xs sequel-45">
-                          Transfer USDC from your connected wallet to your balance. No wallet replacement.
+                          {textOverrides?.instantTopUpDesc || 'Transfer USDC from your connected wallet to your balance. No wallet replacement.'}
                         </p>
                         <div className="flex items-center gap-2 mt-2">
                           <Wallet size={14} className="text-green-400" />
@@ -576,14 +591,14 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <h3 className={`sequel-75 mb-1 ${paymentMethod === 'commerce' ? 'text-[#DDE404]' : 'text-white'}`}>
-                          Top up with Coinbase
+                          {textOverrides?.cryptoTopUpLabel || 'Top up with Coinbase'}
                         </h3>
                         <span className="bg-[#DDE404] text-black text-xs sequel-75 px-2 py-0.5 rounded">
                           RECOMMENDED
                         </span>
                       </div>
                       <p className="text-gray-400 text-xs sequel-45">
-                        Bitcoin, Ethereum, Solana, Dogecoin & 60+ cryptocurrencies via Coinbase Commerce.
+                        {textOverrides?.cryptoTopUpDesc || 'Bitcoin, Ethereum, Solana, Dogecoin & 60+ cryptocurrencies via Coinbase Commerce.'}
                       </p>
                       <div className="flex items-center gap-2 mt-2">
                         <span className="text-orange-400 text-xs">₿</span>
@@ -1032,7 +1047,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
               <div className="w-16 h-16 bg-[#DDE404] rounded-full flex items-center justify-center mx-auto mb-4">
                 <Check size={32} className="text-black" />
               </div>
-              <h3 className="text-white sequel-75 text-xl mb-2">Payment Successful!</h3>
+              <h3 className="text-white sequel-75 text-xl mb-2">{textOverrides?.successMessage || 'Payment Successful!'}</h3>
               <p className="text-gray-400 sequel-45 mb-6">Your balance has been updated.</p>
               <button
                 onClick={onClose}
