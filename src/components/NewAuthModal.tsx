@@ -19,9 +19,23 @@ import { truncateWalletAddress } from '../utils/util';
 import { useCurrentUser, useEvmAddress, useIsSignedIn } from '@coinbase/cdp-hooks';
 import { useAccount, useDisconnect } from 'wagmi';
 
+// Text overrides for visual editor live preview
+export interface NewAuthModalTextOverrides {
+  welcomeTitle?: string;
+  welcomeSubtitle?: string;
+  createAccountTitle?: string;
+  createAccountSubtitle?: string;
+  successTitle?: string;
+  successSubtitle?: string;
+  connectWalletTitle?: string;
+  connectWalletSubtitle?: string;
+}
+
 interface NewAuthModalProps {
   isOpen: boolean;
   onClose: () => void;
+  // Optional text overrides for visual editor live preview
+  textOverrides?: NewAuthModalTextOverrides;
 }
 
 type AuthStep =
@@ -54,7 +68,7 @@ interface ExistingAccountInfo {
   maskedEmail?: string;
 }
 
-export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
+export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuthModalProps) {
   const [step, setStep] = useState<AuthStep>('username');
   const [profileData, setProfileData] = useState<ProfileData>({
     username: '',
@@ -628,8 +642,8 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
         return (
           <div className="space-y-6">
             <div className="text-center">
-              <h2 className="text-2xl font-bold text-white mb-2">Welcome to The Prize</h2>
-              <p className="text-white/70">Sign in with your username to continue.</p>
+              <h2 className="text-2xl font-bold text-white mb-2">{textOverrides?.welcomeTitle || 'Welcome to The Prize'}</h2>
+              <p className="text-white/70">{textOverrides?.welcomeSubtitle || 'Sign in with your username to continue.'}</p>
             </div>
 
             <div>
@@ -992,7 +1006,7 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
         return (
           <div className="space-y-6">
             <div className="text-center">
-              <h2 className="text-2xl font-bold text-white mb-2">Connect your wallet</h2>
+              <h2 className="text-2xl font-bold text-white mb-2">{textOverrides?.connectWalletTitle || 'Connect your wallet'}</h2>
               <p className="text-white/70">
                 {isReturningUser 
                   ? 'Login with your existing Base wallet'
@@ -1164,9 +1178,9 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
               <CheckCircle size={40} className="text-green-400" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-white mb-2">You're all set!</h2>
+              <h2 className="text-2xl font-bold text-white mb-2">{textOverrides?.successTitle || "You're all set!"}</h2>
               <p className="text-white/70">
-                Welcome to The Prize, {profileData.username}
+                {textOverrides?.successSubtitle?.replace('{username}', profileData.username) || `Welcome to The Prize, ${profileData.username}`}
               </p>
             </div>
             <p className="text-sm text-white/50">

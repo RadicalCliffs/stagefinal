@@ -154,6 +154,16 @@ async function confirmTicketsUnified(params: ConfirmTicketsParams): Promise<{
   }
 }
 
+// Text overrides for visual editor live preview
+export interface PaymentModalTextOverrides {
+  modalTitle?: string;
+  modalSubtitle?: string;
+  balanceLabel?: string;
+  totalLabel?: string;
+  confirmButtonText?: string;
+  successMessage?: string;
+}
+
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -166,6 +176,8 @@ interface PaymentModalProps {
   reservationId?: string | null;
   onPaymentSuccess?: () => void;
   maxAvailableTickets?: number; // Hard limit from inventory
+  // Optional text overrides for visual editor live preview
+  textOverrides?: PaymentModalTextOverrides;
 }
 
 type PaymentStep = 'initial' | 'checkout' | 'base-processing' | 'balance-processing' | 'onchainkit-processing' | 'crypto-selection' | 'othercrypto-processing' | 'oneclick-processing' | 'commerce-checkout' | 'success' | 'error';
@@ -182,7 +194,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   selectedTickets = [],
   reservationId,
   onPaymentSuccess,
-  maxAvailableTickets
+  maxAvailableTickets,
+  textOverrides,
 }) => {
   // Ensure ticketPrice is a valid positive number (handles string coercion from database)
   const ticketPrice = Number(rawTicketPrice) || 1;
@@ -1371,8 +1384,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
              paymentStep === 'crypto-selection' ? 'Select Cryptocurrency' :
              paymentStep === 'othercrypto-processing' ? 'Complete Crypto Payment' :
              paymentStep === 'commerce-checkout' ? 'Complete Payment' :
-             paymentStep === 'success' ? 'Payment Successful' :
-             hasPaymentParams ? 'Payment Status' : 'Complete Payment'}
+             paymentStep === 'success' ? (textOverrides?.successMessage || 'Payment Successful') :
+             hasPaymentParams ? 'Payment Status' : (textOverrides?.modalTitle || 'Complete Payment')}
           </h1>
           <div className="h-[2px] w-full bg-white mb-3 sm:mb-4"></div>
 
@@ -1393,7 +1406,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-white/60 sequel-45 text-xs">Total</p>
+                    <p className="text-white/60 sequel-45 text-xs">{textOverrides?.totalLabel || 'Total'}</p>
                     <p className="text-[#DDE404] sequel-95 text-2xl">${amount.toFixed(2)}</p>
                   </div>
                 </div>
@@ -1641,7 +1654,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                   <span className="sequel-45 text-sm">Back</span>
                 </button>
                 <div className="text-right">
-                  <p className="text-white/60 sequel-45 text-xs">Total</p>
+                  <p className="text-white/60 sequel-45 text-xs">{textOverrides?.totalLabel || 'Total'}</p>
                   <p className="text-[#DDE404] sequel-75">${amount.toFixed(2)}</p>
                 </div>
               </div>

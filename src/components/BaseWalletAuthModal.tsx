@@ -39,6 +39,14 @@ import { truncateWalletAddress } from "../utils/util";
  * 4. Auto-close after 2 seconds and dispatch auth-complete event
  */
 
+// Text overrides for visual editor live preview
+export interface BaseWalletAuthModalTextOverrides {
+  loginTitle?: string;
+  loginSubtitle?: string;
+  successTitle?: string;
+  successSubtitle?: string;
+}
+
 interface BaseWalletAuthModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -50,6 +58,8 @@ interface BaseWalletAuthModalProps {
     isReturningUser?: boolean;
     returningUserWalletAddress?: string;
   };
+  // Optional text overrides for visual editor live preview
+  textOverrides?: BaseWalletAuthModalTextOverrides;
 }
 
 type FlowState = 
@@ -217,6 +227,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
   isOpen,
   onClose,
   options,
+  textOverrides,
 }) => {
   const { currentUser } = useCurrentUser();
   const { isSignedIn: cdpIsSignedIn } = useIsSignedIn();
@@ -509,12 +520,12 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             </div>
 
             <h2 className="text-white text-2xl font-bold mb-2 text-center">
-              {options?.isReturningUser ? 'Sign in with your wallet' : 'Create an account'}
+              {textOverrides?.loginTitle || (options?.isReturningUser ? 'Sign in with your wallet' : 'Create an account')}
             </h2>
             <p className="text-white/60 text-sm mb-6 text-center">
-              {options?.isReturningUser
+              {textOverrides?.loginSubtitle || (options?.isReturningUser
                 ? 'Sign in with your Base wallet to access your account.'
-                : 'Enter your email address to continue, Base will send you an OTP to verify your registration:'}
+                : 'Enter your email address to continue, Base will send you an OTP to verify your registration:')}
             </p>
 
             <div className="w-full">
@@ -818,9 +829,9 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               <CheckCircle size={40} className="text-white" />
             </div>
 
-            <h2 className="text-white text-3xl font-bold mb-2 text-center">You're live.</h2>
+            <h2 className="text-white text-3xl font-bold mb-2 text-center">{textOverrides?.successTitle || "You're live."}</h2>
             <p className="text-white/60 text-base mb-6 text-center">
-              The Platform Players Trust.
+              {textOverrides?.successSubtitle || 'The Platform Players Trust.'}
             </p>
 
             <div className="w-full bg-[#0052FF]/20 border border-[#0052FF] rounded-xl p-4 mb-4">

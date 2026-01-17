@@ -41,10 +41,10 @@ import {
   Layers,
   Copy
 } from 'lucide-react';
-import NewAuthModal from '../components/NewAuthModal';
-import BaseWalletAuthModal from '../components/BaseWalletAuthModal';
-import PaymentModal from '../components/PaymentModal';
-import TopUpWalletModal from '../components/TopUpWalletModal';
+import NewAuthModal, { type NewAuthModalTextOverrides } from '../components/NewAuthModal';
+import { BaseWalletAuthModal, type BaseWalletAuthModalTextOverrides } from '../components/BaseWalletAuthModal';
+import PaymentModal, { type PaymentModalTextOverrides } from '../components/PaymentModal';
+import TopUpWalletModal, { type TopUpWalletModalTextOverrides } from '../components/TopUpWalletModal';
 
 interface ColorProperty {
   name: string;
@@ -258,6 +258,43 @@ export default function AuthModalVisualEditor() {
     hidden: false,
     icon: '',
   });
+
+  // Compute text overrides for live preview - converts state.texts array to modal-specific override object
+  const topUpWalletTextOverrides = useMemo((): TopUpWalletModalTextOverrides => {
+    if (state.selectedModal !== 'TopUpWalletModal') return {};
+    const textMap: Record<string, string> = {};
+    state.texts.forEach(t => {
+      textMap[t.name] = t.value;
+    });
+    return textMap as TopUpWalletModalTextOverrides;
+  }, [state.selectedModal, state.texts]);
+
+  const paymentModalTextOverrides = useMemo((): PaymentModalTextOverrides => {
+    if (state.selectedModal !== 'PaymentModal') return {};
+    const textMap: Record<string, string> = {};
+    state.texts.forEach(t => {
+      textMap[t.name] = t.value;
+    });
+    return textMap as PaymentModalTextOverrides;
+  }, [state.selectedModal, state.texts]);
+
+  const newAuthModalTextOverrides = useMemo((): NewAuthModalTextOverrides => {
+    if (state.selectedModal !== 'NewAuthModal') return {};
+    const textMap: Record<string, string> = {};
+    state.texts.forEach(t => {
+      textMap[t.name] = t.value;
+    });
+    return textMap as NewAuthModalTextOverrides;
+  }, [state.selectedModal, state.texts]);
+
+  const baseWalletAuthModalTextOverrides = useMemo((): BaseWalletAuthModalTextOverrides => {
+    if (state.selectedModal !== 'BaseWalletAuthModal') return {};
+    const textMap: Record<string, string> = {};
+    state.texts.forEach(t => {
+      textMap[t.name] = t.value;
+    });
+    return textMap as BaseWalletAuthModalTextOverrides;
+  }, [state.selectedModal, state.texts]);
 
   // Load initial properties based on selected modal
   useEffect(() => {
@@ -2945,29 +2982,33 @@ TESTING CHECKLIST:
               <div className="bg-[#0A0A0F] rounded-lg overflow-hidden border-2 border-white/20 shadow-inner" style={{ minHeight: '600px', height: '600px', position: 'relative' }} id="modal-preview-container">
                 <PreviewWrapper>
                   {state.selectedModal === 'NewAuthModal' ? (
-                    <NewAuthModal 
-                      isOpen={true} 
-                      onClose={PREVIEW_HANDLERS.onClose} 
+                    <NewAuthModal
+                      isOpen={true}
+                      onClose={PREVIEW_HANDLERS.onClose}
+                      textOverrides={newAuthModalTextOverrides}
                     />
                   ) : state.selectedModal === 'BaseWalletAuthModal' ? (
-                    <BaseWalletAuthModal 
-                      isOpen={true} 
-                      onClose={PREVIEW_HANDLERS.onClose} 
+                    <BaseWalletAuthModal
+                      isOpen={true}
+                      onClose={PREVIEW_HANDLERS.onClose}
+                      textOverrides={baseWalletAuthModalTextOverrides}
                     />
                   ) : state.selectedModal === 'PaymentModal' ? (
-                    <PaymentModal 
-                      isOpen={true} 
+                    <PaymentModal
+                      isOpen={true}
                       onClose={PREVIEW_HANDLERS.onClose}
                       onOpen={PREVIEW_HANDLERS.onOpen}
                       ticketCount={PREVIEW_PROPS.PaymentModal.ticketCount}
                       competitionId={PREVIEW_PROPS.PaymentModal.competitionId}
                       ticketPrice={PREVIEW_PROPS.PaymentModal.ticketPrice}
                       userInfo={PREVIEW_PROPS.PaymentModal.userInfo}
+                      textOverrides={paymentModalTextOverrides}
                     />
                   ) : state.selectedModal === 'TopUpWalletModal' ? (
-                    <TopUpWalletModal 
-                      isOpen={true} 
+                    <TopUpWalletModal
+                      isOpen={true}
                       onClose={PREVIEW_HANDLERS.onClose}
+                      textOverrides={topUpWalletTextOverrides}
                     />
                   ) : (
                     <p className="text-white/50 text-center px-4">
@@ -2978,7 +3019,7 @@ TESTING CHECKLIST:
               </div>
               <p className="text-white/40 text-xs mt-3 text-center flex items-center justify-center gap-2">
                 <span className="inline-block w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse"></span>
-                Preview updates in REAL-TIME as you edit colors & fonts
+                Preview updates in REAL-TIME as you edit colors, fonts & text
               </p>
             </div>
           </div>
