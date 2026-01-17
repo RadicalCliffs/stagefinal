@@ -10,8 +10,8 @@
  * - Restart dev server after .env changes
  */
 
-import { supabase } from './supabase';
-import type { Database } from '../../supabase/types';
+import { supabase } from '@/lib/supabase';
+import type { Database } from '@/supabase/types';
 
 // ============================================================================
 // Type Aliases for Better Ergonomics
