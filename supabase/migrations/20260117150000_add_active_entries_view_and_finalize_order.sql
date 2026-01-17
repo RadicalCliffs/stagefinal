@@ -87,6 +87,7 @@ DECLARE
   v_competition_uid TEXT;
   v_canonical_user_id TEXT;
   v_wallet_address TEXT;
+  v_found_user_id TEXT;
 BEGIN
   -- Step 1: Lock and fetch the pending reservation
   SELECT * INTO v_reservation
@@ -172,7 +173,8 @@ BEGIN
 
   -- Step 4: Get user balance and verify sufficient funds
   -- Using ILIKE for case-insensitive matching (PostgreSQL will use functional indexes if available)
-  SELECT usdc_balance INTO v_user_balance
+  -- Store the actual user ID found to ensure we update the same record
+  SELECT id, usdc_balance INTO v_found_user_id, v_user_balance
   FROM canonical_users
   WHERE id = v_canonical_user_id
      OR wallet_address ILIKE v_wallet_address
@@ -196,15 +198,11 @@ BEGIN
     );
   END IF;
 
-  -- Step 5: Deduct balance from user
-  -- Using ILIKE for case-insensitive matching
+  -- Step 5: Deduct balance from the specific user found
   UPDATE canonical_users
   SET usdc_balance = usdc_balance - v_total_amount,
       updated_at = NOW()
-  WHERE id = v_canonical_user_id
-     OR wallet_address ILIKE v_wallet_address
-     OR base_wallet_address ILIKE v_wallet_address
-     OR eth_wallet_address ILIKE v_wallet_address;
+  WHERE id = v_found_user_id;
 
   -- Step 6: Get competition UID for foreign key
   SELECT uid INTO v_competition_uid
