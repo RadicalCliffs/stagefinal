@@ -78,6 +78,7 @@ SET search_path = public
 AS $$
 DECLARE
   v_reservation RECORD;
+  v_reservation_status TEXT;
   v_total_amount NUMERIC;
   v_user_balance NUMERIC;
   v_order_id UUID;
@@ -96,11 +97,11 @@ BEGIN
   -- Check if reservation exists
   IF v_reservation IS NULL THEN
     -- Check if it's already confirmed
-    SELECT status INTO v_reservation
+    SELECT status INTO v_reservation_status
     FROM pending_tickets
     WHERE id = p_reservation_id;
 
-    IF v_reservation.status = 'confirmed' THEN
+    IF v_reservation_status = 'confirmed' THEN
       RETURN jsonb_build_object(
         'success', true,
         'message', 'Order already finalized',
@@ -170,12 +171,13 @@ BEGIN
   END IF;
 
   -- Step 4: Get user balance and verify sufficient funds
+  -- Using ILIKE for case-insensitive matching (PostgreSQL will use functional indexes if available)
   SELECT usdc_balance INTO v_user_balance
   FROM canonical_users
   WHERE id = v_canonical_user_id
-     OR LOWER(wallet_address) = v_wallet_address
-     OR LOWER(base_wallet_address) = v_wallet_address
-     OR LOWER(eth_wallet_address) = v_wallet_address
+     OR wallet_address ILIKE v_wallet_address
+     OR base_wallet_address ILIKE v_wallet_address
+     OR eth_wallet_address ILIKE v_wallet_address
   LIMIT 1;
 
   IF v_user_balance IS NULL THEN
@@ -195,13 +197,14 @@ BEGIN
   END IF;
 
   -- Step 5: Deduct balance from user
+  -- Using ILIKE for case-insensitive matching
   UPDATE canonical_users
   SET usdc_balance = usdc_balance - v_total_amount,
       updated_at = NOW()
   WHERE id = v_canonical_user_id
-     OR LOWER(wallet_address) = v_wallet_address
-     OR LOWER(base_wallet_address) = v_wallet_address
-     OR LOWER(eth_wallet_address) = v_wallet_address;
+     OR wallet_address ILIKE v_wallet_address
+     OR base_wallet_address ILIKE v_wallet_address
+     OR eth_wallet_address ILIKE v_wallet_address;
 
   -- Step 6: Get competition UID for foreign key
   SELECT uid INTO v_competition_uid
@@ -274,7 +277,9 @@ BEGIN
       v_wallet_address,
       NOW()
     )
-    ON CONFLICT DO NOTHING;  -- Handle duplicate ticket numbers gracefully
+    -- Handle duplicate ticket numbers gracefully (prevents race conditions)
+    -- Only ignore conflict if ticket was already sold for this competition
+    ON CONFLICT (competitionid, ticketnumber) DO NOTHING;
   END LOOP;
 
   -- Step 10: Create user_transaction record with non-null amount
