@@ -440,11 +440,11 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             </div>
 
             <h2 className="text-white text-2xl font-bold mb-2 text-center">
-              {options?.isReturningUser ? 'Create a new wallet' : 'Create an account'}
+              {options?.isReturningUser ? 'Sign in with your wallet' : 'Create an account'}
             </h2>
             <p className="text-white/60 text-sm mb-6 text-center">
               {options?.isReturningUser
-                ? 'Create a new Base wallet to use instead of your previous wallet.'
+                ? 'Sign in with your Base wallet to access your account.'
                 : 'Enter your email address to continue, Base will send you an OTP to verify your registration:'}
             </p>
 
@@ -495,7 +495,9 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             </div>
 
             <p className="text-white/40 text-xs mt-4 text-center">
-              Base will send you a one-time code to verify your registration.
+              {options?.isReturningUser
+                ? "We'll verify your identity to link your wallet to your account."
+                : 'Base will send you a one-time code to verify your registration.'}
             </p>
 
             <button
@@ -503,7 +505,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               className="mt-4 text-[#0052FF] text-sm hover:text-[#0052FF]/80 text-center"
             >
               {options?.isReturningUser 
-                ? `(changed your mind? Go back to sign in with your existing wallet)`
+                ? `(Want to use a different wallet? Click here)`
                 : `(realized you've already got a Base wallet? No problems, click here to connect that instead)`}
             </button>
           </div>
