@@ -2304,24 +2304,60 @@ TESTING CHECKLIST:
   // Current implementation: Split-screen layout with static modal preview
   // Future enhancement: Update modal components to read from CSS custom properties for true reactivity
   const generatePreviewStyles = () => {
-    // Sanitize color values to prevent CSS injection
-    const sanitizeColor = (color: string): string => {
-      // Allow hex colors, rgb/rgba, hsl/hsla, and named colors
-      const colorPattern = /^(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)|hsla?\([^)]+\)|[a-z]+)$/;
-      return colorPattern.test(color) ? color : '#000000';
+    // Sanitize CSS variable name to prevent injection
+    const sanitizeCSSVarName = (name: string): string => {
+      // Only allow alphanumeric and hyphens
+      return name.replace(/[^a-zA-Z0-9-]/g, '');
     };
 
-    // Sanitize font family to prevent CSS injection
+    // Sanitize color values to prevent CSS injection
+    const sanitizeColor = (color: string): string => {
+      // Check for hex colors
+      if (/^#[0-9a-fA-F]{3,8}$/.test(color)) {
+        return color;
+      }
+      // Check for rgb/rgba with proper validation
+      if (/^rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(,\s*[\d.]+\s*)?\)$/.test(color)) {
+        return color;
+      }
+      // Check for hsl/hsla with proper validation
+      if (/^hsla?\(\s*\d+\s*,\s*\d+%\s*,\s*\d+%\s*(,\s*[\d.]+\s*)?\)$/.test(color)) {
+        return color;
+      }
+      // Allowlist of safe named colors
+      const safeColors = ['black', 'white', 'red', 'green', 'blue', 'yellow', 'orange', 'purple', 'pink', 'transparent'];
+      if (safeColors.includes(color.toLowerCase())) {
+        return color;
+      }
+      // Default to black if invalid
+      return '#000000';
+    };
+
+    // Sanitize font family using allowlist
     const sanitizeFont = (font: string): string => {
-      // Only allow alphanumeric, spaces, hyphens, commas, and quotes
-      return font.replace(/[^a-zA-Z0-9\s,\-'"]/g, '');
+      const safeFonts = [
+        'inherit', 'system-ui', 'Arial', 'Helvetica', 'sans-serif', 'serif', 'monospace',
+        'sequel-45', 'sequel-75', 'sequel-95',
+        "'Inter', sans-serif", "'Roboto', sans-serif", "'Open Sans', sans-serif", "'Poppins', sans-serif"
+      ];
+      // Check if font is in allowlist
+      if (safeFonts.includes(font)) {
+        return font;
+      }
+      // Check if it's a safe font family format
+      if (/^['"]?[a-zA-Z0-9\s-]+['"]?(\s*,\s*['"]?[a-zA-Z0-9\s-]+['"]?)*$/.test(font)) {
+        return font;
+      }
+      return 'inherit';
     };
 
     // Sanitize font size
     const sanitizeSize = (size: string): string => {
       // Only allow numbers followed by valid units
-      const sizePattern = /^[0-9.]+(?:px|rem|em|%|pt)$/;
-      return sizePattern.test(size) ? size : '1rem';
+      if (/^[0-9.]+(?:px|rem|em|%|pt)$/.test(size)) {
+        return size;
+      }
+      return '1rem';
     };
 
     // Sanitize font weight
@@ -2330,13 +2366,19 @@ TESTING CHECKLIST:
       return validWeights.includes(weight) ? weight : '400';
     };
 
-    const colorVars = state.colors.map(c => `--preview-${c.name}: ${sanitizeColor(c.value)};`).join('\n    ');
+    const colorVars = state.colors.map(c => {
+      const safeName = sanitizeCSSVarName(c.name);
+      const safeValue = sanitizeColor(c.value);
+      return `--preview-${safeName}: ${safeValue};`;
+    }).join('\n    ');
+
     const fontVars = state.fonts.map(f => {
+      const safeName = sanitizeCSSVarName(f.name);
       return `
-    --preview-${f.name}-family: ${sanitizeFont(f.family || 'inherit')};
-    --preview-${f.name}-size: ${sanitizeSize(f.size || '1rem')};
-    --preview-${f.name}-weight: ${sanitizeWeight(f.weight || '400')};
-    --preview-${f.name}-style: ${f.style === 'italic' ? 'italic' : 'normal'};`;
+    --preview-${safeName}-family: ${sanitizeFont(f.family || 'inherit')};
+    --preview-${safeName}-size: ${sanitizeSize(f.size || '1rem')};
+    --preview-${safeName}-weight: ${sanitizeWeight(f.weight || '400')};
+    --preview-${safeName}-style: ${f.style === 'italic' ? 'italic' : 'normal'};`;
     }).join('');
 
     return `
@@ -2423,7 +2465,7 @@ TESTING CHECKLIST:
         </div>
       </header>
 
-      <div className="max-w-[2000px] mx-auto px-4 py-8" style={{ maxWidth: EDITOR_MAX_WIDTH }}>
+      <div className="mx-auto px-4 py-8" style={{ maxWidth: EDITOR_MAX_WIDTH }}>
         <div className="grid grid-cols-2 gap-8">
           {/* Editor Panel - Left Side */}
           <div className="overflow-y-auto max-h-[calc(100vh-180px)]">
