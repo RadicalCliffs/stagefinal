@@ -165,6 +165,9 @@ const PREVIEW_HANDLERS = {
   onOpen: () => { /* Preview mode - no action on open */ },
 };
 
+// Constants for layout
+const EDITOR_MAX_WIDTH = '2000px';
+
 export default function AuthModalVisualEditor() {
   const [state, setState] = useState<EditorState>({
     selectedModal: 'NewAuthModal',
@@ -2301,13 +2304,39 @@ TESTING CHECKLIST:
   // Current implementation: Split-screen layout with static modal preview
   // Future enhancement: Update modal components to read from CSS custom properties for true reactivity
   const generatePreviewStyles = () => {
-    const colorVars = state.colors.map(c => `--preview-${c.name}: ${c.value};`).join('\n    ');
+    // Sanitize color values to prevent CSS injection
+    const sanitizeColor = (color: string): string => {
+      // Allow hex colors, rgb/rgba, hsl/hsla, and named colors
+      const colorPattern = /^(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)|hsla?\([^)]+\)|[a-z]+)$/;
+      return colorPattern.test(color) ? color : '#000000';
+    };
+
+    // Sanitize font family to prevent CSS injection
+    const sanitizeFont = (font: string): string => {
+      // Only allow alphanumeric, spaces, hyphens, commas, and quotes
+      return font.replace(/[^a-zA-Z0-9\s,\-'"]/g, '');
+    };
+
+    // Sanitize font size
+    const sanitizeSize = (size: string): string => {
+      // Only allow numbers followed by valid units
+      const sizePattern = /^[0-9.]+(?:px|rem|em|%|pt)$/;
+      return sizePattern.test(size) ? size : '1rem';
+    };
+
+    // Sanitize font weight
+    const sanitizeWeight = (weight: string): string => {
+      const validWeights = ['100', '200', '300', '400', '500', '600', '700', '800', '900', 'normal', 'bold', 'lighter', 'bolder'];
+      return validWeights.includes(weight) ? weight : '400';
+    };
+
+    const colorVars = state.colors.map(c => `--preview-${c.name}: ${sanitizeColor(c.value)};`).join('\n    ');
     const fontVars = state.fonts.map(f => {
       return `
-    --preview-${f.name}-family: ${f.family};
-    --preview-${f.name}-size: ${f.size};
-    --preview-${f.name}-weight: ${f.weight};
-    --preview-${f.name}-style: ${f.style || 'normal'};`;
+    --preview-${f.name}-family: ${sanitizeFont(f.family || 'inherit')};
+    --preview-${f.name}-size: ${sanitizeSize(f.size || '1rem')};
+    --preview-${f.name}-weight: ${sanitizeWeight(f.weight || '400')};
+    --preview-${f.name}-style: ${f.style === 'italic' ? 'italic' : 'normal'};`;
     }).join('');
 
     return `
@@ -2394,7 +2423,7 @@ TESTING CHECKLIST:
         </div>
       </header>
 
-      <div className="max-w-[2000px] mx-auto px-4 py-8">
+      <div className="max-w-[2000px] mx-auto px-4 py-8" style={{ maxWidth: EDITOR_MAX_WIDTH }}>
         <div className="grid grid-cols-2 gap-8">
           {/* Editor Panel - Left Side */}
           <div className="overflow-y-auto max-h-[calc(100vh-180px)]">
