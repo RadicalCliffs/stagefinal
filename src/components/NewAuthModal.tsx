@@ -918,7 +918,9 @@ export default function NewAuthModal({ isOpen, onClose }: NewAuthModalProps) {
               <div className="text-xs text-white/50 mb-1">Active wallet</div>
               <div className="text-white font-mono text-sm break-all">
                 {returningUserWalletAddress
-                  ? `${returningUserWalletAddress.substring(0, 6)}...${returningUserWalletAddress.substring(returningUserWalletAddress.length - 4)}`
+                  ? returningUserWalletAddress.length > 10
+                    ? `${returningUserWalletAddress.substring(0, 6)}...${returningUserWalletAddress.substring(returningUserWalletAddress.length - 4)}`
+                    : returningUserWalletAddress
                   : 'Loading...'}
               </div>
               <div className="text-xs text-white/50 mt-2">
