@@ -345,6 +345,13 @@ export default function AuthModalVisualEditor() {
 
   const [backendNotification, setBackendNotification] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
 
+  // State for render functions (moved from inside render functions to fix React Error #310)
+  const [siteWideActiveSubTab, setSiteWideActiveSubTab] = useState<'images' | 'colors' | 'navigation'>('images');
+  const [backendActiveSubTab, setBackendActiveSubTab] = useState<'rpc' | 'edge' | 'indexes'>('rpc');
+  const [presetName, setPresetName] = useState('');
+  const [presetDescription, setPresetDescription] = useState('');
+  const [assetBrowserSelectedCategory, setAssetBrowserSelectedCategory] = useState<string>('All');
+
   // Load backend configuration
   useEffect(() => {
     if (activeTab === 'backend' && backendState.rpcFunctions.length === 0) {
@@ -2695,8 +2702,6 @@ TESTING CHECKLIST:
   );
 
   const renderSiteWideEditor = () => {
-    const [activeSubTab, setActiveSubTab] = useState<'images' | 'colors' | 'navigation'>('images');
-
     if (siteWideLoading) {
       return (
         <div className="text-center py-12">
@@ -2773,9 +2778,9 @@ TESTING CHECKLIST:
         {/* Sub-tabs for Site-Wide sections */}
         <div className="flex gap-2 border-b border-white/10">
           <button
-            onClick={() => setActiveSubTab('images')}
+            onClick={() => setSiteWideActiveSubTab('images')}
             className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors ${
-              activeSubTab === 'images'
+              siteWideActiveSubTab === 'images'
                 ? 'border-[#DDE404] text-white'
                 : 'border-transparent text-white/50 hover:text-white/70'
             }`}
@@ -2784,9 +2789,9 @@ TESTING CHECKLIST:
             <span>Images</span>
           </button>
           <button
-            onClick={() => setActiveSubTab('colors')}
+            onClick={() => setSiteWideActiveSubTab('colors')}
             className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors ${
-              activeSubTab === 'colors'
+              siteWideActiveSubTab === 'colors'
                 ? 'border-[#DDE404] text-white'
                 : 'border-transparent text-white/50 hover:text-white/70'
             }`}
@@ -2795,9 +2800,9 @@ TESTING CHECKLIST:
             <span>Colors</span>
           </button>
           <button
-            onClick={() => setActiveSubTab('navigation')}
+            onClick={() => setSiteWideActiveSubTab('navigation')}
             className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors ${
-              activeSubTab === 'navigation'
+              siteWideActiveSubTab === 'navigation'
                 ? 'border-[#DDE404] text-white'
                 : 'border-transparent text-white/50 hover:text-white/70'
             }`}
@@ -2812,7 +2817,7 @@ TESTING CHECKLIST:
         </div>
 
         {/* Sub-tab Content */}
-        {activeSubTab === 'images' && (
+        {siteWideActiveSubTab === 'images' && (
           <div className="space-y-6">
             <h4 className="text-xl font-bold text-white">Site-Wide Images</h4>
             
@@ -2879,7 +2884,7 @@ TESTING CHECKLIST:
           </div>
         )}
 
-        {activeSubTab === 'colors' && (
+        {siteWideActiveSubTab === 'colors' && (
           <div className="space-y-6">
             <h4 className="text-xl font-bold text-white">Site-Wide Color Theme</h4>
             <p className="text-white/60 text-sm">
@@ -2926,7 +2931,7 @@ TESTING CHECKLIST:
           </div>
         )}
 
-        {activeSubTab === 'navigation' && (
+        {siteWideActiveSubTab === 'navigation' && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
@@ -3041,8 +3046,6 @@ TESTING CHECKLIST:
   };
 
   const renderBackendEditor = () => {
-    const [activeSubTab, setActiveSubTab] = useState<'rpc' | 'edge' | 'indexes'>('rpc');
-
     if (backendState.loading && backendState.rpcFunctions.length === 0) {
       return (
         <div className="text-center py-12">
@@ -3112,9 +3115,9 @@ TESTING CHECKLIST:
         {/* Sub-tabs */}
         <div className="flex gap-2 border-b border-white/10">
           <button
-            onClick={() => setActiveSubTab('rpc')}
+            onClick={() => setBackendActiveSubTab('rpc')}
             className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors ${
-              activeSubTab === 'rpc'
+              backendActiveSubTab === 'rpc'
                 ? 'border-purple-500 text-white'
                 : 'border-transparent text-white/50 hover:text-white/70'
             }`}
@@ -3126,9 +3129,9 @@ TESTING CHECKLIST:
             <span>RPC Functions ({backendState.rpcFunctions.length})</span>
           </button>
           <button
-            onClick={() => setActiveSubTab('edge')}
+            onClick={() => setBackendActiveSubTab('edge')}
             className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors ${
-              activeSubTab === 'edge'
+              backendActiveSubTab === 'edge'
                 ? 'border-purple-500 text-white'
                 : 'border-transparent text-white/50 hover:text-white/70'
             }`}
@@ -3139,9 +3142,9 @@ TESTING CHECKLIST:
             <span>Edge Functions ({backendState.edgeFunctions.length})</span>
           </button>
           <button
-            onClick={() => setActiveSubTab('indexes')}
+            onClick={() => setBackendActiveSubTab('indexes')}
             className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors ${
-              activeSubTab === 'indexes'
+              backendActiveSubTab === 'indexes'
                 ? 'border-purple-500 text-white'
                 : 'border-transparent text-white/50 hover:text-white/70'
             }`}
@@ -3159,7 +3162,7 @@ TESTING CHECKLIST:
         </div>
 
         {/* RPC Functions */}
-        {activeSubTab === 'rpc' && (
+        {backendActiveSubTab === 'rpc' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
@@ -3478,7 +3481,7 @@ TESTING CHECKLIST:
         )}
 
         {/* Edge Functions */}
-        {activeSubTab === 'edge' && (
+        {backendActiveSubTab === 'edge' && (
           <div className="space-y-4">
             <h4 className="text-xl font-bold text-white">Netlify Edge Functions</h4>
             <p className="text-white/60 text-sm">
@@ -3526,7 +3529,7 @@ TESTING CHECKLIST:
         )}
 
         {/* Indexes */}
-        {activeSubTab === 'indexes' && (
+        {backendActiveSubTab === 'indexes' && (
           <div className="space-y-4">
             <h4 className="text-xl font-bold text-white">Database Indexes</h4>
             <p className="text-white/60 text-sm">
@@ -3705,9 +3708,6 @@ TESTING CHECKLIST:
   };
 
   const renderPresetManager = () => {
-    const [presetName, setPresetName] = useState('');
-    const [presetDescription, setPresetDescription] = useState('');
-
     const handleSave = () => {
       if (!presetName) {
         setSaveStatus('error');
@@ -3859,12 +3859,10 @@ TESTING CHECKLIST:
   const renderAssetBrowser = () => {
     if (!showAssetBrowser) return null;
 
-    const [selectedCategory, setSelectedCategory] = useState<string>('All');
-
     const categories = ['All', ...Array.from(new Set(PROJECT_IMAGES.map(img => img.category)))];
-    const filteredImages = selectedCategory === 'All' 
+    const filteredImages = assetBrowserSelectedCategory === 'All' 
       ? PROJECT_IMAGES 
-      : PROJECT_IMAGES.filter(img => img.category === selectedCategory);
+      : PROJECT_IMAGES.filter(img => img.category === assetBrowserSelectedCategory);
 
     return (
       <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -3916,9 +3914,9 @@ TESTING CHECKLIST:
                   {categories.map(category => (
                     <button
                       key={category}
-                      onClick={() => setSelectedCategory(category)}
+                      onClick={() => setAssetBrowserSelectedCategory(category)}
                       className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                        selectedCategory === category
+                        assetBrowserSelectedCategory === category
                           ? 'bg-[#0052FF] text-white'
                           : 'bg-white/10 text-white/70 hover:bg-white/20'
                       }`}
