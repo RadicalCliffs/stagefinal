@@ -88,6 +88,7 @@ async function callCreateCharge(body: Record<string, unknown>): Promise<ChargeRe
     console.error('[OnchainKit] Charge creation failed:', {
       status: response.status,
       error: responseData.error,
+      details: (responseData as Record<string, unknown>).details,
       debug: responseData.debug
     });
     throw new Error(errorMessage);
