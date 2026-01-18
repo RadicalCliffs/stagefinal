@@ -44,10 +44,68 @@ Deno.serve(async (req) => {
       canonicalUserId = `prize:pid:${normalizedWallet}`;
     }
 
-    // Upsert - insert or update based on email
-    const { data, error } = await supabase
+    console.log('[upsert-user] Request data:', {
+      email: normalizedEmail,
+      username: normalizedUsername,
+      walletAddress: normalizedWallet,
+      canonicalUserId,
+      hasWallet: !!normalizedWallet,
+    });
+
+    // Check if user already exists by email
+    const { data: existingUser } = await supabase
       .from('canonical_users')
-      .upsert({
+      .select('id, email, canonical_user_id, wallet_address')
+      .eq('email', normalizedEmail)
+      .maybeSingle();
+
+    console.log('[upsert-user] Existing user check:', {
+      found: !!existingUser,
+      userId: existingUser?.id,
+      hasCanonicalId: !!existingUser?.canonical_user_id,
+      hasWallet: !!existingUser?.wallet_address,
+    });
+
+    let data, error;
+
+    if (existingUser) {
+      // User exists - UPDATE with all fields including wallet fields
+      console.log('[upsert-user] Updating existing user:', existingUser.id);
+      
+      const updateData: any = {
+        username: normalizedUsername,
+        first_name: firstName || null,
+        last_name: lastName || null,
+        country: country || null,
+        telegram_handle: telegram || null,
+        avatar_url: avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${normalizedUsername}`,
+      };
+
+      // CRITICAL: If wallet is provided, update ALL wallet fields
+      if (normalizedWallet) {
+        updateData.wallet_address = normalizedWallet;
+        updateData.base_wallet_address = normalizedWallet;
+        updateData.eth_wallet_address = normalizedWallet;
+        updateData.privy_user_id = normalizedWallet;
+        updateData.canonical_user_id = canonicalUserId;
+        updateData.wallet_linked = true;
+        updateData.auth_provider = 'cdp';
+      }
+
+      const result = await supabase
+        .from('canonical_users')
+        .update(updateData)
+        .eq('id', existingUser.id)
+        .select('id, username, email, canonical_user_id, wallet_address, base_wallet_address')
+        .single();
+      
+      data = result.data;
+      error = result.error;
+    } else {
+      // User doesn't exist - INSERT new user
+      console.log('[upsert-user] Creating new user');
+      
+      const insertData: any = {
         email: normalizedEmail,
         username: normalizedUsername,
         first_name: firstName || null,
@@ -57,29 +115,45 @@ Deno.serve(async (req) => {
         avatar_url: avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${normalizedUsername}`,
         usdc_balance: 0,
         has_used_new_user_bonus: false,
-        // Include wallet fields if wallet address is provided
-        ...(normalizedWallet && {
-          wallet_address: normalizedWallet,
-          base_wallet_address: normalizedWallet,
-          eth_wallet_address: normalizedWallet,
-          privy_user_id: normalizedWallet,
-          canonical_user_id: canonicalUserId,
-          wallet_linked: true,
-          auth_provider: 'cdp',
-        }),
-      }, {
-        onConflict: 'email',
-      })
-      .select('id, username, email')
-      .single();
+      };
+
+      // Include wallet fields if wallet address is provided
+      if (normalizedWallet) {
+        insertData.wallet_address = normalizedWallet;
+        insertData.base_wallet_address = normalizedWallet;
+        insertData.eth_wallet_address = normalizedWallet;
+        insertData.privy_user_id = normalizedWallet;
+        insertData.canonical_user_id = canonicalUserId;
+        insertData.wallet_linked = true;
+        insertData.auth_provider = 'cdp';
+      }
+
+      const result = await supabase
+        .from('canonical_users')
+        .insert(insertData)
+        .select('id, username, email, canonical_user_id, wallet_address, base_wallet_address')
+        .single();
+      
+      data = result.data;
+      error = result.error;
+    }
 
     if (error) {
-      console.error('Upsert error:', error);
+      console.error('[upsert-user] Upsert error:', error);
       return new Response(JSON.stringify({ error: error.message }), {
         status: 500,
         headers: { ...cors, 'Content-Type': 'application/json' },
       });
     }
+
+    console.log('[upsert-user] Upsert successful:', {
+      userId: data?.id,
+      email: data?.email,
+      username: data?.username,
+      canonical_user_id: data?.canonical_user_id,
+      wallet_address: data?.wallet_address,
+      base_wallet_address: data?.base_wallet_address,
+    });
 
     // Call attach_identity_after_auth RPC to handle profile linking and prior_signup_payload
     // This is the transactional RPC that handles identity attachment post-authentication
