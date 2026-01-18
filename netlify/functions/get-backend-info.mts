@@ -146,14 +146,19 @@ async function getDatabaseIndexes(serviceClient: ReturnType<typeof createClient>
     const { data, error } = await serviceClient.rpc('get_database_indexes');
     
     if (error) {
+      // Check if it's a missing function error
+      if (error.message && error.message.includes('function') && error.message.includes('does not exist')) {
+        console.warn('get_database_indexes RPC function not found. Please run migrations.');
+        return [];
+      }
       console.error('Error querying indexes:', error);
-      // Fallback: return empty array if RPC doesn't exist yet
-      return [];
+      throw new Error(`Failed to query indexes: ${error.message}`);
     }
     
     return data || [];
   } catch (error) {
     console.error('Error getting database indexes:', error);
+    // Return empty array for compatibility, but log the specific error
     return [];
   }
 }

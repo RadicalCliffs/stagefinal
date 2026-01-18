@@ -415,7 +415,22 @@ export default function AuthModalVisualEditor() {
     }));
   };
 
-  const handleBackendPRCreation = async () => {
+  // Helper function to load edge function code
+  const loadEdgeFunctionCode = async (edge: EdgeFunction): Promise<string | null> => {
+    try {
+      const response = await fetch(`/netlify/functions/${edge.name}.mts`);
+      if (response.ok) {
+        return await response.text();
+      } else {
+        showBackendNotification('error', `Failed to load ${edge.name}`);
+        return null;
+      }
+    } catch (error) {
+      console.error('Error loading edge function:', error);
+      showBackendNotification('error', `Error loading ${edge.name}`);
+      return null;
+    }
+  };
     try {
       setBackendState(prev => ({ ...prev, loading: true }));
 
@@ -3523,24 +3538,15 @@ TESTING CHECKLIST:
                 <div className="mt-3 flex gap-2">
                   <button
                     onClick={async () => {
-                      try {
-                        // Fetch the edge function code
-                        const response = await fetch(`/netlify/functions/${edge.name}.mts`);
-                        if (response.ok) {
-                          const code = await response.text();
-                          setBackendState(prev => ({ 
-                            ...prev, 
-                            showCodeViewer: true,
-                            viewingCode: code,
-                            viewingTitle: `${edge.name} - ${edge.path}`,
-                            selectedEdge: edge
-                          }));
-                        } else {
-                          showBackendNotification('error', `Failed to load ${edge.name}`);
-                        }
-                      } catch (error) {
-                        console.error('Error loading edge function:', error);
-                        showBackendNotification('error', `Error loading ${edge.name}`);
+                      const code = await loadEdgeFunctionCode(edge);
+                      if (code) {
+                        setBackendState(prev => ({ 
+                          ...prev, 
+                          showCodeViewer: true,
+                          viewingCode: code,
+                          viewingTitle: `${edge.name} - ${edge.path}`,
+                          selectedEdge: edge
+                        }));
                       }
                     }}
                     className="text-sm text-purple-400 hover:text-purple-300 flex items-center gap-1"
@@ -3553,25 +3559,16 @@ TESTING CHECKLIST:
                   </button>
                   <button
                     onClick={async () => {
-                      try {
-                        // Fetch the edge function code for editing
-                        const response = await fetch(`/netlify/functions/${edge.name}.mts`);
-                        if (response.ok) {
-                          const code = await response.text();
-                          setBackendState(prev => ({ 
-                            ...prev, 
-                            showCodeViewer: true,
-                            viewingCode: code,
-                            viewingTitle: `Edit: ${edge.name}`,
-                            selectedEdge: edge,
-                            editingCode: code
-                          }));
-                        } else {
-                          showBackendNotification('error', `Failed to load ${edge.name}`);
-                        }
-                      } catch (error) {
-                        console.error('Error loading edge function:', error);
-                        showBackendNotification('error', `Error loading ${edge.name}`);
+                      const code = await loadEdgeFunctionCode(edge);
+                      if (code) {
+                        setBackendState(prev => ({ 
+                          ...prev, 
+                          showCodeViewer: true,
+                          viewingCode: code,
+                          viewingTitle: `Edit: ${edge.name}`,
+                          selectedEdge: edge,
+                          editingCode: code
+                        }));
                       }
                     }}
                     className="text-sm text-white/50 hover:text-white/70 flex items-center gap-1"
