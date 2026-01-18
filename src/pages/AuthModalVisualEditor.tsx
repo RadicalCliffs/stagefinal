@@ -489,8 +489,10 @@ export default function AuthModalVisualEditor() {
   };
 
   const addSiteNavigationItem = () => {
+    // Generate unique ID using timestamp and random component
+    const uniqueId = `nav-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const newItem: SiteMenuItem = {
-      id: `nav-${Date.now()}`,
+      id: uniqueId,
       label: 'New Page',
       path: '/new-page',
       order: siteWideState.navigation.length + 1,
@@ -515,6 +517,14 @@ export default function AuthModalVisualEditor() {
   const handleCreateSiteWidePR = async () => {
     try {
       setSiteWideLoading(true);
+      
+      // Validate authentication token
+      const authToken = localStorage.getItem('authToken');
+      if (!authToken || authToken.trim() === '') {
+        showSiteWideNotification('error', 'Authentication token missing. Please log in again.');
+        setSiteWideLoading(false);
+        return;
+      }
       
       const prData = {
         title: 'Site-Wide UI Updates from Visual Editor',
@@ -544,7 +554,6 @@ ${siteWideState.navigation.map(item => `- ${item.label} -> ${item.path} (visible
         }
       };
       
-      const authToken = localStorage.getItem('authToken') || '';
       const response = await fetch('/.netlify/functions/create-ui-pr', {
         method: 'POST',
         headers: {

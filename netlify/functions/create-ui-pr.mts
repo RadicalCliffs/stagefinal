@@ -44,8 +44,8 @@ interface PRRequest {
 
 // Get Supabase clients
 function getSupabaseClients() {
-  const supabaseUrl = Netlify.env.get("VITE_SUPABASE_URL") || Netlify.env.get("SUPABASE_URL");
-  const supabaseAnonKey = Netlify.env.get("VITE_SUPABASE_ANON_KEY") || Netlify.env.get("SUPABASE_ANON_KEY");
+  const supabaseUrl = Netlify.env.get("SUPABASE_URL");
+  const supabaseAnonKey = Netlify.env.get("SUPABASE_ANON_KEY");
   const supabaseServiceKey = Netlify.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
   if (!supabaseUrl || !supabaseAnonKey) {
@@ -98,8 +98,9 @@ async function createGitHubPR(prData: PRRequest): Promise<{ prNumber: number; pr
     throw new Error("GitHub token not configured");
   }
 
-  // Generate branch name
-  const branchName = `ui-editor-changes-${Date.now()}`;
+  // Generate branch name with timestamp for uniqueness
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const branchName = `ui-editor-changes-${timestamp}`;
 
   try {
     // 1. Get the default branch reference
