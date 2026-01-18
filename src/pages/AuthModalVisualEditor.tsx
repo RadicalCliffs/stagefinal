@@ -3513,13 +3513,64 @@ TESTING CHECKLIST:
                 </div>
                 <div className="mt-3 flex gap-2">
                   <button
+                    onClick={async () => {
+                      try {
+                        // Fetch the edge function code
+                        const response = await fetch(`/netlify/functions/${edge.name}.mts`);
+                        if (response.ok) {
+                          const code = await response.text();
+                          setBackendState(prev => ({ 
+                            ...prev, 
+                            showCodeViewer: true,
+                            viewingCode: code,
+                            viewingTitle: `${edge.name} - ${edge.path}`,
+                            selectedEdge: edge
+                          }));
+                        } else {
+                          showBackendNotification('error', `Failed to load ${edge.name}`);
+                        }
+                      } catch (error) {
+                        console.error('Error loading edge function:', error);
+                        showBackendNotification('error', `Error loading ${edge.name}`);
+                      }
+                    }}
                     className="text-sm text-purple-400 hover:text-purple-300 flex items-center gap-1"
                   >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
                     View Code
                   </button>
                   <button
+                    onClick={async () => {
+                      try {
+                        // Fetch the edge function code for editing
+                        const response = await fetch(`/netlify/functions/${edge.name}.mts`);
+                        if (response.ok) {
+                          const code = await response.text();
+                          setBackendState(prev => ({ 
+                            ...prev, 
+                            showCodeViewer: true,
+                            viewingCode: code,
+                            viewingTitle: `Edit: ${edge.name}`,
+                            selectedEdge: edge,
+                            editingCode: code
+                          }));
+                        } else {
+                          showBackendNotification('error', `Failed to load ${edge.name}`);
+                        }
+                      } catch (error) {
+                        console.error('Error loading edge function:', error);
+                        showBackendNotification('error', `Error loading ${edge.name}`);
+                      }
+                    }}
                     className="text-sm text-white/50 hover:text-white/70 flex items-center gap-1"
                   >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
                     Edit
                   </button>
                 </div>
@@ -3614,7 +3665,9 @@ TESTING CHECKLIST:
                 {backendState.editingCode ? (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between mb-2">
-                      <label className="text-white/70 text-sm">Edit SQL Code:</label>
+                      <label className="text-white/70 text-sm">
+                        Edit {backendState.selectedEdge ? 'TypeScript' : 'SQL'} Code:
+                      </label>
                       <div className="flex gap-2">
                         {backendState.findTerm && (
                           <button
@@ -3644,7 +3697,9 @@ TESTING CHECKLIST:
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <label className="text-white/70 text-sm">SQL Code (Read-Only):</label>
+                    <label className="text-white/70 text-sm">
+                      {backendState.selectedEdge ? 'TypeScript' : 'SQL'} Code (Read-Only):
+                    </label>
                     <pre className="bg-black/50 text-white font-mono text-sm p-4 rounded border border-white/20 overflow-auto max-h-[60vh]">
                       <code>{backendState.viewingCode}</code>
                     </pre>
@@ -3660,6 +3715,11 @@ TESTING CHECKLIST:
                       {backendState.selectedRPC.language} • 
                       {backendState.selectedRPC.securityDefiner && ' SECURITY DEFINER • '}
                       {backendState.selectedRPC.file}
+                    </span>
+                  )}
+                  {backendState.selectedEdge && (
+                    <span>
+                      Edge Function • TypeScript • {backendState.selectedEdge.path}
                     </span>
                   )}
                 </div>
