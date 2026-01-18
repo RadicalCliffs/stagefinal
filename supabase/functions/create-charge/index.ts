@@ -228,26 +228,43 @@ Deno.serve(async (req: Request) => {
 
     console.log(`[create-charge][${requestId}] Creating transaction: id=${transactionId}, webhookRef=${webhookRef}`);
 
+    // Prepare insert data for logging and insertion
+    const transactionData = {
+      id: transactionId,
+      user_id: canonicalUserId,
+      competition_id: isEntry ? competitionId : null,
+      amount: normalizedAmount,
+      currency: "USD",
+      payment_status: "pending",
+      status: "pending",
+      ticket_count: isEntry ? (entryCount || 1) : 0,
+      order_id: reservationId || null,
+      webhook_ref: webhookRef,
+      payment_provider: "coinbase",
+    };
+    console.log(`[create-charge][${requestId}] Transaction data:`, JSON.stringify(transactionData));
+
     const { error: insertError } = await supabase
       .from("user_transactions")
-      .insert({
-        id: transactionId,
-        user_id: canonicalUserId,
-        competition_id: isEntry ? competitionId : null,
-        amount: normalizedAmount,
-        currency: "USD",
-        payment_status: "pending",
-        status: "pending",
-        ticket_count: isEntry ? entryCount : 0,
-        order_id: reservationId || null,
-        webhook_ref: webhookRef,
-        payment_provider: "coinbase",
-      });
+      .insert(transactionData);
 
     if (insertError) {
       console.error(`[create-charge][${requestId}] Transaction insert error:`, insertError);
+      console.error(`[create-charge][${requestId}] Insert error details: code=${insertError.code}, message=${insertError.message}, hint=${insertError.hint}`);
+      // Include more detail for debugging while keeping user-facing message clean
+      const errorDetails = [
+        insertError.message,
+        insertError.code ? `(code: ${insertError.code})` : null,
+        insertError.hint ? `Hint: ${insertError.hint}` : null
+      ].filter(Boolean).join(' - ');
       return new Response(
-        JSON.stringify({ success: false, error: "Failed to create transaction record", code: "DB_ERROR", details: insertError.message }),
+        JSON.stringify({
+          success: false,
+          error: "Failed to create transaction record",
+          code: "DB_ERROR",
+          details: errorDetails,
+          db_error_code: insertError.code
+        }),
         { status: 200, headers: { "Content-Type": "application/json", ...cors } }
       );
     }

@@ -191,14 +191,24 @@ export default async (req: Request, context: Context): Promise<Response> => {
       }, response.ok ? 200 : response.status);
     }
 
-    // Handle {success: false, error: "message", code: "CODE"} format
+    // Handle {success: false, error: "message", code: "CODE", details: "..."} format
     if (responseData.success === false && typeof responseData.error === 'string') {
+      // Include details if present (contains actual DB error message for debugging)
+      const details = responseData.details as string | undefined;
+      const errorMessage = details
+        ? `${responseData.error}: ${details}`
+        : responseData.error as string;
+
+      console.log(`[create-charge-proxy][${requestId}] Normalized error: code=${responseData.code}, message=${errorMessage}`);
+
       return jsonResponse({
         success: false,
         error: {
           code: (responseData.code as string) || 'UNKNOWN_ERROR',
-          message: responseData.error as string
-        }
+          message: errorMessage
+        },
+        // Preserve details separately for debugging
+        ...(details ? { details } : {})
       }, response.ok ? 200 : response.status);
     }
 
