@@ -37,5 +37,5 @@ netlify/functions/manifest.json
 .supabase/
 supabase/.branches/
 
-# Front-end package for Bolt - temporary directory (generated when building zip)
+# Front-end package for Bolt - temporary directory (not tracked in git)
 theprize-frontend/
