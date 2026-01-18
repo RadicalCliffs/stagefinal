@@ -47,8 +47,8 @@ Deno.serve(async (req) => {
     console.log('[upsert-user] Request data:', {
       email: normalizedEmail,
       username: normalizedUsername,
-      walletAddress: normalizedWallet,
-      canonicalUserId,
+      walletAddress: normalizedWallet ? normalizedWallet.substring(0, 10) + '...' : null,
+      canonicalUserId: canonicalUserId ? canonicalUserId.substring(0, 20) + '...' : null,
       hasWallet: !!normalizedWallet,
     });
 
@@ -146,9 +146,8 @@ Deno.serve(async (req) => {
       userId: data?.id,
       email: data?.email,
       username: data?.username,
-      canonical_user_id: data?.canonical_user_id,
-      wallet_address: data?.wallet_address,
-      base_wallet_address: data?.base_wallet_address,
+      hasCanonicalId: !!data?.canonical_user_id,
+      hasWallet: !!data?.wallet_address,
     });
 
     // Call attach_identity_after_auth RPC to handle profile linking and prior_signup_payload
@@ -165,11 +164,10 @@ Deno.serve(async (req) => {
           telegram_handle: telegram || null,
         };
 
-        console.log('Calling attach_identity_after_auth RPC:', {
-          canonical_user_id: canonicalUserId,
-          wallet_address: normalizedWallet,
-          email: normalizedEmail,
-          privy_user_id: normalizedWallet,
+        console.log('[upsert-user] Calling attach_identity_after_auth RPC:', {
+          hasCanonicalUserId: !!canonicalUserId,
+          hasWalletAddress: !!normalizedWallet,
+          hasEmail: !!normalizedEmail,
         });
 
         const { data: rpcResult, error: rpcError } = await supabase.rpc('attach_identity_after_auth', {
