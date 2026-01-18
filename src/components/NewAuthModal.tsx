@@ -166,7 +166,7 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
 
         if (data.wallet_address || data.base_wallet_address) {
           // Has wallet - open BaseWalletAuthModal for wallet authentication
-          const walletAddr = data.wallet_address || data.base_wallet_address;
+          const walletAddr = data.wallet_address || data.base_wallet_address || '';
 
           console.log('[NewAuthModal] Returning user detected, opening wallet connection modal');
 
@@ -228,9 +228,9 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
       if (emailData && usernameData && emailData.id !== usernameData.id) {
         return {
           type: 'both',
-          existingEmail: emailData.email,
-          existingUsername: usernameData.username,
-          maskedEmail: maskEmail(emailData.email)
+          existingEmail: emailData.email ?? undefined,
+          existingUsername: usernameData.username ?? undefined,
+          maskedEmail: emailData.email ? maskEmail(emailData.email) : undefined
         };
       }
 
@@ -238,9 +238,9 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
       if (emailData) {
         return {
           type: 'email',
-          existingEmail: emailData.email,
-          existingUsername: emailData.username,
-          maskedEmail: maskEmail(emailData.email)
+          existingEmail: emailData.email ?? undefined,
+          existingUsername: emailData.username ?? undefined,
+          maskedEmail: emailData.email ? maskEmail(emailData.email) : undefined
         };
       }
 
@@ -248,8 +248,8 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
       if (usernameData) {
         return {
           type: 'username',
-          existingUsername: usernameData.username,
-          existingEmail: usernameData.email,
+          existingUsername: usernameData.username ?? undefined,
+          existingEmail: usernameData.email ?? undefined,
           maskedEmail: usernameData.email ? maskEmail(usernameData.email) : undefined
         };
       }
