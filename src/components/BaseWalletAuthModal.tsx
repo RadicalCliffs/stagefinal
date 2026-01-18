@@ -643,13 +643,14 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             <h2 className="text-white text-2xl font-bold mb-2 text-center">
               {textOverrides?.loginTitle || 'Verify with Base to continue'}
             </h2>
-            <p className="text-white/60 text-sm mb-4 text-center">
-              {textOverrides?.loginSubtitle || 'Enter your email to verify and create your free Base wallet in one step. (You won\'t have to do this again if you have your wallet saved on phone or desktop*)'}
-            </p>
-
-            <h3 className="text-white text-lg font-semibold mb-1 text-center">Sign in</h3>
-            <p className="text-white/60 text-sm mb-6 text-center">
-              Base will send you a verification code via email.
+            <p className="text-white/60 text-sm mb-2 text-center">
+              {textOverrides?.loginSubtitle || (
+                <>
+                  Enter your email to verify and create your free Base wallet in one step.
+                  <br />
+                  (You won't have to do this again if you have your wallet saved on phone or desktop*)
+                </>
+              )}
             </p>
 
             <div className="w-full">
