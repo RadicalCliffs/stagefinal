@@ -629,7 +629,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             <p className="text-white/40 text-xs mt-4 text-center">
               {options?.isReturningUser
                 ? "We'll verify your identity to link your wallet to your account."
-                : 'You'll receive a one-time code to verify your email and create your Base wallet.'}
+                : "You'll receive a one-time code to verify your email and create your Base wallet."}
             </p>
 
             <button
