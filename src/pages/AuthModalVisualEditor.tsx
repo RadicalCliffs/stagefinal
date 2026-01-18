@@ -4729,14 +4729,8 @@ TESTING CHECKLIST:
       return '';
     }).filter(Boolean).join('\n');
 
-    return `
-    /* LIVE PREVIEW STYLES - Updates in real-time as you edit */
-    
-    #modal-preview-container {
-      position: relative;
-      isolation: isolate;
-    }
-    
+    // Conditional containment rules - only apply to modals, not pages
+    const modalContainmentRules = state.editorTarget.type === 'modal' ? `
     /* Contain modals within preview area - prevent fixed positioning from escaping */
     #modal-preview-container > div[class*="fixed"],
     #modal-preview-container > div[class*="inset-0"] {
@@ -4767,6 +4761,28 @@ TESTING CHECKLIST:
       max-width: 100% !important;
       overflow-y: auto !important;
     }
+    ` : `
+    /* Page preview - allow normal page layout and scrolling */
+    #modal-preview-container {
+      overflow-y: auto !important;
+      overflow-x: hidden !important;
+    }
+    
+    /* Allow page content to flow naturally */
+    #modal-preview-container > * {
+      position: relative !important;
+    }
+    `;
+
+    return `
+    /* LIVE PREVIEW STYLES - Updates in real-time as you edit */
+    
+    #modal-preview-container {
+      position: relative;
+      isolation: isolate;
+    }
+    
+    ${modalContainmentRules}
     
     ${colorOverrides}
     ${fontOverrides}
