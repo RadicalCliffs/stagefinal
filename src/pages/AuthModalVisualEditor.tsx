@@ -338,7 +338,9 @@ export default function AuthModalVisualEditor() {
     viewingTitle: '',
     searchTerm: '',
     findTerm: '',
-    replaceTerm: ''
+    replaceTerm: '',
+    analysisResults: null as any,
+    showAnalysis: false
   });
 
   const [backendNotification, setBackendNotification] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
@@ -467,6 +469,190 @@ ${backendState.selectedEdge ? `- ${backendState.selectedEdge.name}` : 'None'}
       showBackendNotification('error', 'Failed to create pull request');
       setBackendState(prev => ({ ...prev, loading: false }));
     }
+  };
+
+  // Analyze backend infrastructure for issues
+  const analyzeBackendInfrastructure = () => {
+    const functions = backendState.rpcFunctions;
+    const issues = {
+      duplicates: [] as any[],
+      securityIssues: [] as any[],
+      performanceIssues: [] as any[],
+      bestPracticeViolations: [] as any[],
+      missingPolicies: [] as any[],
+      summary: {
+        total: functions.length,
+        criticalIssues: 0,
+        warnings: 0,
+        suggestions: 0
+      }
+    };
+
+    // 1. Find duplicate or nearly identical functions
+    const functionsByName = new Map<string, RPCFunction[]>();
+    functions.forEach(func => {
+      const baseName = func.name.replace(/_v\d+$/, ''); // Remove version suffixes
+      if (!functionsByName.has(baseName)) {
+        functionsByName.set(baseName, []);
+      }
+      functionsByName.get(baseName)!.push(func);
+    });
+
+    functionsByName.forEach((funcs, baseName) => {
+      if (funcs.length > 1) {
+        issues.duplicates.push({
+          type: 'duplicate',
+          severity: 'warning',
+          name: baseName,
+          count: funcs.length,
+          functions: funcs.map(f => f.name),
+          description: `Multiple versions of '${baseName}' found. Consider consolidating or removing old versions.`,
+          recommendation: `Review ${funcs.map(f => f.name).join(', ')} and keep only the necessary version.`
+        });
+        issues.summary.warnings++;
+      }
+    });
+
+    // 2. Check for SECURITY DEFINER misuse
+    functions.forEach(func => {
+      if (func.securityDefiner) {
+        // Check if function modifies data without proper checks
+        const code = func.code?.toLowerCase() || '';
+        const hasInsert = code.includes('insert into');
+        const hasUpdate = code.includes('update ');
+        const hasDelete = code.includes('delete from');
+        const hasAuthCheck = code.includes('auth.uid()') || code.includes('current_user');
+
+        if ((hasInsert || hasUpdate || hasDelete) && !hasAuthCheck) {
+          issues.securityIssues.push({
+            type: 'security',
+            severity: 'critical',
+            name: func.name,
+            description: `Function '${func.name}' uses SECURITY DEFINER and modifies data but doesn't check auth.uid() or user identity.`,
+            recommendation: 'Add authentication checks (auth.uid(), current_user) to prevent unauthorized data access.',
+            file: func.file
+          });
+          issues.summary.criticalIssues++;
+        }
+      } else {
+        // Check if function should use SECURITY DEFINER
+        const code = func.code?.toLowerCase() || '';
+        const hasBypassRLS = code.includes('bypass') && code.includes('rls');
+        
+        if (hasBypassRLS) {
+          issues.securityIssues.push({
+            type: 'security',
+            severity: 'warning',
+            name: func.name,
+            description: `Function '${func.name}' tries to bypass RLS but doesn't use SECURITY DEFINER.`,
+            recommendation: 'Add SECURITY DEFINER if this function needs to bypass RLS policies.',
+            file: func.file
+          });
+          issues.summary.warnings++;
+        }
+      }
+    });
+
+    // 3. Check for deprecated patterns
+    functions.forEach(func => {
+      const code = func.code || '';
+      
+      // Check for deprecated user identifier patterns
+      if (code.includes('privy_did') || code.includes('privyDid')) {
+        issues.bestPracticeViolations.push({
+          type: 'deprecated',
+          severity: 'warning',
+          name: func.name,
+          description: `Function '${func.name}' uses deprecated 'privy_did' identifier.`,
+          recommendation: "Replace 'privy_did' with standardized 'user_identifier' parameter.",
+          file: func.file
+        });
+        issues.summary.warnings++;
+      }
+
+      // Check for hard-coded table names that should be dynamic
+      const hardcodedTables = code.match(/FROM\s+['"]\w+['"]/gi);
+      if (hardcodedTables && hardcodedTables.length > 0) {
+        issues.bestPracticeViolations.push({
+          type: 'best-practice',
+          severity: 'suggestion',
+          name: func.name,
+          description: `Function '${func.name}' uses quoted table names which may cause issues.`,
+          recommendation: 'Use unquoted table names for better compatibility.',
+          file: func.file
+        });
+        issues.summary.suggestions++;
+      }
+
+      // Check for SELECT * which is inefficient
+      if (code.includes('SELECT *') || code.includes('select *')) {
+        issues.performanceIssues.push({
+          type: 'performance',
+          severity: 'suggestion',
+          name: func.name,
+          description: `Function '${func.name}' uses SELECT * which can be inefficient.`,
+          recommendation: 'Specify exact columns needed instead of using SELECT *.',
+          file: func.file
+        });
+        issues.summary.suggestions++;
+      }
+
+      // Check for N+1 query patterns
+      if (code.match(/FOR\s+\w+\s+IN\s+SELECT/gi)) {
+        const loopCount = (code.match(/FOR\s+\w+\s+IN\s+SELECT/gi) || []).length;
+        if (loopCount > 1) {
+          issues.performanceIssues.push({
+            type: 'performance',
+            severity: 'warning',
+            name: func.name,
+            description: `Function '${func.name}' has ${loopCount} nested loops which may cause N+1 query issues.`,
+            recommendation: 'Consider using JOINs or batch queries instead of nested loops.',
+            file: func.file
+          });
+          issues.summary.warnings++;
+        }
+      }
+    });
+
+    // 4. Check for missing RLS policies
+    const tablesUsed = new Set<string>();
+    functions.forEach(func => {
+      const code = func.code?.toLowerCase() || '';
+      const tableMatches = code.match(/(?:from|into|update|join)\s+(\w+)/gi);
+      if (tableMatches) {
+        tableMatches.forEach(match => {
+          const table = match.split(/\s+/)[1];
+          if (table && !['pg_', 'information_schema'].some(prefix => table.startsWith(prefix))) {
+            tablesUsed.add(table);
+          }
+        });
+      }
+    });
+
+    // Check if functions bypass RLS properly
+    functions.forEach(func => {
+      const code = func.code?.toLowerCase() || '';
+      if (func.securityDefiner && !code.includes('where') && 
+          (code.includes('select') || code.includes('update') || code.includes('delete'))) {
+        issues.missingPolicies.push({
+          type: 'rls',
+          severity: 'warning',
+          name: func.name,
+          description: `Function '${func.name}' uses SECURITY DEFINER without WHERE clause, may expose all data.`,
+          recommendation: 'Add WHERE clause to filter data appropriately, or ensure RLS policies are in place.',
+          file: func.file
+        });
+        issues.summary.warnings++;
+      }
+    });
+
+    setBackendState(prev => ({ 
+      ...prev, 
+      analysisResults: issues,
+      showAnalysis: true
+    }));
+
+    showBackendNotification('success', `Analysis complete: ${issues.summary.criticalIssues} critical, ${issues.summary.warnings} warnings, ${issues.summary.suggestions} suggestions`);
   };
 
   // Load site-wide configuration
@@ -2983,17 +3169,137 @@ TESTING CHECKLIST:
                 </p>
               </div>
               {backendState.rpcFunctions.length > 0 && (
-                <button
-                  onClick={loadBackendConfiguration}
-                  className="inline-flex items-center gap-2 bg-purple-500/20 text-purple-400 px-3 py-2 rounded-lg hover:bg-purple-500/30 text-sm"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"></path>
-                  </svg>
-                  Reload
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={analyzeBackendInfrastructure}
+                    className="inline-flex items-center gap-2 bg-blue-500/20 text-blue-400 px-3 py-2 rounded-lg hover:bg-blue-500/30 text-sm"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 11l3 3L22 4"></path>
+                      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                    </svg>
+                    Analyze Issues
+                  </button>
+                  <button
+                    onClick={loadBackendConfiguration}
+                    className="inline-flex items-center gap-2 bg-purple-500/20 text-purple-400 px-3 py-2 rounded-lg hover:bg-purple-500/30 text-sm"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+                    </svg>
+                    Reload
+                  </button>
+                </div>
               )}
             </div>
+
+            {/* Analysis Results */}
+            {backendState.showAnalysis && backendState.analysisResults && (
+              <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h5 className="text-white font-semibold flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400">
+                      <path d="M9 11l3 3L22 4"></path>
+                      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                    </svg>
+                    Infrastructure Analysis Results
+                  </h5>
+                  <button
+                    onClick={() => setBackendState(prev => ({ ...prev, showAnalysis: false }))}
+                    className="text-white/50 hover:text-white/70 text-sm"
+                  >
+                    Hide
+                  </button>
+                </div>
+
+                {/* Summary */}
+                <div className="grid grid-cols-4 gap-3 mb-4">
+                  <div className="bg-black/30 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-white">{backendState.analysisResults.summary.total}</div>
+                    <div className="text-xs text-white/60">Functions</div>
+                  </div>
+                  <div className="bg-red-500/20 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-red-400">{backendState.analysisResults.summary.criticalIssues}</div>
+                    <div className="text-xs text-red-400">Critical</div>
+                  </div>
+                  <div className="bg-yellow-500/20 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-yellow-400">{backendState.analysisResults.summary.warnings}</div>
+                    <div className="text-xs text-yellow-400">Warnings</div>
+                  </div>
+                  <div className="bg-blue-500/20 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-blue-400">{backendState.analysisResults.summary.suggestions}</div>
+                    <div className="text-xs text-blue-400">Suggestions</div>
+                  </div>
+                </div>
+
+                {/* Issues List */}
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {/* Critical Issues */}
+                  {backendState.analysisResults.securityIssues.filter((i: any) => i.severity === 'critical').map((issue: any, idx: number) => (
+                    <div key={`crit-${idx}`} className="bg-red-500/10 border border-red-500/30 rounded p-3">
+                      <div className="flex items-start gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-400 flex-shrink-0 mt-0.5">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <line x1="12" y1="8" x2="12" y2="12"></line>
+                          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                        <div className="flex-1">
+                          <div className="text-red-400 font-medium text-sm">{issue.name}</div>
+                          <div className="text-white/70 text-xs mt-1">{issue.description}</div>
+                          <div className="text-green-400 text-xs mt-1">💡 {issue.recommendation}</div>
+                          <div className="text-white/40 text-xs mt-1">File: {issue.file}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Warnings */}
+                  {[...backendState.analysisResults.duplicates, 
+                    ...backendState.analysisResults.securityIssues.filter((i: any) => i.severity === 'warning'),
+                    ...backendState.analysisResults.bestPracticeViolations.filter((i: any) => i.severity === 'warning'),
+                    ...backendState.analysisResults.performanceIssues.filter((i: any) => i.severity === 'warning'),
+                    ...backendState.analysisResults.missingPolicies
+                  ].map((issue: any, idx: number) => (
+                    <div key={`warn-${idx}`} className="bg-yellow-500/10 border border-yellow-500/30 rounded p-3">
+                      <div className="flex items-start gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-400 flex-shrink-0 mt-0.5">
+                          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                          <line x1="12" y1="9" x2="12" y2="13"></line>
+                          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                        </svg>
+                        <div className="flex-1">
+                          <div className="text-yellow-400 font-medium text-sm">{issue.name || issue.description}</div>
+                          <div className="text-white/70 text-xs mt-1">{issue.description || issue.functions?.join(', ')}</div>
+                          <div className="text-green-400 text-xs mt-1">💡 {issue.recommendation}</div>
+                          {issue.file && <div className="text-white/40 text-xs mt-1">File: {issue.file}</div>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Suggestions */}
+                  {[...backendState.analysisResults.performanceIssues.filter((i: any) => i.severity === 'suggestion'),
+                    ...backendState.analysisResults.bestPracticeViolations.filter((i: any) => i.severity === 'suggestion')
+                  ].map((issue: any, idx: number) => (
+                    <div key={`sugg-${idx}`} className="bg-blue-500/10 border border-blue-500/30 rounded p-3">
+                      <div className="flex items-start gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400 flex-shrink-0 mt-0.5">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <line x1="12" y1="16" x2="12" y2="12"></line>
+                          <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                        </svg>
+                        <div className="flex-1">
+                          <div className="text-blue-400 font-medium text-sm">{issue.name}</div>
+                          <div className="text-white/70 text-xs mt-1">{issue.description}</div>
+                          <div className="text-green-400 text-xs mt-1">💡 {issue.recommendation}</div>
+                          <div className="text-white/40 text-xs mt-1">File: {issue.file}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Search and Filter */}
             {backendState.rpcFunctions.length > 0 && (
