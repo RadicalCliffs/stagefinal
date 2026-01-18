@@ -13,13 +13,13 @@ import BaseLogo from "../assets/images/Base_lockup_white.png";
 
 /**
  * Base Wallet Authentication Modal
- * 
+ *
  * This modal handles wallet connection and authentication using Coinbase CDP.
- * 
+ *
  * AUTHENTICATION METHODS SUPPORTED:
  * - Email OTP (current implementation via CDP SignIn component)
  * - External wallet connection (via wagmi - MetaMask, Coinbase Wallet, etc.)
- * 
+ *
  * AUTHENTICATION METHODS NOT SUPPORTED:
  * - TOTP/Authenticator apps (Google Authenticator, Authy, etc.)
  *   - Coinbase CDP does not natively support TOTP authentication
@@ -28,16 +28,22 @@ import BaseLogo from "../assets/images/Base_lockup_white.png";
  *     2. Generating JWTs after TOTP verification
  *     3. Configuring CDP to trust your custom JWT provider
  *     4. See: https://docs.cdp.coinbase.com/embedded-wallets/custom-authentication
- * 
+ *
  * ALTERNATIVE AUTHENTICATION OPTIONS:
  * - SMS OTP (available in CDP config via authMethods: ["sms"])
  * - Social OAuth (Google, Apple, X via authMethods: ["oauth:google", "oauth:apple"])
- * 
+ *
  * FLOW:
  * 1. CDP sign-in (email OTP) or external wallet connection
  * 2. Link wallet to existing user account (find by email)
  * 3. Show success screen with wallet details
  * 4. Auto-close after 2 seconds and dispatch auth-complete event
+ *
+ * RETURNING USER FLOW:
+ * - Returning users are shown the wallet-choice screen directly
+ * - They click one button to connect their wallet
+ * - The wallet is properly linked to their account via linkWalletToExistingUser
+ * - This ensures wallet addresses are always saved to Supabase
  */
 
 // Text overrides for visual editor live preview
@@ -63,7 +69,7 @@ interface BaseWalletAuthModalProps {
   textOverrides?: BaseWalletAuthModalTextOverrides;
 }
 
-type FlowState = 
+type FlowState =
   | 'cdp-signin'
   | 'profile-completion'
   | 'wallet-choice'
@@ -93,35 +99,38 @@ function validateNotTreasuryAddress(walletAddress: string): void {
  * Find user by email and update with wallet address.
  * This is the ONLY way BaseWalletAuthModal should update users.
  * Users must be created first via NewAuthModal -> /api/create-user
+ *
+ * This function is CRITICAL for both new and returning users - it ensures
+ * the wallet address is properly saved to Supabase.
  */
 async function linkWalletToExistingUser(email: string, walletAddress: string): Promise<{ success: boolean; userId?: string }> {
   try {
     console.log('[BaseWallet] Looking up user by email:', email);
     validateNotTreasuryAddress(walletAddress);
-    
+
     const normalizedEmail = email.toLowerCase().trim();
     const canonicalUserId = toPrizePid(walletAddress);
-    
+
     // Find user by email
     const { data: existingUser, error: fetchError } = await supabase
       .from('canonical_users')
       .select('id, username, email, country, first_name, last_name')
       .eq('email', normalizedEmail)
       .maybeSingle();
-    
+
     if (fetchError) {
       console.error('[BaseWallet] Error finding user by email:', fetchError);
       return { success: false };
     }
-    
+
     if (!existingUser) {
       console.log('[BaseWallet] No user found with email:', normalizedEmail);
       return { success: false };
     }
-    
+
     console.log('[BaseWallet] Found user, updating with wallet:', existingUser.id);
-    
-    // Update user with wallet info
+
+    // Update user with wallet info - THIS IS CRITICAL for saving wallet to Supabase
     const { error: updateError } = await supabase
       .from('canonical_users')
       .update({
@@ -134,7 +143,7 @@ async function linkWalletToExistingUser(email: string, walletAddress: string): P
         auth_provider: 'cdp',
       })
       .eq('id', existingUser.id);
-    
+
     if (updateError) {
       console.error('[BaseWallet] Error updating user with wallet:', updateError);
       return { success: false };
@@ -351,15 +360,11 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
   const [waitingForWallet, setWaitingForWallet] = useState(false);
   const walletPollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Track if we've already auto-triggered wallet connection for returning user
-  const autoConnectTriggeredRef = useRef(false);
-
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
       savedToDbRef.current = false;
       profileCheckedRef.current = false;
-      autoConnectTriggeredRef.current = false;
       setEmailError('');
       setWaitingForWallet(false);
 
@@ -381,11 +386,9 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
       }
 
       // Determine initial flow state based on options
-      if (options?.isReturningUser) {
-        // Returning user - go straight to wallet choice for auto-connection
-        setFlowState('wallet-choice');
-      } else if (options?.connectExisting) {
-        // User wants to connect an existing wallet - go straight to wallet choice
+      // SIMPLE FLOW: Returning users go to wallet-choice where they click ONE button
+      if (options?.isReturningUser || options?.connectExisting) {
+        // Returning user or connecting existing wallet - go straight to wallet choice
         setFlowState('wallet-choice');
       } else if (options?.createNew) {
         // User wants to create a new wallet - go to CDP sign-in
@@ -415,57 +418,6 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
       }
     };
   }, [isOpen, options]);
-
-  // Auto-trigger wallet connection for returning users
-  // This effect fires when a returning user opens the modal and automatically
-  // engages the wagmi wallet connection UI instead of making them click a button
-  useEffect(() => {
-    // Only proceed if:
-    // 1. Modal is open
-    // 2. This is a returning user
-    // 3. We're in wallet-choice state
-    // 4. Not already connected
-    // 5. Haven't already triggered auto-connect
-    // 6. Have connectors available
-    if (
-      isOpen &&
-      options?.isReturningUser &&
-      flowState === 'wallet-choice' &&
-      !wagmiIsConnected &&
-      !autoConnectTriggeredRef.current &&
-      connectors.length > 0
-    ) {
-      console.log('[BaseWallet] Returning user detected, auto-triggering wallet connection');
-      autoConnectTriggeredRef.current = true;
-
-      // Small delay to ensure the modal is fully rendered before triggering wallet connect
-      const timer = setTimeout(() => {
-        // Try to find and trigger the Coinbase Wallet or injected connector
-        // Priority: Coinbase Wallet > MetaMask > any injected wallet
-        const coinbaseConnector = connectors.find(
-          (c) => c.id === 'coinbaseWalletSDK' || c.name.toLowerCase().includes('coinbase')
-        );
-        const metaMaskConnector = connectors.find(
-          (c) => c.id === 'metaMaskSDK' || c.id === 'metaMask' || c.name.toLowerCase().includes('metamask')
-        );
-        const injectedConnector = connectors.find((c) => c.id === 'injected');
-
-        // Choose the best connector to auto-connect with
-        const preferredConnector = coinbaseConnector || metaMaskConnector || injectedConnector;
-
-        if (preferredConnector) {
-          console.log('[BaseWallet] Auto-connecting with connector:', preferredConnector.name);
-          connect({ connector: preferredConnector });
-        } else if (connectors.length > 0) {
-          // Fallback to first available connector
-          console.log('[BaseWallet] Auto-connecting with first available connector:', connectors[0].name);
-          connect({ connector: connectors[0] });
-        }
-      }, 150); // Small delay for modal to render
-
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen, options?.isReturningUser, flowState, wagmiIsConnected, connectors, connect]);
 
   // Handle CDP sign-in success - create user with wallet or link to existing user
   // This effect may need to wait for evmAddress to become available after CDP sign-in
@@ -657,7 +609,8 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
     };
   }, [flowState, cdpIsSignedIn, evmAddress, currentUser, waitingForWallet]);
 
-  // Handle external wallet connection (wagmi)
+  // Handle external wallet connection (wagmi) - USED FOR BOTH NEW AND RETURNING USERS
+  // This is the SIMPLE flow: user connects wallet, we link it to their account
   useEffect(() => {
     const handleWagmiConnection = async () => {
       if (flowState === 'wallet-choice' && wagmiIsConnected && wagmiAddress && !savedToDbRef.current) {
@@ -676,59 +629,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
           }
         }
 
-        // CRITICAL: Handle returning user authentication
-        // If this is a returning user, we just need to verify their wallet and log them in
-        if (pendingData?.isReturningUser || options?.isReturningUser) {
-          console.log('[BaseWallet] Returning user wallet connection detected');
-
-          // Look up the user by wallet address to verify they exist
-          const normalizedAddress = wagmiAddress.toLowerCase();
-          const { data: existingUser, error: lookupError } = await supabase
-            .from('canonical_users')
-            .select('id, username, email, wallet_address, base_wallet_address')
-            .or(`wallet_address.ilike.${normalizedAddress},base_wallet_address.ilike.${normalizedAddress}`)
-            .maybeSingle();
-
-          if (lookupError) {
-            console.error('[BaseWallet] Error looking up returning user:', lookupError);
-            setEmailError('Failed to verify your account. Please try again.');
-            return;
-          }
-
-          if (existingUser) {
-            // User found - log them in directly
-            console.log('[BaseWallet] Returning user verified, logging in:', existingUser.username);
-            savedToDbRef.current = true;
-            localStorage.setItem('cdp:wallet_address', wagmiAddress);
-
-            window.dispatchEvent(new CustomEvent('auth-complete', {
-              detail: {
-                walletAddress: wagmiAddress,
-                email: existingUser.email,
-                isReturningUser: true
-              }
-            }));
-
-            setFlowState('logged-in-success');
-            return;
-          } else {
-            // Wallet not found in database - this might be a different wallet
-            // Check if they're trying to connect a different wallet than expected
-            const expectedWallet = pendingData?.returningUserWalletAddress || options?.returningUserWalletAddress;
-            if (expectedWallet && expectedWallet.toLowerCase() !== normalizedAddress) {
-              console.warn('[BaseWallet] Connected wallet does not match expected wallet');
-              setEmailError(`This wallet doesn't match your account. Expected wallet: ${truncateWalletAddress(expectedWallet)}`);
-              return;
-            }
-
-            // Wallet not found - user may need to sign up
-            console.warn('[BaseWallet] Returning user wallet not found in database');
-            setEmailError('Account not found. Please sign up first.');
-            return;
-          }
-        }
-
-        // If we have pending profile data (new user signup), create user with wallet
+        // If we have pending profile data, create user with wallet
         if (pendingData?.profileData) {
           console.log('[BaseWallet] Creating user with profile data + external wallet');
           const profileData = pendingData.profileData;
@@ -772,17 +673,19 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             setEmailError('Failed to create account. Please try again.');
           }
         } else if (userEmail) {
-          // No pending data but we have email - try to link to existing user
+          // RETURNING USER FLOW: Link wallet to existing user by email
+          // This PROPERLY saves the wallet address to Supabase
+          console.log('[BaseWallet] Linking wallet to existing user by email:', userEmail);
           const result = await linkWalletToExistingUser(userEmail, wagmiAddress);
-          
+
           if (result.success) {
             savedToDbRef.current = true;
             localStorage.setItem('cdp:wallet_address', wagmiAddress);
-            
+
             window.dispatchEvent(new CustomEvent('auth-complete', {
               detail: { walletAddress: wagmiAddress, email: userEmail }
             }));
-            
+
             setFlowState('logged-in-success');
           } else {
             setEmailError('No account found with this email. Please sign up first.');
@@ -791,18 +694,18 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
           // No pending data and no email - show success anyway
           savedToDbRef.current = true;
           localStorage.setItem('cdp:wallet_address', wagmiAddress);
-          
+
           window.dispatchEvent(new CustomEvent('auth-complete', {
             detail: { walletAddress: wagmiAddress }
           }));
-          
+
           setFlowState('logged-in-success');
         }
       }
     };
 
     handleWagmiConnection();
-  }, [flowState, wagmiIsConnected, wagmiAddress, userEmail, options?.isReturningUser, options?.returningUserWalletAddress]);
+  }, [flowState, wagmiIsConnected, wagmiAddress, userEmail]);
 
   // Auto-close modal after showing success screen for 2 seconds
   // This effect is critical for ensuring the modal doesn't freeze after successful auth
@@ -850,7 +753,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
     }
 
     setEmailError('');
-    
+
     if (evmAddress && userEmail && !savedToDbRef.current) {
       savedToDbRef.current = true;
       const success = await saveUserWithProfile(userEmail, evmAddress, profileData);
@@ -1136,12 +1039,12 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             </div>
 
             <h2 className="text-white text-2xl font-bold mb-2 text-center">
-              {options?.isReturningUser ? 'Sign in with your wallet' : 'Connect your wallet'}
+              {options?.isReturningUser ? 'Welcome back!' : 'Connect your wallet'}
             </h2>
             <p className="text-white/60 text-sm mb-6 text-center">
               {options?.isReturningUser
-                ? 'Connect your existing Base wallet to sign in to your account.'
-                : options?.resumeSignup 
+                ? 'Connect your wallet to sign in to your account.'
+                : options?.resumeSignup
                   ? 'Signup with an existing Base wallet'
                   : 'Connect an existing wallet or create a new one in seconds.'
               }
@@ -1150,12 +1053,9 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             {/* Display returning user's wallet address if available */}
             {options?.isReturningUser && options?.returningUserWalletAddress && (
               <div className="mb-4 p-4 bg-white/5 border border-white/10 rounded-lg">
-                <div className="text-xs text-white/50 mb-1">Expected wallet</div>
+                <div className="text-xs text-white/50 mb-1">Your wallet</div>
                 <div className="text-white font-mono text-sm break-all">
                   {truncateWalletAddress(options.returningUserWalletAddress)}
-                </div>
-                <div className="text-xs text-white/50 mt-2">
-                  Connect this wallet to access your account.
                 </div>
               </div>
             )}
@@ -1170,8 +1070,8 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                         <ConnectWallet className="w-full bg-[#0052FF] hover:bg-[#0052FF]/90 text-white font-bold py-3 px-6 rounded-lg flex items-center justify-center gap-2">
                           <Wallet size={20} className="flex-shrink-0" />
                           <span>
-                            {options?.isReturningUser 
-                              ? 'Sign in with Base wallet'
+                            {options?.isReturningUser
+                              ? 'Connect wallet to sign in'
                               : 'Connect an existing Base wallet'}
                           </span>
                         </ConnectWallet>
@@ -1184,11 +1084,11 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                         </WalletDropdown>
                       </WalletComponent>
                     </div>
-                    
+
                     <p className="text-white/60 text-xs text-center">
                       {options?.isReturningUser
-                        ? 'Connect your existing wallet to access your account and continue where you left off.'
-                        : options?.resumeSignup 
+                        ? 'Click the button above to connect and sign in.'
+                        : options?.resumeSignup
                           ? 'Connect your Base or Coinbase Wallet to get started. Click the button to continue.'
                           : 'If you have a Base or Coinbase Wallet installed, it will be detected automatically. Otherwise, you can create a new wallet with your email below.'
                       }
