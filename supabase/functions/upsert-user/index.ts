@@ -81,6 +81,49 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Call attach_identity_after_auth RPC to handle profile linking and prior_signup_payload
+    // This is the transactional RPC that handles identity attachment post-authentication
+    if (data?.id) {
+      try {
+        // Build prior_payload from signup data for profile mirroring
+        const priorPayload = {
+          username: normalizedUsername,
+          avatar_url: avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${normalizedUsername}`,
+          country: country || null,
+          first_name: firstName || null,
+          last_name: lastName || null,
+          telegram_handle: telegram || null,
+        };
+
+        console.log('Calling attach_identity_after_auth RPC:', {
+          canonical_user_id: canonicalUserId,
+          wallet_address: normalizedWallet,
+          email: normalizedEmail,
+          privy_user_id: normalizedWallet,
+        });
+
+        const { data: rpcResult, error: rpcError } = await supabase.rpc('attach_identity_after_auth', {
+          in_canonical_user_id: canonicalUserId,
+          in_wallet_address: normalizedWallet,
+          in_email: normalizedEmail,
+          in_privy_user_id: normalizedWallet,
+          in_prior_payload: priorPayload,
+          in_base_wallet_address: normalizedWallet,
+          in_eth_wallet_address: normalizedWallet,
+        });
+
+        if (rpcError) {
+          // Log but don't fail - the user was already created successfully
+          console.warn('attach_identity_after_auth RPC warning:', rpcError);
+        } else {
+          console.log('attach_identity_after_auth RPC success:', rpcResult);
+        }
+      } catch (rpcErr) {
+        // Non-blocking - don't fail the request if RPC fails
+        console.warn('attach_identity_after_auth RPC exception:', rpcErr);
+      }
+    }
+
     return new Response(JSON.stringify({ success: true, user: data }), {
       status: 200,
       headers: { ...cors, 'Content-Type': 'application/json' },

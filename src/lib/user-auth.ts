@@ -6,20 +6,20 @@ import { generatePrivyStyleId } from './identity';
 
 export interface UserProfile {
   id: string;
-  uid?: string;
-  canonical_user_id?: string; // NEW: Canonical prize:pid: format
-  email?: string;
-  wallet_address?: string;
-  eth_wallet_address?: string;
-  base_wallet_address?: string;
-  username?: string;
-  telegram_handle?: string;
-  telephone_number?: string;
-  avatar_url?: string;
-  created_at: string;
-  first_name?: string;
-  last_name?: string;
-  country?: string;
+  uid?: string | null;
+  canonical_user_id?: string | null;
+  email?: string | null;
+  wallet_address?: string | null;
+  eth_wallet_address?: string | null;
+  base_wallet_address?: string | null;
+  username?: string | null;
+  telegram_handle?: string | null;
+  telephone_number?: string | null;
+  avatar_url?: string | null;
+  created_at: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  country?: string | null;
 }
 
 /**

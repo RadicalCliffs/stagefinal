@@ -84,31 +84,43 @@ export type Database = {
       }
       competitions: {
         Row: {
+          category: string | null
           chain_id: number | null
           competition_type: string | null
           competitionended: number | null
+          competitioninformation: string | null
+          competitionname: string | null
+          competitionprize: string | null
+          competitionticketsize: number | null
           contract_address: string | null
           crdate: string | null
           created_at: string | null
+          created_by: string | null
           creator_id: string | null
           description: string | null
           draw_date: string | null
           drawn_at: string | null
           end_date: string | null
           entry_fee: string | null
+          featured: boolean | null
           font_size_override: string | null
           font_weight_override: string | null
+          havetickets: boolean | null
           id: string
           image_url: string | null
           imageurl: string | null
+          instant: boolean | null
           is_featured: boolean | null
           is_instant_win: boolean | null
           max_participants: number | null
           metadata_description: string | null
           metadata_image: string | null
           metadata_title: string | null
+          onchain_competition_id: number | null
+          outcomes_vrf_seed: string | null
           prize_type: string | null
           prize_value: number | null
+          randomness_verified_at: string | null
           start_date: string | null
           status: string | null
           ticket_price: number | null
@@ -117,39 +129,52 @@ export type Database = {
           total_tickets: number | null
           tx_hash: string | null
           uid: string | null
-          vrf_request_id: string | null
-          winner_address: string | null
-          onchain_competition_id: number | null
-          vrf_error: string | null
-          vrf_draw_requested_at: string | null
           vrf_draw_completed_at: string | null
+          vrf_draw_requested_at: string | null
+          vrf_error: string | null
+          vrf_pregenerated_tx_hash: string | null
+          vrf_request_id: string | null
+          vrf_verified: boolean | null
+          winner_address: string | null
         }
         Insert: {
+          category?: string | null
           chain_id?: number | null
           competition_type?: string | null
           competitionended?: number | null
+          competitioninformation?: string | null
+          competitionname?: string | null
+          competitionprize?: string | null
+          competitionticketsize?: number | null
           contract_address?: string | null
           crdate?: string | null
           created_at?: string | null
+          created_by?: string | null
           creator_id?: string | null
           description?: string | null
           draw_date?: string | null
           drawn_at?: string | null
           end_date?: string | null
           entry_fee?: string | null
+          featured?: boolean | null
           font_size_override?: string | null
           font_weight_override?: string | null
+          havetickets?: boolean | null
           id?: string
           image_url?: string | null
           imageurl?: string | null
+          instant?: boolean | null
           is_featured?: boolean | null
           is_instant_win?: boolean | null
           max_participants?: number | null
           metadata_description?: string | null
           metadata_image?: string | null
           metadata_title?: string | null
+          onchain_competition_id?: number | null
+          outcomes_vrf_seed?: string | null
           prize_type?: string | null
           prize_value?: number | null
+          randomness_verified_at?: string | null
           start_date?: string | null
           status?: string | null
           ticket_price?: number | null
@@ -158,39 +183,52 @@ export type Database = {
           total_tickets?: number | null
           tx_hash?: string | null
           uid?: string | null
-          vrf_request_id?: string | null
-          winner_address?: string | null
-          onchain_competition_id?: number | null
-          vrf_error?: string | null
-          vrf_draw_requested_at?: string | null
           vrf_draw_completed_at?: string | null
+          vrf_draw_requested_at?: string | null
+          vrf_error?: string | null
+          vrf_pregenerated_tx_hash?: string | null
+          vrf_request_id?: string | null
+          vrf_verified?: boolean | null
+          winner_address?: string | null
         }
         Update: {
+          category?: string | null
           chain_id?: number | null
           competition_type?: string | null
           competitionended?: number | null
+          competitioninformation?: string | null
+          competitionname?: string | null
+          competitionprize?: string | null
+          competitionticketsize?: number | null
           contract_address?: string | null
           crdate?: string | null
           created_at?: string | null
+          created_by?: string | null
           creator_id?: string | null
           description?: string | null
           draw_date?: string | null
           drawn_at?: string | null
           end_date?: string | null
           entry_fee?: string | null
+          featured?: boolean | null
           font_size_override?: string | null
           font_weight_override?: string | null
+          havetickets?: boolean | null
           id?: string
           image_url?: string | null
           imageurl?: string | null
+          instant?: boolean | null
           is_featured?: boolean | null
           is_instant_win?: boolean | null
           max_participants?: number | null
           metadata_description?: string | null
           metadata_image?: string | null
           metadata_title?: string | null
+          onchain_competition_id?: number | null
+          outcomes_vrf_seed?: string | null
           prize_type?: string | null
           prize_value?: number | null
+          randomness_verified_at?: string | null
           start_date?: string | null
           status?: string | null
           ticket_price?: number | null
@@ -199,12 +237,13 @@ export type Database = {
           total_tickets?: number | null
           tx_hash?: string | null
           uid?: string | null
-          vrf_request_id?: string | null
-          winner_address?: string | null
-          onchain_competition_id?: number | null
-          vrf_error?: string | null
-          vrf_draw_requested_at?: string | null
           vrf_draw_completed_at?: string | null
+          vrf_draw_requested_at?: string | null
+          vrf_error?: string | null
+          vrf_pregenerated_tx_hash?: string | null
+          vrf_request_id?: string | null
+          vrf_verified?: boolean | null
+          winner_address?: string | null
         }
         Relationships: []
       }
@@ -759,48 +798,93 @@ export type Database = {
       canonical_users: {
         Row: {
           avatar_url: string | null
+          base_wallet_address: string | null
+          canonical_user_id: string | null
+          competitions_entered: number | null
+          country: string | null
           created_at: string | null
+          discord_username: string | null
           email: string | null
+          eth_wallet_address: string | null
+          first_name: string | null
+          google_email: string | null
           has_used_new_user_bonus: boolean | null
           id: string
+          last_name: string | null
+          linked_external_wallet: string | null
+          phone: string | null
           privy_user_id: string | null
+          smart_wallet_address: string | null
           telegram_handle: string | null
+          telephone_number: string | null
+          total_amount_spent: number | null
+          total_entries: number | null
+          twitter_username: string | null
           uid: string | null
+          updated_at: string | null
           usdc_balance: number
           username: string | null
           wallet_address: string | null
-          eth_wallet_address: string | null
-          base_wallet_address: string | null
         }
         Insert: {
           avatar_url?: string | null
+          base_wallet_address?: string | null
+          canonical_user_id?: string | null
+          competitions_entered?: number | null
+          country?: string | null
           created_at?: string | null
+          discord_username?: string | null
           email?: string | null
+          eth_wallet_address?: string | null
+          first_name?: string | null
+          google_email?: string | null
           has_used_new_user_bonus?: boolean | null
           id?: string
+          last_name?: string | null
+          linked_external_wallet?: string | null
+          phone?: string | null
           privy_user_id?: string | null
+          smart_wallet_address?: string | null
           telegram_handle?: string | null
+          telephone_number?: string | null
+          total_amount_spent?: number | null
+          total_entries?: number | null
+          twitter_username?: string | null
           uid?: string | null
+          updated_at?: string | null
           usdc_balance?: number
           username?: string | null
           wallet_address?: string | null
-          eth_wallet_address?: string | null
-          base_wallet_address?: string | null
         }
         Update: {
           avatar_url?: string | null
+          base_wallet_address?: string | null
+          canonical_user_id?: string | null
+          competitions_entered?: number | null
+          country?: string | null
           created_at?: string | null
+          discord_username?: string | null
           email?: string | null
+          eth_wallet_address?: string | null
+          first_name?: string | null
+          google_email?: string | null
           has_used_new_user_bonus?: boolean | null
           id?: string
+          last_name?: string | null
+          linked_external_wallet?: string | null
+          phone?: string | null
           privy_user_id?: string | null
+          smart_wallet_address?: string | null
           telegram_handle?: string | null
+          telephone_number?: string | null
+          total_amount_spent?: number | null
+          total_entries?: number | null
+          twitter_username?: string | null
           uid?: string | null
+          updated_at?: string | null
           usdc_balance?: number
           username?: string | null
           wallet_address?: string | null
-          eth_wallet_address?: string | null
-          base_wallet_address?: string | null
         }
         Relationships: []
       }
@@ -831,6 +915,7 @@ export type Database = {
       Prize_Instantprizes: {
         Row: {
           avatarUrl: string | null
+          claimed_at: string | null
           competitionId: string | null
           description: string | null
           priority: number | null
@@ -839,9 +924,11 @@ export type Database = {
           url: string | null
           winningTicket: number
           winningWalletAddress: string | null
+          wonAt: string | null
         }
         Insert: {
           avatarUrl?: string | null
+          claimed_at?: string | null
           competitionId?: string | null
           description?: string | null
           priority?: number | null
@@ -850,9 +937,11 @@ export type Database = {
           url?: string | null
           winningTicket: number
           winningWalletAddress?: string | null
+          wonAt?: string | null
         }
         Update: {
           avatarUrl?: string | null
+          claimed_at?: string | null
           competitionId?: string | null
           description?: string | null
           priority?: number | null
@@ -861,6 +950,7 @@ export type Database = {
           url?: string | null
           winningTicket?: number
           winningWalletAddress?: string | null
+          wonAt?: string | null
         }
         Relationships: []
       }
@@ -1095,6 +1185,39 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           rating?: number | null
+        }
+        Relationships: []
+      }
+      pending_tickets: {
+        Row: {
+          competition_id: string | null
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          reservation_id: string | null
+          status: string | null
+          ticket_numbers: number[] | null
+          user_id: string | null
+        }
+        Insert: {
+          competition_id?: string | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          reservation_id?: string | null
+          status?: string | null
+          ticket_numbers?: number[] | null
+          user_id?: string | null
+        }
+        Update: {
+          competition_id?: string | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          reservation_id?: string | null
+          status?: string | null
+          ticket_numbers?: number[] | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -1860,6 +1983,19 @@ export type Database = {
       }
     }
     Views: {
+      competition_winners: {
+        Row: {
+          competitionid: string | null
+          competitionname: string | null
+          competitionprize: string | null
+          crDate: string | null
+          imageurl: string | null
+          ticket_number: number | null
+          txhash: string | null
+          Winner: string | null
+        }
+        Relationships: []
+      }
       competition_entries_public: {
         Row: {
           competition_id: string | null
@@ -2068,6 +2204,117 @@ export type Database = {
           purchased_at: string
           wallet_address: string
         }[]
+      }
+      attach_identity_after_auth: {
+        Args: {
+          in_canonical_user_id: string
+          in_wallet_address: string
+          in_email?: string | null
+          in_privy_user_id?: string | null
+          in_prior_payload?: Json
+          in_base_wallet_address?: string | null
+          in_eth_wallet_address?: string | null
+        }
+        Returns: Json
+      }
+      update_user_avatar: {
+        Args: {
+          p_user_id: string
+          p_avatar_url: string
+        }
+        Returns: Json
+      }
+      get_user_tickets: {
+        Args: {
+          p_user_id: string
+        }
+        Returns: {
+          ticket_number: number
+          competition_id: string
+          purchased_at: string
+        }[]
+      }
+      get_recent_entries_count: {
+        Args: {
+          p_user_id: string
+          p_days?: number
+        }
+        Returns: number
+      }
+      update_user_profile_by_identifier: {
+        Args: {
+          p_identifier: string
+          p_updates: Json
+        }
+        Returns: Json
+      }
+      get_competition_entries: {
+        Args: {
+          p_competition_id: string
+          p_limit?: number
+          p_offset?: number
+        }
+        Returns: {
+          ticket_number: number
+          wallet_address: string
+          username: string | null
+          avatar_url: string | null
+          purchased_at: string
+        }[]
+      }
+      get_competition_entries_bypass_rls: {
+        Args: {
+          competition_identifier: string
+          p_limit?: number
+          p_offset?: number
+        }
+        Returns: {
+          ticket_number: number
+          wallet_address: string
+          username: string | null
+          avatar_url: string | null
+          purchased_at: string
+        }[]
+      }
+      get_competition_ticket_availability_text: {
+        Args: {
+          p_competition_uid: string
+        }
+        Returns: {
+          sold_count: number
+          total_tickets: number
+          sold_tickets: number
+        }
+      }
+      get_user_transactions: {
+        Args: {
+          p_user_id: string
+          p_limit?: number
+        }
+        Returns: {
+          id: string
+          type: string
+          amount: number
+          created_at: string
+          status: string
+        }[]
+      }
+      get_comprehensive_user_dashboard_entries: {
+        Args: {
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      get_available_ticket_count_v2: {
+        Args: {
+          p_competition_id: string
+        }
+        Returns: {
+          success: boolean
+          available_count: number
+          total_tickets: number
+          sold_count: number
+        }
       }
     }
     Enums: {

@@ -10,7 +10,7 @@ import {
   isCompetitionVisible,
   COMPETITION_VISIBILITY_CUTOFF,
 } from './appConfig';
-import { userIdsEqual, normalizeWalletAddress } from '../utils/userId';
+import { userIdsEqual, normalizeWalletAddress, toPrizePid, isWalletAddress } from '../utils/userId';
 import type {
   WinnerCardProps,
   Faq,
