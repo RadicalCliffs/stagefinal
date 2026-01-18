@@ -88,6 +88,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const refreshInProgressRef = useRef(false);
   // Track when auth-complete event was handled to prevent race condition with handleAuthStateChange
   const authCompleteHandledRef = useRef<number>(0);
+  // Grace period after auth-complete event to prevent redundant refreshUserData calls
+  const AUTH_COMPLETE_GRACE_PERIOD_MS = 2000;
 
   // Extract email from currentUser (memoized to prevent unnecessary recalculations)
   const userEmail = currentUser?.email || (currentUser as any)?.emails?.[0]?.value || (currentUser as any)?.emails?.[0]?.address;
@@ -411,7 +413,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // The auth-complete handler already called refreshUserData with the correct email
         // This prevents a race condition where this effect calls refreshUserData without email
         const timeSinceAuthComplete = Date.now() - authCompleteHandledRef.current;
-        if (timeSinceAuthComplete < 2000) {
+        if (timeSinceAuthComplete < AUTH_COMPLETE_GRACE_PERIOD_MS) {
           console.log('[AuthContext] Auth-complete event was just handled, skipping redundant refresh from handleAuthStateChange');
           // Still mark as fetched so we don't trigger again
           lastFetchedUserIdRef.current = effectiveWalletAddress;
