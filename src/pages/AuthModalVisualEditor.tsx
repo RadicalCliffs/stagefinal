@@ -54,7 +54,10 @@ import {
   Layers,
   Copy,
   FileText,
-  LayoutDashboard
+  LayoutDashboard,
+  Monitor,
+  Tablet,
+  Smartphone
 } from 'lucide-react';
 import NewAuthModal, { type NewAuthModalTextOverrides } from '../components/NewAuthModal';
 import { BaseWalletAuthModal, type BaseWalletAuthModalTextOverrides } from '../components/BaseWalletAuthModal';
@@ -186,6 +189,8 @@ interface EditorTarget {
 }
 
 
+type ViewportMode = 'desktop' | 'tablet' | 'mobile';
+
 interface EditorState {
   editorTarget: EditorTarget;
   selectedModal: ModalType;  // Keep for backward compatibility
@@ -201,6 +206,7 @@ interface EditorState {
   hasChanges: boolean;
   history: EditorState[]; // New: For undo/redo
   historyIndex: number; // New: Current position in history
+  viewportMode: ViewportMode; // New: For responsive preview
 }
 
 // Preview props for modals that require additional context
@@ -232,6 +238,31 @@ const PREVIEW_HANDLERS = {
 
 // Constants for layout
 const EDITOR_MAX_WIDTH = '2000px';
+
+// Viewport configurations for responsive preview
+const VIEWPORT_CONFIGS = {
+  desktop: {
+    width: '100%',
+    minWidth: '1024px',
+    maxWidth: '100%',
+    label: 'Desktop',
+    description: '1024px+ (lg breakpoint)',
+  },
+  tablet: {
+    width: '768px',
+    minWidth: '768px',
+    maxWidth: '768px',
+    label: 'Tablet',
+    description: '768px (md breakpoint)',
+  },
+  mobile: {
+    width: '375px',
+    minWidth: '375px',
+    maxWidth: '375px',
+    label: 'Mobile',
+    description: '375px (iPhone)',
+  },
+};
 
 // Mock user data for preview - provides authenticated state
 const MOCK_USER_DATA = {
@@ -292,6 +323,7 @@ export default function AuthModalVisualEditor() {
     hasChanges: false,
     history: [],
     historyIndex: -1,
+    viewportMode: 'desktop', // Default to desktop viewport
   });
 
   const [activeTab, setActiveTab] = useState<'flow' | 'colors' | 'fonts' | 'text' | 'images' | 'buttons' | 'sections' | 'presets' | 'site-wide' | 'backend'>('flow');
@@ -4729,14 +4761,28 @@ TESTING CHECKLIST:
       return '';
     }).filter(Boolean).join('\n');
 
+    // Get viewport configuration
+    const viewportConfig = VIEWPORT_CONFIGS[state.viewportMode];
+    const isModal = state.editorTarget.type === 'modal';
+
     return `
     /* LIVE PREVIEW STYLES - Updates in real-time as you edit */
     
     #modal-preview-container {
       position: relative;
       isolation: isolate;
+      /* Set explicit width for viewport mode to enable container-based responsive behavior */
+      width: ${viewportConfig.width};
+      max-width: ${viewportConfig.maxWidth};
+      min-width: ${viewportConfig.minWidth};
+      margin: 0 auto;
+      /* Enable container queries for true responsive preview */
+      container-type: inline-size;
+      container-name: preview;
     }
     
+    ${isModal ? `
+    /* Modal-specific positioning overrides - only for modals, not pages */
     /* Contain modals within preview area - prevent fixed positioning from escaping */
     #modal-preview-container > div[class*="fixed"],
     #modal-preview-container > div[class*="inset-0"] {
@@ -4767,6 +4813,7 @@ TESTING CHECKLIST:
       max-width: 100% !important;
       overflow-y: auto !important;
     }
+    ` : ''}
     
     ${colorOverrides}
     ${fontOverrides}
@@ -5116,6 +5163,47 @@ TESTING CHECKLIST:
                   LIVE
                 </span>
               </div>
+              
+              {/* Viewport Selector */}
+              <div className="mb-4 flex items-center justify-center gap-2">
+                <button
+                  onClick={() => setState(prev => ({ ...prev, viewportMode: 'desktop' }))}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                    state.viewportMode === 'desktop'
+                      ? 'bg-blue-500/20 text-blue-400 border-2 border-blue-500/50'
+                      : 'bg-white/5 text-white/60 border border-white/10 hover:bg-white/10'
+                  }`}
+                  title={VIEWPORT_CONFIGS.desktop.description}
+                >
+                  <Monitor size={16} />
+                  <span className="text-sm font-medium">{VIEWPORT_CONFIGS.desktop.label}</span>
+                </button>
+                <button
+                  onClick={() => setState(prev => ({ ...prev, viewportMode: 'tablet' }))}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                    state.viewportMode === 'tablet'
+                      ? 'bg-blue-500/20 text-blue-400 border-2 border-blue-500/50'
+                      : 'bg-white/5 text-white/60 border border-white/10 hover:bg-white/10'
+                  }`}
+                  title={VIEWPORT_CONFIGS.tablet.description}
+                >
+                  <Tablet size={16} />
+                  <span className="text-sm font-medium">{VIEWPORT_CONFIGS.tablet.label}</span>
+                </button>
+                <button
+                  onClick={() => setState(prev => ({ ...prev, viewportMode: 'mobile' }))}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                    state.viewportMode === 'mobile'
+                      ? 'bg-blue-500/20 text-blue-400 border-2 border-blue-500/50'
+                      : 'bg-white/5 text-white/60 border border-white/10 hover:bg-white/10'
+                  }`}
+                  title={VIEWPORT_CONFIGS.mobile.description}
+                >
+                  <Smartphone size={16} />
+                  <span className="text-sm font-medium">{VIEWPORT_CONFIGS.mobile.label}</span>
+                </button>
+              </div>
+              
               <div 
                 className="bg-[#0A0A0F] rounded-lg overflow-auto border-2 border-white/20 shadow-inner" 
                 style={{ 
@@ -5190,8 +5278,8 @@ TESTING CHECKLIST:
               <p className="text-white/40 text-xs mt-3 text-center flex items-center justify-center gap-2">
                 <span className="inline-block w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse"></span>
                 {state.editorTarget.type === 'page' 
-                  ? 'Full page preview - edit colors, fonts, and text in real-time' 
-                  : 'Preview updates in REAL-TIME as you edit colors, fonts & text'}
+                  ? `${VIEWPORT_CONFIGS[state.viewportMode].label} view - Full page preview with responsive design` 
+                  : `${VIEWPORT_CONFIGS[state.viewportMode].label} view - Preview updates in REAL-TIME with accurate responsive rendering`}
               </p>
             </div>
           </div>
