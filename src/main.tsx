@@ -284,17 +284,14 @@ createRoot(document.getElementById('root')!).render(
                     // IMPORTANT: Use 'modal' display for proper Base popup experience on mobile
                     // This triggers the native Coinbase/Base wallet popup instead of inline UI
                     display: 'modal',
-                    // Enable MetaMask and Phantom wallet options with proper deep linking
-                    // These wallets will use the wagmi connectors configured above which handle:
-                    // - Browser extension detection (desktop)
-                    // - Mobile deep linking to open the wallet app
-                    // - QR code display for mobile-to-desktop connections
+                    // ONLY support Base/Coinbase wallets - no Phantom, MetaMask or other wallets
+                    // Users should create/connect Base wallets exclusively for theprize.io
                     supportedWallets: {
-                      // Enable MetaMask - uses MetaMask SDK for mobile deep linking
-                      metamask: true,
-                      // Enable Phantom - uses injected connector, opens app on mobile
-                      phantom: true,
-                      // Keep other wallets disabled for now
+                      // Disable MetaMask - we want Base-only wallets
+                      metamask: false,
+                      // Disable Phantom - we want Base-only wallets
+                      phantom: false,
+                      // Keep other wallets disabled
                       rabby: false,
                       trust: false,
                       frame: false,

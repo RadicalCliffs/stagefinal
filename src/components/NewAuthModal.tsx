@@ -254,7 +254,7 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
   };
 
   /**
-   * Step 2: Complete profile and send OTP
+   * Step 2: Complete profile - NO OTP yet, will be handled by CDP during wallet creation
    */
   const handleProfileSubmit = async () => {
     if (!profileData.email.trim()) {
@@ -301,26 +301,13 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
         }
       }
 
-      // Send OTP via Netlify function using SendGrid
-      console.log('[NewAuthModal] Sending OTP to:', profileData.email);
-
-      const response = await fetch('/api/send-otp-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: profileData.email.toLowerCase() }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to send verification code');
-      }
-
-      setOtpSent(true);
-      setStep('email-otp');
+      // Skip email OTP - it will be handled by CDP during wallet creation
+      // Go straight to wallet step
+      console.log('[NewAuthModal] Profile complete, proceeding to wallet step');
+      setStep('wallet');
     } catch (err) {
-      console.error('[NewAuthModal] Error sending OTP:', err);
-      setError(err instanceof Error ? err.message : 'Failed to send verification code. Please try again.');
+      console.error('[NewAuthModal] Error in profile submit:', err);
+      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);
     }

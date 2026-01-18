@@ -320,6 +320,58 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
           setUserEmail(email);
           console.log('[BaseWallet] CDP sign-in successful:', { email, wallet: evmAddress });
 
+          // Check if we have pending signup data from NewAuthModal
+          const pendingDataStr = localStorage.getItem('pendingSignupData');
+          let pendingData = null;
+          if (pendingDataStr) {
+            try {
+              pendingData = JSON.parse(pendingDataStr);
+              // Clear it so it's not used again
+              localStorage.removeItem('pendingSignupData');
+            } catch (e) {
+              console.error('[BaseWallet] Failed to parse pending signup data:', e);
+            }
+          }
+
+          // If we have pending profile data from NewAuthModal, create user with that data
+          if (pendingData?.profileData) {
+            console.log('[BaseWallet] Creating user with profile data from NewAuthModal');
+            const profileData = pendingData.profileData;
+            
+            // Create user via edge function
+            try {
+              const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+              const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+              
+              const upsertResponse = await fetch(`${supabaseUrl}/functions/v1/upsert-user`, {
+                method: 'POST',
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${supabaseAnonKey}`,
+                },
+                body: JSON.stringify({
+                  username: profileData.username,
+                  email: profileData.email || email,
+                  firstName: profileData.firstName,
+                  lastName: profileData.lastName,
+                  country: profileData.country,
+                  telegram: profileData.telegram,
+                  avatar: profileData.avatar,
+                  walletAddress: evmAddress, // Include wallet address in user creation
+                }),
+              });
+
+              if (!upsertResponse.ok) {
+                throw new Error('Failed to create user');
+              }
+              
+              console.log('[BaseWallet] User created successfully');
+            } catch (err) {
+              console.error('[BaseWallet] Failed to create user:', err);
+              // Continue anyway - linkWalletToExistingUser might still work
+            }
+          }
+
           // Try to find existing user by email and link wallet
           const result = await linkWalletToExistingUser(email, evmAddress);
           
@@ -520,12 +572,12 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             </div>
 
             <h2 className="text-white text-2xl font-bold mb-2 text-center">
-              {textOverrides?.loginTitle || (options?.isReturningUser ? 'Sign in with your wallet' : 'Create an account')}
+              {textOverrides?.loginTitle || (options?.isReturningUser ? 'Sign in with your wallet' : 'Verify email and create wallet')}
             </h2>
             <p className="text-white/60 text-sm mb-6 text-center">
               {textOverrides?.loginSubtitle || (options?.isReturningUser
                 ? 'Sign in with your Base wallet to access your account.'
-                : 'Enter your email address to continue, Base will send you an OTP to verify your registration:')}
+                : 'Enter your email to verify and create your free Base wallet in one step.')}
             </p>
 
             <div className="w-full">
@@ -577,7 +629,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             <p className="text-white/40 text-xs mt-4 text-center">
               {options?.isReturningUser
                 ? "We'll verify your identity to link your wallet to your account."
-                : 'Base will send you a one-time code to verify your registration.'}
+                : 'You'll receive a one-time code to verify your email and create your Base wallet.'}
             </p>
 
             <button
@@ -748,8 +800,8 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                       {options?.isReturningUser
                         ? 'Connect your existing wallet to access your account and continue where you left off.'
                         : options?.resumeSignup 
-                          ? 'Base, Coinbase, Metamask, Phantom, Rainbow, theprize.io supports many of the major wallet providers. Simply click the button to continue.'
-                          : 'If you have MetaMask, Coinbase Wallet, Base, or another supported wallet installed, it will be detected automatically. Otherwise, you can create a new wallet with your email below.'
+                          ? 'Connect your Base or Coinbase Wallet to get started. Click the button to continue.'
+                          : 'If you have a Base or Coinbase Wallet installed, it will be detected automatically. Otherwise, you can create a new wallet with your email below.'
                       }
                     </p>
                   </div>
