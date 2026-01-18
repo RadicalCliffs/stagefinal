@@ -52,6 +52,20 @@ Deno.serve(async (req) => {
       hasWallet: !!normalizedWallet,
     });
 
+    // Helper function to build wallet fields object
+    const buildWalletFields = () => {
+      if (!normalizedWallet) return {};
+      return {
+        wallet_address: normalizedWallet,
+        base_wallet_address: normalizedWallet,
+        eth_wallet_address: normalizedWallet,
+        privy_user_id: normalizedWallet,
+        canonical_user_id: canonicalUserId,
+        wallet_linked: true,
+        auth_provider: 'cdp',
+      };
+    };
+
     // Check if user already exists by email
     const { data: existingUser } = await supabase
       .from('canonical_users')
@@ -72,25 +86,16 @@ Deno.serve(async (req) => {
       // User exists - UPDATE with all fields including wallet fields
       console.log('[upsert-user] Updating existing user:', existingUser.id);
       
-      const updateData: any = {
+      const updateData = {
         username: normalizedUsername,
         first_name: firstName || null,
         last_name: lastName || null,
         country: country || null,
         telegram_handle: telegram || null,
         avatar_url: avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${normalizedUsername}`,
+        // CRITICAL: Include wallet fields if wallet address is provided
+        ...buildWalletFields(),
       };
-
-      // CRITICAL: If wallet is provided, update ALL wallet fields
-      if (normalizedWallet) {
-        updateData.wallet_address = normalizedWallet;
-        updateData.base_wallet_address = normalizedWallet;
-        updateData.eth_wallet_address = normalizedWallet;
-        updateData.privy_user_id = normalizedWallet;
-        updateData.canonical_user_id = canonicalUserId;
-        updateData.wallet_linked = true;
-        updateData.auth_provider = 'cdp';
-      }
 
       const result = await supabase
         .from('canonical_users')
@@ -105,7 +110,7 @@ Deno.serve(async (req) => {
       // User doesn't exist - INSERT new user
       console.log('[upsert-user] Creating new user');
       
-      const insertData: any = {
+      const insertData = {
         email: normalizedEmail,
         username: normalizedUsername,
         first_name: firstName || null,
@@ -115,18 +120,9 @@ Deno.serve(async (req) => {
         avatar_url: avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${normalizedUsername}`,
         usdc_balance: 0,
         has_used_new_user_bonus: false,
+        // Include wallet fields if wallet address is provided
+        ...buildWalletFields(),
       };
-
-      // Include wallet fields if wallet address is provided
-      if (normalizedWallet) {
-        insertData.wallet_address = normalizedWallet;
-        insertData.base_wallet_address = normalizedWallet;
-        insertData.eth_wallet_address = normalizedWallet;
-        insertData.privy_user_id = normalizedWallet;
-        insertData.canonical_user_id = canonicalUserId;
-        insertData.wallet_linked = true;
-        insertData.auth_provider = 'cdp';
-      }
 
       const result = await supabase
         .from('canonical_users')
