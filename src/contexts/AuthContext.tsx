@@ -60,6 +60,10 @@ interface AuthContextType extends UserData {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Grace period after auth-complete event to prevent redundant refreshUserData calls
+// This prevents a race condition where handleAuthStateChange tries to refresh without email
+const AUTH_COMPLETE_GRACE_PERIOD_MS = 2000;
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // CDP/Base hooks for authentication - replaces Privy
   const { currentUser } = useCurrentUser();
@@ -88,8 +92,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const refreshInProgressRef = useRef(false);
   // Track when auth-complete event was handled to prevent race condition with handleAuthStateChange
   const authCompleteHandledRef = useRef<number>(0);
-  // Grace period after auth-complete event to prevent redundant refreshUserData calls
-  const AUTH_COMPLETE_GRACE_PERIOD_MS = 2000;
 
   // Extract email from currentUser (memoized to prevent unnecessary recalculations)
   const userEmail = currentUser?.email || (currentUser as any)?.emails?.[0]?.value || (currentUser as any)?.emails?.[0]?.address;
