@@ -139,12 +139,28 @@ async function getEdgeFunctions(): Promise<any[]> {
   }
 }
 
-// Get database indexes (placeholder - would need actual DB query)
-async function getDatabaseIndexes(): Promise<any[]> {
-  // This would require a direct connection to Supabase
-  // For now, return empty array
-  // TODO: Implement actual index querying
-  return [];
+// Get database indexes
+async function getDatabaseIndexes(serviceClient: ReturnType<typeof createClient>): Promise<any[]> {
+  try {
+    // Query pg_indexes system catalog to get all non-system indexes
+    const { data, error } = await serviceClient.rpc('get_database_indexes');
+    
+    if (error) {
+      // Check if it's a missing function error
+      if (error.message && error.message.includes('function') && error.message.includes('does not exist')) {
+        console.warn('get_database_indexes RPC function not found. Please run migrations.');
+        return [];
+      }
+      console.error('Error querying indexes:', error);
+      throw new Error(`Failed to query indexes: ${error.message}`);
+    }
+    
+    return data || [];
+  } catch (error) {
+    console.error('Error getting database indexes:', error);
+    // Return empty array for compatibility, but log the specific error
+    return [];
+  }
 }
 
 export default async (req: Request, context: Context) => {
@@ -211,7 +227,7 @@ export default async (req: Request, context: Context) => {
     const [rpcFunctions, edgeFunctions, indexes] = await Promise.all([
       getRPCFunctions(),
       getEdgeFunctions(),
-      getDatabaseIndexes()
+      getDatabaseIndexes(serviceClient)
     ]);
 
     return new Response(
