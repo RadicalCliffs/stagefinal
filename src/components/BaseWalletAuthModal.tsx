@@ -9,6 +9,7 @@ import { supabase } from "../lib/supabase";
 import { userDataService } from "../services/userDataService";
 import { toPrizePid } from "../utils/userId";
 import { truncateWalletAddress } from "../utils/util";
+import BaseLogo from "../assets/images/Base_lockup_white.png";
 
 /**
  * Base Wallet Authentication Modal
@@ -635,17 +636,20 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
         {flowState === 'cdp-signin' && (
           <div className="flex flex-col items-center">
-            <div className="w-16 h-16 bg-[#0052FF] rounded-full flex items-center justify-center mb-4">
-              <Wallet size={32} className="text-white" />
+            <div className="mb-4">
+              <img src={BaseLogo} alt="Base" className="h-10" />
             </div>
 
             <h2 className="text-white text-2xl font-bold mb-2 text-center">
-              {textOverrides?.loginTitle || (options?.isReturningUser ? 'Sign in with your wallet' : 'Verify email and create wallet')}
+              {textOverrides?.loginTitle || 'Verify with Base to continue'}
             </h2>
+            <p className="text-white/60 text-sm mb-4 text-center">
+              {textOverrides?.loginSubtitle || 'Enter your email to verify and create your free Base wallet in one step. (You won\'t have to do this again if you have your wallet saved on phone or desktop*)'}
+            </p>
+
+            <h3 className="text-white text-lg font-semibold mb-1 text-center">Sign in</h3>
             <p className="text-white/60 text-sm mb-6 text-center">
-              {textOverrides?.loginSubtitle || (options?.isReturningUser
-                ? 'Sign in with your Base wallet to access your account.'
-                : 'Enter your email to verify and create your free Base wallet in one step.')}
+              Base will send you a verification code via email.
             </p>
 
             <div className="w-full">
@@ -694,19 +698,11 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               </SignIn>
             </div>
 
-            <p className="text-white/40 text-xs mt-4 text-center">
-              {options?.isReturningUser
-                ? "We'll verify your identity to link your wallet to your account."
-                : "You'll receive a one-time code to verify your email and create your Base wallet."}
-            </p>
-
             <button
               onClick={() => setFlowState('wallet-choice')}
               className="mt-4 text-[#0052FF] text-sm hover:text-[#0052FF]/80 text-center"
             >
-              {options?.isReturningUser 
-                ? `(Want to use a different wallet? Click here)`
-                : `(realized you've already got a Base wallet? No problems, click here to connect that instead)`}
+              (realized you've already got a Base wallet? No problems, click here to connect that instead)
             </button>
           </div>
         )}
