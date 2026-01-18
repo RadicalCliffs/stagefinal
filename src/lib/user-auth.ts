@@ -380,6 +380,63 @@ export const userAuth = {
     // ============================================
     console.log('[user-auth] Step 5: Creating new user with canonical ID');
 
+    // CRITICAL FIX: One final check by wallet address before creating a new user
+    // This handles race conditions where upsert-user edge function just created the user
+    // but we haven't found it yet due to replication lag or timing
+    if (walletAddress) {
+      console.log('[user-auth] Step 5a: Final safety check by wallet address before creating');
+      
+      const { data: finalWalletCheckArray } = await supabase
+        .from('canonical_users')
+        .select('*')
+        .or(`wallet_address.ilike.${walletAddress.toLowerCase()},base_wallet_address.ilike.${walletAddress.toLowerCase()},canonical_user_id.eq.${canonicalUserId}`)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      const finalWalletCheck = finalWalletCheckArray?.[0] || null;
+      
+      if (finalWalletCheck) {
+        console.log('[user-auth] ✅ Found user in final safety check! Returning existing user instead of creating duplicate.');
+        
+        // Update with any missing fields
+        const updates: Record<string, any> = {};
+        if (email && !finalWalletCheck.email) {
+          updates.email = email;
+        }
+        if (!finalWalletCheck.canonical_user_id) {
+          updates.canonical_user_id = canonicalUserId;
+        }
+        if (!finalWalletCheck.avatar_url) {
+          updates.avatar_url = userDataService.getDefaultAvatar();
+        }
+        
+        if (Object.keys(updates).length > 0) {
+          await supabase
+            .from('canonical_users')
+            .update(updates)
+            .eq('id', finalWalletCheck.id);
+        }
+        
+        return {
+          id: finalWalletCheck.id,
+          uid: finalWalletCheck.uid || finalWalletCheck.id,
+          canonical_user_id: finalWalletCheck.canonical_user_id || canonicalUserId,
+          email: finalWalletCheck.email || email,
+          wallet_address: finalWalletCheck.wallet_address || walletAddress,
+          eth_wallet_address: finalWalletCheck.eth_wallet_address || finalWalletCheck.wallet_address,
+          base_wallet_address: finalWalletCheck.base_wallet_address || finalWalletCheck.wallet_address,
+          username: finalWalletCheck.username,
+          telegram_handle: finalWalletCheck.telegram_handle,
+          telephone_number: finalWalletCheck.telephone_number,
+          avatar_url: finalWalletCheck.avatar_url || updates.avatar_url,
+          created_at: finalWalletCheck.created_at,
+          first_name: finalWalletCheck.first_name,
+          last_name: finalWalletCheck.last_name,
+          country: finalWalletCheck.country,
+        };
+      }
+    }
+
     const newUser = {
       canonical_user_id: canonicalUserId, // NEW: Store canonical format
       privy_user_id: inputUserId, // Keep legacy field for backward compatibility

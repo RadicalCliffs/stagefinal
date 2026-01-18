@@ -320,7 +320,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const refreshUserData = useCallback(async () => {
+  const refreshUserData = useCallback(async (overrideEmail?: string) => {
     if (!effectiveWalletAddress) return;
 
     // Guard against concurrent refresh calls - prevents race conditions
@@ -340,14 +340,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Use the stored isCDPAuthenticated flag which considers both isSignedIn and evmAddress
       const isFromCDP = isCDPAuthenticated;
 
+      // CRITICAL FIX: Use overrideEmail from auth-complete event if provided
+      // This ensures we find existing users by email even if currentUser.email is not yet populated
+      const effectiveEmail = overrideEmail || userEmail;
+
+      console.log('[AuthContext] refreshUserData called with:', {
+        effectiveWalletAddress,
+        effectiveEmail,
+        overrideEmail,
+        userEmail,
+        source: overrideEmail ? 'auth-complete event' : 'currentUser'
+      });
+
       // Create a user object compatible with the existing getOrCreateUser function
       const walletClientType = isFromCDP ? 'base_account' : 'external';
       const userForAuth = {
         id: effectiveWalletAddress, // Use wallet address as the primary identifier
-        email: { address: userEmail },
+        email: { address: effectiveEmail },
         wallet: { address: effectiveWalletAddress },
-        linkedAccounts: userEmail ? [
-          { type: 'email', address: userEmail },
+        linkedAccounts: effectiveEmail ? [
+          { type: 'email', address: effectiveEmail },
           { type: 'wallet', address: effectiveWalletAddress, walletClientType },
         ] : [
           { type: 'wallet', address: effectiveWalletAddress, walletClientType },
@@ -480,8 +492,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       initialFetchDoneRef.current = false;
       lastFetchedUserIdRef.current = null;
       // Trigger refresh if we have a wallet address
+      // CRITICAL FIX: Pass the email from the event detail to refreshUserData
+      // This ensures we can find the existing user by email even if currentUser.email is not yet populated
       if (event.detail?.walletAddress || effectiveWalletAddress) {
-        void refreshUserData();
+        void refreshUserData(event.detail?.email);
       }
     };
 
