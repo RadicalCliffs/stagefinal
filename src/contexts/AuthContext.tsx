@@ -494,6 +494,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Trigger refresh if we have a wallet address
       // CRITICAL FIX: Pass the email from the event detail to refreshUserData
       // This ensures we can find the existing user by email even if currentUser.email is not yet populated
+      // Note: void is used to explicitly ignore the promise. Error handling is done within refreshUserData.
       if (event.detail?.walletAddress || effectiveWalletAddress) {
         void refreshUserData(event.detail?.email);
       }
