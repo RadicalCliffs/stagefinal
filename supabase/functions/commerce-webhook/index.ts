@@ -86,13 +86,16 @@ Deno.serve(async (req: Request) => {
     const rawBody = await req.text();
     const signature = req.headers.get("X-CC-Webhook-Signature");
 
-    console.log(`[commerce-webhook][${requestId}] Received webhook, signature present: ${!!signature}`);
+    console.log(`[commerce-webhook][${requestId}] Received webhook, signature present: ${!!signature}, secret configured: ${!!webhookSecret}`);
 
     // Verify signature if secret is configured
     if (webhookSecret && signature) {
       const isValid = await verifyWebhookSignature(rawBody, signature, webhookSecret);
       if (!isValid) {
-        console.error(`[commerce-webhook][${requestId}] Invalid webhook signature`);
+        console.error(`[commerce-webhook][${requestId}] ❌ Invalid webhook signature`);
+        console.error(`[commerce-webhook][${requestId}]    - Signature provided: ${signature?.substring(0, 16)}...`);
+        console.error(`[commerce-webhook][${requestId}]    - Secret configured: yes (${webhookSecret.length} chars)`);
+        console.error(`[commerce-webhook][${requestId}]    - Body length: ${rawBody.length} bytes`);
         return new Response(
           JSON.stringify({ error: "Invalid signature" }),
           {
@@ -101,11 +104,13 @@ Deno.serve(async (req: Request) => {
           }
         );
       }
-      console.log(`[commerce-webhook][${requestId}] ✅ Signature verified`);
+      console.log(`[commerce-webhook][${requestId}] ✅ Signature verified successfully`);
     } else if (webhookSecret) {
-      console.warn(`[commerce-webhook][${requestId}] ⚠️ Webhook secret configured but no signature provided`);
+      console.warn(`[commerce-webhook][${requestId}] ⚠️ Webhook secret configured but no signature header provided in request`);
+      console.warn(`[commerce-webhook][${requestId}]    - Headers present: ${Array.from(req.headers.keys()).join(', ')}`);
     } else {
-      console.warn(`[commerce-webhook][${requestId}] ⚠️ COINBASE_COMMERCE_WEBHOOK_SECRET not configured - signature verification skipped`);
+      console.warn(`[commerce-webhook][${requestId}] ⚠️ COINBASE_COMMERCE_WEBHOOK_SECRET not configured - signature verification SKIPPED`);
+      console.warn(`[commerce-webhook][${requestId}]    - This is a SECURITY RISK - configure webhook secret in Supabase Edge Functions environment`);
     }
 
     // Parse the webhook payload
@@ -125,15 +130,25 @@ Deno.serve(async (req: Request) => {
     
     console.log(`[commerce-webhook][${requestId}] Event type: ${payload.event?.type}`);
 
-    // Log webhook event for audit
+    // Log webhook event for audit (with enhanced metadata for debugging)
     try {
+      const eventData = payload.event?.data || {};
+      const metadata = eventData.metadata || {};
       await supabase.from("payment_webhook_events").insert({
         provider: "coinbase_commerce",
         payload,
         status: 200,
+        event_type: payload.event?.type,
+        charge_id: eventData.id,
+        user_id: metadata.user_id,
+        competition_id: metadata.competition_id,
+        transaction_id: metadata.transaction_id,
+        webhook_received_at: new Date().toISOString(),
       });
+      console.log(`[commerce-webhook][${requestId}] ✅ Webhook event logged to payment_webhook_events`);
     } catch (logError) {
-      console.error(`[commerce-webhook][${requestId}] Failed to log webhook event:`, logError);
+      console.error(`[commerce-webhook][${requestId}] ⚠️ Failed to log webhook event:`, logError);
+      // Continue processing even if logging fails
     }
 
     const eventType = payload.event?.type;
@@ -232,6 +247,7 @@ Deno.serve(async (req: Request) => {
 
     // If no transaction found by ID, try to find by charge ID
     if (!transaction && eventData.id) {
+      console.log(`[commerce-webhook][${requestId}] Transaction not found by metadata.transaction_id, trying by charge ID: ${eventData.id}`);
       const { data, error } = await supabase
         .from("user_transactions")
         .select("*")
@@ -240,11 +256,40 @@ Deno.serve(async (req: Request) => {
 
       if (!error && data) {
         transaction = data;
+        console.log(`[commerce-webhook][${requestId}] ✅ Found transaction by charge ID: ${transaction.id}`);
+      } else if (error) {
+        console.error(`[commerce-webhook][${requestId}] Error searching by tx_id:`, error);
       }
     }
 
     if (!transaction) {
-      console.warn(`[commerce-webhook][${requestId}] Transaction not found for charge ${eventData.id}`);
+      console.warn(`[commerce-webhook][${requestId}] ⚠️ Transaction not found for charge ${eventData.id}`);
+      console.warn(`[commerce-webhook][${requestId}]    - Searched by transaction_id: ${transactionId}`);
+      console.warn(`[commerce-webhook][${requestId}]    - Searched by charge ID: ${eventData.id}`);
+      console.warn(`[commerce-webhook][${requestId}]    - User ID from metadata: ${userId}`);
+      console.warn(`[commerce-webhook][${requestId}]    - Competition ID: ${competitionId}`);
+      console.warn(`[commerce-webhook][${requestId}]    - This usually means:`);
+      console.warn(`[commerce-webhook][${requestId}]      1. Charge was created outside of our system`);
+      console.warn(`[commerce-webhook][${requestId}]      2. Transaction record was never created in user_transactions table`);
+      console.warn(`[commerce-webhook][${requestId}]      3. User paid before charge metadata was properly set`);
+      
+      // Try to find ANY recent transaction for this user to help debugging
+      if (userId) {
+        const { data: recentTxns } = await supabase
+          .from("user_transactions")
+          .select("id, tx_id, status, created_at")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(3);
+        
+        if (recentTxns && recentTxns.length > 0) {
+          console.log(`[commerce-webhook][${requestId}]    - Found ${recentTxns.length} recent transactions for user:`, 
+            recentTxns.map(t => ({ id: t.id, tx_id: t.tx_id, status: t.status })));
+        } else {
+          console.log(`[commerce-webhook][${requestId}]    - No transactions found for user ${userId} in database`);
+        }
+      }
+      
       return new Response(
         JSON.stringify({ success: true, message: "Transaction not found" }),
         {
@@ -660,6 +705,21 @@ Deno.serve(async (req: Request) => {
 
         console.log(`[commerce-webhook][${requestId}] ✅ Top-up transaction processed`);
       }
+
+      // Success summary log for easy verification
+      console.log(`[commerce-webhook][${requestId}] ========================================`);
+      console.log(`[commerce-webhook][${requestId}] ✅ WEBHOOK PROCESSING COMPLETE`);
+      console.log(`[commerce-webhook][${requestId}] Transaction ID: ${transaction.id}`);
+      console.log(`[commerce-webhook][${requestId}] Charge ID: ${eventData.id}`);
+      console.log(`[commerce-webhook][${requestId}] Type: ${transaction.competition_id ? 'ENTRY PURCHASE' : 'TOP-UP'}`);
+      console.log(`[commerce-webhook][${requestId}] User: ${transaction.user_id}`);
+      console.log(`[commerce-webhook][${requestId}] Amount: $${transaction.amount}`);
+      console.log(`[commerce-webhook][${requestId}] Status: ${transaction.status}`);
+      if (transaction.competition_id) {
+        console.log(`[commerce-webhook][${requestId}] Competition: ${transaction.competition_id}`);
+        console.log(`[commerce-webhook][${requestId}] Tickets: ${transaction.ticket_count || 0}`);
+      }
+      console.log(`[commerce-webhook][${requestId}] ========================================`);
 
       return new Response(
         JSON.stringify({
