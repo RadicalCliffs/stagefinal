@@ -1,23 +1,36 @@
 /**
- * Visual Editor for Modals
+ * Comprehensive Website & Modal Visual Editor
  * 
  * Admin-only visual editor for modifying aesthetic properties of:
+ * 
+ * PAGES:
+ * - Landing Page, Competitions, About, FAQ, Winners, How to Play
+ * - Hero Competition Pages (Lamborghini, Bitcoin, Rolex)
+ * - Legal Pages (Privacy, Terms, Cookie Policy, etc.)
+ * - User Dashboard
+ * 
+ * MODALS:
  * - NewAuthModal.tsx
  * - BaseWalletAuthModal.tsx
  * - PaymentModal.tsx
  * - TopUpWalletModal.tsx
  * 
+ * SITE-WIDE:
+ * - Global assets, colors, navigation
+ * 
  * Features:
+ * - Full page editing with live preview
  * - Color pickers for all color properties
  * - Font controls (family, size, weight, style)
  * - Image/icon upload and replacement
  * - Text content editing
  * - Button linking with dependency warnings
  * - LIVE PREVIEW with real-time updates
+ * - Comprehensive page-by-page customization
  * - File download for developers (not GitHub write)
  */
 
-import React, { useState, useEffect, useMemo, createContext } from 'react';
+import React, { useState, useEffect, useMemo, createContext, lazy, Suspense } from 'react';
 import { 
   Eye, 
   EyeOff, 
@@ -39,12 +52,30 @@ import {
   FileDown,
   GripVertical,
   Layers,
-  Copy
+  Copy,
+  FileText,
+  LayoutDashboard
 } from 'lucide-react';
 import NewAuthModal, { type NewAuthModalTextOverrides } from '../components/NewAuthModal';
 import { BaseWalletAuthModal, type BaseWalletAuthModalTextOverrides } from '../components/BaseWalletAuthModal';
 import PaymentModal, { type PaymentModalTextOverrides } from '../components/PaymentModal';
 import TopUpWalletModal, { type TopUpWalletModalTextOverrides } from '../components/TopUpWalletModal';
+
+// Lazy load pages for the editor
+const LandingPage = lazy(() => import('./LandingPage'));
+const CompetitionsPage = lazy(() => import('./CompetitionsPage'));
+const AboutPage = lazy(() => import('./AboutPage'));
+const FaqPage = lazy(() => import('./FaqPage'));
+const WinnersPage = lazy(() => import('./WinnersPage'));
+const HowToPlay = lazy(() => import('./HowToPlay'));
+const LamborghiniUrusPage = lazy(() => import('./LamborghiniUrusPage'));
+const BitcoinGiveawayPage = lazy(() => import('./BitcoinGiveawayPage'));
+const RolexWatchPage = lazy(() => import('./RolexWatchPage'));
+const PrivacyPolicyPage = lazy(() => import('./PrivacyPolicyPage'));
+const TermsAndConditionsPage = lazy(() => import('./TermsAndConditionsPage'));
+const CookiePolicyPage = lazy(() => import('./CookiePolicyPage'));
+const TermsOfUsePage = lazy(() => import('./TermsOfUsePage'));
+const AcceptableUsePage = lazy(() => import('./AcceptableUsePage'));
 
 interface ColorProperty {
   name: string;
@@ -131,8 +162,33 @@ interface ConfigPreset {
 
 type ModalType = 'NewAuthModal' | 'BaseWalletAuthModal' | 'PaymentModal' | 'TopUpWalletModal';
 
+type PageType = 
+  | 'LandingPage' 
+  | 'CompetitionsPage' 
+  | 'AboutPage' 
+  | 'FaqPage' 
+  | 'WinnersPage' 
+  | 'HowToPlay'
+  | 'LamborghiniUrusPage'
+  | 'BitcoinGiveawayPage'
+  | 'RolexWatchPage'
+  | 'PrivacyPolicyPage'
+  | 'TermsAndConditionsPage'
+  | 'CookiePolicyPage'
+  | 'TermsOfUsePage'
+  | 'AcceptableUsePage';
+
+type EditorTargetType = ModalType | PageType | 'SiteWide';
+
+interface EditorTarget {
+  type: 'modal' | 'page' | 'site-wide';
+  value: EditorTargetType;
+}
+
+
 interface EditorState {
-  selectedModal: ModalType;
+  editorTarget: EditorTarget;
+  selectedModal: ModalType;  // Keep for backward compatibility
   colors: ColorProperty[];
   fonts: FontProperty[];
   texts: TextProperty[];
@@ -222,6 +278,7 @@ const PreviewWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
 export default function AuthModalVisualEditor() {
   const [state, setState] = useState<EditorState>({
+    editorTarget: { type: 'modal', value: 'NewAuthModal' },
     selectedModal: 'NewAuthModal',
     colors: [],
     fonts: [],
@@ -1030,9 +1087,14 @@ ${siteWideState.navigation.map(item => `- ${item.label} -> ${item.path} (visible
   }, [state.selectedModal, state.texts]);
 
   // Load initial properties based on selected modal
+  // Load properties when editor target changes
   useEffect(() => {
-    loadModalProperties(state.selectedModal);
-  }, [state.selectedModal]);
+    if (state.editorTarget.type === 'modal') {
+      loadModalProperties(state.editorTarget.value as ModalType);
+    } else if (state.editorTarget.type === 'page') {
+      loadPageProperties(state.editorTarget.value as PageType);
+    }
+  }, [state.editorTarget]);
 
   const loadModalProperties = (modalType: ModalType) => {
     if (modalType === 'NewAuthModal') {
@@ -1210,6 +1272,229 @@ ${siteWideState.navigation.map(item => `- ${item.label} -> ${item.path} (visible
           { name: 'topUpMethods', label: 'Top-Up Methods Section', description: 'All top-up method buttons', hidden: false, locked: false },
           { name: 'balanceDisplay', label: 'Current Balance', description: 'Shows current account balance', hidden: false, locked: true },
         ],
+      }));
+    }
+  };
+
+  // Load page-specific properties and configuration
+  const loadPageProperties = (pageType: PageType) => {
+    // Define common page configuration
+    const commonPageConfig = {
+      flowSteps: [],
+      buttons: [],
+      sections: [],
+    };
+
+    // Page-specific configurations
+    if (pageType === 'LandingPage') {
+      setState(prev => ({
+        ...prev,
+        ...commonPageConfig,
+        colors: [
+          { name: 'heroBg', label: 'Hero Section Background', value: '#1A1A1A', description: 'Hero section background color' },
+          { name: 'primaryButton', label: 'Primary Button', value: '#DDE404', description: 'Main CTA button color' },
+          { name: 'primaryButtonHover', label: 'Primary Button Hover', value: '#c7cc04', description: 'Button hover state' },
+          { name: 'sectionBg', label: 'Section Background', value: '#1A1B1A', description: 'Section background' },
+          { name: 'accentYellow', label: 'Accent Yellow', value: '#DDE404', description: 'Brand yellow accent' },
+          { name: 'textPrimary', label: 'Primary Text', value: '#ffffff', description: 'Main text color' },
+        ],
+        fonts: [
+          { name: 'heading', label: 'Main Headings', family: 'sequel-95', size: '2.1rem', weight: '700' },
+          { name: 'subheading', label: 'Subheadings', family: 'sequel-45', size: '1rem', weight: '400' },
+          { name: 'button', label: 'Button Text', family: 'sequel-95', size: '0.85rem', weight: '700' },
+        ],
+        texts: [
+          { name: 'heroTitle', label: 'Hero Title', value: 'WIN BIG WITH CRYPTO' },
+          { name: 'liveActivityTitle', label: 'Live Activity Title', value: 'Live Activity' },
+          { name: 'liveCompetitionsTitle', label: 'Live Competitions Title', value: 'Live Competitions' },
+          { name: 'viewAllButton', label: 'View All Competitions Button', value: 'VIEW ALL COMPETITIONS' },
+          { name: 'browseAllButton', label: 'Browse All Button', value: 'BROWSE ALL COMPETITIONS' },
+        ],
+        images: [
+          { name: 'heroImage', label: 'Hero Section Image', value: '/assets/images/hero-section.jpg', type: 'hero', format: 'jpg', acceptFormats: 'image/*' },
+          { name: 'smashGraphic', label: 'Decorative Graphic', value: '/assets/images/smash.png', type: 'background', format: 'png', acceptFormats: 'image/*' },
+        ],
+      }));
+    } else if (pageType === 'CompetitionsPage') {
+      setState(prev => ({
+        ...prev,
+        ...commonPageConfig,
+        colors: [
+          { name: 'pageBg', label: 'Page Background', value: '#1A1A1A', description: 'Main page background' },
+          { name: 'headerBg', label: 'Header Background', value: '#E5EE00', description: 'Page header background' },
+          { name: 'headerText', label: 'Header Text', value: '#181818', description: 'Header text color' },
+          { name: 'cardBg', label: 'Competition Card Background', value: 'transparent', description: 'Card backgrounds' },
+          { name: 'textPrimary', label: 'Primary Text', value: '#ffffff', description: 'Main text color' },
+        ],
+        fonts: [
+          { name: 'pageTitle', label: 'Page Title', family: 'sequel-75', size: '1.25rem', weight: '700' },
+          { name: 'sectionHeading', label: 'Section Headings', family: 'sequel-95', size: '2rem', weight: '700' },
+        ],
+        texts: [
+          { name: 'pageTitle', label: 'Page Title', value: 'Competitions' },
+          { name: 'liveSection', label: 'Live Competitions Section', value: 'Live Competitions' },
+          { name: 'instantWinSection', label: 'Instant Win Section', value: 'Instant Win' },
+          { name: 'lastChanceSection', label: 'Last Chance Section', value: 'Last Chance' },
+        ],
+        images: [],
+      }));
+    } else if (pageType === 'AboutPage') {
+      setState(prev => ({
+        ...prev,
+        ...commonPageConfig,
+        colors: [
+          { name: 'sectionBg', label: 'Section Background', value: '#1A1A1A', description: 'Section backgrounds' },
+          { name: 'textPrimary', label: 'Primary Text', value: '#ffffff', description: 'Main text color' },
+          { name: 'accentColor', label: 'Accent Color', value: '#DDE404', description: 'Accent highlights' },
+        ],
+        fonts: [
+          { name: 'heading', label: 'Page Headings', family: 'sequel-95', size: '2rem', weight: '700' },
+          { name: 'body', label: 'Body Text', family: 'sequel-45', size: '1rem', weight: '400' },
+        ],
+        texts: [
+          { name: 'pageTitle', label: 'About Page Title', value: 'About The Prize' },
+        ],
+        images: [],
+      }));
+    } else if (pageType === 'FaqPage') {
+      setState(prev => ({
+        ...prev,
+        ...commonPageConfig,
+        colors: [
+          { name: 'sectionBg', label: 'Section Background', value: '#1A1A1A', description: 'Section backgrounds' },
+          { name: 'textPrimary', label: 'Primary Text', value: '#ffffff', description: 'Main text color' },
+          { name: 'accentColor', label: 'Accent Color', value: '#DDE404', description: 'Accent highlights' },
+        ],
+        fonts: [
+          { name: 'heading', label: 'FAQ Headings', family: 'sequel-95', size: '2rem', weight: '700' },
+          { name: 'question', label: 'Question Text', family: 'sequel-75', size: '1.125rem', weight: '600' },
+          { name: 'answer', label: 'Answer Text', family: 'sequel-45', size: '1rem', weight: '400' },
+        ],
+        texts: [
+          { name: 'pageTitle', label: 'FAQ Page Title', value: 'Frequently Asked Questions' },
+        ],
+        images: [],
+      }));
+    } else if (pageType === 'WinnersPage') {
+      setState(prev => ({
+        ...prev,
+        ...commonPageConfig,
+        colors: [
+          { name: 'sectionBg', label: 'Section Background', value: '#1A1A1A', description: 'Section backgrounds' },
+          { name: 'accentYellow', label: 'Accent Yellow', value: '#DDE404', description: 'Winner highlights' },
+          { name: 'textPrimary', label: 'Primary Text', value: '#ffffff', description: 'Main text color' },
+        ],
+        fonts: [
+          { name: 'heading', label: 'Page Heading', family: 'sequel-95', size: '2rem', weight: '700' },
+          { name: 'winnerName', label: 'Winner Names', family: 'sequel-75', size: '1.25rem', weight: '600' },
+        ],
+        texts: [
+          { name: 'pageTitle', label: 'Winners Page Title', value: 'Recent Winners' },
+        ],
+        images: [],
+      }));
+    } else if (pageType === 'HowToPlay') {
+      setState(prev => ({
+        ...prev,
+        ...commonPageConfig,
+        colors: [
+          { name: 'sectionBg', label: 'Section Background', value: '#1A1A1A', description: 'Section backgrounds' },
+          { name: 'accentColor', label: 'Accent Color', value: '#DDE404', description: 'Step highlights' },
+          { name: 'textPrimary', label: 'Primary Text', value: '#ffffff', description: 'Main text color' },
+        ],
+        fonts: [
+          { name: 'heading', label: 'Page Heading', family: 'sequel-95', size: '2rem', weight: '700' },
+          { name: 'stepTitle', label: 'Step Titles', family: 'sequel-75', size: '1.25rem', weight: '600' },
+          { name: 'stepDesc', label: 'Step Descriptions', family: 'sequel-45', size: '1rem', weight: '400' },
+        ],
+        texts: [
+          { name: 'pageTitle', label: 'How to Play Title', value: 'How to Play' },
+        ],
+        images: [],
+      }));
+    } else if (pageType === 'LamborghiniUrusPage') {
+      setState(prev => ({
+        ...prev,
+        ...commonPageConfig,
+        colors: [
+          { name: 'heroBg', label: 'Hero Background', value: '#1A1A1A', description: 'Hero section background' },
+          { name: 'primaryButton', label: 'Entry Button', value: '#DDE404', description: 'Entry CTA button' },
+          { name: 'textPrimary', label: 'Primary Text', value: '#ffffff', description: 'Main text color' },
+        ],
+        fonts: [
+          { name: 'prizeTitle', label: 'Prize Title', family: 'sequel-95', size: '3rem', weight: '900' },
+          { name: 'details', label: 'Details Text', family: 'sequel-45', size: '1rem', weight: '400' },
+        ],
+        texts: [
+          { name: 'prizeTitle', label: 'Prize Title', value: 'WIN A LAMBORGHINI URUS' },
+          { name: 'entryButton', label: 'Entry Button', value: 'ENTER NOW' },
+        ],
+        images: [
+          { name: 'prizephoto', label: 'Prize Photo', value: '/assets/images/lamborghini-urus.jpg', type: 'hero', format: 'jpg', acceptFormats: 'image/*' },
+        ],
+      }));
+    } else if (pageType === 'BitcoinGiveawayPage') {
+      setState(prev => ({
+        ...prev,
+        ...commonPageConfig,
+        colors: [
+          { name: 'heroBg', label: 'Hero Background', value: '#1A1A1A', description: 'Hero section background' },
+          { name: 'primaryButton', label: 'Entry Button', value: '#DDE404', description: 'Entry CTA button' },
+          { name: 'accentOrange', label: 'Bitcoin Orange', value: '#F7931A', description: 'Bitcoin brand color' },
+          { name: 'textPrimary', label: 'Primary Text', value: '#ffffff', description: 'Main text color' },
+        ],
+        fonts: [
+          { name: 'prizeTitle', label: 'Prize Title', family: 'sequel-95', size: '3rem', weight: '900' },
+          { name: 'details', label: 'Details Text', family: 'sequel-45', size: '1rem', weight: '400' },
+        ],
+        texts: [
+          { name: 'prizeTitle', label: 'Prize Title', value: 'WIN 10 BITCOIN' },
+          { name: 'entryButton', label: 'Entry Button', value: 'ENTER NOW' },
+        ],
+        images: [
+          { name: 'prizePhoto', label: 'Prize Photo', value: '/assets/images/bitcoin-giveaway.jpg', type: 'hero', format: 'jpg', acceptFormats: 'image/*' },
+        ],
+      }));
+    } else if (pageType === 'RolexWatchPage') {
+      setState(prev => ({
+        ...prev,
+        ...commonPageConfig,
+        colors: [
+          { name: 'heroBg', label: 'Hero Background', value: '#1A1A1A', description: 'Hero section background' },
+          { name: 'primaryButton', label: 'Entry Button', value: '#DDE404', description: 'Entry CTA button' },
+          { name: 'luxuryGold', label: 'Luxury Gold', value: '#FFD700', description: 'Luxury accent color' },
+          { name: 'textPrimary', label: 'Primary Text', value: '#ffffff', description: 'Main text color' },
+        ],
+        fonts: [
+          { name: 'prizeTitle', label: 'Prize Title', family: 'sequel-95', size: '3rem', weight: '900' },
+          { name: 'details', label: 'Details Text', family: 'sequel-45', size: '1rem', weight: '400' },
+        ],
+        texts: [
+          { name: 'prizeTitle', label: 'Prize Title', value: 'WIN A ROLEX WATCH' },
+          { name: 'entryButton', label: 'Entry Button', value: 'ENTER NOW' },
+        ],
+        images: [
+          { name: 'prizePhoto', label: 'Prize Photo', value: '/assets/images/rolex-watch.jpg', type: 'hero', format: 'jpg', acceptFormats: 'image/*' },
+        ],
+      }));
+    } else {
+      // Default configuration for legal pages and other pages
+      setState(prev => ({
+        ...prev,
+        ...commonPageConfig,
+        colors: [
+          { name: 'pageBg', label: 'Page Background', value: '#1A1A1A', description: 'Page background' },
+          { name: 'textPrimary', label: 'Primary Text', value: '#ffffff', description: 'Main text color' },
+          { name: 'textSecondary', label: 'Secondary Text', value: 'rgba(255, 255, 255, 0.7)', description: 'Secondary text' },
+        ],
+        fonts: [
+          { name: 'heading', label: 'Page Heading', family: 'sequel-95', size: '2rem', weight: '700' },
+          { name: 'body', label: 'Body Text', family: 'sequel-45', size: '1rem', weight: '400' },
+        ],
+        texts: [
+          { name: 'pageTitle', label: 'Page Title', value: `${pageType.replace(/([A-Z])/g, ' $1').trim()}` },
+        ],
+        images: [],
       }));
     }
   };
@@ -4499,8 +4784,11 @@ TESTING CHECKLIST:
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold">Modal Visual Editor</h1>
-              <p className="text-white/50 text-sm">Live split-screen editor with real-time preview</p>
+              <h1 className="text-2xl font-bold flex items-center gap-2">
+                <LayoutDashboard size={28} />
+                Comprehensive Website Editor
+              </h1>
+              <p className="text-white/50 text-sm">Edit all pages, modals & components with live preview</p>
             </div>
             <div className="flex items-center gap-3">
               {/* Undo/Redo Buttons */}
@@ -4564,23 +4852,55 @@ TESTING CHECKLIST:
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Editor Panel - Left Side */}
           <div className="overflow-y-auto max-h-[calc(100vh-180px)] lg:max-h-[calc(100vh-180px)]">
-            {/* Modal Selector */}
+            {/* Comprehensive Page/Modal Selector */}
             <div className="mb-6">
-              <label className="block text-white/70 text-sm mb-2">Select Modal to Edit</label>
+              <label className="block text-white/70 text-sm mb-2 flex items-center gap-2">
+                <LayoutDashboard size={16} />
+                <span>Select Page or Modal to Edit</span>
+              </label>
               <select
-                value={state.selectedModal}
-                onChange={(e) => setState(prev => ({ 
-                  ...prev, 
-                  selectedModal: e.target.value as ModalType,
-                  hasChanges: false,
-                }))}
+                value={`${state.editorTarget.type}:${state.editorTarget.value}`}
+                onChange={(e) => {
+                  const [type, value] = e.target.value.split(':');
+                  setState(prev => ({ 
+                    ...prev, 
+                    editorTarget: { type: type as 'modal' | 'page' | 'site-wide', value: value as EditorTargetType },
+                    selectedModal: type === 'modal' ? value as ModalType : prev.selectedModal,
+                    hasChanges: false,
+                  }));
+                }}
                 className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white"
               >
-                <option value="NewAuthModal">New Auth Modal (NewAuthModal.tsx)</option>
-                <option value="BaseWalletAuthModal">Base Wallet Auth Modal (BaseWalletAuthModal.tsx)</option>
-                <option value="PaymentModal">Payment Modal (PaymentModal.tsx)</option>
-                <option value="TopUpWalletModal">Top Up Wallet Modal (TopUpWalletModal.tsx)</option>
+                <optgroup label="📄 PAGES - Full Website Pages">
+                  <option value="page:LandingPage">🏠 Landing Page (Home)</option>
+                  <option value="page:CompetitionsPage">🎯 Competitions Page</option>
+                  <option value="page:WinnersPage">🏆 Winners Page</option>
+                  <option value="page:AboutPage">ℹ️ About Page</option>
+                  <option value="page:FaqPage">❓ FAQ Page</option>
+                  <option value="page:HowToPlay">🎮 How to Play</option>
+                </optgroup>
+                <optgroup label="🚗 HERO COMPETITIONS - Featured Prize Pages">
+                  <option value="page:LamborghiniUrusPage">🚗 Lamborghini Urus Page</option>
+                  <option value="page:BitcoinGiveawayPage">₿ Bitcoin Giveaway Page</option>
+                  <option value="page:RolexWatchPage">⌚ Rolex Watch Page</option>
+                </optgroup>
+                <optgroup label="📋 LEGAL PAGES - Terms & Policies">
+                  <option value="page:PrivacyPolicyPage">🔒 Privacy Policy</option>
+                  <option value="page:TermsAndConditionsPage">📜 Terms & Conditions</option>
+                  <option value="page:CookiePolicyPage">🍪 Cookie Policy</option>
+                  <option value="page:TermsOfUsePage">📖 Terms of Use</option>
+                  <option value="page:AcceptableUsePage">✅ Acceptable Use</option>
+                </optgroup>
+                <optgroup label="🎭 MODALS - Popup Components">
+                  <option value="modal:NewAuthModal">🔐 New Auth Modal</option>
+                  <option value="modal:BaseWalletAuthModal">👛 Base Wallet Auth Modal</option>
+                  <option value="modal:PaymentModal">💳 Payment Modal</option>
+                  <option value="modal:TopUpWalletModal">💰 Top Up Wallet Modal</option>
+                </optgroup>
               </select>
+              <p className="text-white/50 text-xs mt-2">
+                {state.editorTarget.type === 'page' ? '📄 Editing full page' : '🎭 Editing modal component'}
+              </p>
             </div>
 
             {/* Tab Navigation */}
@@ -4796,47 +5116,82 @@ TESTING CHECKLIST:
                   LIVE
                 </span>
               </div>
-              <div className="bg-[#0A0A0F] rounded-lg overflow-hidden border-2 border-white/20 shadow-inner" style={{ minHeight: '600px', height: '600px', position: 'relative' }} id="modal-preview-container">
+              <div 
+                className="bg-[#0A0A0F] rounded-lg overflow-auto border-2 border-white/20 shadow-inner" 
+                style={{ 
+                  minHeight: state.editorTarget.type === 'page' ? '800px' : '600px', 
+                  height: state.editorTarget.type === 'page' ? 'auto' : '600px', 
+                  maxHeight: state.editorTarget.type === 'page' ? '1200px' : '600px',
+                  position: 'relative' 
+                }} 
+                id="modal-preview-container"
+              >
                 <PreviewWrapper>
-                  {state.selectedModal === 'NewAuthModal' ? (
-                    <NewAuthModal
-                      isOpen={true}
-                      onClose={PREVIEW_HANDLERS.onClose}
-                      textOverrides={newAuthModalTextOverrides}
-                    />
-                  ) : state.selectedModal === 'BaseWalletAuthModal' ? (
-                    <BaseWalletAuthModal
-                      isOpen={true}
-                      onClose={PREVIEW_HANDLERS.onClose}
-                      textOverrides={baseWalletAuthModalTextOverrides}
-                    />
-                  ) : state.selectedModal === 'PaymentModal' ? (
-                    <PaymentModal
-                      isOpen={true}
-                      onClose={PREVIEW_HANDLERS.onClose}
-                      onOpen={PREVIEW_HANDLERS.onOpen}
-                      ticketCount={PREVIEW_PROPS.PaymentModal.ticketCount}
-                      competitionId={PREVIEW_PROPS.PaymentModal.competitionId}
-                      ticketPrice={PREVIEW_PROPS.PaymentModal.ticketPrice}
-                      userInfo={PREVIEW_PROPS.PaymentModal.userInfo}
-                      textOverrides={paymentModalTextOverrides}
-                    />
-                  ) : state.selectedModal === 'TopUpWalletModal' ? (
-                    <TopUpWalletModal
-                      isOpen={true}
-                      onClose={PREVIEW_HANDLERS.onClose}
-                      textOverrides={topUpWalletTextOverrides}
-                    />
-                  ) : (
-                    <p className="text-white/50 text-center px-4">
-                      Preview not available for {state.selectedModal}.
-                    </p>
+                  {/* Render Pages */}
+                  {state.editorTarget.type === 'page' && (
+                    <Suspense fallback={<div className="flex items-center justify-center h-full"><div className="text-white">Loading preview...</div></div>}>
+                      {state.editorTarget.value === 'LandingPage' && <LandingPage />}
+                      {state.editorTarget.value === 'CompetitionsPage' && <CompetitionsPage />}
+                      {state.editorTarget.value === 'AboutPage' && <AboutPage />}
+                      {state.editorTarget.value === 'FaqPage' && <FaqPage />}
+                      {state.editorTarget.value === 'WinnersPage' && <WinnersPage />}
+                      {state.editorTarget.value === 'HowToPlay' && <HowToPlay />}
+                      {state.editorTarget.value === 'LamborghiniUrusPage' && <LamborghiniUrusPage />}
+                      {state.editorTarget.value === 'BitcoinGiveawayPage' && <BitcoinGiveawayPage />}
+                      {state.editorTarget.value === 'RolexWatchPage' && <RolexWatchPage />}
+                      {state.editorTarget.value === 'PrivacyPolicyPage' && <PrivacyPolicyPage />}
+                      {state.editorTarget.value === 'TermsAndConditionsPage' && <TermsAndConditionsPage />}
+                      {state.editorTarget.value === 'CookiePolicyPage' && <CookiePolicyPage />}
+                      {state.editorTarget.value === 'TermsOfUsePage' && <TermsOfUsePage />}
+                      {state.editorTarget.value === 'AcceptableUsePage' && <AcceptableUsePage />}
+                    </Suspense>
+                  )}
+                  
+                  {/* Render Modals */}
+                  {state.editorTarget.type === 'modal' && (
+                    <>
+                      {state.editorTarget.value === 'NewAuthModal' && (
+                        <NewAuthModal
+                          isOpen={true}
+                          onClose={PREVIEW_HANDLERS.onClose}
+                          textOverrides={newAuthModalTextOverrides}
+                        />
+                      )}
+                      {state.editorTarget.value === 'BaseWalletAuthModal' && (
+                        <BaseWalletAuthModal
+                          isOpen={true}
+                          onClose={PREVIEW_HANDLERS.onClose}
+                          textOverrides={baseWalletAuthModalTextOverrides}
+                        />
+                      )}
+                      {state.editorTarget.value === 'PaymentModal' && (
+                        <PaymentModal
+                          isOpen={true}
+                          onClose={PREVIEW_HANDLERS.onClose}
+                          onOpen={PREVIEW_HANDLERS.onOpen}
+                          ticketCount={PREVIEW_PROPS.PaymentModal.ticketCount}
+                          competitionId={PREVIEW_PROPS.PaymentModal.competitionId}
+                          ticketPrice={PREVIEW_PROPS.PaymentModal.ticketPrice}
+                          userInfo={PREVIEW_PROPS.PaymentModal.userInfo}
+                          textOverrides={paymentModalTextOverrides}
+                        />
+                      )}
+                      {state.editorTarget.value === 'TopUpWalletModal' && (
+                        <TopUpWalletModal
+                          isOpen={true}
+                          onClose={PREVIEW_HANDLERS.onClose}
+                          textOverrides={topUpWalletTextOverrides}
+                        />
+                      )}
+                    </>
                   )}
                 </PreviewWrapper>
               </div>
               <p className="text-white/40 text-xs mt-3 text-center flex items-center justify-center gap-2">
                 <span className="inline-block w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse"></span>
-                Preview updates in REAL-TIME as you edit colors, fonts & text
+                {state.editorTarget.type === 'page' 
+                  ? 'Full page preview - edit colors, fonts, and text in real-time' 
+                  : 'Preview updates in REAL-TIME as you edit colors, fonts & text'}
               </p>
             </div>
           </div>
