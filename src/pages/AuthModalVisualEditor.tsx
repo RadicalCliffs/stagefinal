@@ -237,7 +237,7 @@ export default function AuthModalVisualEditor() {
     historyIndex: -1,
   });
 
-  const [activeTab, setActiveTab] = useState<'flow' | 'colors' | 'fonts' | 'text' | 'images' | 'buttons' | 'sections' | 'presets' | 'site-wide'>('flow');
+  const [activeTab, setActiveTab] = useState<'flow' | 'colors' | 'fonts' | 'text' | 'images' | 'buttons' | 'sections' | 'presets' | 'site-wide' | 'backend'>('flow');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState('');
   const [showAddButton, setShowAddButton] = useState(false);
@@ -297,6 +297,169 @@ export default function AuthModalVisualEditor() {
 
   const [siteWideLoading, setSiteWideLoading] = useState(false);
   const [siteWideNotification, setSiteWideNotification] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+
+  // Backend infrastructure state
+  interface RPCFunction {
+    name: string;
+    file: string;
+    signature: string;
+    description?: string;
+    language: string;
+    securityDefiner: boolean;
+  }
+
+  interface EdgeFunction {
+    name: string;
+    path: string;
+    size: number;
+    lastModified: string;
+  }
+
+  interface DatabaseIndex {
+    name: string;
+    table: string;
+    columns: string[];
+    unique: boolean;
+  }
+
+  const [backendState, setBackendState] = useState({
+    rpcFunctions: [] as RPCFunction[],
+    edgeFunctions: [] as EdgeFunction[],
+    indexes: [] as DatabaseIndex[],
+    loading: false,
+    selectedRPC: null as RPCFunction | null,
+    selectedEdge: null as EdgeFunction | null,
+    editingCode: '',
+    modified: false
+  });
+
+  const [backendNotification, setBackendNotification] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+
+  // Load backend configuration
+  useEffect(() => {
+    if (activeTab === 'backend' && backendState.rpcFunctions.length === 0) {
+      loadBackendConfiguration();
+    }
+  }, [activeTab]);
+
+  const loadBackendConfiguration = async () => {
+    setBackendState(prev => ({ ...prev, loading: true }));
+    
+    try {
+      // Fetch backend infrastructure from API
+      const response = await fetch('/.netlify/functions/get-backend-info', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setBackendState(prev => ({
+          ...prev,
+          rpcFunctions: data.rpcFunctions || [],
+          edgeFunctions: data.edgeFunctions || [],
+          indexes: data.indexes || [],
+          loading: false
+        }));
+      } else {
+        showBackendNotification('error', 'Failed to load backend configuration');
+        setBackendState(prev => ({ ...prev, loading: false }));
+      }
+    } catch (error) {
+      console.error('Error loading backend config:', error);
+      showBackendNotification('error', 'Failed to load backend configuration');
+      setBackendState(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  const showBackendNotification = (type: 'success' | 'error' | 'info', message: string) => {
+    setBackendNotification({ type, message });
+    setTimeout(() => setBackendNotification(null), 5000);
+  };
+
+  const handleRPCEdit = (rpc: RPCFunction, code: string) => {
+    setBackendState(prev => ({
+      ...prev,
+      selectedRPC: rpc,
+      editingCode: code,
+      modified: true
+    }));
+  };
+
+  const handleEdgeFunctionEdit = (edge: EdgeFunction, code: string) => {
+    setBackendState(prev => ({
+      ...prev,
+      selectedEdge: edge,
+      editingCode: code,
+      modified: true
+    }));
+  };
+
+  const handleBackendPRCreation = async () => {
+    try {
+      setBackendState(prev => ({ ...prev, loading: true }));
+
+      const authToken = localStorage.getItem('authToken');
+      if (!authToken || authToken.trim() === '') {
+        showBackendNotification('error', 'Authentication token missing. Please log in again.');
+        setBackendState(prev => ({ ...prev, loading: false }));
+        return;
+      }
+
+      const prData = {
+        title: 'Backend Infrastructure Updates from Admin Panel',
+        description: `
+## Backend Changes
+
+### RPC Functions Modified
+${backendState.selectedRPC ? `- ${backendState.selectedRPC.name}` : 'None'}
+
+### Edge Functions Modified  
+${backendState.selectedEdge ? `- ${backendState.selectedEdge.name}` : 'None'}
+
+## Review Checklist
+- [ ] SQL syntax validated
+- [ ] Function signatures correct
+- [ ] Security policies reviewed
+- [ ] Edge function dependencies checked
+        `,
+        changes: {
+          rpc: backendState.selectedRPC ? {
+            name: backendState.selectedRPC.name,
+            code: backendState.editingCode
+          } : null,
+          edgeFunction: backendState.selectedEdge ? {
+            name: backendState.selectedEdge.name,
+            code: backendState.editingCode
+          } : null
+        }
+      };
+
+      const response = await fetch('/.netlify/functions/create-backend-pr', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify(prData)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create PR');
+      }
+
+      const result = await response.json();
+      
+      showBackendNotification('success', `Pull request created: #${result.prNumber}`);
+      setBackendState(prev => ({ ...prev, modified: false, loading: false }));
+      
+    } catch (error) {
+      console.error('Error creating backend PR:', error);
+      showBackendNotification('error', 'Failed to create pull request');
+      setBackendState(prev => ({ ...prev, loading: false }));
+    }
+  };
 
   // Load site-wide configuration
   useEffect(() => {
@@ -2683,6 +2846,300 @@ TESTING CHECKLIST:
     );
   };
 
+  const renderBackendEditor = () => {
+    const [activeSubTab, setActiveSubTab] = useState<'rpc' | 'edge' | 'indexes'>('rpc');
+
+    if (backendState.loading && backendState.rpcFunctions.length === 0) {
+      return (
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-purple-500 mx-auto mb-4"></div>
+          <p className="text-white">Loading backend infrastructure...</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        {/* Backend Notification */}
+        {backendNotification && (
+          <div className={`p-4 rounded-lg shadow-lg ${
+            backendNotification.type === 'success' ? 'bg-green-600' :
+            backendNotification.type === 'error' ? 'bg-red-600' :
+            'bg-blue-600'
+          }`}>
+            <div className="flex items-center gap-3 text-white">
+              {backendNotification.type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
+              <p>{backendNotification.message}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Header */}
+        <div className="p-4 bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/30 rounded-lg">
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <h3 className="text-white font-semibold mb-2 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-400">
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                  <line x1="8" y1="21" x2="16" y2="21"></line>
+                  <line x1="12" y1="17" x2="12" y2="21"></line>
+                </svg>
+                Database & Backend Infrastructure
+              </h3>
+              <p className="text-white/70 text-sm">
+                View and manage Supabase RPCs, Edge Functions, and Database Indexes
+              </p>
+            </div>
+            {backendState.modified && (
+              <span className="text-sm text-yellow-400 flex items-center gap-2">
+                <AlertCircle size={16} />
+                Unsaved changes
+              </span>
+            )}
+          </div>
+          
+          {backendState.modified && (
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={handleBackendPRCreation}
+                disabled={!backendState.modified || backendState.loading}
+                className="inline-flex items-center gap-2 bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3"></circle>
+                  <path d="M12 2v4m0 12v4M4.22 4.22l2.83 2.83m9.9 9.9 2.83 2.83M2 12h4m12 0h4M4.22 19.78l2.83-2.83m9.9-9.9 2.83-2.83"></path>
+                </svg>
+                Create Pull Request
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Sub-tabs */}
+        <div className="flex gap-2 border-b border-white/10">
+          <button
+            onClick={() => setActiveSubTab('rpc')}
+            className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors ${
+              activeSubTab === 'rpc'
+                ? 'border-purple-500 text-white'
+                : 'border-transparent text-white/50 hover:text-white/70'
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="16 18 22 12 16 6"></polyline>
+              <polyline points="8 6 2 12 8 18"></polyline>
+            </svg>
+            <span>RPC Functions ({backendState.rpcFunctions.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveSubTab('edge')}
+            className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors ${
+              activeSubTab === 'edge'
+                ? 'border-purple-500 text-white'
+                : 'border-transparent text-white/50 hover:text-white/70'
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+            </svg>
+            <span>Edge Functions ({backendState.edgeFunctions.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveSubTab('indexes')}
+            className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors ${
+              activeSubTab === 'indexes'
+                ? 'border-purple-500 text-white'
+                : 'border-transparent text-white/50 hover:text-white/70'
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="8" y1="6" x2="21" y2="6"></line>
+              <line x1="8" y1="12" x2="21" y2="12"></line>
+              <line x1="8" y1="18" x2="21" y2="18"></line>
+              <line x1="3" y1="6" x2="3.01" y2="6"></line>
+              <line x1="3" y1="12" x2="3.01" y2="12"></line>
+              <line x1="3" y1="18" x2="3.01" y2="18"></line>
+            </svg>
+            <span>Indexes ({backendState.indexes.length})</span>
+          </button>
+        </div>
+
+        {/* RPC Functions */}
+        {activeSubTab === 'rpc' && (
+          <div className="space-y-4">
+            <h4 className="text-xl font-bold text-white">Supabase RPC Functions</h4>
+            <p className="text-white/60 text-sm">
+              View and edit database stored procedures and functions. Changes will be staged as SQL migrations.
+            </p>
+
+            {backendState.rpcFunctions.length === 0 && !backendState.loading && (
+              <div className="text-center py-12 bg-white/5 border border-white/10 rounded-lg">
+                <p className="text-white/50 mb-4">No RPC functions loaded</p>
+                <button
+                  onClick={loadBackendConfiguration}
+                  className="inline-flex items-center gap-2 bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+                  </svg>
+                  Reload Functions
+                </button>
+              </div>
+            )}
+
+            {backendState.rpcFunctions.map((rpc, index) => (
+              <div key={index} className="bg-white/5 border border-white/10 rounded-lg p-4">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1">
+                    <h5 className="text-white font-medium font-mono">{rpc.name}()</h5>
+                    <p className="text-xs text-white/50 mt-1">{rpc.signature}</p>
+                    {rpc.description && (
+                      <p className="text-sm text-white/60 mt-2">{rpc.description}</p>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    {rpc.securityDefiner && (
+                      <span className="px-2 py-1 bg-red-500/20 text-red-400 text-xs rounded">SECURITY DEFINER</span>
+                    )}
+                    <span className="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded uppercase">{rpc.language}</span>
+                  </div>
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={() => {
+                      setBackendState(prev => ({ ...prev, selectedRPC: rpc }));
+                    }}
+                    className="text-sm text-purple-400 hover:text-purple-300 flex items-center gap-1"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    View SQL
+                  </button>
+                  <button
+                    className="text-sm text-white/50 hover:text-white/70 flex items-center gap-1"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                    Edit
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Edge Functions */}
+        {activeSubTab === 'edge' && (
+          <div className="space-y-4">
+            <h4 className="text-xl font-bold text-white">Netlify Edge Functions</h4>
+            <p className="text-white/60 text-sm">
+              View and edit serverless functions. Changes will update the .mts files.
+            </p>
+
+            {backendState.edgeFunctions.length === 0 && !backendState.loading && (
+              <div className="text-center py-12 bg-white/5 border border-white/10 rounded-lg">
+                <p className="text-white/50 mb-4">No edge functions loaded</p>
+                <button
+                  onClick={loadBackendConfiguration}
+                  className="inline-flex items-center gap-2 bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600"
+                >
+                  Reload Functions
+                </button>
+              </div>
+            )}
+
+            {backendState.edgeFunctions.map((edge, index) => (
+              <div key={index} className="bg-white/5 border border-white/10 rounded-lg p-4">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1">
+                    <h5 className="text-white font-medium font-mono">{edge.name}</h5>
+                    <p className="text-xs text-white/50 mt-1">{edge.path}</p>
+                    <p className="text-xs text-white/40 mt-1">
+                      {(edge.size / 1024).toFixed(2)} KB • Modified: {edge.lastModified}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    className="text-sm text-purple-400 hover:text-purple-300 flex items-center gap-1"
+                  >
+                    View Code
+                  </button>
+                  <button
+                    className="text-sm text-white/50 hover:text-white/70 flex items-center gap-1"
+                  >
+                    Edit
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Indexes */}
+        {activeSubTab === 'indexes' && (
+          <div className="space-y-4">
+            <h4 className="text-xl font-bold text-white">Database Indexes</h4>
+            <p className="text-white/60 text-sm">
+              View database indexes for performance optimization.
+            </p>
+
+            {backendState.indexes.length === 0 && !backendState.loading && (
+              <div className="text-center py-12 bg-white/5 border border-white/10 rounded-lg">
+                <p className="text-white/50 mb-4">No indexes loaded</p>
+                <button
+                  onClick={loadBackendConfiguration}
+                  className="inline-flex items-center gap-2 bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600"
+                >
+                  Reload Indexes
+                </button>
+              </div>
+            )}
+
+            {backendState.indexes.map((idx, index) => (
+              <div key={index} className="bg-white/5 border border-white/10 rounded-lg p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <h5 className="text-white font-medium font-mono">{idx.name}</h5>
+                    <p className="text-xs text-white/50 mt-1">Table: {idx.table}</p>
+                    <p className="text-xs text-white/50 mt-1">Columns: {idx.columns.join(', ')}</p>
+                  </div>
+                  {idx.unique && (
+                    <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded">UNIQUE</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Info Box */}
+        <div className="mt-6 p-4 bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/30 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertCircle size={20} className="text-purple-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-purple-400 text-sm font-semibold mb-2">⚠️ Backend Infrastructure Management</p>
+              <p className="text-white/70 text-xs mb-2">
+                This section provides visibility into your backend infrastructure:
+              </p>
+              <p className="text-white/70 text-xs">
+                ✅ View all RPC functions, edge functions, and database indexes<br/>
+                ✅ Edit code with syntax highlighting (coming soon)<br/>
+                ✅ All changes create Pull Requests for review<br/>
+                ⚠️ Changes to RPCs and indexes require database migrations<br/>
+                ⚠️ Test thoroughly in staging before deploying to production
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderPresetManager = () => {
     const [presetName, setPresetName] = useState('');
     const [presetDescription, setPresetDescription] = useState('');
@@ -3596,6 +4053,23 @@ TESTING CHECKLIST:
                 <span>Site-Wide UI</span>
               </button>
               
+              {/* Backend Tab - NEW */}
+              <button
+                onClick={() => setActiveTab('backend')}
+                className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors flex-shrink-0 ${
+                  activeTab === 'backend' 
+                    ? 'border-purple-500 text-white' 
+                    : 'border-transparent text-white/50 hover:text-white/70'
+                }`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                  <line x1="8" y1="21" x2="16" y2="21"></line>
+                  <line x1="12" y1="17" x2="12" y2="21"></line>
+                </svg>
+                <span>Database & Backend</span>
+              </button>
+              
               {/* Presets Tab */}
               <button
                 onClick={() => setActiveTab('presets')}
@@ -3620,6 +4094,7 @@ TESTING CHECKLIST:
               {activeTab === 'buttons' && renderButtonEditor()}
               {activeTab === 'sections' && renderSectionsEditor()}
               {activeTab === 'site-wide' && renderSiteWideEditor()}
+              {activeTab === 'backend' && renderBackendEditor()}
               {activeTab === 'presets' && renderPresetManager()}
             </div>
 
