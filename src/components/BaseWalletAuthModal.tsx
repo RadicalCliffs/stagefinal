@@ -139,7 +139,40 @@ async function linkWalletToExistingUser(email: string, walletAddress: string): P
       console.error('[BaseWallet] Error updating user with wallet:', updateError);
       return { success: false };
     }
-    
+
+    // Call attach_identity_after_auth RPC for identity/profile linking
+    // This is a transactional RPC that handles profile creation and prior_signup_payload merging
+    try {
+      const priorPayload = {
+        username: existingUser.username || null,
+        country: existingUser.country || null,
+        first_name: existingUser.first_name || null,
+        last_name: existingUser.last_name || null,
+      };
+
+      console.log('[BaseWallet] Calling attach_identity_after_auth RPC for existing user');
+
+      const { error: rpcError } = await supabase.rpc('attach_identity_after_auth', {
+        in_canonical_user_id: canonicalUserId,
+        in_wallet_address: walletAddress.toLowerCase(),
+        in_email: normalizedEmail,
+        in_privy_user_id: walletAddress,
+        in_prior_payload: priorPayload,
+        in_base_wallet_address: walletAddress.toLowerCase(),
+        in_eth_wallet_address: walletAddress.toLowerCase(),
+      });
+
+      if (rpcError) {
+        // Log but don't fail - user was already linked successfully
+        console.warn('[BaseWallet] attach_identity_after_auth RPC warning:', rpcError);
+      } else {
+        console.log('[BaseWallet] attach_identity_after_auth RPC success');
+      }
+    } catch (rpcErr) {
+      // Non-blocking - don't fail auth if RPC fails
+      console.warn('[BaseWallet] attach_identity_after_auth RPC exception:', rpcErr);
+    }
+
     console.log('[BaseWallet] Successfully linked wallet to user:', existingUser.id);
     return { success: true, userId: existingUser.id };
   } catch (error) {
@@ -158,12 +191,24 @@ async function saveUserWithProfile(email: string, walletAddress: string, profile
     validateNotTreasuryAddress(walletAddress);
     const canonicalUserId = toPrizePid(walletAddress);
 
+    // Build prior_payload for attach_identity_after_auth RPC
+    const priorPayload = {
+      username: profile.username.toLowerCase(),
+      avatar_url: profile.avatar || userDataService.getDefaultAvatar(),
+      country: profile.country,
+      first_name: profile.fullName.split(' ')[0] || null,
+      last_name: profile.fullName.split(' ').slice(1).join(' ') || null,
+      telegram_handle: profile.socialProfiles || null,
+    };
+
     // Check if user exists by email first
     const { data: existingUser } = await supabase
       .from('canonical_users')
       .select('id')
       .eq('email', normalizedEmail)
       .maybeSingle();
+
+    let saveSuccess = false;
 
     if (existingUser) {
       // Update existing user
@@ -186,38 +231,68 @@ async function saveUserWithProfile(email: string, walletAddress: string, profile
           auth_provider: 'cdp',
         })
         .eq('id', existingUser.id);
-      return !error;
+      saveSuccess = !error;
+    } else {
+      // Create new user if not found
+      const { error } = await supabase
+        .from('canonical_users')
+        .insert({
+          canonical_user_id: canonicalUserId,
+          email: normalizedEmail,
+          wallet_address: walletAddress.toLowerCase(),
+          base_wallet_address: walletAddress.toLowerCase(),
+          eth_wallet_address: walletAddress.toLowerCase(),
+          privy_user_id: walletAddress,
+          username: profile.username.toLowerCase(),
+          first_name: profile.fullName.split(' ')[0] || null,
+          last_name: profile.fullName.split(' ').slice(1).join(' ') || null,
+          country: profile.country,
+          avatar_url: profile.avatar || userDataService.getDefaultAvatar(),
+          telephone_number: profile.mobile || null,
+          telegram_handle: profile.socialProfiles || null,
+          usdc_balance: 0,
+          has_used_new_user_bonus: false,
+          wallet_linked: true,
+          auth_provider: 'cdp',
+          created_at: new Date().toISOString(),
+        });
+
+      if (error && error.code !== '23505') {
+        console.error('[BaseWallet] Error creating user:', error);
+        return false;
+      }
+      saveSuccess = true;
     }
 
-    // Create new user if not found
-    const { error } = await supabase
-      .from('canonical_users')
-      .insert({
-        canonical_user_id: canonicalUserId,
-        email: normalizedEmail,
-        wallet_address: walletAddress.toLowerCase(),
-        base_wallet_address: walletAddress.toLowerCase(),
-        eth_wallet_address: walletAddress.toLowerCase(),
-        privy_user_id: walletAddress,
-        username: profile.username.toLowerCase(),
-        first_name: profile.fullName.split(' ')[0] || null,
-        last_name: profile.fullName.split(' ').slice(1).join(' ') || null,
-        country: profile.country,
-        avatar_url: profile.avatar || userDataService.getDefaultAvatar(),
-        telephone_number: profile.mobile || null,
-        telegram_handle: profile.socialProfiles || null,
-        usdc_balance: 0,
-        has_used_new_user_bonus: false,
-        wallet_linked: true,
-        auth_provider: 'cdp',
-        created_at: new Date().toISOString(),
-      });
+    // Call attach_identity_after_auth RPC for profile linking
+    // This is a transactional RPC that handles profile creation and prior_signup_payload merging
+    if (saveSuccess) {
+      try {
+        console.log('[BaseWallet] Calling attach_identity_after_auth RPC after profile completion');
 
-    if (error && error.code !== '23505') {
-      console.error('[BaseWallet] Error creating user:', error);
-      return false;
+        const { error: rpcError } = await supabase.rpc('attach_identity_after_auth', {
+          in_canonical_user_id: canonicalUserId,
+          in_wallet_address: walletAddress.toLowerCase(),
+          in_email: normalizedEmail,
+          in_privy_user_id: walletAddress,
+          in_prior_payload: priorPayload,
+          in_base_wallet_address: walletAddress.toLowerCase(),
+          in_eth_wallet_address: walletAddress.toLowerCase(),
+        });
+
+        if (rpcError) {
+          // Log but don't fail - user was already saved successfully
+          console.warn('[BaseWallet] attach_identity_after_auth RPC warning:', rpcError);
+        } else {
+          console.log('[BaseWallet] attach_identity_after_auth RPC success');
+        }
+      } catch (rpcErr) {
+        // Non-blocking - don't fail if RPC fails
+        console.warn('[BaseWallet] attach_identity_after_auth RPC exception:', rpcErr);
+      }
     }
-    return true;
+
+    return saveSuccess;
   } catch (error) {
     console.error('[BaseWallet] Database error:', error);
     return false;
@@ -272,6 +347,9 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
   const savedToDbRef = useRef(false);
   const profileCheckedRef = useRef(false);
   const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Track if we're waiting for the wallet address after CDP sign-in
+  const [waitingForWallet, setWaitingForWallet] = useState(false);
+  const walletPollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Reset state when modal opens
   useEffect(() => {
@@ -279,11 +357,18 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
       savedToDbRef.current = false;
       profileCheckedRef.current = false;
       setEmailError('');
-      
+      setWaitingForWallet(false);
+
       // Clear any existing auto-close timer
       if (autoCloseTimerRef.current) {
         clearTimeout(autoCloseTimerRef.current);
         autoCloseTimerRef.current = null;
+      }
+
+      // Clear any existing wallet poll interval
+      if (walletPollIntervalRef.current) {
+        clearInterval(walletPollIntervalRef.current);
+        walletPollIntervalRef.current = null;
       }
       
       // Set userEmail from options if provided
@@ -313,18 +398,59 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
       });
     }
     
-    // Cleanup timer on unmount
+    // Cleanup timers on unmount
     return () => {
       if (autoCloseTimerRef.current) {
         clearTimeout(autoCloseTimerRef.current);
+      }
+      if (walletPollIntervalRef.current) {
+        clearInterval(walletPollIntervalRef.current);
       }
     };
   }, [isOpen, options]);
 
   // Handle CDP sign-in success - create user with wallet or link to existing user
+  // This effect may need to wait for evmAddress to become available after CDP sign-in
   useEffect(() => {
     const handleCDPSignInSuccess = async () => {
+      // First check: CDP is signed in but no wallet address yet
+      // This happens because the CDP SignIn component shows "Success!" before the wallet is ready
+      if (flowState === 'cdp-signin' && cdpIsSignedIn && !evmAddress && currentUser && !waitingForWallet) {
+        console.log('[BaseWallet] CDP signed in but waiting for wallet address...');
+        setWaitingForWallet(true);
+
+        // Start polling for wallet address with a timeout
+        let pollCount = 0;
+        const maxPolls = 30; // 30 * 200ms = 6 seconds max wait
+
+        walletPollIntervalRef.current = setInterval(() => {
+          pollCount++;
+          console.log(`[BaseWallet] Polling for wallet address... (${pollCount}/${maxPolls})`);
+
+          if (pollCount >= maxPolls) {
+            // Timeout - wallet address never arrived
+            console.error('[BaseWallet] Timeout waiting for wallet address');
+            if (walletPollIntervalRef.current) {
+              clearInterval(walletPollIntervalRef.current);
+              walletPollIntervalRef.current = null;
+            }
+            setWaitingForWallet(false);
+            setEmailError('Wallet initialization timed out. Please try again.');
+            profileCheckedRef.current = false;
+          }
+        }, 200);
+
+        return; // Exit and wait for evmAddress to trigger this effect again
+      }
+
+      // Second check: All conditions met - CDP signed in AND wallet address available
       if (flowState === 'cdp-signin' && cdpIsSignedIn && evmAddress && currentUser && !profileCheckedRef.current) {
+        // Clear polling interval if it was running
+        if (walletPollIntervalRef.current) {
+          clearInterval(walletPollIntervalRef.current);
+          walletPollIntervalRef.current = null;
+        }
+        setWaitingForWallet(false);
         profileCheckedRef.current = true;
 
         const cdpEmail = currentUser.email ||
@@ -452,7 +578,15 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
     };
 
     void handleCDPSignInSuccess();
-  }, [flowState, cdpIsSignedIn, evmAddress, currentUser]);
+
+    // Cleanup polling interval when effect re-runs or unmounts
+    return () => {
+      if (walletPollIntervalRef.current) {
+        clearInterval(walletPollIntervalRef.current);
+        walletPollIntervalRef.current = null;
+      }
+    };
+  }, [flowState, cdpIsSignedIn, evmAddress, currentUser, waitingForWallet]);
 
   // Handle external wallet connection (wagmi)
   useEffect(() => {
@@ -700,51 +834,73 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               )}
             </p>
 
-            <div className="w-full">
-              <SignIn onSuccess={() => {
-                console.log('[BaseWallet] CDP sign-in successful');
-              }}>
-                {(state: SignInState) => {
-                  if (state.error) {
-                    const errorStr = typeof state.error === 'string' ? state.error : (state.error as any)?.message || '';
-                    const errorLower = errorStr.toLowerCase();
+            {/* Show loading state when waiting for wallet after OTP verification */}
+            {waitingForWallet ? (
+              <div className="w-full py-8 flex flex-col items-center justify-center">
+                <Loader2 className="animate-spin text-[#0052FF] mb-4" size={40} />
+                <p className="text-white/80 text-sm text-center">
+                  Setting up your wallet...
+                </p>
+                <p className="text-white/50 text-xs text-center mt-1">
+                  This may take a few seconds
+                </p>
+              </div>
+            ) : (
+              <div className="w-full">
+                <SignIn onSuccess={() => {
+                  console.log('[BaseWallet] CDP sign-in successful');
+                }}>
+                  {(state: SignInState) => {
+                    if (state.error) {
+                      const errorStr = typeof state.error === 'string' ? state.error : (state.error as any)?.message || '';
+                      const errorLower = errorStr.toLowerCase();
 
-                    if (errorLower.includes('already linked') || errorLower.includes('already associated')) {
-                      return (
-                        <div className="mt-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg" role="alert">
-                          <p className="text-yellow-400 text-xs text-center">
-                            This email already has an account. Please enter the verification code.
-                          </p>
-                        </div>
-                      );
-                    }
+                      if (errorLower.includes('already linked') || errorLower.includes('already associated')) {
+                        return (
+                          <div className="mt-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg" role="alert">
+                            <p className="text-yellow-400 text-xs text-center">
+                              This email already has an account. Please enter the verification code.
+                            </p>
+                          </div>
+                        );
+                      }
 
-                    if (errorLower.includes('rate limit') || errorLower.includes('too many')) {
+                      if (errorLower.includes('rate limit') || errorLower.includes('too many')) {
+                        return (
+                          <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg" role="alert">
+                            <p className="text-red-400 text-xs text-center">
+                              Too many attempts. Please wait a moment.
+                            </p>
+                          </div>
+                        );
+                      }
+
+                      if (errorLower.includes('cancelled') || errorLower.includes('rejected') || errorLower.includes('denied')) {
+                        return null;
+                      }
+
                       return (
                         <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg" role="alert">
                           <p className="text-red-400 text-xs text-center">
-                            Too many attempts. Please wait a moment.
+                            Something went wrong. Please try again.
                           </p>
                         </div>
                       );
                     }
+                    return null;
+                  }}
+                </SignIn>
+              </div>
+            )}
 
-                    if (errorLower.includes('cancelled') || errorLower.includes('rejected') || errorLower.includes('denied')) {
-                      return null;
-                    }
-
-                    return (
-                      <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg" role="alert">
-                        <p className="text-red-400 text-xs text-center">
-                          Something went wrong. Please try again.
-                        </p>
-                      </div>
-                    );
-                  }
-                  return null;
-                }}
-              </SignIn>
-            </div>
+            {emailError && (
+              <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg" role="alert">
+                <div className="flex items-start gap-2 text-red-400 text-xs justify-center">
+                  <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
+                  <span className="break-words">{emailError}</span>
+                </div>
+              </div>
+            )}
 
             <button
               onClick={() => setFlowState('wallet-choice')}

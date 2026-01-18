@@ -31,5 +31,6 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src", "supabase"]
+  "include": ["src"],
+  "exclude": ["supabase"]
 }

@@ -271,8 +271,10 @@ export interface Database {
           wallet_address: string | null
           /** Base/CDP authenticated wallet address */
           base_wallet_address: string | null
+          eth_wallet_address: string | null
           /** External wallet linked for display purposes only */
           linked_external_wallet: string | null
+          smart_wallet_address: string | null
           phone: string | null
           /** User's phone number (optional) */
           telephone_number: string | null
@@ -283,10 +285,13 @@ export interface Database {
           avatar_url: string | null
           username: string | null
           country: string | null
+          first_name: string | null
+          last_name: string | null
           total_entries: number | null
           total_amount_spent: number | null
           competitions_entered: number | null
           usdc_balance: number | null
+          has_used_new_user_bonus: boolean | null
           created_at: string | null
           updated_at: string | null
         }
@@ -297,7 +302,9 @@ export interface Database {
           email?: string | null
           wallet_address?: string | null
           base_wallet_address?: string | null
+          eth_wallet_address?: string | null
           linked_external_wallet?: string | null
+          smart_wallet_address?: string | null
           phone?: string | null
           telephone_number?: string | null
           google_email?: string | null
@@ -307,10 +314,13 @@ export interface Database {
           avatar_url?: string | null
           username?: string | null
           country?: string | null
+          first_name?: string | null
+          last_name?: string | null
           total_entries?: number | null
           total_amount_spent?: number | null
           competitions_entered?: number | null
           usdc_balance?: number | null
+          has_used_new_user_bonus?: boolean | null
           created_at?: string | null
           updated_at?: string | null
         }
@@ -321,7 +331,9 @@ export interface Database {
           email?: string | null
           wallet_address?: string | null
           base_wallet_address?: string | null
+          eth_wallet_address?: string | null
           linked_external_wallet?: string | null
+          smart_wallet_address?: string | null
           phone?: string | null
           telephone_number?: string | null
           google_email?: string | null
@@ -331,10 +343,13 @@ export interface Database {
           avatar_url?: string | null
           username?: string | null
           country?: string | null
+          first_name?: string | null
+          last_name?: string | null
           total_entries?: number | null
           total_amount_spent?: number | null
           competitions_entered?: number | null
           usdc_balance?: number | null
+          has_used_new_user_bonus?: boolean | null
           created_at?: string | null
           updated_at?: string | null
         }
