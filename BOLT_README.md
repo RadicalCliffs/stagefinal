@@ -165,7 +165,7 @@ After making changes in Bolt:
 
 ### Build Errors
 - Ensure all dependencies are installed: `npm install`
-- Check Node.js version: Should be 18+ 
+- Check Node.js version: Should be 18+.
 - Clear cache: `rm -rf node_modules package-lock.json && npm install`
 
 ### Environment Variables

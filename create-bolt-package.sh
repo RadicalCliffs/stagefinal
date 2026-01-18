@@ -60,7 +60,7 @@ cp BOLT_README.md "$OUTPUT_DIR/README.md"
 
 # Create a package info file
 echo "  ↳ Creating package info..."
-cat > "$OUTPUT_DIR/PACKAGE_INFO.txt" << 'EOF'
+cat > "$OUTPUT_DIR/PACKAGE_INFO.txt" << EOF
 ThePrize.io Front-End Package
 ==============================
 
