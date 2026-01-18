@@ -232,7 +232,9 @@ const cdpConfig: CDPConfig = {
   },
   appName: 'The Prize - Win Big with Crypto',
   appLogoUrl: '',
-  authMethods: ['email'],
+  // Support both email and passkey authentication for easy sign-in
+  // Passkey allows users to authenticate using biometrics/security keys
+  authMethods: ['email', 'passkey'],
   showCoinbaseFooter: false,
 };
 
@@ -284,12 +286,13 @@ createRoot(document.getElementById('root')!).render(
                     // IMPORTANT: Use 'modal' display for proper Base popup experience on mobile
                     // This triggers the native Coinbase/Base wallet popup instead of inline UI
                     display: 'modal',
-                    // ONLY support Base/Coinbase wallets - no Phantom, MetaMask or other wallets
-                    // Users should create/connect Base wallets exclusively for theprize.io
+                    // Support Base/Coinbase wallets as primary, but allow other wallets via injected connector
+                    // The injected connector (from wagmi config) will detect ANY wallet in browser/phone
+                    // This includes MetaMask, Rainbow, Phantom, or any wallet the user has connected
                     supportedWallets: {
-                      // Disable MetaMask - we want Base-only wallets
+                      // Keep MetaMask disabled to prioritize Base, but injected will catch it
                       metamask: false,
-                      // Disable Phantom - we want Base-only wallets
+                      // Keep Phantom disabled to prioritize Base, but injected will catch it
                       phantom: false,
                       // Keep other wallets disabled
                       rabby: false,
