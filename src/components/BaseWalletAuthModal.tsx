@@ -453,27 +453,34 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
         setWaitingForWallet(false);
         profileCheckedRef.current = true;
 
+        // Check if we have pending signup data from NewAuthModal FIRST
+        // This data contains the verified email from the OTP step
+        const pendingDataStr = localStorage.getItem('pendingSignupData');
+        let pendingData = null;
+        if (pendingDataStr) {
+          try {
+            pendingData = JSON.parse(pendingDataStr);
+            console.log('[BaseWallet] Found pending signup data:', pendingData);
+            // Clear it so it's not used again
+            localStorage.removeItem('pendingSignupData');
+          } catch (e) {
+            console.error('[BaseWallet] Failed to parse pending signup data:', e);
+          }
+        }
+
+        // Get email from CDP currentUser (multiple possible locations)
         const cdpEmail = currentUser.email ||
                      (currentUser as any).emails?.[0]?.value ||
-                     (currentUser as any).emails?.[0]?.address;
+                     (currentUser as any).emails?.[0]?.address ||
+                     (currentUser as any).linkedAccounts?.find((a: any) => a.type === 'email')?.email;
 
-        if (cdpEmail) {
-          setUserEmail(cdpEmail);
-          console.log('[BaseWallet] CDP sign-in successful:', { email: cdpEmail, wallet: evmAddress });
+        // CRITICAL: Use email from pending signup data first (already verified via OTP)
+        // Fall back to CDP email if no pending data
+        const effectiveEmail = pendingData?.profileData?.email || pendingData?.email || cdpEmail;
 
-          // Check if we have pending signup data from NewAuthModal
-          const pendingDataStr = localStorage.getItem('pendingSignupData');
-          let pendingData = null;
-          if (pendingDataStr) {
-            try {
-              pendingData = JSON.parse(pendingDataStr);
-              console.log('[BaseWallet] Found pending signup data:', pendingData);
-              // Clear it so it's not used again
-              localStorage.removeItem('pendingSignupData');
-            } catch (e) {
-              console.error('[BaseWallet] Failed to parse pending signup data:', e);
-            }
-          }
+        if (effectiveEmail) {
+          setUserEmail(effectiveEmail);
+          console.log('[BaseWallet] CDP sign-in successful:', { email: effectiveEmail, wallet: evmAddress, source: pendingData?.profileData?.email ? 'pendingSignupData' : 'CDP' });
 
           // If we have pending profile data from NewAuthModal, create user with that data
           // This is the CRITICAL step: user creation happens atomically with wallet creation
@@ -558,7 +565,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               localStorage.setItem('cdp:wallet_address', evmAddress);
 
               window.dispatchEvent(new CustomEvent('auth-complete', {
-                detail: { walletAddress: evmAddress, email: cdpEmail }
+                detail: { walletAddress: evmAddress, email: effectiveEmail }
               }));
 
               // CRITICAL: Set flow state to success
@@ -570,9 +577,13 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             }
           }
         } else {
-          console.error('[BaseWallet] CDP sign-in succeeded but no email found in currentUser');
-          setEmailError('Unable to retrieve email from authentication. Please try again.');
-          profileCheckedRef.current = false;
+          // No email found from any source
+          // If we have a wallet, we might still be able to proceed in some cases
+          // Show profile completion form to collect user data including email
+          console.error('[BaseWallet] CDP sign-in succeeded but no email found in currentUser or pendingSignupData');
+          console.log('[BaseWallet] Showing profile completion form to collect missing data');
+          // Allow user to complete profile manually
+          setFlowState('profile-completion');
         }
       }
     };
