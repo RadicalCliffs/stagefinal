@@ -38,10 +38,10 @@ Deno.serve(async (req) => {
     const normalizedWallet = walletAddress ? walletAddress.toLowerCase().trim() : null;
 
     // Generate canonical_user_id from wallet if provided
+    // Format: prize:pid:<lowercase_wallet_address> (matches client-side toPrizePid())
     let canonicalUserId = null;
     if (normalizedWallet) {
-      // Simple PID generation: prz_ + first 8 chars of wallet
-      canonicalUserId = `prz_${normalizedWallet.substring(2, 10)}`;
+      canonicalUserId = `prize:pid:${normalizedWallet}`;
     }
 
     // Upsert - insert or update based on email

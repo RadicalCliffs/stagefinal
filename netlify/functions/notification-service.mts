@@ -68,24 +68,42 @@ async function verifyWalletToken(
   const walletAddress = token.replace("wallet:", "").trim().toLowerCase();
   if (!isWalletAddress(walletAddress)) return null;
 
-  // Look up user by wallet address
+  // Look up user by wallet address - check all wallet columns
+  // Use explicit ilike patterns for case-insensitive matching
   const { data: user, error } = await supabase
     .from("canonical_users")
-    .select("id, privy_user_id, wallet_address, base_wallet_address, canonical_user_id, is_admin")
-    .or(`wallet_address.ilike.${walletAddress},base_wallet_address.ilike.${walletAddress}`)
+    .select("id, privy_user_id, wallet_address, base_wallet_address, eth_wallet_address, canonical_user_id, is_admin")
+    .or(`wallet_address.ilike.${walletAddress},base_wallet_address.ilike.${walletAddress},eth_wallet_address.ilike.${walletAddress},privy_user_id.ilike.${walletAddress}`)
     .maybeSingle();
 
   if (error) {
     console.error("[notification-service] Error looking up user:", error);
+    // Don't return null on error - try alternative lookup
   }
 
   // If user exists, return their info
   if (user) {
-    const canonicalUserId = toPrizePid(user.privy_user_id || walletAddress);
+    const canonicalUserId = toPrizePid(user.privy_user_id || user.wallet_address || walletAddress);
     return {
       userId: canonicalUserId,
       profileId: user.id,
       isAdmin: user.is_admin === true,
+    };
+  }
+
+  // Fallback: try looking up by canonical_user_id (in case wallet was stored there)
+  const canonicalId = `prize:pid:${walletAddress}`;
+  const { data: userByCanonical, error: canonicalError } = await supabase
+    .from("canonical_users")
+    .select("id, privy_user_id, wallet_address, canonical_user_id, is_admin")
+    .eq("canonical_user_id", canonicalId)
+    .maybeSingle();
+
+  if (!canonicalError && userByCanonical) {
+    return {
+      userId: canonicalId,
+      profileId: userByCanonical.id,
+      isAdmin: userByCanonical.is_admin === true,
     };
   }
 
