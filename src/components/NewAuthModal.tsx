@@ -254,7 +254,7 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
   };
 
   /**
-   * Step 2: Complete profile - NO OTP yet, will be handled by CDP during wallet creation
+   * Step 2: Complete profile and send OTP
    */
   const handleProfileSubmit = async () => {
     if (!profileData.email.trim()) {
@@ -301,13 +301,26 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
         }
       }
 
-      // Skip email OTP - it will be handled by CDP during wallet creation
-      // Go straight to wallet step
-      console.log('[NewAuthModal] Profile complete, proceeding to wallet step');
-      setStep('wallet');
+      // Send OTP via Netlify function using SendGrid
+      console.log('[NewAuthModal] Sending OTP to:', profileData.email);
+
+      const response = await fetch('/api/send-otp-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: profileData.email.toLowerCase() }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send verification code');
+      }
+
+      setOtpSent(true);
+      setStep('email-otp');
     } catch (err) {
-      console.error('[NewAuthModal] Error in profile submit:', err);
-      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+      console.error('[NewAuthModal] Error sending OTP:', err);
+      setError(err instanceof Error ? err.message : 'Failed to send verification code. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -344,37 +357,10 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
         throw new Error(data.error || 'Invalid verification code');
       }
 
-      // Create user via edge function with service role access
-      if (!isReturningUser) {
-        console.log('[NewAuthModal] Creating user via edge function...');
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-        
-        const upsertResponse = await fetch(`${supabaseUrl}/functions/v1/upsert-user`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseAnonKey}`,
-          },
-          body: JSON.stringify({
-            username: profileData.username,
-            email: profileData.email,
-            firstName: profileData.firstName,
-            lastName: profileData.lastName,
-            country: profileData.country,
-            telegram: profileData.telegram,
-            avatar: profileData.avatar,
-          }),
-        });
-
-        if (!upsertResponse.ok) {
-          const errorData = await upsertResponse.json();
-          console.error('[NewAuthModal] Failed to create user:', errorData);
-          throw new Error('Failed to create account. Please try again.');
-        }
-        console.log('[NewAuthModal] User created/updated in database');
-      }
-
+      // DO NOT create user here - wait until CDP wallet is successfully created
+      // User creation will happen in BaseWalletAuthModal after wallet is linked
+      console.log('[NewAuthModal] Email verified successfully, proceeding to wallet connection');
+      
       // OTP verified, proceed to wallet connection
       setStep('wallet');
     } catch (err) {
