@@ -17,7 +17,7 @@ import { supabase } from '../lib/supabase';
 import { toPrizePid } from '../utils/userId';
 import { truncateWalletAddress } from '../utils/util';
 import { useCurrentUser, useEvmAddress, useIsSignedIn } from '@coinbase/cdp-hooks';
-import { useAccount, useDisconnect } from 'wagmi';
+import { useAccount, useDisconnect, useConnect } from 'wagmi';
 
 // Text overrides for visual editor live preview
 export interface NewAuthModalTextOverrides {
@@ -91,6 +91,7 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
   // Wagmi hooks for external wallet connection (Base App, Coinbase Wallet, etc.)
   const { address: wagmiAddress, isConnected: wagmiIsConnected } = useAccount();
   const { disconnect: wagmiDisconnect } = useDisconnect();
+  const { connect, connectors } = useConnect();
 
   // Get the effective wallet address (CDP or wagmi)
   const effectiveWalletAddress = evmAddress || wagmiAddress;
@@ -166,10 +167,35 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
         setProfileData(prev => ({ ...prev, email: data.email || '' }));
         
         if (data.wallet_address || data.base_wallet_address) {
-          // Has wallet, store it and show welcome back screen (Screen 3A)
+          // Has wallet - immediately initiate wallet connection with passkey support
           const walletAddr = data.wallet_address || data.base_wallet_address;
           setReturningUserWalletAddress(walletAddr);
-          setStep('returning-user-wallet');
+          
+          console.log('[NewAuthModal] Returning user detected, initiating wallet connection');
+          
+          // Save returning user data to localStorage for wallet linking
+          localStorage.setItem('pendingSignupData', JSON.stringify({
+            profileData: { ...profileData, email: data.email || '' },
+            isReturningUser: true,
+            returningUserWalletAddress: walletAddr,
+            timestamp: Date.now()
+          }));
+          
+          // Automatically trigger wallet connection
+          // Try coinbaseWallet connector first (supports passkey)
+          const coinbaseConnector = connectors.find(
+            (c) => c.id === 'coinbaseWalletSDK' || c.name.toLowerCase().includes('coinbase')
+          );
+          
+          if (coinbaseConnector) {
+            console.log('[NewAuthModal] Connecting with Coinbase Wallet connector (passkey support)');
+            connect({ connector: coinbaseConnector });
+            // Set step to wallet to show connection UI
+            setStep('wallet');
+          } else {
+            // Fallback to showing wallet connection screen
+            setStep('wallet');
+          }
         } else {
           // No wallet, need to complete profile first
           setStep('profile');
