@@ -109,10 +109,10 @@ interface ImageProperty {
   value: string;
   alt?: string;
   locked?: boolean;
-  type?: 'logo' | 'icon' | 'wallet_icon' | 'payment_icon' | 'background' | 'other'; // New: Icon type categorization
-  format?: 'svg' | 'png' | 'webp' | 'jpg' | 'any'; // New: Preferred format
-  dimensions?: { width: number; height: number }; // New: Recommended dimensions
-  acceptFormats?: string; // New: Accept attribute for file input
+  type?: 'logo' | 'icon' | 'wallet_icon' | 'payment_icon' | 'background' | 'hero' | 'other'; // Icon type categorization
+  format?: 'svg' | 'png' | 'webp' | 'jpg' | 'any'; // Preferred format
+  dimensions?: { width: number; height: number }; // Recommended dimensions
+  acceptFormats?: string; // Accept attribute for file input
 }
 
 interface FlowStep {
