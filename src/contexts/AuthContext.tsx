@@ -60,6 +60,10 @@ interface AuthContextType extends UserData {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Grace period after auth-complete event to prevent redundant refreshUserData calls
+// This prevents a race condition where handleAuthStateChange tries to refresh without email
+const AUTH_COMPLETE_GRACE_PERIOD_MS = 2000;
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // CDP/Base hooks for authentication - replaces Privy
   const { currentUser } = useCurrentUser();
@@ -86,6 +90,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const readyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Track if a refresh is currently in progress to prevent concurrent refreshes
   const refreshInProgressRef = useRef(false);
+  // Track when auth-complete event was handled to prevent race condition with handleAuthStateChange
+  const authCompleteHandledRef = useRef<number>(0);
 
   // Extract email from currentUser (memoized to prevent unnecessary recalculations)
   const userEmail = currentUser?.email || (currentUser as any)?.emails?.[0]?.value || (currentUser as any)?.emails?.[0]?.address;
@@ -405,6 +411,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           return;
         }
 
+        // CRITICAL FIX: If auth-complete event was handled in the last 2 seconds, skip this call
+        // The auth-complete handler already called refreshUserData with the correct email
+        // This prevents a race condition where this effect calls refreshUserData without email
+        const timeSinceAuthComplete = Date.now() - authCompleteHandledRef.current;
+        if (timeSinceAuthComplete < AUTH_COMPLETE_GRACE_PERIOD_MS) {
+          console.log('[AuthContext] Auth-complete event was just handled, skipping redundant refresh from handleAuthStateChange');
+          // Still mark as fetched so we don't trigger again
+          lastFetchedUserIdRef.current = effectiveWalletAddress;
+          initialFetchDoneRef.current = true;
+          return;
+        }
+
         console.log('Auth state: User authenticated via Base, fetching data for:', effectiveWalletAddress);
         lastFetchedUserIdRef.current = effectiveWalletAddress;
         initialFetchDoneRef.current = true;
@@ -415,6 +433,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Reset tracking refs when user logs out
         initialFetchDoneRef.current = false;
         lastFetchedUserIdRef.current = null;
+        authCompleteHandledRef.current = 0;
         setProfile(null);
         setEntryCount(0);
         setWalletBalance(0);
@@ -488,6 +507,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const handleAuthComplete = (event: CustomEvent) => {
       console.log('[AuthContext] Auth complete event received:', event.detail);
+      // CRITICAL FIX: Mark that auth-complete was handled to prevent race with handleAuthStateChange
+      authCompleteHandledRef.current = Date.now();
       // Reset tracking refs to force a fresh fetch
       initialFetchDoneRef.current = false;
       lastFetchedUserIdRef.current = null;
