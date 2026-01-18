@@ -431,6 +431,8 @@ export default function AuthModalVisualEditor() {
       return null;
     }
   };
+
+  const handleBackendPRCreation = async () => {
     try {
       setBackendState(prev => ({ ...prev, loading: true }));
 
