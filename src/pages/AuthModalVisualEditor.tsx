@@ -303,9 +303,11 @@ export default function AuthModalVisualEditor() {
     name: string;
     file: string;
     signature: string;
+    returnType?: string;
     description?: string;
     language: string;
     securityDefiner: boolean;
+    code?: string;
   }
 
   interface EdgeFunction {
@@ -330,7 +332,13 @@ export default function AuthModalVisualEditor() {
     selectedRPC: null as RPCFunction | null,
     selectedEdge: null as EdgeFunction | null,
     editingCode: '',
-    modified: false
+    modified: false,
+    showCodeViewer: false,
+    viewingCode: '',
+    viewingTitle: '',
+    searchTerm: '',
+    findTerm: '',
+    replaceTerm: ''
   });
 
   const [backendNotification, setBackendNotification] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
@@ -2967,10 +2975,71 @@ TESTING CHECKLIST:
         {/* RPC Functions */}
         {activeSubTab === 'rpc' && (
           <div className="space-y-4">
-            <h4 className="text-xl font-bold text-white">Supabase RPC Functions</h4>
-            <p className="text-white/60 text-sm">
-              View and edit database stored procedures and functions. Changes will be staged as SQL migrations.
-            </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-xl font-bold text-white">Supabase RPC Functions</h4>
+                <p className="text-white/60 text-sm">
+                  View and edit database stored procedures and functions. Changes will be staged as SQL migrations.
+                </p>
+              </div>
+              {backendState.rpcFunctions.length > 0 && (
+                <button
+                  onClick={loadBackendConfiguration}
+                  className="inline-flex items-center gap-2 bg-purple-500/20 text-purple-400 px-3 py-2 rounded-lg hover:bg-purple-500/30 text-sm"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+                  </svg>
+                  Reload
+                </button>
+              )}
+            </div>
+
+            {/* Search and Filter */}
+            {backendState.rpcFunctions.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <input
+                      type="text"
+                      placeholder="Search functions by name, signature, or code..."
+                      value={backendState.searchTerm}
+                      onChange={(e) => setBackendState(prev => ({ ...prev, searchTerm: e.target.value }))}
+                      className="w-full bg-black/30 text-white px-4 py-2 rounded-lg border border-white/20 focus:border-purple-500 focus:outline-none text-sm"
+                    />
+                  </div>
+                </div>
+                
+                {/* Find and Replace */}
+                <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3">
+                  <h5 className="text-white font-medium text-sm mb-2">Find & Replace Terms</h5>
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      placeholder="Find term..."
+                      value={backendState.findTerm}
+                      onChange={(e) => setBackendState(prev => ({ ...prev, findTerm: e.target.value }))}
+                      className="bg-black/30 text-white px-3 py-2 rounded border border-white/20 focus:border-purple-500 focus:outline-none text-sm"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Replace with..."
+                      value={backendState.replaceTerm}
+                      onChange={(e) => setBackendState(prev => ({ ...prev, replaceTerm: e.target.value }))}
+                      className="bg-black/30 text-white px-3 py-2 rounded border border-white/20 focus:border-purple-500 focus:outline-none text-sm"
+                    />
+                  </div>
+                  {backendState.findTerm && (
+                    <div className="mt-2 text-xs text-white/60">
+                      Found in {backendState.rpcFunctions.filter(f => 
+                        f.code?.includes(backendState.findTerm) || 
+                        f.name.includes(backendState.findTerm)
+                      ).length} functions
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {backendState.rpcFunctions.length === 0 && !backendState.loading && (
               <div className="text-center py-12 bg-white/5 border border-white/10 rounded-lg">
@@ -2987,48 +3056,118 @@ TESTING CHECKLIST:
               </div>
             )}
 
-            {backendState.rpcFunctions.map((rpc, index) => (
-              <div key={index} className="bg-white/5 border border-white/10 rounded-lg p-4">
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex-1">
-                    <h5 className="text-white font-medium font-mono">{rpc.name}()</h5>
-                    <p className="text-xs text-white/50 mt-1">{rpc.signature}</p>
-                    {rpc.description && (
-                      <p className="text-sm text-white/60 mt-2">{rpc.description}</p>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    {rpc.securityDefiner && (
-                      <span className="px-2 py-1 bg-red-500/20 text-red-400 text-xs rounded">SECURITY DEFINER</span>
-                    )}
-                    <span className="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded uppercase">{rpc.language}</span>
-                  </div>
-                </div>
-                <div className="mt-3 flex gap-2">
-                  <button
-                    onClick={() => {
-                      setBackendState(prev => ({ ...prev, selectedRPC: rpc }));
-                    }}
-                    className="text-sm text-purple-400 hover:text-purple-300 flex items-center gap-1"
+            {backendState.rpcFunctions
+              .filter(rpc => {
+                if (!backendState.searchTerm) return true;
+                const searchLower = backendState.searchTerm.toLowerCase();
+                return (
+                  rpc.name.toLowerCase().includes(searchLower) ||
+                  rpc.signature.toLowerCase().includes(searchLower) ||
+                  rpc.code?.toLowerCase().includes(searchLower) ||
+                  rpc.file.toLowerCase().includes(searchLower)
+                );
+              })
+              .map((rpc, index) => {
+                const hasSearchTerm = backendState.findTerm && (
+                  rpc.code?.includes(backendState.findTerm) ||
+                  rpc.name.includes(backendState.findTerm)
+                );
+                
+                return (
+                  <div 
+                    key={index} 
+                    className={`bg-white/5 border rounded-lg p-4 ${
+                      hasSearchTerm ? 'border-yellow-500/50 bg-yellow-500/5' : 'border-white/10'
+                    }`}
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                      <circle cx="12" cy="12" r="3"></circle>
-                    </svg>
-                    View SQL
-                  </button>
-                  <button
-                    className="text-sm text-white/50 hover:text-white/70 flex items-center gap-1"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                    </svg>
-                    Edit
-                  </button>
-                </div>
-              </div>
-            ))}
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1">
+                        <h5 className="text-white font-medium font-mono">{rpc.name}()</h5>
+                        <p className="text-xs text-white/50 mt-1">{rpc.signature}</p>
+                        {rpc.returnType && (
+                          <p className="text-xs text-green-400 mt-1">→ {rpc.returnType}</p>
+                        )}
+                        {rpc.description && (
+                          <p className="text-sm text-white/60 mt-2">{rpc.description}</p>
+                        )}
+                        {hasSearchTerm && (
+                          <p className="text-xs text-yellow-400 mt-1">
+                            Contains "{backendState.findTerm}"
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        {rpc.securityDefiner && (
+                          <span className="px-2 py-1 bg-red-500/20 text-red-400 text-xs rounded">SECURITY DEFINER</span>
+                        )}
+                        <span className="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded uppercase">{rpc.language}</span>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        onClick={() => {
+                          setBackendState(prev => ({ 
+                            ...prev, 
+                            showCodeViewer: true,
+                            viewingCode: rpc.code || 'No code available',
+                            viewingTitle: `${rpc.name}() - ${rpc.file}`,
+                            selectedRPC: rpc
+                          }));
+                        }}
+                        className="text-sm text-purple-400 hover:text-purple-300 flex items-center gap-1"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                          <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                        View SQL
+                      </button>
+                      <button
+                        onClick={() => {
+                          setBackendState(prev => ({ 
+                            ...prev, 
+                            showCodeViewer: true,
+                            viewingCode: rpc.code || '',
+                            viewingTitle: `Edit: ${rpc.name}()`,
+                            selectedRPC: rpc,
+                            editingCode: rpc.code || ''
+                          }));
+                        }}
+                        className="text-sm text-white/50 hover:text-white/70 flex items-center gap-1"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                        Edit
+                      </button>
+                      {hasSearchTerm && backendState.replaceTerm && (
+                        <button
+                          onClick={() => {
+                            const newCode = rpc.code?.replace(
+                              new RegExp(backendState.findTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+                              backendState.replaceTerm
+                            );
+                            setBackendState(prev => ({ 
+                              ...prev, 
+                              selectedRPC: { ...rpc, code: newCode },
+                              editingCode: newCode || '',
+                              modified: true
+                            }));
+                            showBackendNotification('success', `Replaced "${backendState.findTerm}" in ${rpc.name}()`);
+                          }}
+                          className="text-sm text-green-400 hover:text-green-300 flex items-center gap-1"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                          </svg>
+                          Replace
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         )}
 
@@ -3117,6 +3256,123 @@ TESTING CHECKLIST:
           </div>
         )}
 
+        {/* Code Viewer/Editor Modal */}
+        {backendState.showCodeViewer && (
+          <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+            <div className="bg-[#1A1A1A] rounded-lg w-full max-w-6xl max-h-[90vh] flex flex-col">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between p-4 border-b border-white/10">
+                <h3 className="text-white font-semibold">{backendState.viewingTitle}</h3>
+                <div className="flex gap-2">
+                  {backendState.editingCode && (
+                    <button
+                      onClick={() => {
+                        setBackendState(prev => ({
+                          ...prev,
+                          modified: true,
+                          showCodeViewer: false
+                        }));
+                        showBackendNotification('info', 'Changes staged. Create PR to apply.');
+                      }}
+                      className="inline-flex items-center gap-2 bg-green-500 text-white px-3 py-1.5 rounded text-sm hover:bg-green-600"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                      </svg>
+                      Save Changes
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setBackendState(prev => ({ 
+                      ...prev, 
+                      showCodeViewer: false,
+                      editingCode: '',
+                      viewingCode: '',
+                      viewingTitle: ''
+                    }))}
+                    className="text-white/70 hover:text-white"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body */}
+              <div className="flex-1 overflow-auto p-4">
+                {backendState.editingCode ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-white/70 text-sm">Edit SQL Code:</label>
+                      <div className="flex gap-2">
+                        {backendState.findTerm && (
+                          <button
+                            onClick={() => {
+                              const newCode = backendState.editingCode.replace(
+                                new RegExp(backendState.findTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+                                backendState.replaceTerm
+                              );
+                              setBackendState(prev => ({ ...prev, editingCode: newCode }));
+                            }}
+                            className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded hover:bg-yellow-500/30"
+                          >
+                            Replace All "{backendState.findTerm}"
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <textarea
+                      value={backendState.editingCode}
+                      onChange={(e) => setBackendState(prev => ({ ...prev, editingCode: e.target.value }))}
+                      className="w-full h-[60vh] bg-black/50 text-white font-mono text-sm p-4 rounded border border-white/20 focus:border-purple-500 focus:outline-none resize-none"
+                      spellCheck={false}
+                    />
+                    <p className="text-xs text-white/50">
+                      {backendState.editingCode.split('\n').length} lines • {backendState.editingCode.length} characters
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <label className="text-white/70 text-sm">SQL Code (Read-Only):</label>
+                    <pre className="bg-black/50 text-white font-mono text-sm p-4 rounded border border-white/20 overflow-auto max-h-[60vh]">
+                      <code>{backendState.viewingCode}</code>
+                    </pre>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 border-t border-white/10 flex justify-between items-center">
+                <div className="text-xs text-white/50">
+                  {backendState.selectedRPC && (
+                    <span>
+                      {backendState.selectedRPC.language} • 
+                      {backendState.selectedRPC.securityDefiner && ' SECURITY DEFINER • '}
+                      {backendState.selectedRPC.file}
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setBackendState(prev => ({ 
+                      ...prev, 
+                      showCodeViewer: false,
+                      editingCode: '',
+                      viewingCode: '',
+                      viewingTitle: ''
+                    }))}
+                    className="px-4 py-2 bg-white/10 text-white rounded hover:bg-white/20"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Info Box */}
         <div className="mt-6 p-4 bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/30 rounded-lg">
           <div className="flex items-start gap-3">
@@ -3128,7 +3384,9 @@ TESTING CHECKLIST:
               </p>
               <p className="text-white/70 text-xs">
                 ✅ View all RPC functions, edge functions, and database indexes<br/>
-                ✅ Edit code with syntax highlighting (coming soon)<br/>
+                ✅ Search and filter functions by name or content<br/>
+                ✅ Find and replace stale terms across all functions<br/>
+                ✅ Edit code with inline editor<br/>
                 ✅ All changes create Pull Requests for review<br/>
                 ⚠️ Changes to RPCs and indexes require database migrations<br/>
                 ⚠️ Test thoroughly in staging before deploying to production

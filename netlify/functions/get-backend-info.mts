@@ -71,29 +71,35 @@ async function getRPCFunctions(): Promise<any[]> {
     for (const file of sqlFiles) {
       const content = await readFile(join(migrationsPath, file), 'utf-8');
       
-      // Match CREATE OR REPLACE FUNCTION patterns
-      const functionRegex = /CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+(\w+)\s*\((.*?)\)/gi;
+      // Match CREATE OR REPLACE FUNCTION patterns with full body
+      const functionRegex = /CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+(\w+)\s*\((.*?)\)([\s\S]*?)(?=CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION|CREATE\s+(?:OR\s+REPLACE\s+)?TRIGGER|CREATE\s+INDEX|ALTER\s+TABLE|$)/gi;
       let match;
       
       while ((match = functionRegex.exec(content)) !== null) {
         const name = match[1];
         const params = match[2];
+        const fullCode = match[0];
         
         // Check if SECURITY DEFINER
-        const functionBlock = content.substring(match.index, match.index + 500);
-        const isSecurityDefiner = /SECURITY\s+DEFINER/i.test(functionBlock);
+        const isSecurityDefiner = /SECURITY\s+DEFINER/i.test(fullCode);
         
         // Get language
-        const languageMatch = functionBlock.match(/LANGUAGE\s+(\w+)/i);
+        const languageMatch = fullCode.match(/LANGUAGE\s+(\w+)/i);
         const language = languageMatch ? languageMatch[1] : 'sql';
+        
+        // Get return type
+        const returnMatch = fullCode.match(/RETURNS\s+([\w\s()]+)(?:\s+LANGUAGE)?/i);
+        const returnType = returnMatch ? returnMatch[1].trim() : 'void';
         
         functions.push({
           name,
           file,
           signature: `${name}(${params})`,
+          returnType,
           language,
           securityDefiner: isSecurityDefiner,
-          description: `From migration: ${file}`
+          description: `From migration: ${file}`,
+          code: fullCode.trim()
         });
       }
     }
