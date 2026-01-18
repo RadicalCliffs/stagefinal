@@ -4729,8 +4729,11 @@ TESTING CHECKLIST:
       return '';
     }).filter(Boolean).join('\n');
 
-    // Conditional containment rules - only apply to modals, not pages
+    // Conditional containment rules - apply different CSS based on content type
+    // Modal: Contains modal within preview area, prevents fixed positioning escape
+    // Page: Allows natural page layout with scrolling, no positioning interference
     const modalContainmentRules = state.editorTarget.type === 'modal' ? `
+    /* Modal Preview - Containment Rules */
     /* Contain modals within preview area - prevent fixed positioning from escaping */
     #modal-preview-container > div[class*="fixed"],
     #modal-preview-container > div[class*="inset-0"] {
@@ -4762,7 +4765,8 @@ TESTING CHECKLIST:
       overflow-y: auto !important;
     }
     ` : `
-    /* Page preview - allow normal page layout and scrolling */
+    /* Page Preview - Natural Layout Rules */
+    /* Allow normal page layout with vertical scrolling - no positioning overrides */
     #modal-preview-container {
       overflow-y: auto !important;
       overflow-x: hidden !important;
