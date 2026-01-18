@@ -4767,11 +4767,6 @@ TESTING CHECKLIST:
       overflow-y: auto !important;
       overflow-x: hidden !important;
     }
-    
-    /* Allow page content to flow naturally */
-    #modal-preview-container > * {
-      position: relative !important;
-    }
     `;
 
     return `
