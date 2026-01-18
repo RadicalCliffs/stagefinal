@@ -2,19 +2,39 @@
 
 ## Overview
 
-Successfully implemented a comprehensive, Wix-like UI editor that provides full visual customization capabilities for the entire theprize.io website. The editor allows admins to modify images, colors, navigation, and layouts with 100% preview capability and automatic GitHub PR creation for review before deployment.
+Successfully implemented a comprehensive, Wix-like UI editor that provides full visual customization capabilities for the entire theprize.io website. The editor is **fully integrated** into the existing AuthModalVisualEditor as a new "Site-Wide UI" tab, allowing admins to modify images, colors, and navigation with 100% preview capability and automatic GitHub PR creation for review before deployment.
 
 ## Access Information
 
-**Production URLs:**
+**Production URL:**
+- Main Editor: `https://theprize.io/a/e/o/x/u/editor`
 - Password Gate: `https://theprize.io/a/e/o/x/u`
-- Auth Modal Editor: `https://theprize.io/a/e/o/x/u/editor`
-- **NEW: Comprehensive UI Editor: `https://theprize.io/a/e/o/x/u/ui-editor`**
 
 **Access Requirements:**
 - Admin-only access (requires `is_admin = true` in canonical_users table)
 - Authenticated wallet connection
 - Routes are unindexable and hidden from search engines
+
+**Editor Location:**
+The comprehensive UI editor is accessed via the **"Site-Wide UI" tab** in the existing visual editor. This tab appears alongside:
+- Flow Order
+- Colors (modal-specific)
+- Fonts
+- Text Content
+- Images (modal-specific)
+- Buttons
+- **Site-Wide UI** ← NEW TAB
+- Presets
+
+## Integration Approach
+
+Rather than creating a separate editor, the comprehensive UI capabilities have been **integrated directly into the existing AuthModalVisualEditor**. This provides several benefits:
+
+1. **Single Interface**: All editing in one place
+2. **Consistent UX**: Familiar interface for admins
+3. **Shared Infrastructure**: Reuses existing auth, notifications, and state management
+4. **Easy Navigation**: Simple tab switching between modal editing and site-wide editing
+5. **Unified Access**: Same security and access controls
 
 ## New Features Implemented
 
@@ -327,49 +347,50 @@ Added new route for comprehensive UI editor.
 
 #### Accessing the Editor
 1. Log in with admin wallet
-2. Navigate to `/a/e/o/x/u/ui-editor`
-3. Wait for editor to load current configuration
+2. Navigate to `/a/e/o/x/u/editor` (the main visual editor)
+3. Click on the **"Site-Wide UI"** tab at the top
+4. Wait for site-wide configuration to load
 
 #### Editing Images
-1. Click "Images" in sidebar
-2. Browse image categories (Logos, Hero, Backgrounds, etc.)
-3. Click "Upload New Image" for desired asset
+1. In the "Site-Wide UI" tab, click the **"Images"** sub-tab
+2. Browse image categories (Logos, Hero, Backgrounds, Icons)
+3. Click "Upload New" for desired asset
 4. Select file (max 5MB)
 5. Preview changes immediately
 6. Repeat for other images
 
 #### Editing Colors
-1. Click "Colors" in sidebar
+1. In the "Site-Wide UI" tab, click the **"Colors"** sub-tab
 2. Select color to modify
 3. Use color picker OR enter hex code
-4. See preview update in real-time
-5. Verify usage locations
+4. See color value update in real-time
+5. Verify usage locations (shown below each color)
 
 #### Editing Navigation
-1. Click "Navigation" in sidebar
+1. In the "Site-Wide UI" tab, click the **"Navigation"** sub-tab
 2. Modify existing items (label, path, order)
 3. Toggle visibility with checkbox
 4. Add new items with "+ Add Menu Item"
 5. Delete items with trash icon
-6. Preview navigation structure
+5. Delete items with trash icon
+6. Reorder by changing order numbers
 
 #### Preview Changes
-1. Click "Preview" in sidebar
-2. Toggle between Desktop/Mobile modes
-3. Verify all changes look correct
-4. Test different sections
-5. Check responsive behavior
+1. Switch to other tabs (Colors, Images) to see modal preview
+2. Site-wide color changes affect modal appearance
+3. Image changes can be seen if used in modals
+4. For full site preview, changes need to be applied via PR
 
 #### Creating Pull Request
-1. Make all desired changes
-2. Verify in preview mode
-3. Click "Create Pull Request"
-4. Wait for confirmation
+1. Make all desired changes in "Site-Wide UI" tab
+2. Review the "Unsaved changes" indicator
+3. Click "Create Pull Request" button (top right)
+4. Wait for confirmation with PR number
 5. Note PR number for tracking
 6. Notify developers for review
 
 #### Alternative: Download Configuration
-1. Click "Download Config" button
+1. Click "Download Config" button (top right)
 2. Save JSON file locally
 3. Send to developer via email/Slack
 4. Developer applies changes manually
