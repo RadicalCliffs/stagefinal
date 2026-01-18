@@ -232,7 +232,9 @@ const cdpConfig: CDPConfig = {
   },
   appName: 'The Prize - Win Big with Crypto',
   appLogoUrl: '',
-  authMethods: ['email'],
+  // Support both email and passkey authentication for easy sign-in
+  // Passkey allows users to authenticate using biometrics/security keys
+  authMethods: ['email', 'passkey'],
   showCoinbaseFooter: false,
 };
 
@@ -284,17 +286,15 @@ createRoot(document.getElementById('root')!).render(
                     // IMPORTANT: Use 'modal' display for proper Base popup experience on mobile
                     // This triggers the native Coinbase/Base wallet popup instead of inline UI
                     display: 'modal',
-                    // Enable MetaMask and Phantom wallet options with proper deep linking
-                    // These wallets will use the wagmi connectors configured above which handle:
-                    // - Browser extension detection (desktop)
-                    // - Mobile deep linking to open the wallet app
-                    // - QR code display for mobile-to-desktop connections
+                    // Support Base/Coinbase wallets as primary, but allow other wallets via injected connector
+                    // The injected connector (from wagmi config) will detect ANY wallet in browser/phone
+                    // This includes MetaMask, Rainbow, Phantom, or any wallet the user has connected
                     supportedWallets: {
-                      // Enable MetaMask - uses MetaMask SDK for mobile deep linking
-                      metamask: true,
-                      // Enable Phantom - uses injected connector, opens app on mobile
-                      phantom: true,
-                      // Keep other wallets disabled for now
+                      // Keep MetaMask disabled to prioritize Base, but injected will catch it
+                      metamask: false,
+                      // Keep Phantom disabled to prioritize Base, but injected will catch it
+                      phantom: false,
+                      // Keep other wallets disabled
                       rabby: false,
                       trust: false,
                       frame: false,

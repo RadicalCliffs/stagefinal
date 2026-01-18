@@ -306,7 +306,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
     };
   }, [isOpen, options]);
 
-  // Handle CDP sign-in success - find user by email and link wallet
+  // Handle CDP sign-in success - create user with wallet or link to existing user
   useEffect(() => {
     const handleCDPSignInSuccess = async () => {
       if (flowState === 'cdp-signin' && cdpIsSignedIn && evmAddress && currentUser && !profileCheckedRef.current) {
@@ -320,24 +320,90 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
           setUserEmail(email);
           console.log('[BaseWallet] CDP sign-in successful:', { email, wallet: evmAddress });
 
-          // Try to find existing user by email and link wallet
-          const result = await linkWalletToExistingUser(email, evmAddress);
-          
-          if (result.success) {
-            // User found and wallet linked - show success
-            console.log('[BaseWallet] Wallet linked successfully');
-            savedToDbRef.current = true;
-            localStorage.setItem('cdp:wallet_address', evmAddress);
+          // Check if we have pending signup data from NewAuthModal
+          const pendingDataStr = localStorage.getItem('pendingSignupData');
+          let pendingData = null;
+          if (pendingDataStr) {
+            try {
+              pendingData = JSON.parse(pendingDataStr);
+              // Clear it so it's not used again
+              localStorage.removeItem('pendingSignupData');
+            } catch (e) {
+              console.error('[BaseWallet] Failed to parse pending signup data:', e);
+            }
+          }
+
+          // If we have pending profile data from NewAuthModal, create user with that data
+          // This is the CRITICAL step: user creation happens atomically with wallet creation
+          if (pendingData?.profileData) {
+            console.log('[BaseWallet] Creating user with profile data from NewAuthModal + wallet');
+            const profileData = pendingData.profileData;
             
-            window.dispatchEvent(new CustomEvent('auth-complete', {
-              detail: { walletAddress: evmAddress, email }
-            }));
-            
-            setFlowState('logged-in-success');
+            // Create user via edge function with wallet address included
+            try {
+              const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+              const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+              
+              const upsertResponse = await fetch(`${supabaseUrl}/functions/v1/upsert-user`, {
+                method: 'POST',
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${supabaseAnonKey}`,
+                },
+                body: JSON.stringify({
+                  username: profileData.username,
+                  email: profileData.email || email,
+                  firstName: profileData.firstName,
+                  lastName: profileData.lastName,
+                  country: profileData.country,
+                  telegram: profileData.telegram,
+                  avatar: profileData.avatar,
+                  walletAddress: evmAddress, // CRITICAL: Include wallet address in user creation
+                }),
+              });
+
+              if (!upsertResponse.ok) {
+                const errorData = await upsertResponse.json();
+                console.error('[BaseWallet] Failed to create user:', errorData);
+                throw new Error('Failed to create account. Please try again.');
+              }
+              
+              console.log('[BaseWallet] User created successfully with wallet linked');
+              
+              // Mark as saved and proceed to success
+              savedToDbRef.current = true;
+              localStorage.setItem('cdp:wallet_address', evmAddress);
+              
+              window.dispatchEvent(new CustomEvent('auth-complete', {
+                detail: { walletAddress: evmAddress, email }
+              }));
+              
+              setFlowState('logged-in-success');
+            } catch (err) {
+              console.error('[BaseWallet] Failed to create user:', err);
+              setEmailError(err instanceof Error ? err.message : 'Failed to create account');
+            }
           } else {
-            // No user found with this email - show profile completion
-            console.log('[BaseWallet] No existing user found, showing profile completion');
-            setFlowState('profile-completion');
+            // No pending data - this is a direct wallet login or returning user
+            // Try to find existing user by email and link wallet
+            const result = await linkWalletToExistingUser(email, evmAddress);
+            
+            if (result.success) {
+              // User found and wallet linked - show success
+              console.log('[BaseWallet] Wallet linked successfully to existing user');
+              savedToDbRef.current = true;
+              localStorage.setItem('cdp:wallet_address', evmAddress);
+              
+              window.dispatchEvent(new CustomEvent('auth-complete', {
+                detail: { walletAddress: evmAddress, email }
+              }));
+              
+              setFlowState('logged-in-success');
+            } else {
+              // No user found with this email - show profile completion form
+              console.log('[BaseWallet] No existing user found, showing profile completion');
+              setFlowState('profile-completion');
+            }
           }
         }
       }
@@ -352,8 +418,64 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
       if (flowState === 'wallet-choice' && wagmiIsConnected && wagmiAddress && !savedToDbRef.current) {
         console.log('[BaseWallet] External wallet connected:', wagmiAddress);
         
-        // If we have an email (returning user or from NewAuthModal), link wallet to existing user
-        if (userEmail) {
+        // Check if we have pending signup data from NewAuthModal
+        const pendingDataStr = localStorage.getItem('pendingSignupData');
+        let pendingData = null;
+        if (pendingDataStr) {
+          try {
+            pendingData = JSON.parse(pendingDataStr);
+            // Clear it so it's not used again
+            localStorage.removeItem('pendingSignupData');
+          } catch (e) {
+            console.error('[BaseWallet] Failed to parse pending signup data:', e);
+          }
+        }
+
+        // If we have pending profile data, create user with wallet
+        if (pendingData?.profileData) {
+          console.log('[BaseWallet] Creating user with profile data + external wallet');
+          const profileData = pendingData.profileData;
+          
+          try {
+            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+            const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+            
+            const upsertResponse = await fetch(`${supabaseUrl}/functions/v1/upsert-user`, {
+              method: 'POST',
+              headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseAnonKey}`,
+              },
+              body: JSON.stringify({
+                username: profileData.username,
+                email: profileData.email,
+                firstName: profileData.firstName,
+                lastName: profileData.lastName,
+                country: profileData.country,
+                telegram: profileData.telegram,
+                avatar: profileData.avatar,
+                walletAddress: wagmiAddress, // Include wallet address
+              }),
+            });
+
+            if (!upsertResponse.ok) {
+              throw new Error('Failed to create account');
+            }
+            
+            savedToDbRef.current = true;
+            localStorage.setItem('cdp:wallet_address', wagmiAddress);
+            
+            window.dispatchEvent(new CustomEvent('auth-complete', {
+              detail: { walletAddress: wagmiAddress, email: profileData.email }
+            }));
+            
+            setFlowState('logged-in-success');
+          } catch (err) {
+            console.error('[BaseWallet] Failed to create user:', err);
+            setEmailError('Failed to create account. Please try again.');
+          }
+        } else if (userEmail) {
+          // No pending data but we have email - try to link to existing user
           const result = await linkWalletToExistingUser(userEmail, wagmiAddress);
           
           if (result.success) {
@@ -369,9 +491,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             setEmailError('No account found with this email. Please sign up first.');
           }
         } else {
-          // No email - this is a new user connecting wallet directly
-          // We need them to complete profile first, but without email OTP
-          // For now, just show success and let AuthContext handle the rest
+          // No pending data and no email - show success anyway
           savedToDbRef.current = true;
           localStorage.setItem('cdp:wallet_address', wagmiAddress);
           
@@ -520,12 +640,12 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             </div>
 
             <h2 className="text-white text-2xl font-bold mb-2 text-center">
-              {textOverrides?.loginTitle || (options?.isReturningUser ? 'Sign in with your wallet' : 'Create an account')}
+              {textOverrides?.loginTitle || (options?.isReturningUser ? 'Sign in with your wallet' : 'Verify email and create wallet')}
             </h2>
             <p className="text-white/60 text-sm mb-6 text-center">
               {textOverrides?.loginSubtitle || (options?.isReturningUser
                 ? 'Sign in with your Base wallet to access your account.'
-                : 'Enter your email address to continue, Base will send you an OTP to verify your registration:')}
+                : 'Enter your email to verify and create your free Base wallet in one step.')}
             </p>
 
             <div className="w-full">
@@ -577,7 +697,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             <p className="text-white/40 text-xs mt-4 text-center">
               {options?.isReturningUser
                 ? "We'll verify your identity to link your wallet to your account."
-                : 'Base will send you a one-time code to verify your registration.'}
+                : "You'll receive a one-time code to verify your email and create your Base wallet."}
             </p>
 
             <button
@@ -748,8 +868,8 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                       {options?.isReturningUser
                         ? 'Connect your existing wallet to access your account and continue where you left off.'
                         : options?.resumeSignup 
-                          ? 'Base, Coinbase, Metamask, Phantom, Rainbow, theprize.io supports many of the major wallet providers. Simply click the button to continue.'
-                          : 'If you have MetaMask, Coinbase Wallet, Base, or another supported wallet installed, it will be detected automatically. Otherwise, you can create a new wallet with your email below.'
+                          ? 'Connect your Base or Coinbase Wallet to get started. Click the button to continue.'
+                          : 'If you have a Base or Coinbase Wallet installed, it will be detected automatically. Otherwise, you can create a new wallet with your email below.'
                       }
                     </p>
                   </div>
