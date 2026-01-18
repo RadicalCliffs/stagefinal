@@ -351,11 +351,15 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
   const [waitingForWallet, setWaitingForWallet] = useState(false);
   const walletPollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Track if we've already auto-triggered wallet connection for returning user
+  const autoConnectTriggeredRef = useRef(false);
+
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
       savedToDbRef.current = false;
       profileCheckedRef.current = false;
+      autoConnectTriggeredRef.current = false;
       setEmailError('');
       setWaitingForWallet(false);
 
@@ -370,14 +374,17 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
         clearInterval(walletPollIntervalRef.current);
         walletPollIntervalRef.current = null;
       }
-      
+
       // Set userEmail from options if provided
       if (options?.email) {
         setUserEmail(options.email);
       }
-      
+
       // Determine initial flow state based on options
-      if (options?.connectExisting) {
+      if (options?.isReturningUser) {
+        // Returning user - go straight to wallet choice for auto-connection
+        setFlowState('wallet-choice');
+      } else if (options?.connectExisting) {
         // User wants to connect an existing wallet - go straight to wallet choice
         setFlowState('wallet-choice');
       } else if (options?.createNew) {
@@ -387,7 +394,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
         // Default to CDP sign-in
         setFlowState('cdp-signin');
       }
-      
+
       setProfileData({
         username: '',
         fullName: '',
@@ -397,7 +404,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
         socialProfiles: '',
       });
     }
-    
+
     // Cleanup timers on unmount
     return () => {
       if (autoCloseTimerRef.current) {
@@ -408,6 +415,57 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
       }
     };
   }, [isOpen, options]);
+
+  // Auto-trigger wallet connection for returning users
+  // This effect fires when a returning user opens the modal and automatically
+  // engages the wagmi wallet connection UI instead of making them click a button
+  useEffect(() => {
+    // Only proceed if:
+    // 1. Modal is open
+    // 2. This is a returning user
+    // 3. We're in wallet-choice state
+    // 4. Not already connected
+    // 5. Haven't already triggered auto-connect
+    // 6. Have connectors available
+    if (
+      isOpen &&
+      options?.isReturningUser &&
+      flowState === 'wallet-choice' &&
+      !wagmiIsConnected &&
+      !autoConnectTriggeredRef.current &&
+      connectors.length > 0
+    ) {
+      console.log('[BaseWallet] Returning user detected, auto-triggering wallet connection');
+      autoConnectTriggeredRef.current = true;
+
+      // Small delay to ensure the modal is fully rendered before triggering wallet connect
+      const timer = setTimeout(() => {
+        // Try to find and trigger the Coinbase Wallet or injected connector
+        // Priority: Coinbase Wallet > MetaMask > any injected wallet
+        const coinbaseConnector = connectors.find(
+          (c) => c.id === 'coinbaseWalletSDK' || c.name.toLowerCase().includes('coinbase')
+        );
+        const metaMaskConnector = connectors.find(
+          (c) => c.id === 'metaMaskSDK' || c.id === 'metaMask' || c.name.toLowerCase().includes('metamask')
+        );
+        const injectedConnector = connectors.find((c) => c.id === 'injected');
+
+        // Choose the best connector to auto-connect with
+        const preferredConnector = coinbaseConnector || metaMaskConnector || injectedConnector;
+
+        if (preferredConnector) {
+          console.log('[BaseWallet] Auto-connecting with connector:', preferredConnector.name);
+          connect({ connector: preferredConnector });
+        } else if (connectors.length > 0) {
+          // Fallback to first available connector
+          console.log('[BaseWallet] Auto-connecting with first available connector:', connectors[0].name);
+          connect({ connector: connectors[0] });
+        }
+      }, 150); // Small delay for modal to render
+
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, options?.isReturningUser, flowState, wagmiIsConnected, connectors, connect]);
 
   // Handle CDP sign-in success - create user with wallet or link to existing user
   // This effect may need to wait for evmAddress to become available after CDP sign-in
@@ -469,7 +527,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
         }
 
         // Get email from CDP currentUser (multiple possible locations)
-        const cdpEmail = currentUser.email ||
+        const cdpEmail = (currentUser as any).email ||
                      (currentUser as any).emails?.[0]?.value ||
                      (currentUser as any).emails?.[0]?.address ||
                      (currentUser as any).linkedAccounts?.find((a: any) => a.type === 'email')?.email;
@@ -604,7 +662,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
     const handleWagmiConnection = async () => {
       if (flowState === 'wallet-choice' && wagmiIsConnected && wagmiAddress && !savedToDbRef.current) {
         console.log('[BaseWallet] External wallet connected:', wagmiAddress);
-        
+
         // Check if we have pending signup data from NewAuthModal
         const pendingDataStr = localStorage.getItem('pendingSignupData');
         let pendingData = null;
@@ -618,18 +676,70 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
           }
         }
 
-        // If we have pending profile data, create user with wallet
+        // CRITICAL: Handle returning user authentication
+        // If this is a returning user, we just need to verify their wallet and log them in
+        if (pendingData?.isReturningUser || options?.isReturningUser) {
+          console.log('[BaseWallet] Returning user wallet connection detected');
+
+          // Look up the user by wallet address to verify they exist
+          const normalizedAddress = wagmiAddress.toLowerCase();
+          const { data: existingUser, error: lookupError } = await supabase
+            .from('canonical_users')
+            .select('id, username, email, wallet_address, base_wallet_address')
+            .or(`wallet_address.ilike.${normalizedAddress},base_wallet_address.ilike.${normalizedAddress}`)
+            .maybeSingle();
+
+          if (lookupError) {
+            console.error('[BaseWallet] Error looking up returning user:', lookupError);
+            setEmailError('Failed to verify your account. Please try again.');
+            return;
+          }
+
+          if (existingUser) {
+            // User found - log them in directly
+            console.log('[BaseWallet] Returning user verified, logging in:', existingUser.username);
+            savedToDbRef.current = true;
+            localStorage.setItem('cdp:wallet_address', wagmiAddress);
+
+            window.dispatchEvent(new CustomEvent('auth-complete', {
+              detail: {
+                walletAddress: wagmiAddress,
+                email: existingUser.email,
+                isReturningUser: true
+              }
+            }));
+
+            setFlowState('logged-in-success');
+            return;
+          } else {
+            // Wallet not found in database - this might be a different wallet
+            // Check if they're trying to connect a different wallet than expected
+            const expectedWallet = pendingData?.returningUserWalletAddress || options?.returningUserWalletAddress;
+            if (expectedWallet && expectedWallet.toLowerCase() !== normalizedAddress) {
+              console.warn('[BaseWallet] Connected wallet does not match expected wallet');
+              setEmailError(`This wallet doesn't match your account. Expected wallet: ${truncateWalletAddress(expectedWallet)}`);
+              return;
+            }
+
+            // Wallet not found - user may need to sign up
+            console.warn('[BaseWallet] Returning user wallet not found in database');
+            setEmailError('Account not found. Please sign up first.');
+            return;
+          }
+        }
+
+        // If we have pending profile data (new user signup), create user with wallet
         if (pendingData?.profileData) {
           console.log('[BaseWallet] Creating user with profile data + external wallet');
           const profileData = pendingData.profileData;
-          
+
           try {
             const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
             const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-            
+
             const upsertResponse = await fetch(`${supabaseUrl}/functions/v1/upsert-user`, {
               method: 'POST',
-              headers: { 
+              headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${supabaseAnonKey}`,
               },
@@ -648,14 +758,14 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             if (!upsertResponse.ok) {
               throw new Error('Failed to create account');
             }
-            
+
             savedToDbRef.current = true;
             localStorage.setItem('cdp:wallet_address', wagmiAddress);
-            
+
             window.dispatchEvent(new CustomEvent('auth-complete', {
               detail: { walletAddress: wagmiAddress, email: profileData.email }
             }));
-            
+
             setFlowState('logged-in-success');
           } catch (err) {
             console.error('[BaseWallet] Failed to create user:', err);
@@ -692,7 +802,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
     };
 
     handleWagmiConnection();
-  }, [flowState, wagmiIsConnected, wagmiAddress, userEmail]);
+  }, [flowState, wagmiIsConnected, wagmiAddress, userEmail, options?.isReturningUser, options?.returningUserWalletAddress]);
 
   // Auto-close modal after showing success screen for 2 seconds
   // This effect is critical for ensuring the modal doesn't freeze after successful auth
