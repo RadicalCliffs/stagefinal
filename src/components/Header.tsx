@@ -107,7 +107,8 @@ const Header: React.FC = () => {
           ></div>
         </Activity>
 
-        <div className="flex justify-between w-full px-6 py-4 items-center relative z-50 xl:hidden bg-[#1A1A1A]">
+        {/* Mobile header - constrained to match hero section width */}
+        <div className="flex justify-between w-full max-w-7xl mx-auto px-6 py-4 items-center relative z-50 xl:hidden bg-[#1A1A1A] rounded-b-xl">
           <Link to="/" className="xl:hidden block">
             <img src={mobileLogo} alt="PrizeIO mobile logo" />
           </Link>
@@ -196,7 +197,8 @@ const Header: React.FC = () => {
           </Activity>
         </div>
 
-        <div className="relative max-w-[1800px] xl:block hidden w-full">
+        {/* Desktop header - constrained to match hero section width (max-w-7xl = 80rem = 1280px) */}
+        <div className="relative max-w-7xl mx-auto xl:block hidden w-full">
           <div className="absolute z-[10] left-0 xl:block hidden">
             <svg
               width="20"
