@@ -16,6 +16,17 @@ import { X, CheckCircle, AlertCircle, Loader2, User, Mail, Globe, Wallet as Wall
 import { supabase } from '../lib/supabase';
 import { truncateWalletAddress } from '../utils/util';
 
+// Constants
+const MODAL_TRANSITION_DELAY_MS = 100; // Delay to ensure modal closes before opening new one
+
+// Interface for BaseWalletAuthModal event detail
+interface BaseWalletAuthModalOptions {
+  resumeSignup: boolean;
+  email?: string;
+  isReturningUser?: boolean;
+  returningUserWalletAddress?: string;
+}
+
 // Text overrides for visual editor live preview
 export interface NewAuthModalTextOverrides {
   welcomeTitle?: string;
@@ -77,6 +88,30 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
   const [existingAccountInfo, setExistingAccountInfo] = useState<ExistingAccountInfo | null>(null);
   const [recoveryEmailSent, setRecoveryEmailSent] = useState(false);
 
+  /**
+   * Helper function to transition from NewAuthModal to BaseWalletAuthModal
+   * Encapsulates the pattern of closing this modal, saving data, and opening BaseWalletAuthModal
+   */
+  const openBaseWalletAuthModal = useCallback((options: BaseWalletAuthModalOptions) => {
+    // Save profile data to localStorage for BaseWalletAuthModal to consume
+    localStorage.setItem('pendingSignupData', JSON.stringify({
+      profileData,
+      isReturningUser,
+      timestamp: Date.now(),
+      ...(options.returningUserWalletAddress && { returningUserWalletAddress: options.returningUserWalletAddress })
+    }));
+    
+    // Close this modal
+    onClose();
+    
+    // Open BaseWalletAuthModal after a small delay to ensure clean transition
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('open-base-wallet-auth', {
+        detail: options
+      }));
+    }, MODAL_TRANSITION_DELAY_MS);
+  }, [profileData, isReturningUser, onClose]);
+
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
@@ -134,27 +169,13 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
           
           console.log('[NewAuthModal] Returning user detected, opening wallet connection modal');
           
-          // Save returning user data to localStorage for wallet linking
-          localStorage.setItem('pendingSignupData', JSON.stringify({
-            profileData: { ...profileData, email: data.email || '' },
+          // Open BaseWalletAuthModal for returning user authentication
+          openBaseWalletAuthModal({
+            resumeSignup: true,
+            email: data.email || '',
             isReturningUser: true,
-            returningUserWalletAddress: walletAddr,
-            timestamp: Date.now()
-          }));
-          
-          // Close NewAuthModal and open BaseWalletAuthModal
-          onClose();
-          
-          setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('open-base-wallet-auth', {
-              detail: { 
-                resumeSignup: true, 
-                email: data.email,
-                isReturningUser: true,
-                returningUserWalletAddress: walletAddr
-              }
-            }));
-          }, 100);
+            returningUserWalletAddress: walletAddr
+          });
         } else {
           // No wallet, need to complete profile first
           setStep('profile');
@@ -346,27 +367,12 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
       // User creation will happen in BaseWalletAuthModal after wallet is linked
       console.log('[NewAuthModal] Email verified successfully, proceeding to wallet connection');
       
-      // OTP verified, save profile data and open BaseWalletAuthModal directly
-      // Skip the intermediate wallet screen in NewAuthModal to avoid duplication
-      localStorage.setItem('pendingSignupData', JSON.stringify({
-        profileData,
-        isReturningUser,
-        timestamp: Date.now()
-      }));
-      
-      // Close this modal
-      onClose();
-      
-      // Open BaseWalletAuthModal with a small delay
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('open-base-wallet-auth', {
-          detail: { 
-            resumeSignup: true, 
-            email: profileData.email,
-            isReturningUser
-          }
-        }));
-      }, 100);
+      // OTP verified, open BaseWalletAuthModal directly
+      openBaseWalletAuthModal({
+        resumeSignup: true,
+        email: profileData.email,
+        isReturningUser
+      });
     } catch (err) {
       console.error('[NewAuthModal] Error verifying OTP:', err);
       setError(err instanceof Error ? err.message : 'Invalid code. Please try again.');
