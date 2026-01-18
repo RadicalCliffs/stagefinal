@@ -85,6 +85,31 @@ export SUPABASE_URL="https://your-project.supabase.co"
 3. DNS resolution
 4. Mock webhook payload
 
+### `reconcile_payments.mjs`
+Node.js script to automatically fix stuck payments.
+
+**Usage:**
+```bash
+# Set environment variables
+export SUPABASE_URL="https://your-project.supabase.co"
+export SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
+
+# Dry run (see what would be fixed)
+node reconcile_payments.mjs --dry-run
+
+# Actually fix stuck payments
+node reconcile_payments.mjs
+
+# Fix payments from last 7 days
+node reconcile_payments.mjs --hours=168
+```
+
+**What it does:**
+- Finds completed payments not reflected in database
+- Confirms entry purchases (calls confirm-pending-tickets)
+- Credits top-up balances (calls credit_sub_account_balance)
+- Shows summary of reconciled and failed payments
+
 ## Common Issues and Quick Fixes
 
 ### Issue 1: Payments Complete But No Updates in Supabase
