@@ -239,7 +239,21 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
   const { disconnect: _wagmiDisconnect } = useDisconnect();
   const { connect, connectors, isPending: isConnecting } = useConnect();
 
-  const effectiveWalletAddress = evmAddress || wagmiAddress;
+  // Get effective wallet address from hooks or localStorage fallback
+  // The localStorage fallback ensures the success screen works even if the hook value
+  // hasn't propagated yet
+  const hookWalletAddress = evmAddress || wagmiAddress;
+  const [storedWalletAddress, setStoredWalletAddress] = useState<string | null>(null);
+
+  // Update stored wallet address when it changes
+  useEffect(() => {
+    if (hookWalletAddress) {
+      setStoredWalletAddress(hookWalletAddress);
+    }
+  }, [hookWalletAddress]);
+
+  // Use hook value first, then fall back to stored value (from localStorage set during auth)
+  const effectiveWalletAddress = hookWalletAddress || storedWalletAddress || localStorage.getItem('cdp:wallet_address');
 
   const [flowState, setFlowState] = useState<FlowState>('cdp-signin');
   const [userEmail, setUserEmail] = useState<string>('');
@@ -313,13 +327,13 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
       if (flowState === 'cdp-signin' && cdpIsSignedIn && evmAddress && currentUser && !profileCheckedRef.current) {
         profileCheckedRef.current = true;
 
-        const email = currentUser.email ||
+        const cdpEmail = currentUser.email ||
                      (currentUser as any).emails?.[0]?.value ||
                      (currentUser as any).emails?.[0]?.address;
 
-        if (email) {
-          setUserEmail(email);
-          console.log('[BaseWallet] CDP sign-in successful:', { email, wallet: evmAddress });
+        if (cdpEmail) {
+          setUserEmail(cdpEmail);
+          console.log('[BaseWallet] CDP sign-in successful:', { email: cdpEmail, wallet: evmAddress });
 
           // Check if we have pending signup data from NewAuthModal
           const pendingDataStr = localStorage.getItem('pendingSignupData');
@@ -327,6 +341,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
           if (pendingDataStr) {
             try {
               pendingData = JSON.parse(pendingDataStr);
+              console.log('[BaseWallet] Found pending signup data:', pendingData);
               // Clear it so it's not used again
               localStorage.removeItem('pendingSignupData');
             } catch (e) {
@@ -338,67 +353,89 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
           // This is the CRITICAL step: user creation happens atomically with wallet creation
           if (pendingData?.profileData) {
             console.log('[BaseWallet] Creating user with profile data from NewAuthModal + wallet');
-            const profileData = pendingData.profileData;
-            
+            const formProfileData = pendingData.profileData;
+
+            // CRITICAL: Use the email from the form data (which was verified via OTP in NewAuthModal)
+            // rather than the CDP email, to ensure the user account is created with the correct email
+            // The form email has already been verified; we trust it
+            const userEmail = formProfileData.email || cdpEmail;
+
             // Create user via edge function with wallet address included
             try {
               const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
               const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-              
+
+              console.log('[BaseWallet] Calling upsert-user with form data:', {
+                username: formProfileData.username,
+                email: userEmail,
+                firstName: formProfileData.firstName,
+                lastName: formProfileData.lastName,
+                country: formProfileData.country,
+                telegram: formProfileData.telegram,
+                walletAddress: evmAddress,
+              });
+
               const upsertResponse = await fetch(`${supabaseUrl}/functions/v1/upsert-user`, {
                 method: 'POST',
-                headers: { 
+                headers: {
                   'Content-Type': 'application/json',
                   'Authorization': `Bearer ${supabaseAnonKey}`,
                 },
                 body: JSON.stringify({
-                  username: profileData.username,
-                  email: profileData.email || email,
-                  firstName: profileData.firstName,
-                  lastName: profileData.lastName,
-                  country: profileData.country,
-                  telegram: profileData.telegram,
-                  avatar: profileData.avatar,
+                  username: formProfileData.username,
+                  email: userEmail,
+                  firstName: formProfileData.firstName,
+                  lastName: formProfileData.lastName,
+                  country: formProfileData.country,
+                  telegram: formProfileData.telegram,
+                  avatar: formProfileData.avatar,
                   walletAddress: evmAddress, // CRITICAL: Include wallet address in user creation
                 }),
               });
 
+              const responseData = await upsertResponse.json();
+
               if (!upsertResponse.ok) {
-                const errorData = await upsertResponse.json();
-                console.error('[BaseWallet] Failed to create user:', errorData);
-                throw new Error('Failed to create account. Please try again.');
+                console.error('[BaseWallet] Failed to create user:', responseData);
+                throw new Error(responseData.error || 'Failed to create account. Please try again.');
               }
-              
-              console.log('[BaseWallet] User created successfully with wallet linked');
-              
+
+              console.log('[BaseWallet] User created successfully with wallet linked:', responseData);
+
               // Mark as saved and proceed to success
               savedToDbRef.current = true;
               localStorage.setItem('cdp:wallet_address', evmAddress);
-              
+
+              // Dispatch auth-complete event for AuthContext to refresh user data
               window.dispatchEvent(new CustomEvent('auth-complete', {
-                detail: { walletAddress: evmAddress, email }
+                detail: { walletAddress: evmAddress, email: userEmail }
               }));
-              
+
+              // CRITICAL: Set flow state to success to trigger auto-close and success screen
               setFlowState('logged-in-success');
             } catch (err) {
               console.error('[BaseWallet] Failed to create user:', err);
               setEmailError(err instanceof Error ? err.message : 'Failed to create account');
+              // Reset profileCheckedRef to allow retry
+              profileCheckedRef.current = false;
             }
           } else {
             // No pending data - this is a direct wallet login or returning user
             // Try to find existing user by email and link wallet
-            const result = await linkWalletToExistingUser(email, evmAddress);
-            
+            console.log('[BaseWallet] No pending signup data found, attempting to link wallet to existing user');
+            const result = await linkWalletToExistingUser(cdpEmail, evmAddress);
+
             if (result.success) {
               // User found and wallet linked - show success
               console.log('[BaseWallet] Wallet linked successfully to existing user');
               savedToDbRef.current = true;
               localStorage.setItem('cdp:wallet_address', evmAddress);
-              
+
               window.dispatchEvent(new CustomEvent('auth-complete', {
-                detail: { walletAddress: evmAddress, email }
+                detail: { walletAddress: evmAddress, email: cdpEmail }
               }));
-              
+
+              // CRITICAL: Set flow state to success
               setFlowState('logged-in-success');
             } else {
               // No user found with this email - show profile completion form
@@ -406,6 +443,10 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               setFlowState('profile-completion');
             }
           }
+        } else {
+          console.error('[BaseWallet] CDP sign-in succeeded but no email found in currentUser');
+          setEmailError('Unable to retrieve email from authentication. Please try again.');
+          profileCheckedRef.current = false;
         }
       }
     };
@@ -509,16 +550,22 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
   }, [flowState, wagmiIsConnected, wagmiAddress, userEmail]);
 
   // Auto-close modal after showing success screen for 2 seconds
+  // This effect is critical for ensuring the modal doesn't freeze after successful auth
   useEffect(() => {
-    if (flowState === 'logged-in-success' && effectiveWalletAddress) {
-      console.log('[BaseWallet] Success state reached, scheduling auto-close in 2 seconds');
-      
+    if (flowState === 'logged-in-success') {
+      // Store the wallet address at the time of success for the success screen
+      // This ensures we have the wallet address even if the hook value changes
+      const walletForSuccess = effectiveWalletAddress || localStorage.getItem('cdp:wallet_address');
+
+      console.log('[BaseWallet] Success state reached, wallet:', walletForSuccess, ', scheduling auto-close in 2 seconds');
+
       // Set a timer to auto-close the modal after 2 seconds
+      // This runs regardless of whether we have a wallet address to prevent freezing
       autoCloseTimerRef.current = setTimeout(() => {
         console.log('[BaseWallet] Auto-closing modal after success');
         onClose();
       }, AUTO_CLOSE_DELAY_MS);
-      
+
       // Cleanup function to clear timer if component unmounts or state changes
       return () => {
         if (autoCloseTimerRef.current) {
@@ -940,7 +987,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
           </div>
         )}
 
-        {flowState === 'logged-in-success' && effectiveWalletAddress && (
+        {flowState === 'logged-in-success' && (
           <div className="flex flex-col items-center">
             <div className="w-20 h-20 bg-gradient-to-br from-[#0052FF] to-[#DDE404] rounded-full flex items-center justify-center mb-4">
               <CheckCircle size={40} className="text-white" />
@@ -951,16 +998,18 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               {textOverrides?.successSubtitle || 'The Platform Players Trust.'}
             </p>
 
-            <div className="w-full bg-[#0052FF]/20 border border-[#0052FF] rounded-xl p-4 mb-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-white/70 text-xs">Your Wallet Address</span>
-                <button onClick={handleCopy} className="flex items-center gap-1 text-[#0052FF] text-xs">
-                  {copied ? <Check size={12} className="flex-shrink-0" /> : <Copy size={12} className="flex-shrink-0" />}
-                  <span>{copied ? 'Copied!' : 'Copy'}</span>
-                </button>
+            {effectiveWalletAddress && (
+              <div className="w-full bg-[#0052FF]/20 border border-[#0052FF] rounded-xl p-4 mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-white/70 text-xs">Your Wallet Address</span>
+                  <button onClick={handleCopy} className="flex items-center gap-1 text-[#0052FF] text-xs">
+                    {copied ? <Check size={12} className="flex-shrink-0" /> : <Copy size={12} className="flex-shrink-0" />}
+                    <span>{copied ? 'Copied!' : 'Copy'}</span>
+                  </button>
+                </div>
+                <p className="text-white text-sm font-mono break-all text-center">{effectiveWalletAddress}</p>
               </div>
-              <p className="text-white text-sm font-mono break-all text-center">{effectiveWalletAddress}</p>
-            </div>
+            )}
 
             {userEmail && (
               <div className="w-full bg-white/5 border border-white/10 rounded-lg p-3 mb-4 text-center">
@@ -975,19 +1024,21 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             >
               Start Entering Competitions
             </button>
-            
+
             <p className="text-white/50 text-xs text-center">
               Redirecting automatically in 2 seconds...
             </p>
 
-            <a
-              href={`https://${import.meta.env.VITE_BASE_MAINNET === 'true' ? 'basescan.org' : 'sepolia.basescan.org'}/address/${effectiveWalletAddress}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-1 text-white/30 text-xs mt-3 hover:text-white/50"
-            >
-              View on BaseScan <ExternalLink size={10} className="flex-shrink-0" />
-            </a>
+            {effectiveWalletAddress && (
+              <a
+                href={`https://${import.meta.env.VITE_BASE_MAINNET === 'true' ? 'basescan.org' : 'sepolia.basescan.org'}/address/${effectiveWalletAddress}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-1 text-white/30 text-xs mt-3 hover:text-white/50"
+              >
+                View on BaseScan <ExternalLink size={10} className="flex-shrink-0" />
+              </a>
+            )}
           </div>
         )}
       </div>
