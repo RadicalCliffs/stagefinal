@@ -319,9 +319,11 @@ export default function AuthModalVisualEditor() {
 
   interface DatabaseIndex {
     name: string;
-    table: string;
+    table_name: string;
     columns: string[];
-    unique: boolean;
+    is_unique: boolean;
+    index_type?: string;
+    table_schema?: string;
   }
 
   const [backendState, setBackendState] = useState({
@@ -774,13 +776,20 @@ ${backendState.selectedEdge ? `- ${backendState.selectedEdge.name}` : 'None'}
       }
     ];
 
-    // Load current navigation
+    // Load current navigation with all available pages
     const navigation: SiteMenuItem[] = [
       { id: 'nav-1', label: 'Home', path: '/', order: 1, visible: true },
       { id: 'nav-2', label: 'Competitions', path: '/competitions', order: 2, visible: true },
       { id: 'nav-3', label: 'How to Play', path: '/how-to-play', order: 3, visible: true },
       { id: 'nav-4', label: 'Winners', path: '/winners', order: 4, visible: true },
-      { id: 'nav-5', label: 'About', path: '/about', order: 5, visible: true }
+      { id: 'nav-5', label: 'About', path: '/about', order: 5, visible: true },
+      { id: 'nav-6', label: 'FAQ', path: '/faq', order: 6, visible: true },
+      { id: 'nav-7', label: 'Dashboard', path: '/dashboard', order: 7, visible: false },
+      { id: 'nav-8', label: 'Privacy Policy', path: '/privacy-policy', order: 8, visible: false },
+      { id: 'nav-9', label: 'Terms & Conditions', path: '/terms-and-conditions', order: 9, visible: false },
+      { id: 'nav-10', label: 'Cookie Policy', path: '/cookie-policy', order: 10, visible: false },
+      { id: 'nav-11', label: 'Terms of Use', path: '/terms-of-use', order: 11, visible: false },
+      { id: 'nav-12', label: 'Acceptable Use', path: '/acceptable-use', order: 12, visible: false }
     ];
 
     setSiteWideState({
@@ -3604,12 +3613,17 @@ TESTING CHECKLIST:
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <h5 className="text-white font-medium font-mono">{idx.name}</h5>
-                    <p className="text-xs text-white/50 mt-1">Table: {idx.table}</p>
+                    <p className="text-xs text-white/50 mt-1">Table: {idx.table_name}</p>
                     <p className="text-xs text-white/50 mt-1">Columns: {idx.columns.join(', ')}</p>
+                    {idx.index_type && (
+                      <p className="text-xs text-blue-400 mt-1">Type: {idx.index_type.toUpperCase()}</p>
+                    )}
                   </div>
-                  {idx.unique && (
-                    <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded">UNIQUE</span>
-                  )}
+                  <div className="flex flex-col gap-1">
+                    {idx.is_unique && (
+                      <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded">UNIQUE</span>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
