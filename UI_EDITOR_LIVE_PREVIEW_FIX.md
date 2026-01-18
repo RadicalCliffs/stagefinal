@@ -1,6 +1,64 @@
 # UI Editor Live Preview Fix - Implementation Summary
 
-## Latest Update (2026-01-17)
+## Latest Update (2026-01-18)
+
+### Page Preview Layout Bug Fixed
+
+**Problem Discovered:**
+The live preview was rendering all page assets on top of each other, making pages unusable. Modal-specific CSS containment rules were being applied to pages, forcing all elements into overlapping absolute positions.
+
+**Root Cause:**
+```typescript
+// Old code - applied to ALL content (modals AND pages)
+#modal-preview-container > div {
+  position: absolute !important;
+  inset: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+```
+
+This CSS was designed to contain modals (which use `fixed` positioning) within the preview container. However, it was also being applied to pages, causing all page elements to stack on top of each other.
+
+**Solution Implemented:**
+```typescript
+// New code - conditional CSS based on content type
+const modalContainmentRules = state.editorTarget.type === 'modal' ? `
+  /* Modal-specific containment rules */
+  #modal-preview-container > div {
+    position: absolute !important;
+    inset: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  /* ... more modal rules ... */
+` : `
+  /* Page-specific rules - allow normal layout */
+  #modal-preview-container {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+`;
+```
+
+**Impact:**
+- ✅ Pages now render with proper layout and formatting
+- ✅ All page content stacks vertically as designed
+- ✅ Background elements, sections, and content flow naturally
+- ✅ Scrolling works correctly for long pages
+- ✅ Modals still render correctly in centered, contained view
+- ✅ Editor can properly preview all 14 page types
+
+**Pages Fixed:**
+- Landing Page, Competitions Page, About Page, FAQ Page, Winners Page, How to Play
+- Lamborghini Urus Page, Bitcoin Giveaway Page, Rolex Watch Page
+- Privacy Policy, Terms & Conditions, Cookie Policy, Terms of Use, Acceptable Use
+
+---
+
+## Previous Update (2026-01-17)
 
 ### CSS Selector Escaping Bug Fixed
 
@@ -315,9 +373,25 @@ const sanitizeFont = (font: string): string => {
 - Use browser DevTools to find new selector patterns
 - Test with !important to ensure override
 
+**Adding New Page Types:**
+1. Add page type to `PageType` union type
+2. Add lazy import at top of file
+3. Add page configuration in `loadPageProperties()`
+4. Add render case in preview section
+5. Test page renders correctly in preview
+
 ## Conclusion
 
-The UI editor now provides TRUE live preview with real-time updates for colors and fonts. The PaymentModal preview shows all 4 payment buttons thanks to mock authentication context. The implementation is secure, performant, and maintainable.
+The UI editor now provides TRUE live preview with real-time updates for colors and fonts across BOTH modals and pages. 
+
+**Key Achievements:**
+- ✅ Modals render correctly in centered, contained preview
+- ✅ Pages render correctly with full layout and formatting
+- ✅ All 14 page types supported with proper rendering
+- ✅ PaymentModal preview shows all 4 payment buttons
+- ✅ Real-time color and font updates for both modals and pages
+- ✅ Proper scrolling behavior for page content
+- ✅ Conditional CSS prevents layout conflicts between modals and pages
 
 **Key Achievement:**
 From "doesn't do anything" to "100x better and fully functional" ✅
