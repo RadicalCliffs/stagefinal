@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { username, email, firstName, lastName, country, telegram, avatar } = await req.json();
+    const { username, email, firstName, lastName, country, telegram, avatar, walletAddress } = await req.json();
 
     if (!username || !email) {
       return new Response(JSON.stringify({ error: 'Username and email required' }), {
@@ -35,6 +35,14 @@ Deno.serve(async (req) => {
 
     const normalizedEmail = email.toLowerCase().trim();
     const normalizedUsername = username.toLowerCase().trim();
+    const normalizedWallet = walletAddress ? walletAddress.toLowerCase().trim() : null;
+
+    // Generate canonical_user_id from wallet if provided
+    let canonicalUserId = null;
+    if (normalizedWallet) {
+      // Simple PID generation: prz_ + first 8 chars of wallet
+      canonicalUserId = `prz_${normalizedWallet.substring(2, 10)}`;
+    }
 
     // Upsert - insert or update based on email
     const { data, error } = await supabase
@@ -49,6 +57,16 @@ Deno.serve(async (req) => {
         avatar_url: avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${normalizedUsername}`,
         usdc_balance: 0,
         has_used_new_user_bonus: false,
+        // Include wallet fields if wallet address is provided
+        ...(normalizedWallet && {
+          wallet_address: normalizedWallet,
+          base_wallet_address: normalizedWallet,
+          eth_wallet_address: normalizedWallet,
+          privy_user_id: normalizedWallet,
+          canonical_user_id: canonicalUserId,
+          wallet_linked: true,
+          auth_provider: 'cdp',
+        }),
       }, {
         onConflict: 'email',
       })
