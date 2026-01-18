@@ -11,11 +11,9 @@
  * The profiles table is also updated for user-editable profile data (linked by wallet_address).
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { X, CheckCircle, AlertCircle, Loader2, User, Mail, Globe, Wallet as WalletIcon, ArrowRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { truncateWalletAddress } from '../utils/util';
-import { useConnect, useAccount } from 'wagmi';
 
 // Constants
 const MODAL_TRANSITION_DELAY_MS = 100; // Delay to ensure modal closes before opening new one
@@ -89,34 +87,24 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
   const [existingAccountInfo, setExistingAccountInfo] = useState<ExistingAccountInfo | null>(null);
   const [recoveryEmailSent, setRecoveryEmailSent] = useState(false);
 
-  // Track returning user wallet data for direct authentication
-  const [returningUserData, setReturningUserData] = useState<{
-    walletAddress: string;
-    email: string;
-    username: string;
-  } | null>(null);
-  const walletConnectTriggeredRef = useRef(false);
-
-  // Wagmi hooks for direct wallet connection
-  const { connect, connectors, isPending: isConnecting } = useConnect();
-  const { address: wagmiAddress, isConnected: wagmiIsConnected } = useAccount();
-
   /**
    * Helper function to transition from NewAuthModal to BaseWalletAuthModal
    * Encapsulates the pattern of closing this modal, saving data, and opening BaseWalletAuthModal
    */
   const openBaseWalletAuthModal = useCallback((options: BaseWalletAuthModalOptions) => {
     // Save profile data to localStorage for BaseWalletAuthModal to consume
+    // IMPORTANT: Use options.isReturningUser if provided, as it's more reliable than state
+    // (React state updates are async, so isReturningUser state may not be updated yet)
     localStorage.setItem('pendingSignupData', JSON.stringify({
       profileData,
-      isReturningUser,
+      isReturningUser: options.isReturningUser ?? isReturningUser,
       timestamp: Date.now(),
       ...(options.returningUserWalletAddress && { returningUserWalletAddress: options.returningUserWalletAddress })
     }));
-    
+
     // Close this modal
     onClose();
-    
+
     // Open BaseWalletAuthModal after a small delay to ensure clean transition
     setTimeout(() => {
       window.dispatchEvent(new CustomEvent('open-base-wallet-auth', {
@@ -136,79 +124,8 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
       setIsReturningUser(false);
       setExistingAccountInfo(null);
       setRecoveryEmailSent(false);
-      setReturningUserData(null);
-      walletConnectTriggeredRef.current = false;
     }
   }, [isOpen]);
-
-  // Handle returning user wallet connection success
-  // This effect watches for successful wallet connection after username verification
-  useEffect(() => {
-    const handleReturningUserConnection = async () => {
-      // Only process if we have returning user data and wallet is connected
-      if (!returningUserData || !wagmiIsConnected || !wagmiAddress) {
-        return;
-      }
-
-      console.log('[NewAuthModal] Wallet connected for returning user:', wagmiAddress);
-
-      // Verify the connected wallet matches the expected wallet
-      const normalizedConnected = wagmiAddress.toLowerCase();
-      const normalizedExpected = returningUserData.walletAddress.toLowerCase();
-
-      if (normalizedConnected !== normalizedExpected) {
-        console.warn('[NewAuthModal] Connected wallet does not match expected wallet');
-        setError(`Wrong wallet connected. Expected: ${truncateWalletAddress(returningUserData.walletAddress)}`);
-        setIsLoading(false);
-        return;
-      }
-
-      // Wallet matches! Look up user and complete authentication
-      const { data: existingUser, error: lookupError } = await supabase
-        .from('canonical_users')
-        .select('id, username, email, wallet_address, base_wallet_address')
-        .or(`wallet_address.ilike.${normalizedConnected},base_wallet_address.ilike.${normalizedConnected}`)
-        .maybeSingle();
-
-      if (lookupError) {
-        console.error('[NewAuthModal] Error looking up returning user:', lookupError);
-        setError('Failed to verify your account. Please try again.');
-        setIsLoading(false);
-        return;
-      }
-
-      if (!existingUser) {
-        console.error('[NewAuthModal] User not found with wallet:', normalizedConnected);
-        setError('Account not found. Please sign up first.');
-        setIsLoading(false);
-        return;
-      }
-
-      // User verified! Complete authentication
-      console.log('[NewAuthModal] Returning user authenticated successfully:', existingUser.username);
-
-      // Store wallet address and dispatch auth-complete event
-      localStorage.setItem('cdp:wallet_address', wagmiAddress);
-      window.dispatchEvent(new CustomEvent('auth-complete', {
-        detail: {
-          walletAddress: wagmiAddress,
-          email: existingUser.email,
-          isReturningUser: true
-        }
-      }));
-
-      // Show success and close
-      setStep('success');
-      setIsLoading(false);
-
-      // Auto-close after showing success
-      setTimeout(() => {
-        onClose();
-      }, 1500);
-    };
-
-    handleReturningUserConnection();
-  }, [returningUserData, wagmiIsConnected, wagmiAddress, onClose]);
 
   if (!isOpen) return null;
 
@@ -248,54 +165,32 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
         setProfileData(prev => ({ ...prev, email: data.email || '' }));
 
         if (data.wallet_address || data.base_wallet_address) {
-          // Has wallet - trigger wagmi wallet connection IMMEDIATELY
+          // Has wallet - open BaseWalletAuthModal for wallet authentication
           const walletAddr = data.wallet_address || data.base_wallet_address;
 
-          console.log('[NewAuthModal] Returning user with wallet detected, triggering immediate wallet auth');
+          console.log('[NewAuthModal] Returning user detected, opening wallet connection modal');
 
-          // Store returning user data for the connection success handler
-          setReturningUserData({
-            walletAddress: walletAddr,
+          // Open BaseWalletAuthModal for returning user authentication
+          // This modal handles the wallet connection and authentication flow
+          openBaseWalletAuthModal({
+            resumeSignup: true,
             email: data.email || '',
-            username: data.username
+            isReturningUser: true,
+            returningUserWalletAddress: walletAddr
           });
-
-          // Find the best connector to use (prefer Coinbase Wallet)
-          const coinbaseConnector = connectors.find(
-            (c) => c.id === 'coinbaseWalletSDK' || c.name.toLowerCase().includes('coinbase')
-          );
-          const metaMaskConnector = connectors.find(
-            (c) => c.id === 'metaMaskSDK' || c.id === 'metaMask' || c.name.toLowerCase().includes('metamask')
-          );
-          const injectedConnector = connectors.find((c) => c.id === 'injected');
-
-          const preferredConnector = coinbaseConnector || metaMaskConnector || injectedConnector || connectors[0];
-
-          if (preferredConnector) {
-            console.log('[NewAuthModal] Triggering immediate wallet connection with:', preferredConnector.name);
-            // Trigger wallet connection immediately - this brings up the wallet popup
-            connect({ connector: preferredConnector });
-            // Keep loading state while wallet connection is in progress
-            // The useEffect above will handle the connection success
-          } else {
-            console.error('[NewAuthModal] No wallet connectors available');
-            setError('No wallet connection method available. Please install a wallet.');
-            setIsLoading(false);
-          }
         } else {
           // No wallet, need to complete profile first
           setStep('profile');
-          setIsLoading(false);
         }
       } else {
         // New user - go to profile creation
         setIsReturningUser(false);
         setStep('profile');
-        setIsLoading(false);
       }
     } catch (err) {
       console.error('[NewAuthModal] Error checking username:', err);
       setError('Something went wrong. Please try again.');
+    } finally {
       setIsLoading(false);
     }
   };
