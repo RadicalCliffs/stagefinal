@@ -237,7 +237,7 @@ export default function AuthModalVisualEditor() {
     historyIndex: -1,
   });
 
-  const [activeTab, setActiveTab] = useState<'flow' | 'colors' | 'fonts' | 'text' | 'images' | 'buttons' | 'sections' | 'presets'>('flow');
+  const [activeTab, setActiveTab] = useState<'flow' | 'colors' | 'fonts' | 'text' | 'images' | 'buttons' | 'sections' | 'presets' | 'site-wide' | 'backend'>('flow');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState('');
   const [showAddButton, setShowAddButton] = useState(false);
@@ -258,6 +258,706 @@ export default function AuthModalVisualEditor() {
     hidden: false,
     icon: '',
   });
+
+  // Site-wide editor state
+  interface SiteImageAsset {
+    id: string;
+    category: 'logo' | 'hero' | 'competition' | 'payment' | 'social' | 'background' | 'icon';
+    name: string;
+    label: string;
+    currentPath: string;
+    description?: string;
+    dimensions?: { width: number; height: number };
+    usage: string[];
+  }
+
+  interface SiteColorTheme {
+    id: string;
+    name: string;
+    value: string;
+    category: 'primary' | 'secondary' | 'accent' | 'background' | 'text';
+    cssVariable?: string;
+    usage: string[];
+  }
+
+  interface SiteMenuItem {
+    id: string;
+    label: string;
+    path: string;
+    order: number;
+    visible: boolean;
+  }
+
+  const [siteWideState, setSiteWideState] = useState({
+    images: [] as SiteImageAsset[],
+    colors: [] as SiteColorTheme[],
+    navigation: [] as SiteMenuItem[],
+    modified: false
+  });
+
+  const [siteWideLoading, setSiteWideLoading] = useState(false);
+  const [siteWideNotification, setSiteWideNotification] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+
+  // Backend infrastructure state
+  interface RPCFunction {
+    name: string;
+    file: string;
+    signature: string;
+    returnType?: string;
+    description?: string;
+    language: string;
+    securityDefiner: boolean;
+    code?: string;
+  }
+
+  interface EdgeFunction {
+    name: string;
+    path: string;
+    size: number;
+    lastModified: string;
+  }
+
+  interface DatabaseIndex {
+    name: string;
+    table: string;
+    columns: string[];
+    unique: boolean;
+  }
+
+  const [backendState, setBackendState] = useState({
+    rpcFunctions: [] as RPCFunction[],
+    edgeFunctions: [] as EdgeFunction[],
+    indexes: [] as DatabaseIndex[],
+    loading: false,
+    selectedRPC: null as RPCFunction | null,
+    selectedEdge: null as EdgeFunction | null,
+    editingCode: '',
+    modified: false,
+    showCodeViewer: false,
+    viewingCode: '',
+    viewingTitle: '',
+    searchTerm: '',
+    findTerm: '',
+    replaceTerm: '',
+    analysisResults: null as any,
+    showAnalysis: false
+  });
+
+  const [backendNotification, setBackendNotification] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+
+  // Load backend configuration
+  useEffect(() => {
+    if (activeTab === 'backend' && backendState.rpcFunctions.length === 0) {
+      loadBackendConfiguration();
+    }
+  }, [activeTab]);
+
+  const loadBackendConfiguration = async () => {
+    setBackendState(prev => ({ ...prev, loading: true }));
+    
+    try {
+      // Fetch backend infrastructure from API
+      const response = await fetch('/.netlify/functions/get-backend-info', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setBackendState(prev => ({
+          ...prev,
+          rpcFunctions: data.rpcFunctions || [],
+          edgeFunctions: data.edgeFunctions || [],
+          indexes: data.indexes || [],
+          loading: false
+        }));
+      } else {
+        showBackendNotification('error', 'Failed to load backend configuration');
+        setBackendState(prev => ({ ...prev, loading: false }));
+      }
+    } catch (error) {
+      console.error('Error loading backend config:', error);
+      showBackendNotification('error', 'Failed to load backend configuration');
+      setBackendState(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  const showBackendNotification = (type: 'success' | 'error' | 'info', message: string) => {
+    setBackendNotification({ type, message });
+    setTimeout(() => setBackendNotification(null), 5000);
+  };
+
+  const handleRPCEdit = (rpc: RPCFunction, code: string) => {
+    setBackendState(prev => ({
+      ...prev,
+      selectedRPC: rpc,
+      editingCode: code,
+      modified: true
+    }));
+  };
+
+  const handleEdgeFunctionEdit = (edge: EdgeFunction, code: string) => {
+    setBackendState(prev => ({
+      ...prev,
+      selectedEdge: edge,
+      editingCode: code,
+      modified: true
+    }));
+  };
+
+  const handleBackendPRCreation = async () => {
+    try {
+      setBackendState(prev => ({ ...prev, loading: true }));
+
+      const authToken = localStorage.getItem('authToken');
+      if (!authToken || authToken.trim() === '') {
+        showBackendNotification('error', 'Authentication token missing. Please log in again.');
+        setBackendState(prev => ({ ...prev, loading: false }));
+        return;
+      }
+
+      const prData = {
+        title: 'Backend Infrastructure Updates from Admin Panel',
+        description: `
+## Backend Changes
+
+### RPC Functions Modified
+${backendState.selectedRPC ? `- ${backendState.selectedRPC.name}` : 'None'}
+
+### Edge Functions Modified  
+${backendState.selectedEdge ? `- ${backendState.selectedEdge.name}` : 'None'}
+
+## Review Checklist
+- [ ] SQL syntax validated
+- [ ] Function signatures correct
+- [ ] Security policies reviewed
+- [ ] Edge function dependencies checked
+        `,
+        changes: {
+          rpc: backendState.selectedRPC ? {
+            name: backendState.selectedRPC.name,
+            code: backendState.editingCode
+          } : null,
+          edgeFunction: backendState.selectedEdge ? {
+            name: backendState.selectedEdge.name,
+            code: backendState.editingCode
+          } : null
+        }
+      };
+
+      const response = await fetch('/.netlify/functions/create-backend-pr', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify(prData)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create PR');
+      }
+
+      const result = await response.json();
+      
+      showBackendNotification('success', `Pull request created: #${result.prNumber}`);
+      setBackendState(prev => ({ ...prev, modified: false, loading: false }));
+      
+    } catch (error) {
+      console.error('Error creating backend PR:', error);
+      showBackendNotification('error', 'Failed to create pull request');
+      setBackendState(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  // Analyze backend infrastructure for issues
+  const analyzeBackendInfrastructure = () => {
+    const functions = backendState.rpcFunctions;
+    const issues = {
+      duplicates: [] as any[],
+      securityIssues: [] as any[],
+      performanceIssues: [] as any[],
+      bestPracticeViolations: [] as any[],
+      missingPolicies: [] as any[],
+      summary: {
+        total: functions.length,
+        criticalIssues: 0,
+        warnings: 0,
+        suggestions: 0
+      }
+    };
+
+    // 1. Find duplicate or nearly identical functions
+    const functionsByName = new Map<string, RPCFunction[]>();
+    functions.forEach(func => {
+      const baseName = func.name.replace(/_v\d+$/, ''); // Remove version suffixes
+      if (!functionsByName.has(baseName)) {
+        functionsByName.set(baseName, []);
+      }
+      functionsByName.get(baseName)!.push(func);
+    });
+
+    functionsByName.forEach((funcs, baseName) => {
+      if (funcs.length > 1) {
+        issues.duplicates.push({
+          type: 'duplicate',
+          severity: 'warning',
+          name: baseName,
+          count: funcs.length,
+          functions: funcs.map(f => f.name),
+          description: `Multiple versions of '${baseName}' found. Consider consolidating or removing old versions.`,
+          recommendation: `Review ${funcs.map(f => f.name).join(', ')} and keep only the necessary version.`
+        });
+        issues.summary.warnings++;
+      }
+    });
+
+    // 2. Check for SECURITY DEFINER misuse
+    functions.forEach(func => {
+      if (func.securityDefiner) {
+        // Check if function modifies data without proper checks
+        const code = func.code?.toLowerCase() || '';
+        const hasInsert = code.includes('insert into');
+        const hasUpdate = code.includes('update ');
+        const hasDelete = code.includes('delete from');
+        const hasAuthCheck = code.includes('auth.uid()') || code.includes('current_user');
+
+        if ((hasInsert || hasUpdate || hasDelete) && !hasAuthCheck) {
+          issues.securityIssues.push({
+            type: 'security',
+            severity: 'critical',
+            name: func.name,
+            description: `Function '${func.name}' uses SECURITY DEFINER and modifies data but doesn't check auth.uid() or user identity.`,
+            recommendation: 'Add authentication checks (auth.uid(), current_user) to prevent unauthorized data access.',
+            file: func.file
+          });
+          issues.summary.criticalIssues++;
+        }
+      } else {
+        // Check if function should use SECURITY DEFINER
+        const code = func.code?.toLowerCase() || '';
+        const hasBypassRLS = code.includes('bypass') && code.includes('rls');
+        
+        if (hasBypassRLS) {
+          issues.securityIssues.push({
+            type: 'security',
+            severity: 'warning',
+            name: func.name,
+            description: `Function '${func.name}' tries to bypass RLS but doesn't use SECURITY DEFINER.`,
+            recommendation: 'Add SECURITY DEFINER if this function needs to bypass RLS policies.',
+            file: func.file
+          });
+          issues.summary.warnings++;
+        }
+      }
+    });
+
+    // 3. Check for deprecated patterns
+    functions.forEach(func => {
+      const code = func.code || '';
+      
+      // Check for deprecated user identifier patterns
+      if (code.includes('privy_did') || code.includes('privyDid')) {
+        issues.bestPracticeViolations.push({
+          type: 'deprecated',
+          severity: 'warning',
+          name: func.name,
+          description: `Function '${func.name}' uses deprecated 'privy_did' identifier.`,
+          recommendation: "Replace 'privy_did' with standardized 'user_identifier' parameter.",
+          file: func.file
+        });
+        issues.summary.warnings++;
+      }
+
+      // Check for hard-coded table names that should be dynamic
+      const hardcodedTables = code.match(/FROM\s+['"]\w+['"]/gi);
+      if (hardcodedTables && hardcodedTables.length > 0) {
+        issues.bestPracticeViolations.push({
+          type: 'best-practice',
+          severity: 'suggestion',
+          name: func.name,
+          description: `Function '${func.name}' uses quoted table names which may cause issues.`,
+          recommendation: 'Use unquoted table names for better compatibility.',
+          file: func.file
+        });
+        issues.summary.suggestions++;
+      }
+
+      // Check for SELECT * which is inefficient
+      if (code.includes('SELECT *') || code.includes('select *')) {
+        issues.performanceIssues.push({
+          type: 'performance',
+          severity: 'suggestion',
+          name: func.name,
+          description: `Function '${func.name}' uses SELECT * which can be inefficient.`,
+          recommendation: 'Specify exact columns needed instead of using SELECT *.',
+          file: func.file
+        });
+        issues.summary.suggestions++;
+      }
+
+      // Check for N+1 query patterns
+      if (code.match(/FOR\s+\w+\s+IN\s+SELECT/gi)) {
+        const loopCount = (code.match(/FOR\s+\w+\s+IN\s+SELECT/gi) || []).length;
+        if (loopCount > 1) {
+          issues.performanceIssues.push({
+            type: 'performance',
+            severity: 'warning',
+            name: func.name,
+            description: `Function '${func.name}' has ${loopCount} nested loops which may cause N+1 query issues.`,
+            recommendation: 'Consider using JOINs or batch queries instead of nested loops.',
+            file: func.file
+          });
+          issues.summary.warnings++;
+        }
+      }
+    });
+
+    // 4. Check for missing RLS policies
+    const tablesUsed = new Set<string>();
+    functions.forEach(func => {
+      const code = func.code?.toLowerCase() || '';
+      const tableMatches = code.match(/(?:from|into|update|join)\s+(\w+)/gi);
+      if (tableMatches) {
+        tableMatches.forEach(match => {
+          const table = match.split(/\s+/)[1];
+          if (table && !['pg_', 'information_schema'].some(prefix => table.startsWith(prefix))) {
+            tablesUsed.add(table);
+          }
+        });
+      }
+    });
+
+    // Check if functions bypass RLS properly
+    functions.forEach(func => {
+      const code = func.code?.toLowerCase() || '';
+      if (func.securityDefiner && !code.includes('where') && 
+          (code.includes('select') || code.includes('update') || code.includes('delete'))) {
+        issues.missingPolicies.push({
+          type: 'rls',
+          severity: 'warning',
+          name: func.name,
+          description: `Function '${func.name}' uses SECURITY DEFINER without WHERE clause, may expose all data.`,
+          recommendation: 'Add WHERE clause to filter data appropriately, or ensure RLS policies are in place.',
+          file: func.file
+        });
+        issues.summary.warnings++;
+      }
+    });
+
+    setBackendState(prev => ({ 
+      ...prev, 
+      analysisResults: issues,
+      showAnalysis: true
+    }));
+
+    showBackendNotification('success', `Analysis complete: ${issues.summary.criticalIssues} critical, ${issues.summary.warnings} warnings, ${issues.summary.suggestions} suggestions`);
+  };
+
+  // Load site-wide configuration
+  useEffect(() => {
+    if (activeTab === 'site-wide' && siteWideState.images.length === 0) {
+      loadSiteWideConfiguration();
+    }
+  }, [activeTab]);
+
+  const loadSiteWideConfiguration = () => {
+    setSiteWideLoading(true);
+    
+    // Load current images configuration
+    const images: SiteImageAsset[] = [
+      {
+        id: 'main-logo',
+        category: 'logo',
+        name: 'logo',
+        label: 'Main Logo',
+        currentPath: '/assets/images/logo.svg',
+        description: 'Primary logo used in header',
+        usage: ['Header', 'Footer']
+      },
+      {
+        id: 'mobile-logo',
+        category: 'logo',
+        name: 'mobileLogo',
+        label: 'Mobile Logo',
+        currentPath: '/assets/images/mobile-logo.svg',
+        description: 'Logo variant for mobile devices',
+        usage: ['Header (Mobile)']
+      },
+      {
+        id: 'footer-logo',
+        category: 'logo',
+        name: 'footerLogo',
+        label: 'Footer Logo',
+        currentPath: '/assets/images/footer-logo.svg',
+        description: 'Logo displayed in footer',
+        usage: ['Footer']
+      },
+      {
+        id: 'hero-background',
+        category: 'hero',
+        name: 'heroSectionImage',
+        label: 'Hero Section Background',
+        currentPath: '/assets/images/hero-section.webp',
+        description: 'Main hero section background image',
+        usage: ['HeroSection', 'LandingPage']
+      },
+      {
+        id: 'landing-bg',
+        category: 'background',
+        name: 'landingPageBg',
+        label: 'Landing Page Background',
+        currentPath: '/assets/images/landing-page-bg.webp',
+        description: 'Landing page background',
+        usage: ['LandingPage']
+      },
+      {
+        id: 'smash-graphic',
+        category: 'icon',
+        name: 'smashGraphic',
+        label: 'Smash Graphic',
+        currentPath: '/assets/images/smashGraphic.svg',
+        description: 'Decorative graphic on landing page',
+        usage: ['LandingPage']
+      }
+    ];
+
+    // Load current color theme
+    const colors: SiteColorTheme[] = [
+      {
+        id: 'primary-yellow',
+        name: 'Primary Yellow',
+        value: '#DDE404',
+        category: 'primary',
+        cssVariable: '--color-primary',
+        usage: ['Buttons', 'Highlights', 'Active states']
+      },
+      {
+        id: 'primary-pink',
+        name: 'Primary Pink',
+        value: '#EF008F',
+        category: 'secondary',
+        cssVariable: '--color-secondary',
+        usage: ['Accents', 'Alerts']
+      },
+      {
+        id: 'base-blue',
+        name: 'Base Blue',
+        value: '#0052FF',
+        category: 'accent',
+        cssVariable: '--color-accent',
+        usage: ['Links', 'Coinbase branding']
+      },
+      {
+        id: 'dark-bg',
+        name: 'Dark Background',
+        value: '#1A1A1A',
+        category: 'background',
+        cssVariable: '--color-bg-dark',
+        usage: ['Main background', 'Cards']
+      },
+      {
+        id: 'white-text',
+        name: 'White Text',
+        value: '#FFFFFF',
+        category: 'text',
+        cssVariable: '--color-text-primary',
+        usage: ['Primary text', 'Borders']
+      }
+    ];
+
+    // Load current navigation
+    const navigation: SiteMenuItem[] = [
+      { id: 'nav-1', label: 'Home', path: '/', order: 1, visible: true },
+      { id: 'nav-2', label: 'Competitions', path: '/competitions', order: 2, visible: true },
+      { id: 'nav-3', label: 'How to Play', path: '/how-to-play', order: 3, visible: true },
+      { id: 'nav-4', label: 'Winners', path: '/winners', order: 4, visible: true },
+      { id: 'nav-5', label: 'About', path: '/about', order: 5, visible: true }
+    ];
+
+    setSiteWideState({
+      images,
+      colors,
+      navigation,
+      modified: false
+    });
+
+    setSiteWideLoading(false);
+  };
+
+  const showSiteWideNotification = (type: 'success' | 'error' | 'info', message: string) => {
+    setSiteWideNotification({ type, message });
+    setTimeout(() => setSiteWideNotification(null), 5000);
+  };
+
+  const handleSiteImageUpload = async (imageId: string, file: File) => {
+    try {
+      if (!file.type.startsWith('image/')) {
+        showSiteWideNotification('error', 'Please upload a valid image file');
+        return;
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        showSiteWideNotification('error', 'Image size must be less than 5MB');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target?.result as string;
+        
+        setSiteWideState(prev => ({
+          ...prev,
+          images: prev.images.map(img =>
+            img.id === imageId ? { ...img, currentPath: dataUrl } : img
+          ),
+          modified: true
+        }));
+
+        showSiteWideNotification('success', 'Image uploaded successfully');
+      };
+
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      showSiteWideNotification('error', 'Failed to upload image');
+    }
+  };
+
+  const handleSiteColorChange = (colorId: string, newValue: string) => {
+    setSiteWideState(prev => ({
+      ...prev,
+      colors: prev.colors.map(color =>
+        color.id === colorId ? { ...color, value: newValue } : color
+      ),
+      modified: true
+    }));
+  };
+
+  const handleSiteNavigationUpdate = (navId: string, updates: Partial<SiteMenuItem>) => {
+    setSiteWideState(prev => ({
+      ...prev,
+      navigation: prev.navigation.map(item =>
+        item.id === navId ? { ...item, ...updates } : item
+      ),
+      modified: true
+    }));
+  };
+
+  const addSiteNavigationItem = () => {
+    // Generate unique ID using timestamp and random component
+    const uniqueId = `nav-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const newItem: SiteMenuItem = {
+      id: uniqueId,
+      label: 'New Page',
+      path: '/new-page',
+      order: siteWideState.navigation.length + 1,
+      visible: true
+    };
+
+    setSiteWideState(prev => ({
+      ...prev,
+      navigation: [...prev.navigation, newItem],
+      modified: true
+    }));
+  };
+
+  const removeSiteNavigationItem = (navId: string) => {
+    setSiteWideState(prev => ({
+      ...prev,
+      navigation: prev.navigation.filter(item => item.id !== navId),
+      modified: true
+    }));
+  };
+
+  const handleCreateSiteWidePR = async () => {
+    try {
+      setSiteWideLoading(true);
+      
+      // Validate authentication token
+      const authToken = localStorage.getItem('authToken');
+      if (!authToken || authToken.trim() === '') {
+        showSiteWideNotification('error', 'Authentication token missing. Please log in again.');
+        setSiteWideLoading(false);
+        return;
+      }
+      
+      const prData = {
+        title: 'Site-Wide UI Updates from Visual Editor',
+        description: `
+## Site-Wide UI Changes Summary
+
+### Images Modified
+${siteWideState.images.filter(img => img.currentPath.startsWith('data:')).map(img => `- ${img.label} (${img.category})`).join('\n') || 'No images changed'}
+
+### Colors Modified
+${siteWideState.colors.map(color => `- ${color.name}: ${color.value}`).join('\n')}
+
+### Navigation Modified
+${siteWideState.navigation.map(item => `- ${item.label} -> ${item.path} (visible: ${item.visible})`).join('\n')}
+
+## Review Checklist
+- [ ] All images are optimized and properly sized
+- [ ] Colors maintain accessibility standards
+- [ ] Navigation links are functional
+- [ ] Mobile responsive design verified
+        `,
+        changes: {
+          images: siteWideState.images.filter(img => img.currentPath.startsWith('data:')),
+          colors: siteWideState.colors,
+          navigation: siteWideState.navigation,
+          layout: []
+        }
+      };
+      
+      const response = await fetch('/.netlify/functions/create-ui-pr', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify(prData)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create PR');
+      }
+
+      const result = await response.json();
+      
+      showSiteWideNotification('success', `Pull request created: #${result.prNumber}`);
+      setSiteWideState(prev => ({ ...prev, modified: false }));
+      
+      setSiteWideLoading(false);
+    } catch (error) {
+      console.error('Error creating PR:', error);
+      showSiteWideNotification('error', 'Failed to create pull request');
+      setSiteWideLoading(false);
+    }
+  };
+
+  const handleDownloadSiteWideConfig = () => {
+    const config = {
+      images: siteWideState.images,
+      colors: siteWideState.colors,
+      navigation: siteWideState.navigation,
+      timestamp: new Date().toISOString()
+    };
+
+    const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `site-wide-config-${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showSiteWideNotification('success', 'Configuration downloaded');
+  };
+
 
   // Compute text overrides for live preview - converts state.texts array to modal-specific override object
   const topUpWalletTextOverrides = useMemo((): TopUpWalletModalTextOverrides => {
@@ -1994,6 +2694,1016 @@ TESTING CHECKLIST:
     </div>
   );
 
+  const renderSiteWideEditor = () => {
+    const [activeSubTab, setActiveSubTab] = useState<'images' | 'colors' | 'navigation'>('images');
+
+    if (siteWideLoading) {
+      return (
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[#DDE404] mx-auto mb-4"></div>
+          <p className="text-white">Loading site-wide configuration...</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        {/* Site-Wide Notification */}
+        {siteWideNotification && (
+          <div className={`p-4 rounded-lg shadow-lg ${
+            siteWideNotification.type === 'success' ? 'bg-green-600' :
+            siteWideNotification.type === 'error' ? 'bg-red-600' :
+            'bg-blue-600'
+          }`}>
+            <div className="flex items-center gap-3 text-white">
+              {siteWideNotification.type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
+              <p>{siteWideNotification.message}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Header with Actions */}
+        <div className="p-4 bg-gradient-to-r from-[#DDE404]/10 to-purple-500/10 border border-[#DDE404]/30 rounded-lg">
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <h3 className="text-white font-semibold mb-2 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#DDE404]">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="2" y1="12" x2="22" y2="12"></line>
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                </svg>
+                Site-Wide UI Editor
+              </h3>
+              <p className="text-white/70 text-sm">
+                Edit images, colors, and navigation that affect the entire website
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {siteWideState.modified && (
+                <span className="text-sm text-yellow-400 flex items-center gap-2">
+                  <AlertCircle size={16} />
+                  Unsaved changes
+                </span>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex gap-2 mt-4">
+            <button
+              onClick={handleDownloadSiteWideConfig}
+              className="inline-flex items-center gap-2 bg-white/10 text-white px-4 py-2 rounded-lg hover:bg-white/20 transition-colors text-sm"
+            >
+              <Download size={16} />
+              Download Config
+            </button>
+            <button
+              onClick={handleCreateSiteWidePR}
+              disabled={!siteWideState.modified || siteWideLoading}
+              className="inline-flex items-center gap-2 bg-[#DDE404] text-black px-4 py-2 rounded-lg hover:bg-[#c7cc04] transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M12 2v4m0 12v4M4.22 4.22l2.83 2.83m9.9 9.9 2.83 2.83M2 12h4m12 0h4M4.22 19.78l2.83-2.83m9.9-9.9 2.83-2.83"></path>
+              </svg>
+              Create Pull Request
+            </button>
+          </div>
+        </div>
+
+        {/* Sub-tabs for Site-Wide sections */}
+        <div className="flex gap-2 border-b border-white/10">
+          <button
+            onClick={() => setActiveSubTab('images')}
+            className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors ${
+              activeSubTab === 'images'
+                ? 'border-[#DDE404] text-white'
+                : 'border-transparent text-white/50 hover:text-white/70'
+            }`}
+          >
+            <ImageIcon size={18} />
+            <span>Images</span>
+          </button>
+          <button
+            onClick={() => setActiveSubTab('colors')}
+            className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors ${
+              activeSubTab === 'colors'
+                ? 'border-[#DDE404] text-white'
+                : 'border-transparent text-white/50 hover:text-white/70'
+            }`}
+          >
+            <Palette size={18} />
+            <span>Colors</span>
+          </button>
+          <button
+            onClick={() => setActiveSubTab('navigation')}
+            className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors ${
+              activeSubTab === 'navigation'
+                ? 'border-[#DDE404] text-white'
+                : 'border-transparent text-white/50 hover:text-white/70'
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+            <span>Navigation</span>
+          </button>
+        </div>
+
+        {/* Sub-tab Content */}
+        {activeSubTab === 'images' && (
+          <div className="space-y-6">
+            <h4 className="text-xl font-bold text-white">Site-Wide Images</h4>
+            
+            {['logo', 'hero', 'competition', 'background', 'icon'].map(category => {
+              const categoryImages = siteWideState.images.filter(img => img.category === category);
+              if (categoryImages.length === 0) return null;
+
+              return (
+                <div key={category} className="space-y-4">
+                  <h5 className="text-lg font-semibold text-[#DDE404] capitalize">{category} Images</h5>
+                  
+                  {categoryImages.map(image => (
+                    <div key={image.id} className="bg-white/5 border border-white/10 rounded-lg p-4">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <h6 className="text-white font-medium">{image.label}</h6>
+                          {image.description && (
+                            <p className="text-sm text-white/60 mt-1">{image.description}</p>
+                          )}
+                          <p className="text-xs text-white/40 mt-1">
+                            Used in: {image.usage.join(', ')}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <div className="w-32 h-32 bg-black/30 rounded-lg overflow-hidden flex items-center justify-center border border-white/10">
+                          <img
+                            src={image.currentPath}
+                            alt={image.label}
+                            className="max-w-full max-h-full object-contain"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        </div>
+
+                        <div className="flex-1">
+                          <label className="block">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handleSiteImageUpload(image.id, file);
+                              }}
+                              className="hidden"
+                            />
+                            <div className="cursor-pointer inline-flex items-center gap-2 bg-[#DDE404] text-black px-4 py-2 rounded-lg hover:bg-[#c7cc04] transition-colors text-sm font-semibold">
+                              <Upload size={16} />
+                              <span>Upload New</span>
+                            </div>
+                          </label>
+                          <p className="text-xs text-white/50 mt-2">
+                            Max 5MB • Recommended: {image.dimensions ? `${image.dimensions.width}x${image.dimensions.height}px` : 'Any size'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {activeSubTab === 'colors' && (
+          <div className="space-y-6">
+            <h4 className="text-xl font-bold text-white">Site-Wide Color Theme</h4>
+            <p className="text-white/60 text-sm">
+              These colors affect the entire website. Changes will be applied globally.
+            </p>
+            
+            {siteWideState.colors.map(color => (
+              <div key={color.id} className="bg-white/5 border border-white/10 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex-1">
+                    <h5 className="text-white font-medium">{color.name}</h5>
+                    <p className="text-xs text-white/50 mt-1">
+                      Used in: {color.usage.join(', ')}
+                    </p>
+                    {color.cssVariable && (
+                      <p className="text-xs text-white/40 mt-1 font-mono">
+                        CSS Variable: {color.cssVariable}
+                      </p>
+                    )}
+                  </div>
+                  <div
+                    className="w-16 h-16 rounded-lg border-2 border-white/20 shadow-lg"
+                    style={{ backgroundColor: color.value }}
+                  />
+                </div>
+
+                <div className="flex gap-4 items-center">
+                  <input
+                    type="color"
+                    value={color.value}
+                    onChange={(e) => handleSiteColorChange(color.id, e.target.value)}
+                    className="w-20 h-10 rounded cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    value={color.value}
+                    onChange={(e) => handleSiteColorChange(color.id, e.target.value)}
+                    className="flex-1 bg-black/30 text-white px-4 py-2 rounded-lg border border-white/20 focus:border-[#DDE404] focus:outline-none"
+                    placeholder="#000000"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {activeSubTab === 'navigation' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-xl font-bold text-white">Site Navigation Menu</h4>
+                <p className="text-white/60 text-sm mt-1">
+                  Edit header and footer navigation items
+                </p>
+              </div>
+              <button
+                onClick={addSiteNavigationItem}
+                className="inline-flex items-center gap-2 bg-[#DDE404] text-black px-4 py-2 rounded-lg hover:bg-[#c7cc04] transition-colors text-sm font-semibold"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Add Menu Item
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {siteWideState.navigation
+                .sort((a, b) => a.order - b.order)
+                .map(item => (
+                  <div key={item.id} className="bg-white/5 border border-white/10 rounded-lg p-4">
+                    <div className="flex items-center gap-4">
+                      <div className="flex-1 grid grid-cols-3 gap-4">
+                        <div>
+                          <label className="text-white/60 text-xs mb-1 block">Label</label>
+                          <input
+                            type="text"
+                            value={item.label}
+                            onChange={(e) => handleSiteNavigationUpdate(item.id, { label: e.target.value })}
+                            className="w-full bg-black/30 text-white px-3 py-2 rounded-lg border border-white/20 focus:border-[#DDE404] focus:outline-none text-sm"
+                            placeholder="Label"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-white/60 text-xs mb-1 block">Path</label>
+                          <input
+                            type="text"
+                            value={item.path}
+                            onChange={(e) => handleSiteNavigationUpdate(item.id, { path: e.target.value })}
+                            className="w-full bg-black/30 text-white px-3 py-2 rounded-lg border border-white/20 focus:border-[#DDE404] focus:outline-none text-sm"
+                            placeholder="Path"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-white/60 text-xs mb-1 block">Order</label>
+                          <input
+                            type="number"
+                            value={item.order}
+                            onChange={(e) => handleSiteNavigationUpdate(item.id, { order: parseInt(e.target.value) })}
+                            className="w-full bg-black/30 text-white px-3 py-2 rounded-lg border border-white/20 focus:border-[#DDE404] focus:outline-none text-sm"
+                            placeholder="Order"
+                          />
+                        </div>
+                      </div>
+
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={item.visible}
+                          onChange={(e) => handleSiteNavigationUpdate(item.id, { visible: e.target.checked })}
+                          className="w-5 h-5 rounded border-white/20 text-[#DDE404] focus:ring-[#DDE404]"
+                        />
+                        <span className="text-sm text-white whitespace-nowrap">Visible</span>
+                      </label>
+
+                      <button
+                        onClick={() => removeSiteNavigationItem(item.id)}
+                        className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                        title="Delete menu item"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6"></polyline>
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+            </div>
+
+            {siteWideState.navigation.length === 0 && (
+              <div className="text-center py-12 text-white/50">
+                <p>No navigation items. Click "Add Menu Item" to create one.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Info Box */}
+        <div className="mt-6 p-4 bg-gradient-to-r from-[#DDE404]/10 to-purple-500/10 border border-[#DDE404]/30 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertCircle size={20} className="text-[#DDE404] flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-[#DDE404] text-sm font-semibold mb-2">⚠️ Site-Wide Changes</p>
+              <p className="text-white/70 text-xs mb-2">
+                Changes made in this section affect the ENTIRE website, not just modals.
+              </p>
+              <p className="text-white/70 text-xs">
+                ✅ All changes are saved to a Pull Request for review before going live<br/>
+                ✅ Download configuration as backup before creating PR<br/>
+                ✅ Changes can be previewed in the modal tabs to see color/image effects
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderBackendEditor = () => {
+    const [activeSubTab, setActiveSubTab] = useState<'rpc' | 'edge' | 'indexes'>('rpc');
+
+    if (backendState.loading && backendState.rpcFunctions.length === 0) {
+      return (
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-purple-500 mx-auto mb-4"></div>
+          <p className="text-white">Loading backend infrastructure...</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        {/* Backend Notification */}
+        {backendNotification && (
+          <div className={`p-4 rounded-lg shadow-lg ${
+            backendNotification.type === 'success' ? 'bg-green-600' :
+            backendNotification.type === 'error' ? 'bg-red-600' :
+            'bg-blue-600'
+          }`}>
+            <div className="flex items-center gap-3 text-white">
+              {backendNotification.type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
+              <p>{backendNotification.message}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Header */}
+        <div className="p-4 bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/30 rounded-lg">
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <h3 className="text-white font-semibold mb-2 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-400">
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                  <line x1="8" y1="21" x2="16" y2="21"></line>
+                  <line x1="12" y1="17" x2="12" y2="21"></line>
+                </svg>
+                Database & Backend Infrastructure
+              </h3>
+              <p className="text-white/70 text-sm">
+                View and manage Supabase RPCs, Edge Functions, and Database Indexes
+              </p>
+            </div>
+            {backendState.modified && (
+              <span className="text-sm text-yellow-400 flex items-center gap-2">
+                <AlertCircle size={16} />
+                Unsaved changes
+              </span>
+            )}
+          </div>
+          
+          {backendState.modified && (
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={handleBackendPRCreation}
+                disabled={!backendState.modified || backendState.loading}
+                className="inline-flex items-center gap-2 bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3"></circle>
+                  <path d="M12 2v4m0 12v4M4.22 4.22l2.83 2.83m9.9 9.9 2.83 2.83M2 12h4m12 0h4M4.22 19.78l2.83-2.83m9.9-9.9 2.83-2.83"></path>
+                </svg>
+                Create Pull Request
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Sub-tabs */}
+        <div className="flex gap-2 border-b border-white/10">
+          <button
+            onClick={() => setActiveSubTab('rpc')}
+            className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors ${
+              activeSubTab === 'rpc'
+                ? 'border-purple-500 text-white'
+                : 'border-transparent text-white/50 hover:text-white/70'
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="16 18 22 12 16 6"></polyline>
+              <polyline points="8 6 2 12 8 18"></polyline>
+            </svg>
+            <span>RPC Functions ({backendState.rpcFunctions.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveSubTab('edge')}
+            className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors ${
+              activeSubTab === 'edge'
+                ? 'border-purple-500 text-white'
+                : 'border-transparent text-white/50 hover:text-white/70'
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+            </svg>
+            <span>Edge Functions ({backendState.edgeFunctions.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveSubTab('indexes')}
+            className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors ${
+              activeSubTab === 'indexes'
+                ? 'border-purple-500 text-white'
+                : 'border-transparent text-white/50 hover:text-white/70'
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="8" y1="6" x2="21" y2="6"></line>
+              <line x1="8" y1="12" x2="21" y2="12"></line>
+              <line x1="8" y1="18" x2="21" y2="18"></line>
+              <line x1="3" y1="6" x2="3.01" y2="6"></line>
+              <line x1="3" y1="12" x2="3.01" y2="12"></line>
+              <line x1="3" y1="18" x2="3.01" y2="18"></line>
+            </svg>
+            <span>Indexes ({backendState.indexes.length})</span>
+          </button>
+        </div>
+
+        {/* RPC Functions */}
+        {activeSubTab === 'rpc' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-xl font-bold text-white">Supabase RPC Functions</h4>
+                <p className="text-white/60 text-sm">
+                  View and edit database stored procedures and functions. Changes will be staged as SQL migrations.
+                </p>
+              </div>
+              {backendState.rpcFunctions.length > 0 && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={analyzeBackendInfrastructure}
+                    className="inline-flex items-center gap-2 bg-blue-500/20 text-blue-400 px-3 py-2 rounded-lg hover:bg-blue-500/30 text-sm"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 11l3 3L22 4"></path>
+                      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                    </svg>
+                    Analyze Issues
+                  </button>
+                  <button
+                    onClick={loadBackendConfiguration}
+                    className="inline-flex items-center gap-2 bg-purple-500/20 text-purple-400 px-3 py-2 rounded-lg hover:bg-purple-500/30 text-sm"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+                    </svg>
+                    Reload
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Analysis Results */}
+            {backendState.showAnalysis && backendState.analysisResults && (
+              <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h5 className="text-white font-semibold flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400">
+                      <path d="M9 11l3 3L22 4"></path>
+                      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                    </svg>
+                    Infrastructure Analysis Results
+                  </h5>
+                  <button
+                    onClick={() => setBackendState(prev => ({ ...prev, showAnalysis: false }))}
+                    className="text-white/50 hover:text-white/70 text-sm"
+                  >
+                    Hide
+                  </button>
+                </div>
+
+                {/* Summary */}
+                <div className="grid grid-cols-4 gap-3 mb-4">
+                  <div className="bg-black/30 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-white">{backendState.analysisResults.summary.total}</div>
+                    <div className="text-xs text-white/60">Functions</div>
+                  </div>
+                  <div className="bg-red-500/20 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-red-400">{backendState.analysisResults.summary.criticalIssues}</div>
+                    <div className="text-xs text-red-400">Critical</div>
+                  </div>
+                  <div className="bg-yellow-500/20 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-yellow-400">{backendState.analysisResults.summary.warnings}</div>
+                    <div className="text-xs text-yellow-400">Warnings</div>
+                  </div>
+                  <div className="bg-blue-500/20 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-blue-400">{backendState.analysisResults.summary.suggestions}</div>
+                    <div className="text-xs text-blue-400">Suggestions</div>
+                  </div>
+                </div>
+
+                {/* Issues List */}
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {/* Critical Issues */}
+                  {backendState.analysisResults.securityIssues.filter((i: any) => i.severity === 'critical').map((issue: any, idx: number) => (
+                    <div key={`crit-${idx}`} className="bg-red-500/10 border border-red-500/30 rounded p-3">
+                      <div className="flex items-start gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-400 flex-shrink-0 mt-0.5">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <line x1="12" y1="8" x2="12" y2="12"></line>
+                          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                        <div className="flex-1">
+                          <div className="text-red-400 font-medium text-sm">{issue.name}</div>
+                          <div className="text-white/70 text-xs mt-1">{issue.description}</div>
+                          <div className="text-green-400 text-xs mt-1">💡 {issue.recommendation}</div>
+                          <div className="text-white/40 text-xs mt-1">File: {issue.file}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Warnings */}
+                  {[...backendState.analysisResults.duplicates, 
+                    ...backendState.analysisResults.securityIssues.filter((i: any) => i.severity === 'warning'),
+                    ...backendState.analysisResults.bestPracticeViolations.filter((i: any) => i.severity === 'warning'),
+                    ...backendState.analysisResults.performanceIssues.filter((i: any) => i.severity === 'warning'),
+                    ...backendState.analysisResults.missingPolicies
+                  ].map((issue: any, idx: number) => (
+                    <div key={`warn-${idx}`} className="bg-yellow-500/10 border border-yellow-500/30 rounded p-3">
+                      <div className="flex items-start gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-400 flex-shrink-0 mt-0.5">
+                          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                          <line x1="12" y1="9" x2="12" y2="13"></line>
+                          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                        </svg>
+                        <div className="flex-1">
+                          <div className="text-yellow-400 font-medium text-sm">{issue.name || issue.description}</div>
+                          <div className="text-white/70 text-xs mt-1">{issue.description || issue.functions?.join(', ')}</div>
+                          <div className="text-green-400 text-xs mt-1">💡 {issue.recommendation}</div>
+                          {issue.file && <div className="text-white/40 text-xs mt-1">File: {issue.file}</div>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Suggestions */}
+                  {[...backendState.analysisResults.performanceIssues.filter((i: any) => i.severity === 'suggestion'),
+                    ...backendState.analysisResults.bestPracticeViolations.filter((i: any) => i.severity === 'suggestion')
+                  ].map((issue: any, idx: number) => (
+                    <div key={`sugg-${idx}`} className="bg-blue-500/10 border border-blue-500/30 rounded p-3">
+                      <div className="flex items-start gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400 flex-shrink-0 mt-0.5">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <line x1="12" y1="16" x2="12" y2="12"></line>
+                          <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                        </svg>
+                        <div className="flex-1">
+                          <div className="text-blue-400 font-medium text-sm">{issue.name}</div>
+                          <div className="text-white/70 text-xs mt-1">{issue.description}</div>
+                          <div className="text-green-400 text-xs mt-1">💡 {issue.recommendation}</div>
+                          <div className="text-white/40 text-xs mt-1">File: {issue.file}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Search and Filter */}
+            {backendState.rpcFunctions.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <input
+                      type="text"
+                      placeholder="Search functions by name, signature, or code..."
+                      value={backendState.searchTerm}
+                      onChange={(e) => setBackendState(prev => ({ ...prev, searchTerm: e.target.value }))}
+                      className="w-full bg-black/30 text-white px-4 py-2 rounded-lg border border-white/20 focus:border-purple-500 focus:outline-none text-sm"
+                    />
+                  </div>
+                </div>
+                
+                {/* Find and Replace */}
+                <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3">
+                  <h5 className="text-white font-medium text-sm mb-2">Find & Replace Terms</h5>
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      placeholder="Find term..."
+                      value={backendState.findTerm}
+                      onChange={(e) => setBackendState(prev => ({ ...prev, findTerm: e.target.value }))}
+                      className="bg-black/30 text-white px-3 py-2 rounded border border-white/20 focus:border-purple-500 focus:outline-none text-sm"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Replace with..."
+                      value={backendState.replaceTerm}
+                      onChange={(e) => setBackendState(prev => ({ ...prev, replaceTerm: e.target.value }))}
+                      className="bg-black/30 text-white px-3 py-2 rounded border border-white/20 focus:border-purple-500 focus:outline-none text-sm"
+                    />
+                  </div>
+                  {backendState.findTerm && (
+                    <div className="mt-2 text-xs text-white/60">
+                      Found in {backendState.rpcFunctions.filter(f => 
+                        f.code?.includes(backendState.findTerm) || 
+                        f.name.includes(backendState.findTerm)
+                      ).length} functions
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {backendState.rpcFunctions.length === 0 && !backendState.loading && (
+              <div className="text-center py-12 bg-white/5 border border-white/10 rounded-lg">
+                <p className="text-white/50 mb-4">No RPC functions loaded</p>
+                <button
+                  onClick={loadBackendConfiguration}
+                  className="inline-flex items-center gap-2 bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+                  </svg>
+                  Reload Functions
+                </button>
+              </div>
+            )}
+
+            {backendState.rpcFunctions
+              .filter(rpc => {
+                if (!backendState.searchTerm) return true;
+                const searchLower = backendState.searchTerm.toLowerCase();
+                return (
+                  rpc.name.toLowerCase().includes(searchLower) ||
+                  rpc.signature.toLowerCase().includes(searchLower) ||
+                  rpc.code?.toLowerCase().includes(searchLower) ||
+                  rpc.file.toLowerCase().includes(searchLower)
+                );
+              })
+              .map((rpc, index) => {
+                const hasSearchTerm = backendState.findTerm && (
+                  rpc.code?.includes(backendState.findTerm) ||
+                  rpc.name.includes(backendState.findTerm)
+                );
+                
+                return (
+                  <div 
+                    key={index} 
+                    className={`bg-white/5 border rounded-lg p-4 ${
+                      hasSearchTerm ? 'border-yellow-500/50 bg-yellow-500/5' : 'border-white/10'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1">
+                        <h5 className="text-white font-medium font-mono">{rpc.name}()</h5>
+                        <p className="text-xs text-white/50 mt-1">{rpc.signature}</p>
+                        {rpc.returnType && (
+                          <p className="text-xs text-green-400 mt-1">→ {rpc.returnType}</p>
+                        )}
+                        {rpc.description && (
+                          <p className="text-sm text-white/60 mt-2">{rpc.description}</p>
+                        )}
+                        {hasSearchTerm && (
+                          <p className="text-xs text-yellow-400 mt-1">
+                            Contains "{backendState.findTerm}"
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        {rpc.securityDefiner && (
+                          <span className="px-2 py-1 bg-red-500/20 text-red-400 text-xs rounded">SECURITY DEFINER</span>
+                        )}
+                        <span className="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded uppercase">{rpc.language}</span>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        onClick={() => {
+                          setBackendState(prev => ({ 
+                            ...prev, 
+                            showCodeViewer: true,
+                            viewingCode: rpc.code || 'No code available',
+                            viewingTitle: `${rpc.name}() - ${rpc.file}`,
+                            selectedRPC: rpc
+                          }));
+                        }}
+                        className="text-sm text-purple-400 hover:text-purple-300 flex items-center gap-1"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                          <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                        View SQL
+                      </button>
+                      <button
+                        onClick={() => {
+                          setBackendState(prev => ({ 
+                            ...prev, 
+                            showCodeViewer: true,
+                            viewingCode: rpc.code || '',
+                            viewingTitle: `Edit: ${rpc.name}()`,
+                            selectedRPC: rpc,
+                            editingCode: rpc.code || ''
+                          }));
+                        }}
+                        className="text-sm text-white/50 hover:text-white/70 flex items-center gap-1"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                        Edit
+                      </button>
+                      {hasSearchTerm && backendState.replaceTerm && (
+                        <button
+                          onClick={() => {
+                            const newCode = rpc.code?.replace(
+                              new RegExp(backendState.findTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+                              backendState.replaceTerm
+                            );
+                            setBackendState(prev => ({ 
+                              ...prev, 
+                              selectedRPC: { ...rpc, code: newCode },
+                              editingCode: newCode || '',
+                              modified: true
+                            }));
+                            showBackendNotification('success', `Replaced "${backendState.findTerm}" in ${rpc.name}()`);
+                          }}
+                          className="text-sm text-green-400 hover:text-green-300 flex items-center gap-1"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                          </svg>
+                          Replace
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        )}
+
+        {/* Edge Functions */}
+        {activeSubTab === 'edge' && (
+          <div className="space-y-4">
+            <h4 className="text-xl font-bold text-white">Netlify Edge Functions</h4>
+            <p className="text-white/60 text-sm">
+              View and edit serverless functions. Changes will update the .mts files.
+            </p>
+
+            {backendState.edgeFunctions.length === 0 && !backendState.loading && (
+              <div className="text-center py-12 bg-white/5 border border-white/10 rounded-lg">
+                <p className="text-white/50 mb-4">No edge functions loaded</p>
+                <button
+                  onClick={loadBackendConfiguration}
+                  className="inline-flex items-center gap-2 bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600"
+                >
+                  Reload Functions
+                </button>
+              </div>
+            )}
+
+            {backendState.edgeFunctions.map((edge, index) => (
+              <div key={index} className="bg-white/5 border border-white/10 rounded-lg p-4">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1">
+                    <h5 className="text-white font-medium font-mono">{edge.name}</h5>
+                    <p className="text-xs text-white/50 mt-1">{edge.path}</p>
+                    <p className="text-xs text-white/40 mt-1">
+                      {(edge.size / 1024).toFixed(2)} KB • Modified: {edge.lastModified}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    className="text-sm text-purple-400 hover:text-purple-300 flex items-center gap-1"
+                  >
+                    View Code
+                  </button>
+                  <button
+                    className="text-sm text-white/50 hover:text-white/70 flex items-center gap-1"
+                  >
+                    Edit
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Indexes */}
+        {activeSubTab === 'indexes' && (
+          <div className="space-y-4">
+            <h4 className="text-xl font-bold text-white">Database Indexes</h4>
+            <p className="text-white/60 text-sm">
+              View database indexes for performance optimization.
+            </p>
+
+            {backendState.indexes.length === 0 && !backendState.loading && (
+              <div className="text-center py-12 bg-white/5 border border-white/10 rounded-lg">
+                <p className="text-white/50 mb-4">No indexes loaded</p>
+                <button
+                  onClick={loadBackendConfiguration}
+                  className="inline-flex items-center gap-2 bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600"
+                >
+                  Reload Indexes
+                </button>
+              </div>
+            )}
+
+            {backendState.indexes.map((idx, index) => (
+              <div key={index} className="bg-white/5 border border-white/10 rounded-lg p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <h5 className="text-white font-medium font-mono">{idx.name}</h5>
+                    <p className="text-xs text-white/50 mt-1">Table: {idx.table}</p>
+                    <p className="text-xs text-white/50 mt-1">Columns: {idx.columns.join(', ')}</p>
+                  </div>
+                  {idx.unique && (
+                    <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded">UNIQUE</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Code Viewer/Editor Modal */}
+        {backendState.showCodeViewer && (
+          <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+            <div className="bg-[#1A1A1A] rounded-lg w-full max-w-6xl max-h-[90vh] flex flex-col">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between p-4 border-b border-white/10">
+                <h3 className="text-white font-semibold">{backendState.viewingTitle}</h3>
+                <div className="flex gap-2">
+                  {backendState.editingCode && (
+                    <button
+                      onClick={() => {
+                        setBackendState(prev => ({
+                          ...prev,
+                          modified: true,
+                          showCodeViewer: false
+                        }));
+                        showBackendNotification('info', 'Changes staged. Create PR to apply.');
+                      }}
+                      className="inline-flex items-center gap-2 bg-green-500 text-white px-3 py-1.5 rounded text-sm hover:bg-green-600"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                      </svg>
+                      Save Changes
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setBackendState(prev => ({ 
+                      ...prev, 
+                      showCodeViewer: false,
+                      editingCode: '',
+                      viewingCode: '',
+                      viewingTitle: ''
+                    }))}
+                    className="text-white/70 hover:text-white"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body */}
+              <div className="flex-1 overflow-auto p-4">
+                {backendState.editingCode ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-white/70 text-sm">Edit SQL Code:</label>
+                      <div className="flex gap-2">
+                        {backendState.findTerm && (
+                          <button
+                            onClick={() => {
+                              const newCode = backendState.editingCode.replace(
+                                new RegExp(backendState.findTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+                                backendState.replaceTerm
+                              );
+                              setBackendState(prev => ({ ...prev, editingCode: newCode }));
+                            }}
+                            className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded hover:bg-yellow-500/30"
+                          >
+                            Replace All "{backendState.findTerm}"
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <textarea
+                      value={backendState.editingCode}
+                      onChange={(e) => setBackendState(prev => ({ ...prev, editingCode: e.target.value }))}
+                      className="w-full h-[60vh] bg-black/50 text-white font-mono text-sm p-4 rounded border border-white/20 focus:border-purple-500 focus:outline-none resize-none"
+                      spellCheck={false}
+                    />
+                    <p className="text-xs text-white/50">
+                      {backendState.editingCode.split('\n').length} lines • {backendState.editingCode.length} characters
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <label className="text-white/70 text-sm">SQL Code (Read-Only):</label>
+                    <pre className="bg-black/50 text-white font-mono text-sm p-4 rounded border border-white/20 overflow-auto max-h-[60vh]">
+                      <code>{backendState.viewingCode}</code>
+                    </pre>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 border-t border-white/10 flex justify-between items-center">
+                <div className="text-xs text-white/50">
+                  {backendState.selectedRPC && (
+                    <span>
+                      {backendState.selectedRPC.language} • 
+                      {backendState.selectedRPC.securityDefiner && ' SECURITY DEFINER • '}
+                      {backendState.selectedRPC.file}
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setBackendState(prev => ({ 
+                      ...prev, 
+                      showCodeViewer: false,
+                      editingCode: '',
+                      viewingCode: '',
+                      viewingTitle: ''
+                    }))}
+                    className="px-4 py-2 bg-white/10 text-white rounded hover:bg-white/20"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Info Box */}
+        <div className="mt-6 p-4 bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/30 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertCircle size={20} className="text-purple-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-purple-400 text-sm font-semibold mb-2">⚠️ Backend Infrastructure Management</p>
+              <p className="text-white/70 text-xs mb-2">
+                This section provides visibility into your backend infrastructure:
+              </p>
+              <p className="text-white/70 text-xs">
+                ✅ View all RPC functions, edge functions, and database indexes<br/>
+                ✅ Search and filter functions by name or content<br/>
+                ✅ Find and replace stale terms across all functions<br/>
+                ✅ Edit code with inline editor<br/>
+                ✅ All changes create Pull Requests for review<br/>
+                ⚠️ Changes to RPCs and indexes require database migrations<br/>
+                ⚠️ Test thoroughly in staging before deploying to production
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderPresetManager = () => {
     const [presetName, setPresetName] = useState('');
     const [presetDescription, setPresetDescription] = useState('');
@@ -2890,6 +4600,40 @@ TESTING CHECKLIST:
                 </button>
               )}
               
+              {/* Site-Wide Tab - NEW */}
+              <button
+                onClick={() => setActiveTab('site-wide')}
+                className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors flex-shrink-0 ${
+                  activeTab === 'site-wide' 
+                    ? 'border-[#DDE404] text-white' 
+                    : 'border-transparent text-white/50 hover:text-white/70'
+                }`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="2" y1="12" x2="22" y2="12"></line>
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                </svg>
+                <span>Site-Wide UI</span>
+              </button>
+              
+              {/* Backend Tab - NEW */}
+              <button
+                onClick={() => setActiveTab('backend')}
+                className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors flex-shrink-0 ${
+                  activeTab === 'backend' 
+                    ? 'border-purple-500 text-white' 
+                    : 'border-transparent text-white/50 hover:text-white/70'
+                }`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                  <line x1="8" y1="21" x2="16" y2="21"></line>
+                  <line x1="12" y1="17" x2="12" y2="21"></line>
+                </svg>
+                <span>Database & Backend</span>
+              </button>
+              
               {/* Presets Tab */}
               <button
                 onClick={() => setActiveTab('presets')}
@@ -2913,6 +4657,8 @@ TESTING CHECKLIST:
               {activeTab === 'images' && renderImageEditor()}
               {activeTab === 'buttons' && renderButtonEditor()}
               {activeTab === 'sections' && renderSectionsEditor()}
+              {activeTab === 'site-wide' && renderSiteWideEditor()}
+              {activeTab === 'backend' && renderBackendEditor()}
               {activeTab === 'presets' && renderPresetManager()}
             </div>
 
