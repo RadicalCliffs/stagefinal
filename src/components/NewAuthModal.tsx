@@ -14,10 +14,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { X, CheckCircle, AlertCircle, Loader2, User, Mail, Globe, Wallet as WalletIcon, ArrowRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { toPrizePid } from '../utils/userId';
 import { truncateWalletAddress } from '../utils/util';
-import { useCurrentUser, useEvmAddress, useIsSignedIn } from '@coinbase/cdp-hooks';
-import { useAccount, useDisconnect, useConnect } from 'wagmi';
 
 // Text overrides for visual editor live preview
 export interface NewAuthModalTextOverrides {
@@ -42,8 +39,6 @@ type AuthStep =
   | 'username'           // Step 1: Enter or create username
   | 'profile'            // Step 2: Complete profile (email OTP, name, country, avatar, social)
   | 'email-otp'          // Step 2a: Email verification with OTP
-  | 'returning-user-wallet' // Step 3A: Returning user with existing wallet - Welcome back screen
-  | 'wallet'             // Step 3: Connect Base wallet (new users or users without wallet)
   | 'success'            // Step 4: Success confirmation
   | 'existing-account'   // Step: Show existing account options
   | 'username-recovery'  // Step: Send username reminder email
@@ -79,22 +74,8 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
   const [otpCode, setOtpCode] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [isReturningUser, setIsReturningUser] = useState(false);
-  const [returningUserWalletAddress, setReturningUserWalletAddress] = useState<string>('');
   const [existingAccountInfo, setExistingAccountInfo] = useState<ExistingAccountInfo | null>(null);
   const [recoveryEmailSent, setRecoveryEmailSent] = useState(false);
-
-  // CDP hooks for wallet connection
-  const { currentUser } = useCurrentUser();
-  const { evmAddress } = useEvmAddress();
-  const { isSignedIn } = useIsSignedIn();
-
-  // Wagmi hooks for external wallet connection (Base App, Coinbase Wallet, etc.)
-  const { address: wagmiAddress, isConnected: wagmiIsConnected } = useAccount();
-  const { disconnect: wagmiDisconnect } = useDisconnect();
-  const { connect, connectors } = useConnect();
-
-  // Get the effective wallet address (CDP or wagmi)
-  const effectiveWalletAddress = evmAddress || wagmiAddress;
 
   // Reset state when modal opens
   useEffect(() => {
@@ -105,29 +86,10 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
       setOtpCode('');
       setOtpSent(false);
       setIsReturningUser(false);
-      setReturningUserWalletAddress('');
       setExistingAccountInfo(null);
       setRecoveryEmailSent(false);
-      setWalletProcessing(false);
     }
   }, [isOpen]);
-
-  // Track if we're currently processing wallet connection
-  const [walletProcessing, setWalletProcessing] = useState(false);
-
-  // Check if wallet is connected, auto-advance to success
-  useEffect(() => {
-    // Only auto-advance if:
-    // 1. We're on the wallet step
-    // 2. We have a wallet address
-    // 3. User is signed in via CDP or connected via wagmi
-    // 4. We're not already processing
-    if (step === 'wallet' && effectiveWalletAddress && (isSignedIn || wagmiIsConnected) && !walletProcessing && !isLoading) {
-      console.log('[NewAuthModal] Wallet connected, auto-advancing to handleWalletConnected');
-      setWalletProcessing(true);
-      handleWalletConnected();
-    }
-  }, [step, isSignedIn, evmAddress, wagmiIsConnected, wagmiAddress, effectiveWalletAddress, walletProcessing, isLoading]);
 
   if (!isOpen) return null;
 
@@ -167,11 +129,10 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
         setProfileData(prev => ({ ...prev, email: data.email || '' }));
         
         if (data.wallet_address || data.base_wallet_address) {
-          // Has wallet - immediately initiate wallet connection with passkey support
+          // Has wallet - open BaseWalletAuthModal directly for wallet connection
           const walletAddr = data.wallet_address || data.base_wallet_address;
-          setReturningUserWalletAddress(walletAddr);
           
-          console.log('[NewAuthModal] Returning user detected, initiating wallet connection');
+          console.log('[NewAuthModal] Returning user detected, opening wallet connection modal');
           
           // Save returning user data to localStorage for wallet linking
           localStorage.setItem('pendingSignupData', JSON.stringify({
@@ -181,21 +142,19 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
             timestamp: Date.now()
           }));
           
-          // Automatically trigger wallet connection
-          // Try coinbaseWallet connector first (supports passkey)
-          const coinbaseConnector = connectors.find(
-            (c) => c.id === 'coinbaseWalletSDK' || c.name.toLowerCase().includes('coinbase')
-          );
+          // Close NewAuthModal and open BaseWalletAuthModal
+          onClose();
           
-          if (coinbaseConnector) {
-            console.log('[NewAuthModal] Connecting with Coinbase Wallet connector (passkey support)');
-            connect({ connector: coinbaseConnector });
-            // Set step to wallet to show connection UI
-            setStep('wallet');
-          } else {
-            // Fallback to showing wallet connection screen
-            setStep('wallet');
-          }
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('open-base-wallet-auth', {
+              detail: { 
+                resumeSignup: true, 
+                email: data.email,
+                isReturningUser: true,
+                returningUserWalletAddress: walletAddr
+              }
+            }));
+          }, 100);
         } else {
           // No wallet, need to complete profile first
           setStep('profile');
@@ -387,161 +346,30 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
       // User creation will happen in BaseWalletAuthModal after wallet is linked
       console.log('[NewAuthModal] Email verified successfully, proceeding to wallet connection');
       
-      // OTP verified, proceed to wallet connection
-      setStep('wallet');
+      // OTP verified, save profile data and open BaseWalletAuthModal directly
+      // Skip the intermediate wallet screen in NewAuthModal to avoid duplication
+      localStorage.setItem('pendingSignupData', JSON.stringify({
+        profileData,
+        isReturningUser,
+        timestamp: Date.now()
+      }));
+      
+      // Close this modal
+      onClose();
+      
+      // Open BaseWalletAuthModal with a small delay
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('open-base-wallet-auth', {
+          detail: { 
+            resumeSignup: true, 
+            email: profileData.email,
+            isReturningUser
+          }
+        }));
+      }, 100);
     } catch (err) {
       console.error('[NewAuthModal] Error verifying OTP:', err);
       setError(err instanceof Error ? err.message : 'Invalid code. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  /**
-   * Step 3: Handle wallet connected
-   */
-  const handleWalletConnected = async () => {
-    if (!effectiveWalletAddress) {
-      setError('No wallet address detected');
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      // Generate canonical_user_id from wallet address
-      const canonicalUserId = toPrizePid(effectiveWalletAddress);
-
-      // First, try to find existing user by email (created during OTP verification)
-      const { data: existingUser, error: fetchError } = await supabase
-        .from('canonical_users')
-        .select('id')
-        .eq('email', profileData.email.toLowerCase())
-        .maybeSingle();
-
-      if (fetchError) {
-        console.warn('[NewAuthModal] Error checking for existing user:', fetchError);
-      }
-
-      let canonicalUserUUID: string | undefined;
-
-      if (existingUser) {
-        // User exists - update with wallet info
-        console.log('[NewAuthModal] Found existing user by email, linking wallet:', existingUser.id);
-        const { data: updatedUser, error: updateError } = await supabase
-          .from('canonical_users')
-          .update({
-            canonical_user_id: canonicalUserId,
-            wallet_address: effectiveWalletAddress.toLowerCase(),
-            base_wallet_address: effectiveWalletAddress.toLowerCase(),
-            eth_wallet_address: effectiveWalletAddress.toLowerCase(),
-            privy_user_id: effectiveWalletAddress,
-          })
-          .eq('id', existingUser.id)
-          .select('id')
-          .single();
-
-        if (updateError) throw updateError;
-        canonicalUserUUID = updatedUser?.id;
-      } else {
-        // No existing user - create new (fallback for edge cases like returning users)
-        console.log('[NewAuthModal] No existing user found, creating new user with wallet');
-        const { data: canonicalUserData, error: upsertError } = await supabase
-          .from('canonical_users')
-          .upsert({
-            canonical_user_id: canonicalUserId,
-            username: profileData.username.toLowerCase(),
-            email: profileData.email.toLowerCase(),
-            wallet_address: effectiveWalletAddress.toLowerCase(),
-            base_wallet_address: effectiveWalletAddress.toLowerCase(),
-            eth_wallet_address: effectiveWalletAddress.toLowerCase(),
-            privy_user_id: effectiveWalletAddress,
-            ...(profileData.firstName && { first_name: profileData.firstName }),
-            ...(profileData.lastName && { last_name: profileData.lastName }),
-            ...(profileData.country && { country: profileData.country }),
-            ...(profileData.avatar && { avatar_url: profileData.avatar }),
-            ...(profileData.telegram && { telegram_handle: profileData.telegram }),
-          }, {
-            onConflict: 'canonical_user_id'
-          })
-          .select('id')
-          .single();
-
-        if (upsertError) throw upsertError;
-        canonicalUserUUID = canonicalUserData?.id;
-      }
-
-      // Create or update the user's profile in the profiles table
-      // The profiles table has a user_id column that references canonical_users.id
-      if (canonicalUserUUID) {
-        const normalizedWallet = effectiveWalletAddress.toLowerCase();
-
-        // Check if profile already exists by user_id
-        const { data: existingProfile } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('user_id', canonicalUserUUID)
-          .maybeSingle();
-
-        // Use existing profile id or generate a new UUID
-        const profileId = existingProfile?.id || crypto.randomUUID();
-
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .upsert({
-            id: profileId,
-            user_id: canonicalUserUUID,
-            wallet_address: normalizedWallet,
-            updated_at: new Date().toISOString(),
-          }, {
-            onConflict: 'id'
-          });
-
-        if (profileError) {
-          console.warn('[NewAuthModal] Profile upsert error (non-fatal):', profileError);
-        }
-      }
-
-      // Initialize sub_account_balances if doesn't exist
-      // Try insert with ignoreDuplicates to avoid constraint issues
-      const { error: balanceError } = await supabase
-        .from('sub_account_balances')
-        .insert({
-          user_id: canonicalUserId,
-          currency: 'USD',
-          available_balance: 0,
-          pending_balance: 0,
-        });
-
-      // Ignore "duplicate key" errors (23505) as they just mean the balance already exists
-      if (balanceError && balanceError.code !== '23505') {
-        console.warn('[NewAuthModal] Balance init error (non-fatal):', balanceError);
-      }
-
-      // Store wallet address in localStorage for auth flow
-      localStorage.setItem('cdp:wallet_address', effectiveWalletAddress);
-
-      // Success!
-      setStep('success');
-
-      // Dispatch auth-complete event for AuthContext to refresh
-      const event = new CustomEvent('auth-complete', {
-        detail: {
-          walletAddress: effectiveWalletAddress,
-          canonicalUserId
-        } 
-      });
-      window.dispatchEvent(event);
-
-      // Auto-close after 2 seconds
-      setTimeout(() => {
-        onClose();
-      }, 2000);
-    } catch (err) {
-      console.error('[NewAuthModal] Error saving user data:', err);
-      setError('Failed to save your information. Please try again.');
-      setWalletProcessing(false); // Reset so user can retry
     } finally {
       setIsLoading(false);
     }
@@ -910,263 +738,6 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
             >
               Resend code
             </button>
-          </div>
-        );
-
-      case 'returning-user-wallet':
-        // Screen 3A: Returning User - Active Wallet Available
-        return (
-          <div className="space-y-6">
-            <div className="text-center">
-              <div className="w-16 h-16 mx-auto mb-4 bg-[#0052FF]/10 rounded-full flex items-center justify-center">
-                <WalletIcon size={32} className="text-[#0052FF]" />
-              </div>
-              <h2 className="text-2xl font-bold text-white mb-2">Continue with your wallet</h2>
-              <p className="text-white/70 mb-4">
-                To access your account, please continue using your Base wallet.
-              </p>
-            </div>
-
-            {/* Display existing wallet address */}
-            <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
-              <div className="text-xs text-white/50 mb-1">Active wallet</div>
-              <div className="text-white font-mono text-sm break-all">
-                {truncateWalletAddress(returningUserWalletAddress)}
-              </div>
-              <div className="text-xs text-white/50 mt-2">
-                This is the wallet you used last time.
-              </div>
-            </div>
-
-            {/* Primary CTA: Continue with Base wallet */}
-            <button
-              onClick={() => {
-                // Save current profile data to localStorage before opening wallet auth
-                localStorage.setItem('pendingSignupData', JSON.stringify({
-                  profileData,
-                  isReturningUser: true,
-                  returningUserWalletAddress,
-                  timestamp: Date.now()
-                }));
-                console.log('[NewAuthModal] Opening CDP sign-in for returning user authentication');
-                // Close this modal and dispatch event to open Base wallet auth modal
-                onClose();
-                // Small delay to ensure modal closes before opening new one
-                setTimeout(() => {
-                  window.dispatchEvent(new CustomEvent('open-base-wallet-auth', {
-                    detail: { 
-                      resumeSignup: true, 
-                      email: profileData.email,
-                      isReturningUser: true,
-                      returningUserWalletAddress
-                    }
-                  }));
-                }, 100);
-              }}
-              disabled={isLoading}
-              className="w-full py-3 bg-[#0052FF] hover:bg-[#0041CC] disabled:bg-white/10 disabled:text-white/40 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="animate-spin flex-shrink-0" size={20} />
-                  <span>Connecting...</span>
-                </>
-              ) : (
-                <>
-                  <WalletIcon size={20} className="flex-shrink-0" />
-                  <span>Continue with Base wallet</span>
-                  <ArrowRight size={20} className="flex-shrink-0" />
-                </>
-              )}
-            </button>
-
-            {/* Link: Can't access this wallet? */}
-            <div className="text-center">
-              <button
-                onClick={() => {
-                  setStep('wallet');
-                }}
-                className="text-sm text-white/60 hover:text-white/90 underline transition-colors"
-              >
-                Can't access this wallet?
-              </button>
-            </div>
-
-            {error && (
-              <div className="flex items-start gap-2 text-red-400 text-sm justify-center">
-                <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
-                <span className="break-words">{error}</span>
-              </div>
-            )}
-          </div>
-        );
-
-      case 'wallet':
-        return (
-          <div className="space-y-6">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-white mb-2">{textOverrides?.connectWalletTitle || 'Connect your wallet'}</h2>
-              <p className="text-white/70">
-                {isReturningUser 
-                  ? 'Login with your existing Base wallet'
-                  : 'Connect an existing wallet or create a new one in seconds.'
-                }
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              {!isSignedIn && !wagmiIsConnected ? (
-                <>
-                  {/* Primary button - Connect existing wallet (Blue) */}
-                  <button
-                    onClick={() => {
-                      // Save current profile data to localStorage before opening wallet auth
-                      // This data will be consumed by BaseWalletAuthModal when it opens
-                      // to resume the signup process after wallet connection
-                      localStorage.setItem('pendingSignupData', JSON.stringify({
-                        profileData,
-                        isReturningUser,
-                        timestamp: Date.now(),
-                        connectExisting: true // Flag to indicate user wants to connect existing wallet
-                      }));
-                      console.log('[NewAuthModal] Opening wallet connector for existing wallet');
-                      // Close this modal and dispatch event to open Base wallet auth modal
-                      onClose();
-                      // Small delay to ensure modal closes before opening new one
-                      setTimeout(() => {
-                        window.dispatchEvent(new CustomEvent('open-base-wallet-auth', {
-                          detail: { 
-                            resumeSignup: true, 
-                            email: profileData.email,
-                            connectExisting: true // Tell BaseWalletAuthModal to skip email and go straight to wallet choice
-                          }
-                        }));
-                      }, 100);
-                    }}
-                    className="w-full py-3 bg-[#0052FF] hover:bg-[#0041CC] text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
-                  >
-                    <WalletIcon size={20} className="flex-shrink-0" />
-                    <span>Connect an existing Base wallet</span>
-                  </button>
-
-                  {/* Helper text for returning users */}
-                  {isReturningUser ? (
-                    <p className="text-white/60 text-xs text-center">
-                      Welcome back to theprize.io
-                    </p>
-                  ) : (
-                    <p className="text-white/60 text-xs text-center">
-                      If you have MetaMask, Coinbase Wallet, Base, or another supported wallet installed, it will be detected automatically. Otherwise, you can create a new wallet with your email below.
-                    </p>
-                  )}
-
-                  {/* Divider */}
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-white/10"></div>
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-[#0A0A0F] px-2 text-white/50">OR</span>
-                    </div>
-                  </div>
-
-                  {/* Secondary text for returning users */}
-                  {isReturningUser && (
-                    <p className="text-white/60 text-xs text-center">
-                      Don't have access to that account anymore? Click below to create a new wallet:
-                    </p>
-                  )}
-
-                  {/* Secondary button - Create new wallet (Yellow) */}
-                  <button
-                    onClick={() => {
-                      // Save current profile data to localStorage before opening wallet auth
-                      localStorage.setItem('pendingSignupData', JSON.stringify({
-                        profileData,
-                        isReturningUser,
-                        timestamp: Date.now(),
-                        createNew: true // Flag to indicate user wants to create new wallet
-                      }));
-                      console.log('[NewAuthModal] Opening CDP flow to create new wallet');
-                      // Close this modal and dispatch event to open Base wallet auth modal
-                      onClose();
-                      // Small delay to ensure modal closes before opening new one
-                      setTimeout(() => {
-                        window.dispatchEvent(new CustomEvent('open-base-wallet-auth', {
-                          detail: { 
-                            resumeSignup: true, 
-                            email: profileData.email,
-                            createNew: true // Tell BaseWalletAuthModal to go to CDP email flow
-                          }
-                        }));
-                      }, 100);
-                    }}
-                    className="w-full py-3 bg-[#DDE404] hover:bg-[#DDE404]/90 text-black font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
-                  >
-                    <WalletIcon size={20} className="flex-shrink-0" />
-                    <span>Create a free Base wallet</span>
-                  </button>
-
-                  {/* Additional info for new users */}
-                  {!isReturningUser && (
-                    <p className="text-white/60 text-xs text-center">
-                      No wallet yet? Create one now and get started instantly.
-                    </p>
-                  )}
-                </>
-              ) : (
-                <div className="space-y-4">
-                  <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg text-center">
-                    <div className="flex items-center justify-center gap-2 text-green-400">
-                      <CheckCircle size={20} className="flex-shrink-0" />
-                      <span className="font-semibold">Wallet Connected!</span>
-                    </div>
-                    <p className="text-white/70 text-sm mt-2 break-all">
-                      {truncateWalletAddress(effectiveWalletAddress)}
-                    </p>
-                  </div>
-
-                  {/* Manual continue button if auto-advance doesn't trigger */}
-                  <button
-                    onClick={() => {
-                      setWalletProcessing(true);
-                      handleWalletConnected();
-                    }}
-                    disabled={isLoading || walletProcessing}
-                    className="w-full py-3 bg-[#0052FF] hover:bg-[#0041CC] disabled:bg-white/10 disabled:text-white/40 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
-                  >
-                    {isLoading || walletProcessing ? (
-                      <>
-                        <Loader2 className="animate-spin flex-shrink-0" size={20} />
-                        <span>Completing sign up...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Continue</span>
-                        <ArrowRight size={20} className="flex-shrink-0" />
-                      </>
-                    )}
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {error && (
-              <div className="flex items-start gap-2 text-red-400 text-sm justify-center">
-                <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
-                <span className="break-words">{error}</span>
-              </div>
-            )}
-
-            <div className="p-4 bg-white/5 rounded-lg text-center space-y-2">
-              <p className="text-xs text-white/50">Powered by Coinbase</p>
-              <p className="text-xs text-white/40">
-                Secure wallet infrastructure and payments powered by Coinbase.
-              </p>
-              <p className="text-xs text-white/40">
-                We never store your private keys. Your wallet is used for entries, top-ups, and ownership verification.
-              </p>
-            </div>
           </div>
         );
 
