@@ -16,7 +16,8 @@ import {
   ArrowUpRight,
   Clock,
   Download,
-  Send
+  Send,
+  Settings
 } from 'lucide-react';
 import { truncateString } from '../../utils/util';
 import { useWalletTokens } from '../../hooks/useWalletTokens';
@@ -30,6 +31,8 @@ const TopUpWalletModal = lazy(() => import('../TopUpWalletModal'));
 // Lazy load wallet export and send components
 const ExportWalletKey = lazy(() => import('./ExportWalletKey'));
 const SendTransaction = lazy(() => import('./SendTransaction'));
+// Lazy load wallet settings panel
+const WalletSettingsPanel = lazy(() => import('./WalletSettingsPanel'));
 
 // Helper function to validate Ethereum address
 const isValidEthereumAddress = (address: string): boolean => {
@@ -75,6 +78,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
   const [showTopUpModal, setShowTopUpModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showSendModal, setShowSendModal] = useState(false);
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
   const [isLinking, setIsLinking] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
   const [linkSuccess, setLinkSuccess] = useState<string | null>(null);
@@ -403,16 +407,25 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
       {showHeader && (
         <div className="flex items-center justify-between">
           <h2 className="text-white sequel-95 text-xl uppercase">Wallet Management</h2>
-          {onClose && (
+          <div className="flex items-center gap-2">
             <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-white transition-colors"
+              onClick={() => setShowSettingsPanel(true)}
+              className="text-white/60 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg"
+              title="Wallet Settings"
             >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
+              <Settings size={20} />
             </button>
-          )}
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -1020,6 +1033,13 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
             <span>Address copied to clipboard!</span>
           </div>
         </div>
+      )}
+
+      {/* Wallet Settings Panel */}
+      {showSettingsPanel && (
+        <Suspense fallback={null}>
+          <WalletSettingsPanel onClose={() => setShowSettingsPanel(false)} />
+        </Suspense>
       )}
     </div>
   );
