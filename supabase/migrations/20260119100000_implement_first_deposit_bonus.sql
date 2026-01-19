@@ -72,7 +72,7 @@ BEGIN
     v_bonus_amount := p_amount * 0.5;
     v_total_credit := p_amount + v_bonus_amount;
     
-    RAISE NOTICE 'Applying 50%% first deposit bonus: amount=%, bonus=%, total=%', 
+    RAISE NOTICE 'Applying 50% first deposit bonus: amount=%, bonus=%, total=%', 
                  p_amount, v_bonus_amount, v_total_credit;
   ELSE
     -- No bonus
