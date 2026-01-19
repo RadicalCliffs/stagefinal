@@ -107,7 +107,8 @@ const Header: React.FC = () => {
           ></div>
         </Activity>
 
-        <div className="flex justify-between w-full px-6 py-4 items-center relative z-50 xl:hidden bg-[#1A1A1A]">
+        {/* Mobile header - constrained to match hero section width */}
+        <div className="flex justify-between w-full max-w-7xl mx-auto px-6 py-4 items-center relative z-50 xl:hidden bg-[#1A1A1A] rounded-b-xl">
           <Link to="/" className="xl:hidden block">
             <img src={mobileLogo} alt="PrizeIO mobile logo" />
           </Link>
@@ -196,7 +197,8 @@ const Header: React.FC = () => {
           </Activity>
         </div>
 
-        <div className="relative max-w-[1800px] xl:block hidden w-full">
+        {/* Desktop header - constrained to match hero section width (max-w-7xl = 80rem = 1280px) */}
+        <div className="relative max-w-7xl mx-auto xl:block hidden w-full">
           <div className="absolute z-[10] left-0 xl:block hidden">
             <svg
               width="20"
@@ -214,7 +216,7 @@ const Header: React.FC = () => {
             </svg>
           </div>
 
-          <div className="bg-[#1A1A1A] flex items-center gap-18 min-h-[70px] rounded-tr-lg rounded-br-lg w-full ml-[20px]">
+          <div className="bg-[#1A1A1A] flex items-center gap-18 min-h-[70px] rounded-tr-lg rounded-br-lg w-[calc(100%-20px)] ml-[20px] pr-4">
             <Link to="/" className="ml-4 flex-shrink-0">
               <img src={logo} alt="PrizeIO logo" />
             </Link>
@@ -258,7 +260,7 @@ const Header: React.FC = () => {
               ) : (
                 <button
                   onClick={handleAuthModalOpen}
-                  className="bg-[#DDE404] sequel-75 2xl:text-base text-sm uppercase rounded-sm py-3 px-14 cursor-pointer hover:bg-[#DDE404]/90 flex items-center justify-center"
+                  className="bg-[#DDE404] sequel-75 2xl:text-base text-sm uppercase rounded-sm py-3 px-8 cursor-pointer hover:bg-[#DDE404]/90 flex items-center justify-center"
                 >
                   Login / Sign Up
                 </button>
@@ -269,7 +271,7 @@ const Header: React.FC = () => {
                 <button
                   onClick={handleLogout}
                   disabled={isLoggingOut}
-                  className="w-8 h-8 mr-4 cursor-pointer hover:opacity-80 transition-opacity disabled:opacity-50"
+                  className="w-8 h-8 cursor-pointer hover:opacity-80 transition-opacity disabled:opacity-50"
                   title="Log Out"
                   aria-label="Log out of your account"
                 >

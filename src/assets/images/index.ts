@@ -16,7 +16,8 @@ import applePay from "./paymentMethods/PaymentMethod_Logos_EH-08.svg";
 import iDealLogo from "./paymentMethods/PaymentMethod_Logos_EH-09.svg";
 import spelLogo from "./paymentMethods/PaymentMethod_Logos_EH-10.svg";
 import sofortLogo from "./paymentMethods/PaymentMethod_Logos_EH-11.svg";
-import partnersLogo from "./PoweredBy_Logos_EH 1.png";
+import partnersLogoDesktop from "./ecosystem-partners-desktop.png";
+import partnersLogoMobile from "./ecosystem-partners-mobile.png";
 import crown from "./crown.svg";
 import rocket from "./rocket.svg";
 import fairDrawBg from "./fair-draws-bg.webp";
@@ -118,7 +119,8 @@ export {
   iDealLogo,
   spelLogo,
   sofortLogo,
-  partnersLogo,
+  partnersLogoDesktop,
+  partnersLogoMobile,
   ticket,
   fairDrawBg,
   rocket,
