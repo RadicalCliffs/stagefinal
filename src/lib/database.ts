@@ -29,27 +29,10 @@ import {
   monkeyNft,
   nft
 } from '../assets/images';
+import { VALID_AVATAR_FILENAMES, SUPABASE_AVATAR_BASE_URL } from './avatarConstants';
 
 // ISSUE #5 FIX: Visibility configuration is now centralized in src/lib/appConfig.ts
 // Use isCompetitionVisible() to check if a competition should be shown
-
-// Valid avatar filenames (EH-01 through EH-34) - shared constant
-const VALID_AVATAR_FILENAMES = [
-  '777btc_Avatars_EH-01.png', '777btc_Avatars_EH-02.png', '777btc_Avatars_EH-03.png',
-  '777btc_Avatars_EH-04.png', '777btc_Avatars_EH-05.png', '777btc_Avatars_EH-06.png',
-  '777btc_Avatars_EH-07.png', '777btc_Avatars_EH-08.png', '777btc_Avatars_EH-09.png',
-  '777btc_Avatars_EH-10.png', '777btc_Avatars_EH-11.png', '777btc_Avatars_EH-12.png',
-  '777btc_Avatars_EH-13.png', '777btc_Avatars_EH-14.png', '777btc_Avatars_EH-15.png',
-  '777btc_Avatars_EH-16.png', '777btc_Avatars_EH-17.png', '777btc_Avatars_EH-18.png',
-  '777btc_Avatars_EH-19.png', '777btc_Avatars_EH-20.png', '777btc_Avatars_EH-21.png',
-  '777btc_Avatars_EH-22.png', '777btc_Avatars_EH-23.png', '777btc_Avatars_EH-24.png',
-  '777btc_Avatars_EH-25.png', '777btc_Avatars_EH-26.png', '777btc_Avatars_EH-27.png',
-  '777btc_Avatars_EH-28.png', '777btc_Avatars_EH-29.png', '777btc_Avatars_EH-30.png',
-  '777btc_Avatars_EH-31.png', '777btc_Avatars_EH-32.png', '777btc_Avatars_EH-33.png',
-  '777btc_Avatars_EH-34.png',
-];
-
-const SUPABASE_AVATAR_BASE_URL = 'https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Avatars';
 
 const imageMap: Record<string, string> = {
   'eth tier 1.png': ethTier,
