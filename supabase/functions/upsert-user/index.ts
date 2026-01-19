@@ -6,6 +6,29 @@ const cors = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
+// Avatar URLs from Supabase public storage bucket "Avatars"
+// These are the official 777btc avatars (EH-01 through EH-33)
+const SUPABASE_AVATAR_BASE_URL = 'https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Avatars';
+const AVATAR_FILENAMES = [
+  '777btc_Avatars_EH-01.png', '777btc_Avatars_EH-02.png', '777btc_Avatars_EH-03.png',
+  '777btc_Avatars_EH-04.png', '777btc_Avatars_EH-05.png', '777btc_Avatars_EH-06.png',
+  '777btc_Avatars_EH-07.png', '777btc_Avatars_EH-08.png', '777btc_Avatars_EH-09.png',
+  '777btc_Avatars_EH-10.png', '777btc_Avatars_EH-11.png', '777btc_Avatars_EH-12.png',
+  '777btc_Avatars_EH-13.png', '777btc_Avatars_EH-14.png', '777btc_Avatars_EH-15.png',
+  '777btc_Avatars_EH-16.png', '777btc_Avatars_EH-17.png', '777btc_Avatars_EH-18.png',
+  '777btc_Avatars_EH-19.png', '777btc_Avatars_EH-20.png', '777btc_Avatars_EH-21.png',
+  '777btc_Avatars_EH-22.png', '777btc_Avatars_EH-23.png', '777btc_Avatars_EH-24.png',
+  '777btc_Avatars_EH-25.png', '777btc_Avatars_EH-26.png', '777btc_Avatars_EH-27.png',
+  '777btc_Avatars_EH-28.png', '777btc_Avatars_EH-29.png', '777btc_Avatars_EH-30.png',
+  '777btc_Avatars_EH-31.png', '777btc_Avatars_EH-32.png', '777btc_Avatars_EH-33.png',
+];
+
+// Get a random avatar URL from the Supabase storage bucket
+function getRandomAvatarUrl(): string {
+  const randomIndex = Math.floor(Math.random() * AVATAR_FILENAMES.length);
+  return `${SUPABASE_AVATAR_BASE_URL}/${AVATAR_FILENAMES[randomIndex]}`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: cors });
@@ -94,7 +117,7 @@ Deno.serve(async (req) => {
         last_name: lastName || null,
         country: country || null,
         telegram_handle: telegram || null,
-        avatar_url: avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${normalizedUsername}`,
+        avatar_url: avatar || getRandomAvatarUrl(),
         // CRITICAL: Include wallet fields if wallet address is provided
         ...buildWalletFields(),
       };
@@ -119,7 +142,7 @@ Deno.serve(async (req) => {
         last_name: lastName || null,
         country: country || null,
         telegram_handle: telegram || null,
-        avatar_url: avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${normalizedUsername}`,
+        avatar_url: avatar || getRandomAvatarUrl(),
         usdc_balance: 0,
         has_used_new_user_bonus: false,
         // Include wallet fields if wallet address is provided
@@ -159,7 +182,7 @@ Deno.serve(async (req) => {
         // Build prior_payload from signup data for profile mirroring
         const priorPayload = {
           username: normalizedUsername,
-          avatar_url: avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${normalizedUsername}`,
+          avatar_url: avatar || getRandomAvatarUrl(),
           country: country || null,
           first_name: firstName || null,
           last_name: lastName || null,
