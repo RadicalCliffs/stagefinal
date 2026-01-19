@@ -636,3 +636,20 @@ w3m-modal,
     mask: unset
   }
 }
+
+/* Hero carousel slow pan animation for car image - centered with subtle movement */
+@keyframes hero-pan {
+  0% {
+    transform: translateX(-14%);
+  }
+  50% {
+    transform: translateX(-26%);
+  }
+  100% {
+    transform: translateX(-14%);
+  }
+}
+
+.animate-hero-pan {
+  animation: hero-pan 12s ease-in-out infinite;
+}
