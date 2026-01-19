@@ -91,7 +91,7 @@ const HeroCarouselV2 = () => {
                       style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.3) 25%, rgba(0,0,0,0.7) 50%, rgba(0,0,0,0.9) 70%, rgba(0,0,0,1) 85%)' }}
                     />
                     {/* Mobile overlay content */}
-                    <div className="absolute bottom-0 left-0 right-0 p-4 pb-5 z-10">
+                    <div className="absolute bottom-0 left-0 right-0 p-4 pt-0 pb-5 z-10">
                       <h2 className="sequel-95 text-white text-[15px] mb-2 leading-tight uppercase">
                         {slide.title}
                       </h2>
