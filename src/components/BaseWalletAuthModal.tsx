@@ -88,8 +88,11 @@ interface ProfileData {
 const AUTO_CLOSE_DELAY_MS = 2000; // 2 seconds before auto-closing success screen
 const EVENT_PROCESSING_DELAY_MS = 100; // Small delay to ensure event listeners process before modal closes
 
-// Request deduplication tracking
+// Request deduplication tracking with automatic cleanup
+// Note: This Map is bounded by setTimeout cleanup after each request
+// Maximum theoretical size: (concurrent users * modal opens) within 1 second window
 const pendingLinkRequests = new Map<string, Promise<{ success: boolean; userId?: string }>>();
+const MAX_PENDING_REQUESTS = 100; // Safety limit to prevent unbounded growth
 
 function validateNotTreasuryAddress(walletAddress: string): void {
   const treasuryAddress = import.meta.env.VITE_TREASURY_ADDRESS?.toLowerCase();
@@ -134,8 +137,15 @@ async function linkWalletToExistingUser(email: string, walletAddress: string): P
       return existingRequest;
     }
     
+    // Safety check: If Map is too large, clear it to prevent memory issues
+    if (pendingLinkRequests.size >= MAX_PENDING_REQUESTS) {
+      console.warn('[BaseWallet] Pending requests Map exceeded limit, clearing old entries');
+      pendingLinkRequests.clear();
+    }
+    
     // Create new request promise and store it for deduplication
     const requestPromise = (async () => {
+      try {
 
     // Find user by email (case-insensitive)
     // CRITICAL: Use ilike for case-insensitive matching to find pre-created users
@@ -211,6 +221,11 @@ async function linkWalletToExistingUser(email: string, walletAddress: string): P
 
       console.log('[BaseWallet] Successfully linked wallet to user:', existingUser.id);
       return { success: true, userId: existingUser.id };
+      } catch (innerError) {
+        // Handle any errors from the inner async operations
+        console.error('[BaseWallet] Error in linkWalletToExistingUser inner promise:', innerError);
+        return { success: false };
+      }
     })();
     
     // Store the promise for deduplication
@@ -220,12 +235,14 @@ async function linkWalletToExistingUser(email: string, walletAddress: string): P
     const result = await requestPromise;
     
     // Clean up after completion (with small delay to catch rapid retries)
+    // This runs regardless of success or failure to prevent memory leaks
     setTimeout(() => {
       pendingLinkRequests.delete(requestKey);
     }, 1000);
     
     return result;
   } catch (error) {
+    // Outer catch for any synchronous errors (validation, etc.)
     console.error('[BaseWallet] Error in linkWalletToExistingUser:', error);
     return { success: false };
   }
