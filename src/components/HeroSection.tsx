@@ -48,11 +48,13 @@ const HeroSection = () => {
         <HeroCarouselV2 />
         <Reviews />
       </div>
-      <div className="bg-[#3E3E3E] max-w-[77rem] mx-auto pt-2 rounded-b-xl rounded-t-none sm:mt-0 -mt-[11px] relative z-0">
+      <div className="bg-[#3E3E3E] max-w-[77rem] mx-auto pt-2 pb-4 rounded-b-xl rounded-t-none sm:mt-0 -mt-[11px] relative z-0">
         <div className="mt-1">
           <CardPayments />
         </div>
-        <div className="sm:mt-10 mt-4 max-w-[calc(100%*11.5/12)] mx-auto">
+      </div>
+      <div className="max-w-[77rem] mx-auto">
+        <div className="max-w-[calc(100%*11.5/12)] mx-auto">
           <Partners />
         </div>
         <div className="text-center sm:px-0 px-4">
