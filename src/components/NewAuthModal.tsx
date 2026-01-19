@@ -24,6 +24,7 @@ interface BaseWalletAuthModalOptions {
   email?: string;
   isReturningUser?: boolean;
   returningUserWalletAddress?: string;
+  connectExisting?: boolean; // Signal to show wallet-choice directly (for users who verified email and want existing wallet)
 }
 
 // Text overrides for visual editor live preview
@@ -978,7 +979,7 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
       <div className="w-full max-w-md bg-[#0A0A0F] border border-white/10 rounded-2xl shadow-2xl relative">
         <button
           onClick={onClose}
