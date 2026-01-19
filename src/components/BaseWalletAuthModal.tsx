@@ -2,8 +2,6 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import { X, Wallet, CheckCircle, ArrowRight, Shield, Copy, Check, ExternalLink, Smartphone, AlertCircle, Loader2 } from "lucide-react";
 import { SignIn, type SignInState } from "@coinbase/cdp-react";
 import { useCurrentUser, useEvmAddress, useIsSignedIn, useSignOut } from "@coinbase/cdp-hooks";
-import { ConnectWallet, Wallet as WalletComponent, WalletDropdown } from '@coinbase/onchainkit/wallet';
-import { Identity, Avatar, Name, Address } from '@coinbase/onchainkit/identity';
 import { useAccount, useDisconnect, useConnect } from 'wagmi';
 import { supabase } from "../lib/supabase";
 import { userDataService } from "../services/userDataService";
@@ -97,15 +95,33 @@ function validateNotTreasuryAddress(walletAddress: string): void {
 
 /**
  * Find user by email and update with wallet address.
- * This is the ONLY way BaseWalletAuthModal should update users.
- * Users must be created first via NewAuthModal -> /api/create-user
+ * This function handles both existing users (link wallet) and new users (create via upsert).
  *
  * This function is CRITICAL for both new and returning users - it ensures
  * the wallet address is properly saved to Supabase.
+ *
+ * CRITICAL FIX: Now also accepts profile data to create users if they don't exist.
+ * This handles the case where email lookup fails but we have valid signup data.
  */
-async function linkWalletToExistingUser(email: string, walletAddress: string): Promise<{ success: boolean; userId?: string }> {
+async function linkWalletToExistingUser(
+  email: string,
+  walletAddress: string,
+  profileData?: {
+    username?: string;
+    firstName?: string;
+    lastName?: string;
+    country?: string;
+    telegram?: string;
+    avatar?: string;
+  }
+): Promise<{ success: boolean; userId?: string; created?: boolean }> {
   try {
-    console.log('[BaseWallet] Looking up user by email:', email);
+    console.log('[BaseWallet] linkWalletToExistingUser called:', {
+      email: email ? '***' : undefined,
+      walletAddress: walletAddress?.substring(0, 10) + '...',
+      hasProfileData: !!profileData,
+    });
+
     validateNotTreasuryAddress(walletAddress);
 
     const normalizedEmail = email.toLowerCase().trim();
@@ -121,70 +137,145 @@ async function linkWalletToExistingUser(email: string, walletAddress: string): P
 
     if (fetchError) {
       console.error('[BaseWallet] Error finding user by email:', fetchError);
-      return { success: false };
+      // Don't return false - fall through to upsert
     }
 
-    if (!existingUser) {
-      console.log('[BaseWallet] No user found with email:', normalizedEmail);
-      return { success: false };
+    if (existingUser) {
+      console.log('[BaseWallet] Found user by email, updating with wallet:', existingUser.id);
+
+      // Update user with wallet info - THIS IS CRITICAL for saving wallet to Supabase
+      const { error: updateError } = await supabase
+        .from('canonical_users')
+        .update({
+          canonical_user_id: canonicalUserId,
+          wallet_address: walletAddress.toLowerCase(),
+          base_wallet_address: walletAddress.toLowerCase(),
+          eth_wallet_address: walletAddress.toLowerCase(),
+          privy_user_id: walletAddress,
+          wallet_linked: true,
+          auth_provider: 'cdp',
+        })
+        .eq('id', existingUser.id);
+
+      if (updateError) {
+        console.error('[BaseWallet] Error updating user with wallet:', updateError);
+        return { success: false };
+      }
+
+      // Call attach_identity_after_auth RPC for identity/profile linking
+      try {
+        const priorPayload = {
+          username: existingUser.username || null,
+          country: existingUser.country || null,
+          first_name: existingUser.first_name || null,
+          last_name: existingUser.last_name || null,
+        };
+
+        console.log('[BaseWallet] Calling attach_identity_after_auth RPC for existing user');
+
+        const { error: rpcError } = await supabase.rpc('attach_identity_after_auth', {
+          in_canonical_user_id: canonicalUserId,
+          in_wallet_address: walletAddress.toLowerCase(),
+          in_email: normalizedEmail,
+          in_privy_user_id: walletAddress,
+          in_prior_payload: priorPayload,
+          in_base_wallet_address: walletAddress.toLowerCase(),
+          in_eth_wallet_address: walletAddress.toLowerCase(),
+        });
+
+        if (rpcError) {
+          console.warn('[BaseWallet] attach_identity_after_auth RPC warning:', rpcError);
+        } else {
+          console.log('[BaseWallet] attach_identity_after_auth RPC success');
+        }
+      } catch (rpcErr) {
+        console.warn('[BaseWallet] attach_identity_after_auth RPC exception:', rpcErr);
+      }
+
+      console.log('[BaseWallet] Successfully linked wallet to existing user:', existingUser.id);
+      return { success: true, userId: existingUser.id, created: false };
     }
 
-    console.log('[BaseWallet] Found user, updating with wallet:', existingUser.id);
+    // CRITICAL FIX: If user not found by email, try to find by wallet address
+    // This handles the case where user was created with wallet but email mismatch
+    console.log('[BaseWallet] User not found by email, checking by wallet address');
 
-    // Update user with wallet info - THIS IS CRITICAL for saving wallet to Supabase
-    const { error: updateError } = await supabase
+    const { data: existingByWallet } = await supabase
       .from('canonical_users')
-      .update({
+      .select('id, username, email, country, first_name, last_name')
+      .or(`wallet_address.ilike.${walletAddress.toLowerCase()},base_wallet_address.ilike.${walletAddress.toLowerCase()}`)
+      .maybeSingle();
+
+    if (existingByWallet) {
+      console.log('[BaseWallet] Found user by wallet address:', existingByWallet.id);
+
+      // Update the email if we have it and the user doesn't
+      const updates: Record<string, any> = {
         canonical_user_id: canonicalUserId,
-        wallet_address: walletAddress.toLowerCase(),
-        base_wallet_address: walletAddress.toLowerCase(),
-        eth_wallet_address: walletAddress.toLowerCase(),
-        privy_user_id: walletAddress,
         wallet_linked: true,
         auth_provider: 'cdp',
-      })
-      .eq('id', existingUser.id);
-
-    if (updateError) {
-      console.error('[BaseWallet] Error updating user with wallet:', updateError);
-      return { success: false };
-    }
-
-    // Call attach_identity_after_auth RPC for identity/profile linking
-    // This is a transactional RPC that handles profile creation and prior_signup_payload merging
-    try {
-      const priorPayload = {
-        username: existingUser.username || null,
-        country: existingUser.country || null,
-        first_name: existingUser.first_name || null,
-        last_name: existingUser.last_name || null,
       };
 
-      console.log('[BaseWallet] Calling attach_identity_after_auth RPC for existing user');
-
-      const { error: rpcError } = await supabase.rpc('attach_identity_after_auth', {
-        in_canonical_user_id: canonicalUserId,
-        in_wallet_address: walletAddress.toLowerCase(),
-        in_email: normalizedEmail,
-        in_privy_user_id: walletAddress,
-        in_prior_payload: priorPayload,
-        in_base_wallet_address: walletAddress.toLowerCase(),
-        in_eth_wallet_address: walletAddress.toLowerCase(),
-      });
-
-      if (rpcError) {
-        // Log but don't fail - user was already linked successfully
-        console.warn('[BaseWallet] attach_identity_after_auth RPC warning:', rpcError);
-      } else {
-        console.log('[BaseWallet] attach_identity_after_auth RPC success');
+      if (normalizedEmail && !existingByWallet.email) {
+        updates.email = normalizedEmail;
       }
-    } catch (rpcErr) {
-      // Non-blocking - don't fail auth if RPC fails
-      console.warn('[BaseWallet] attach_identity_after_auth RPC exception:', rpcErr);
+
+      const { error: updateError } = await supabase
+        .from('canonical_users')
+        .update(updates)
+        .eq('id', existingByWallet.id);
+
+      if (updateError) {
+        console.warn('[BaseWallet] Error updating wallet user:', updateError);
+      }
+
+      return { success: true, userId: existingByWallet.id, created: false };
     }
 
-    console.log('[BaseWallet] Successfully linked wallet to user:', existingUser.id);
-    return { success: true, userId: existingUser.id };
+    // CRITICAL FIX: If user still not found and we have profile data, create the user
+    // This handles the case where OTP was verified but user creation didn't happen yet
+    if (profileData?.username || normalizedEmail) {
+      console.log('[BaseWallet] User not found, creating via upsert-user edge function');
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      try {
+        const upsertResponse = await fetch(`${supabaseUrl}/functions/v1/upsert-user`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseAnonKey}`,
+          },
+          body: JSON.stringify({
+            username: profileData?.username || normalizedEmail.split('@')[0],
+            email: normalizedEmail,
+            firstName: profileData?.firstName || null,
+            lastName: profileData?.lastName || null,
+            country: profileData?.country || null,
+            telegram: profileData?.telegram || null,
+            avatar: profileData?.avatar || null,
+            walletAddress: walletAddress,
+          }),
+        });
+
+        const responseData = await upsertResponse.json();
+
+        if (!upsertResponse.ok) {
+          console.error('[BaseWallet] Failed to create user via upsert:', responseData);
+          return { success: false };
+        }
+
+        console.log('[BaseWallet] User created successfully via upsert:', responseData);
+        return { success: true, userId: responseData.user?.id, created: true };
+      } catch (err) {
+        console.error('[BaseWallet] Error calling upsert-user:', err);
+        return { success: false };
+      }
+    }
+
+    console.log('[BaseWallet] No user found and no profile data to create user');
+    return { success: false };
   } catch (error) {
     console.error('[BaseWallet] Error in linkWalletToExistingUser:', error);
     return { success: false };
@@ -705,9 +796,21 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
         // RETURNING USER FLOW: If this is a returning user, link wallet to existing account
         // Returning users already have an account - we just need to link the wallet
+        // CRITICAL FIX: Pass profile data so we can create user if they don't exist
         if ((pendingData?.isReturningUser || options?.isReturningUser) && effectiveEmailForLinking) {
           console.log('[BaseWallet] Returning user flow - linking wallet to existing user');
-          const result = await linkWalletToExistingUser(effectiveEmailForLinking, wagmiAddress);
+
+          // Get profile data from pendingData in case we need to create the user
+          const profileDataForLink = pendingData?.profileData ? {
+            username: pendingData.profileData.username,
+            firstName: pendingData.profileData.firstName,
+            lastName: pendingData.profileData.lastName,
+            country: pendingData.profileData.country,
+            telegram: pendingData.profileData.telegram,
+            avatar: pendingData.profileData.avatar,
+          } : undefined;
+
+          const result = await linkWalletToExistingUser(effectiveEmailForLinking, wagmiAddress, profileDataForLink);
 
           if (result.success) {
             // Clear pending data after successful connection
@@ -721,7 +824,10 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
             setFlowState('logged-in-success');
           } else {
-            setEmailError('No account found with this email. Please sign up first.');
+            // CRITICAL FIX: Instead of showing error, try to create the user
+            // The user may have been created during signup but lookup failed
+            console.log('[BaseWallet] Link failed, user may not exist yet. Showing error but user can retry.');
+            setEmailError('Unable to connect wallet to account. Please try signing up again or contact support.');
           }
           return;
         }
@@ -773,8 +879,19 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
           }
         } else if (effectiveEmailForLinking) {
           // Fallback: Link wallet to existing user by email
+          // CRITICAL FIX: Pass profile data so we can create user if they don't exist
           console.log('[BaseWallet] Fallback - linking wallet to existing user by email');
-          const result = await linkWalletToExistingUser(effectiveEmailForLinking, wagmiAddress);
+
+          const profileDataForFallback = pendingData?.profileData ? {
+            username: pendingData.profileData.username,
+            firstName: pendingData.profileData.firstName,
+            lastName: pendingData.profileData.lastName,
+            country: pendingData.profileData.country,
+            telegram: pendingData.profileData.telegram,
+            avatar: pendingData.profileData.avatar,
+          } : undefined;
+
+          const result = await linkWalletToExistingUser(effectiveEmailForLinking, wagmiAddress, profileDataForFallback);
 
           if (result.success) {
             localStorage.removeItem('pendingSignupData');
@@ -787,7 +904,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
             setFlowState('logged-in-success');
           } else {
-            setEmailError('No account found with this email. Please sign up first.');
+            setEmailError('Unable to connect wallet. Please try again or contact support.');
           }
         } else {
           // No email available - this shouldn't happen for authenticated users
@@ -1194,26 +1311,68 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                       </div>
                     )}
 
-                    {/* Only show the connect button if not showing timeout message */}
-                    {!connectionTimedOut && (
-                      <div className="flex justify-center w-full">
-                        <WalletComponent>
-                          <ConnectWallet className="w-full bg-[#0052FF] hover:bg-[#0052FF]/90 text-white font-bold py-3 px-6 rounded-lg flex items-center justify-center gap-2">
-                            <Wallet size={20} className="flex-shrink-0" />
-                            <span>
-                              {isConnecting ? 'Connecting...' : options?.isReturningUser
-                                ? 'Connect wallet to sign in'
-                                : 'Connect an existing Base wallet'}
-                            </span>
-                          </ConnectWallet>
-                          <WalletDropdown>
-                            <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
-                              <Avatar />
-                              <Name />
-                              <Address />
-                            </Identity>
-                          </WalletDropdown>
-                        </WalletComponent>
+                    {/* CRITICAL FIX: Direct wallet connection buttons to reduce clicks */}
+                    {/* Use wagmi connect directly instead of OnchainKit ConnectWallet */}
+                    {!connectionTimedOut && !isConnecting && (
+                      <div className="space-y-3">
+                        {/* Primary: Coinbase/Base Wallet button */}
+                        <button
+                          onClick={() => {
+                            const cbConnector = connectors.find(
+                              (c) => c.id === 'coinbaseWalletSDK' || c.id === 'coinbaseWallet' || c.name.toLowerCase().includes('coinbase')
+                            );
+                            if (cbConnector) {
+                              setEmailError('');
+                              connect({ connector: cbConnector });
+                            } else {
+                              setEmailError('Coinbase Wallet connector not found. Please refresh and try again.');
+                            }
+                          }}
+                          disabled={isConnecting}
+                          className="w-full bg-[#0052FF] hover:bg-[#0052FF]/90 text-white font-bold py-3.5 px-6 rounded-lg flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                          <Wallet size={20} className="flex-shrink-0" />
+                          <span>
+                            {options?.isReturningUser
+                              ? 'Connect with Coinbase/Base Wallet'
+                              : 'Connect Coinbase/Base Wallet'}
+                          </span>
+                        </button>
+
+                        {/* Secondary: MetaMask button */}
+                        <button
+                          onClick={handleConnectMetaMask}
+                          disabled={isConnecting}
+                          className="w-full bg-[#E8821E] hover:bg-[#E8821E]/90 text-white font-bold py-3 px-6 rounded-lg flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                          <Wallet size={20} className="flex-shrink-0" />
+                          <span>Connect with MetaMask</span>
+                        </button>
+
+                        {/* Tertiary: Other wallets (injected) */}
+                        <button
+                          onClick={() => {
+                            const injectedConnector = connectors.find((c) => c.id === 'injected');
+                            if (injectedConnector) {
+                              setEmailError('');
+                              connect({ connector: injectedConnector });
+                            } else {
+                              setEmailError('No browser wallet detected. Please install a wallet extension.');
+                            }
+                          }}
+                          disabled={isConnecting}
+                          className="w-full bg-white/10 hover:bg-white/20 text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+                        >
+                          <Wallet size={18} className="flex-shrink-0" />
+                          <span>Other Browser Wallet</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Loading state for when connection is in progress but buttons hidden */}
+                    {isConnecting && connectionTimedOut && (
+                      <div className="text-center py-4">
+                        <Loader2 className="animate-spin text-[#0052FF] mx-auto" size={32} />
                       </div>
                     )}
 
