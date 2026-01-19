@@ -265,7 +265,9 @@ async function handleCreditBalance(
 
       // If bonus function fails, log and fall through to standard credit
       if (bonusError) {
-        console.warn("[user-balance] credit_balance_with_first_deposit_bonus failed:", bonusError.message);
+        console.error("[user-balance] credit_balance_with_first_deposit_bonus failed:", bonusError.message);
+        // For topups, we should still try standard credit as fallback
+        // This ensures user gets their deposit even if bonus system fails
       }
     }
 

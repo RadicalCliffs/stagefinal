@@ -379,7 +379,7 @@ export default async (request: Request, context: Context): Promise<Response> => 
         .update({
           wallet_credited: true,
           notes: bonusApplied 
-            ? `Wallet topup completed with 50% bonus (+$${bonusAmount.toFixed(2)})` 
+            ? `Wallet topup completed with 50% bonus (+$${(bonusAmount || 0).toFixed(2)})` 
             : "Wallet topup completed",
         })
         .eq("id", transactionId);

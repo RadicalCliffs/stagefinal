@@ -82,11 +82,15 @@ BEGIN
 
   v_new_balance := v_current_balance + v_total_credit;
 
-  -- Step 3: Update user balance and bonus flag
+  -- Step 3: Update user balance
+  -- IMPORTANT: Only set has_used_new_user_bonus to true if bonus was actually applied
   UPDATE canonical_users
   SET 
     usdc_balance = v_new_balance,
-    has_used_new_user_bonus = true,  -- Always mark as used after any topup
+    has_used_new_user_bonus = CASE 
+      WHEN v_bonus_amount > 0 THEN true
+      ELSE has_used_new_user_bonus  -- Keep existing value if no bonus applied
+    END,
     updated_at = NOW()
   WHERE id = v_user_id;
 
@@ -145,7 +149,7 @@ BEGIN
     'total_credited', v_total_credit,
     'new_balance', v_new_balance,
     'bonus_applied', v_bonus_amount > 0,
-    'has_used_bonus', true
+    'has_used_bonus', CASE WHEN v_bonus_amount > 0 THEN true ELSE v_has_used_bonus END
   );
 
 EXCEPTION
@@ -225,11 +229,14 @@ BEGIN
 
   v_new_balance := v_current_balance + v_total_credit;
 
-  -- Update balance and flag
+  -- Update balance and flag (only set flag to true if bonus was applied)
   UPDATE canonical_users
   SET 
     usdc_balance = v_new_balance,
-    has_used_new_user_bonus = true,
+    has_used_new_user_bonus = CASE 
+      WHEN v_bonus_amount > 0 THEN true
+      ELSE has_used_new_user_bonus  -- Keep existing value if no bonus applied
+    END,
     updated_at = NOW()
   WHERE id = v_user_record.id;
 

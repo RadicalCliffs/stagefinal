@@ -177,17 +177,15 @@ BEGIN
   -- Normalize the competition identifier
   BEGIN
     comp_uuid := competition_identifier::uuid;
-    comp_uid_text := competition_identifier;
+    -- Get the competition's uid field for legacy lookups
+    SELECT c.uid INTO comp_uid_text FROM competitions c WHERE c.id = comp_uuid LIMIT 1;
   EXCEPTION WHEN invalid_text_representation THEN
+    -- Not a valid UUID, try to find by uid
     SELECT c.id, c.uid INTO comp_uuid, comp_uid_text
     FROM competitions c
     WHERE c.uid = competition_identifier
     LIMIT 1;
   END;
-
-  IF comp_uuid IS NOT NULL AND comp_uid_text = competition_identifier THEN
-    SELECT c.uid INTO comp_uid_text FROM competitions c WHERE c.id = comp_uuid LIMIT 1;
-  END IF;
 
   RETURN QUERY
   -- Source 1: joincompetition table
