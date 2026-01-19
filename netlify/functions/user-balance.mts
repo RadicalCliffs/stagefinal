@@ -232,7 +232,46 @@ async function handleCreditBalance(
   }
 
   try {
-    // Primary: Use credit_sub_account_balance RPC for atomic balance update
+    // For topup/deposit reasons, use bonus-aware function to apply 50% first-time bonus
+    const isTopup = reason?.toLowerCase().includes('topup') || 
+                    reason?.toLowerCase().includes('deposit') || 
+                    referenceType === 'topup';
+    
+    if (isTopup) {
+      // Use credit_balance_with_first_deposit_bonus for topups (applies 50% bonus on first deposit)
+      const { data: bonusResult, error: bonusError } = await supabase.rpc("credit_balance_with_first_deposit_bonus", {
+        p_canonical_user_id: canonicalUserId,
+        p_amount: amount,
+        p_reason: reason,
+        p_reference_id: referenceId || null,
+      });
+
+      if (!bonusError && bonusResult?.success) {
+        console.log(`[User Balance] Credited ${amount} to user with bonus check: ` +
+          `deposited=${bonusResult.deposited_amount}, bonus=${bonusResult.bonus_amount}, ` +
+          `total=${bonusResult.total_credited}, balance: ${bonusResult.previous_balance} → ${bonusResult.new_balance}`);
+
+        return jsonResponse({
+          ok: true,
+          previousBalance: bonusResult.previous_balance,
+          depositedAmount: bonusResult.deposited_amount,
+          bonusAmount: bonusResult.bonus_amount || 0,
+          bonusApplied: bonusResult.bonus_applied || false,
+          totalCredited: bonusResult.total_credited,
+          newBalance: bonusResult.new_balance,
+          reason,
+        }, 200, origin);
+      }
+
+      // If bonus function fails, log and fall through to standard credit
+      if (bonusError) {
+        console.error("[user-balance] credit_balance_with_first_deposit_bonus failed:", bonusError.message);
+        // For topups, we should still try standard credit as fallback
+        // This ensures user gets their deposit even if bonus system fails
+      }
+    }
+
+    // Primary: Use credit_sub_account_balance RPC for atomic balance update (non-topup or bonus fallback)
     const { data: creditResult, error: creditError } = await supabase.rpc("credit_sub_account_balance", {
       p_canonical_user_id: canonicalUserId,
       p_amount: amount,

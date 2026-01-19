@@ -352,9 +352,57 @@ export default async (request: Request, context: Context): Promise<Response> => 
       transactionId = newTx.id;
     }
 
-    // Credit user's balance using the sub_account_balances RPC function
-    // This is the primary balance system - writes to sub_account_balances.available_balance
+    // Credit user's balance using the bonus-aware function for first deposit
+    // This applies 50% bonus on the first topup automatically
     const { data: creditResult, error: creditError } = await supabase.rpc(
+      "credit_balance_with_first_deposit_bonus",
+      {
+        p_canonical_user_id: user.canonicalUserId,
+        p_amount: creditAmount,
+        p_reason: "wallet_topup",
+        p_reference_id: transactionHash,
+      }
+    );
+
+    // Check if bonus function succeeded
+    if (!creditError && creditResult?.success) {
+      const bonusAmount = creditResult.bonus_amount || 0;
+      const bonusApplied = creditResult.bonus_applied || false;
+      const newBalance = creditResult.new_balance;
+      
+      console.log(`[instant-topup] Credited ${creditAmount} to user ${user.canonicalUserId.substring(0, 20)}... ` +
+                  `bonus=${bonusAmount}, total=${creditResult.total_credited}, new_balance=${newBalance}`);
+
+      // Mark transaction as wallet_credited
+      await supabase
+        .from("user_transactions")
+        .update({
+          wallet_credited: true,
+          notes: bonusApplied 
+            ? `Wallet topup completed with 50% bonus (+$${(bonusAmount || 0).toFixed(2)})` 
+            : "Wallet topup completed",
+        })
+        .eq("id", transactionId);
+
+      return jsonResponse({
+        success: true,
+        transactionId,
+        creditedAmount: creditAmount,
+        bonusAmount: bonusAmount,
+        bonusApplied: bonusApplied,
+        totalCredited: creditResult.total_credited,
+        newBalance: newBalance,
+        transactionHash,
+      });
+    }
+
+    // If bonus function fails, fall back to standard credit
+    if (creditError) {
+      console.warn("[instant-topup] Bonus credit failed, falling back to standard credit:", creditError.message);
+    }
+
+    // Fallback: Use standard credit_sub_account_balance RPC function
+    const { data: fallbackResult, error: fallbackError } = await supabase.rpc(
       "credit_sub_account_balance",
       {
         p_canonical_user_id: user.canonicalUserId,
@@ -363,14 +411,14 @@ export default async (request: Request, context: Context): Promise<Response> => 
       }
     );
 
-    if (creditError) {
-      console.error("Error crediting balance via sub_account_balances:", creditError);
+    if (fallbackError) {
+      console.error("Error crediting balance via sub_account_balances:", fallbackError);
 
       // Update transaction with error
       await supabase
         .from("user_transactions")
         .update({
-          notes: `Balance credit failed: ${creditError.message}`,
+          notes: `Balance credit failed: ${fallbackError.message}`,
         })
         .eq("id", transactionId);
 
@@ -381,11 +429,11 @@ export default async (request: Request, context: Context): Promise<Response> => 
     }
 
     // Extract new balance from RPC result
-    const newBalance = creditResult?.[0]?.new_balance ?? creditAmount;
-    const creditSuccess = creditResult?.[0]?.success ?? false;
+    const newBalance = fallbackResult?.[0]?.new_balance ?? creditAmount;
+    const creditSuccess = fallbackResult?.[0]?.success ?? false;
 
     if (!creditSuccess) {
-      const errorMsg = creditResult?.[0]?.error_message || "Unknown error crediting balance";
+      const errorMsg = fallbackResult?.[0]?.error_message || "Unknown error crediting balance";
       console.error("Balance credit returned failure:", errorMsg);
 
       await supabase
