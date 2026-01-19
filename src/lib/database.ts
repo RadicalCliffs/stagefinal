@@ -105,7 +105,7 @@ function transformJoinCompetitionEntry(jc: any, identity: ResolvedIdentity): any
     : false;
 
   // Generate a safe ID - use a combination of fields if uid/id are missing
-  const entryId = jc.uid || jc.id || `entry-${jc.competitionid}-${jc.walletaddress?.substring(0, 8)}-${jc.purchasedate || 'unknown'}`;
+  const entryId = jc.uid || jc.id || `entry-${jc.competitionid || 'no-comp'}-${jc.walletaddress?.substring(0, 8) || 'no-wallet'}-${jc.purchasedate || 'unknown'}`;
 
   return {
     id: entryId,
