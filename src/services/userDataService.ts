@@ -22,7 +22,7 @@ const SUPABASE_AVATAR_BASE_URL = 'https://mthwfldcjvpxjtmrqkqm.supabase.co/stora
 // Cache key for persisting avatar URL across page navigations
 const AVATAR_CACHE_KEY = 'user_avatar_cache';
 
-// All available avatars - using the correct 777btc naming convention (EH-01 through EH-33)
+// All available avatars - using the correct 777btc naming convention (EH-01 through EH-34)
 const allAvatarFilenames = [
   '777btc_Avatars_EH-01.png',
   '777btc_Avatars_EH-02.png',
@@ -57,6 +57,7 @@ const allAvatarFilenames = [
   '777btc_Avatars_EH-31.png',
   '777btc_Avatars_EH-32.png',
   '777btc_Avatars_EH-33.png',
+  '777btc_Avatars_EH-34.png',
 ];
 
 export const userDataService = {
