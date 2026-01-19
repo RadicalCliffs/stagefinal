@@ -62,7 +62,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Grace period after auth-complete event to prevent redundant refreshUserData calls
 // This prevents a race condition where handleAuthStateChange tries to refresh without email
-const AUTH_COMPLETE_GRACE_PERIOD_MS = 2000;
+// Increased to 5 seconds to account for slow mobile networks and async operations
+const AUTH_COMPLETE_GRACE_PERIOD_MS = 5000;
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // CDP/Base hooks for authentication - replaces Privy
@@ -92,6 +93,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const refreshInProgressRef = useRef(false);
   // Track when auth-complete event was handled to prevent race condition with handleAuthStateChange
   const authCompleteHandledRef = useRef<number>(0);
+  // Store the email from the auth-complete event to use in case of race conditions
+  const lastAuthCompleteEmailRef = useRef<string | null>(null);
 
   // Extract email from currentUser (memoized to prevent unnecessary recalculations)
   const userEmail = currentUser?.email || (currentUser as any)?.emails?.[0]?.value || (currentUser as any)?.emails?.[0]?.address;
@@ -346,16 +349,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Use the stored isCDPAuthenticated flag which considers both isSignedIn and evmAddress
       const isFromCDP = isCDPAuthenticated;
 
-      // CRITICAL FIX: Use overrideEmail from auth-complete event if provided
-      // This ensures we find existing users by email even if currentUser.email is not yet populated
-      const effectiveEmail = overrideEmail || userEmail;
+      // CRITICAL FIX: Use email priority order:
+      // 1. Override email from function parameter (most reliable - from auth-complete event)
+      // 2. Email from last auth-complete event (stored in ref)
+      // 3. Current user email from CDP hooks
+      // This ensures we always have the best available email for user lookup
+      const effectiveEmail = overrideEmail || lastAuthCompleteEmailRef.current || userEmail;
 
       console.log('[AuthContext] refreshUserData called with:', {
         effectiveWalletAddress,
         effectiveEmail,
         overrideEmail,
+        lastAuthCompleteEmail: lastAuthCompleteEmailRef.current,
         userEmail,
-        source: overrideEmail ? 'auth-complete event' : 'currentUser'
+        source: overrideEmail ? 'auth-complete event' : (lastAuthCompleteEmailRef.current ? 'stored auth-complete email' : 'currentUser')
       });
 
       // Create a user object compatible with the existing getOrCreateUser function
@@ -434,6 +441,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         initialFetchDoneRef.current = false;
         lastFetchedUserIdRef.current = null;
         authCompleteHandledRef.current = 0;
+        lastAuthCompleteEmailRef.current = null; // Clear stored email
         setProfile(null);
         setEntryCount(0);
         setWalletBalance(0);
@@ -509,6 +517,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.log('[AuthContext] Auth complete event received:', event.detail);
       // CRITICAL FIX: Mark that auth-complete was handled to prevent race with handleAuthStateChange
       authCompleteHandledRef.current = Date.now();
+      // Store the email from the event for use in case of race conditions
+      if (event.detail?.email) {
+        lastAuthCompleteEmailRef.current = event.detail.email;
+      }
       // Reset tracking refs to force a fresh fetch
       initialFetchDoneRef.current = false;
       lastFetchedUserIdRef.current = null;

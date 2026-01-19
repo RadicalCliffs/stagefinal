@@ -88,6 +88,9 @@ interface ProfileData {
 const AUTO_CLOSE_DELAY_MS = 2000; // 2 seconds before auto-closing success screen
 const EVENT_PROCESSING_DELAY_MS = 100; // Small delay to ensure event listeners process before modal closes
 
+// Request deduplication tracking
+const pendingLinkRequests = new Map<string, Promise<{ success: boolean; userId?: string }>>();
+
 function validateNotTreasuryAddress(walletAddress: string): void {
   const treasuryAddress = import.meta.env.VITE_TREASURY_ADDRESS?.toLowerCase();
   if (treasuryAddress && walletAddress.toLowerCase() === treasuryAddress) {
@@ -105,11 +108,34 @@ function validateNotTreasuryAddress(walletAddress: string): void {
  */
 async function linkWalletToExistingUser(email: string, walletAddress: string): Promise<{ success: boolean; userId?: string }> {
   try {
+    // Validate inputs first - fail fast if missing
+    if (!email || !email.trim()) {
+      console.error('[BaseWallet] linkWalletToExistingUser called without email');
+      return { success: false };
+    }
+    
+    if (!walletAddress || !walletAddress.trim()) {
+      console.error('[BaseWallet] linkWalletToExistingUser called without wallet address');
+      return { success: false };
+    }
+
     console.log('[BaseWallet] Looking up user by email:', email);
     validateNotTreasuryAddress(walletAddress);
 
     const normalizedEmail = email.toLowerCase().trim();
     const canonicalUserId = toPrizePid(walletAddress);
+    
+    // Request deduplication: Check if there's already a pending request for this email+wallet
+    const requestKey = `${normalizedEmail}:${walletAddress.toLowerCase()}`;
+    const existingRequest = pendingLinkRequests.get(requestKey);
+    
+    if (existingRequest) {
+      console.log('[BaseWallet] Deduplicating request for:', requestKey);
+      return existingRequest;
+    }
+    
+    // Create new request promise and store it for deduplication
+    const requestPromise = (async () => {
 
     // Find user by email (case-insensitive)
     // CRITICAL: Use ilike for case-insensitive matching to find pre-created users
@@ -183,8 +209,22 @@ async function linkWalletToExistingUser(email: string, walletAddress: string): P
       console.warn('[BaseWallet] attach_identity_after_auth RPC exception:', rpcErr);
     }
 
-    console.log('[BaseWallet] Successfully linked wallet to user:', existingUser.id);
-    return { success: true, userId: existingUser.id };
+      console.log('[BaseWallet] Successfully linked wallet to user:', existingUser.id);
+      return { success: true, userId: existingUser.id };
+    })();
+    
+    // Store the promise for deduplication
+    pendingLinkRequests.set(requestKey, requestPromise);
+    
+    // Wait for completion
+    const result = await requestPromise;
+    
+    // Clean up after completion (with small delay to catch rapid retries)
+    setTimeout(() => {
+      pendingLinkRequests.delete(requestKey);
+    }, 1000);
+    
+    return result;
   } catch (error) {
     console.error('[BaseWallet] Error in linkWalletToExistingUser:', error);
     return { success: false };
@@ -363,6 +403,9 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
   // Track wallet connection attempt timeout
   const connectionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [connectionTimedOut, setConnectionTimedOut] = useState(false);
+  // Track last connection attempt to debounce rapid re-triggers
+  const lastConnectionAttemptRef = useRef<number>(0);
+  const DEBOUNCE_MS = 500; // Minimum time between connection attempts
 
   // Reset state when modal opens
   useEffect(() => {
@@ -671,6 +714,18 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
   useEffect(() => {
     const handleWagmiConnection = async () => {
       if (flowState === 'wallet-choice' && wagmiIsConnected && wagmiAddress && !savedToDbRef.current) {
+        // Debounce: Check if we recently attempted a connection
+        const now = Date.now();
+        const timeSinceLastAttempt = now - lastConnectionAttemptRef.current;
+        
+        if (timeSinceLastAttempt < DEBOUNCE_MS) {
+          console.log('[BaseWallet] Debouncing connection attempt, too soon after last attempt');
+          return;
+        }
+        
+        // Update last attempt timestamp
+        lastConnectionAttemptRef.current = now;
+        
         console.log('[BaseWallet] External wallet connected:', wagmiAddress);
 
         // Check if we have pending signup data from NewAuthModal
@@ -702,6 +757,15 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
           effectiveEmail: effectiveEmailForLinking ? '***' : undefined,
           isReturningUser: pendingData?.isReturningUser || options?.isReturningUser,
         });
+
+        // VALIDATION: Ensure we have an email before attempting to link
+        // This prevents silent failures when email is missing
+        if (!effectiveEmailForLinking || !effectiveEmailForLinking.trim()) {
+          console.error('[BaseWallet] Cannot link wallet - no email available');
+          setEmailError('Unable to link wallet. Email is required. Please try logging in again.');
+          savedToDbRef.current = false; // Allow retry
+          return;
+        }
 
         // RETURNING USER FLOW: If this is a returning user, link wallet to existing account
         // Returning users already have an account - we just need to link the wallet
