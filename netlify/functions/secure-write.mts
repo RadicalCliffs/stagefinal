@@ -285,6 +285,7 @@ async function handleCreateTransaction(
       payment_provider: finalPaymentProvider,
       status: "pending",
       payment_status: "pending",
+      type: "entry", // This route is for entry purchases (competition_id is required)
       created_at: new Date().toISOString(),
     })
     .select("id")

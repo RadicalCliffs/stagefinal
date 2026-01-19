@@ -338,6 +338,7 @@ export default async (request: Request, context: Context): Promise<Response> => 
           payment_provider: "instant_wallet_topup",
           status: "completed",
           payment_status: "confirmed",
+          type: "topup", // This is a wallet top-up transaction
           tx_id: transactionHash,
           completed_at: new Date().toISOString(),
         })

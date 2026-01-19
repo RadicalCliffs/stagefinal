@@ -241,6 +241,7 @@ Deno.serve(async (req: Request) => {
       order_id: reservationId || null,
       webhook_ref: webhookRef,
       payment_provider: "coinbase",
+      type: type || 'entry', // Default to 'entry' if not specified for backward compatibility
     };
     console.log(`[create-charge][${requestId}] Transaction data:`, JSON.stringify(transactionData));
 

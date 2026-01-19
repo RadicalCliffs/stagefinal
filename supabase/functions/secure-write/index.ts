@@ -15,10 +15,9 @@ const corsHeaders = {
  * Uses service role key to bypass RLS restrictions.
  * 
  * IMPORTANT SCHEMA NOTES:
- * - user_transactions table does NOT have a 'type' column
- * - The type (entry vs topup) is inferred from whether competition_id is set:
- *   - competition_id IS NOT NULL → entry purchase
- *   - competition_id IS NULL → wallet top-up
+ * - user_transactions table has a 'type' column with NOT NULL constraint
+ *   - 'entry' → competition entry purchase
+ *   - 'topup' → wallet top-up
  * - balance_ledger table columns: id, user_id, balance_type, source, amount, transaction_id, metadata, created_at, expires_at
  */
 
@@ -157,8 +156,8 @@ Deno.serve(async (req) => {
       const privyUserId = userData?.privy_user_id || authUser.privyUserId;
       const finalWalletAddress = wallet_address || userData?.wallet_address;
 
-      // Build transaction record - NO 'type' column exists in user_transactions
-      // The type is inferred from competition_id being null (topup) or not (entry)
+      // Build transaction record with type field
+      // Type is 'entry' for competition entries, 'topup' for wallet top-ups
       const transactionData: Record<string, any> = {
         user_id: canonicalUserId,  // Use canonical ID
         user_privy_id: privyUserId,  // Keep for backward compatibility
@@ -169,6 +168,7 @@ Deno.serve(async (req) => {
         payment_provider: payment_provider || "privy_base_wallet",
         status: "pending",
         payment_status: "pending",
+        type: isTopUp ? "topup" : "entry",
         created_at: new Date().toISOString(),
       };
 

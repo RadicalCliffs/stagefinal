@@ -1401,6 +1401,7 @@ Deno.serve(async (req: Request) => {
           status: 'finished', // Balance payments are immediately complete
           payment_status: 'completed',
           payment_provider: 'balance',
+          type: 'entry', // This is for competition entries
           tx_id: txRef,
           currency: 'usd',
           pay_currency: 'USDC',
