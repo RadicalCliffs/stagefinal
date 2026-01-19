@@ -66,11 +66,13 @@ Deno.serve(async (req) => {
       };
     };
 
-    // Check if user already exists by email
+    // Check if user already exists by email (case-insensitive)
+    // CRITICAL: Use ilike for case-insensitive matching to ensure we find
+    // pre-created users regardless of how their email was stored
     const { data: existingUser } = await supabase
       .from('canonical_users')
       .select('id, email, canonical_user_id, wallet_address')
-      .eq('email', normalizedEmail)
+      .ilike('email', normalizedEmail)
       .maybeSingle();
 
     console.log('[upsert-user] Existing user check:', {

@@ -283,10 +283,12 @@ export const userAuth = {
 
     if (normalizedEmail) {
       // Use limit(1) instead of maybeSingle() to avoid PGRST116 error
+      // CRITICAL: Use ilike for case-insensitive email matching
+      // This ensures we find users regardless of how their email was stored
       const { data: byEmailArray } = await supabase
         .from('canonical_users')
         .select('*')
-        .eq('email', normalizedEmail)
+        .ilike('email', normalizedEmail)
         .order('created_at', { ascending: false })
         .limit(1);
 
@@ -472,10 +474,11 @@ export const userAuth = {
         // Try to find by email and update with wallet
         if (email) {
           // Use limit(1) instead of maybeSingle() to avoid PGRST116 error
+          // CRITICAL: Use ilike for case-insensitive email matching
           const { data: existingByEmailArray } = await supabase
             .from('canonical_users')
             .select('*')
-            .eq('email', email.toLowerCase().trim())
+            .ilike('email', email.toLowerCase().trim())
             .order('created_at', { ascending: false })
             .limit(1);
 
