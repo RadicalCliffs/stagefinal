@@ -95,8 +95,16 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
     // Save profile data to localStorage for BaseWalletAuthModal to consume
     // IMPORTANT: Use options.isReturningUser if provided, as it's more reliable than state
     // (React state updates are async, so isReturningUser state may not be updated yet)
+    // CRITICAL FIX: For returning users, override profileData.email with options.email
+    // because the profileData state may still be empty for returning users
+    const effectiveProfileData = {
+      ...profileData,
+      // For returning users, use the email from options (from database) not from state
+      email: options.email || profileData.email,
+    };
+
     localStorage.setItem('pendingSignupData', JSON.stringify({
-      profileData,
+      profileData: effectiveProfileData,
       isReturningUser: options.isReturningUser ?? isReturningUser,
       timestamp: Date.now(),
       ...(options.returningUserWalletAddress && { returningUserWalletAddress: options.returningUserWalletAddress })
