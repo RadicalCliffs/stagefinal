@@ -451,7 +451,20 @@ Deno.serve(async (req: Request) => {
   let requestBody: any = {};
 
   try {
-    requestBody = await req.json();
+    // Parse JSON with error handling
+    try {
+      requestBody = await req.json();
+    } catch (jsonError) {
+      console.error("Failed to parse request JSON:", jsonError);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: "Invalid JSON in request body",
+          message: "Request must contain valid JSON"
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
     
     const {
       reservationId,  // The pending ticket reservation ID
