@@ -289,6 +289,34 @@ async function linkWalletToExistingUser(
         console.warn('[BaseWallet] Error updating wallet user:', updateError);
       }
 
+      // CRITICAL: Call upsert_canonical_user RPC after wallet link by wallet address
+      try {
+        console.log('[BaseWallet] Calling upsert_canonical_user RPC for wallet found by address');
+        
+        const { error: upsertError } = await supabase.rpc('upsert_canonical_user', {
+          p_uid: existingByWallet.id,
+          p_canonical_user_id: canonicalUserId,
+          p_email: normalizedEmail || existingByWallet.email || null,
+          p_username: existingByWallet.username || null,
+          p_wallet_address: walletAddress.toLowerCase(),
+          p_base_wallet_address: walletAddress.toLowerCase(),
+          p_eth_wallet_address: walletAddress.toLowerCase(),
+          p_privy_user_id: walletAddress,
+          p_first_name: existingByWallet.first_name || null,
+          p_last_name: existingByWallet.last_name || null,
+          p_telegram_handle: null,
+          p_wallet_linked: true,
+        });
+
+        if (upsertError) {
+          console.warn('[BaseWallet] upsert_canonical_user RPC warning:', upsertError);
+        } else {
+          console.log('[BaseWallet] upsert_canonical_user RPC success');
+        }
+      } catch (upsertErr) {
+        console.warn('[BaseWallet] upsert_canonical_user RPC exception:', upsertErr);
+      }
+
       return { success: true, userId: existingByWallet.id, created: false };
     }
 
@@ -471,6 +499,34 @@ async function saveUserWithProfile(email: string, walletAddress: string, profile
       } catch (rpcErr) {
         // Non-blocking - don't fail if RPC fails
         console.warn('[BaseWallet] attach_identity_after_auth RPC exception:', rpcErr);
+      }
+
+      // CRITICAL: Call upsert_canonical_user RPC after profile completion with wallet link
+      try {
+        console.log('[BaseWallet] Calling upsert_canonical_user RPC after profile completion');
+        
+        const { error: upsertError } = await supabase.rpc('upsert_canonical_user', {
+          p_uid: existingUser?.id || null,
+          p_canonical_user_id: canonicalUserId,
+          p_email: normalizedEmail,
+          p_username: profile.username.toLowerCase(),
+          p_wallet_address: walletAddress.toLowerCase(),
+          p_base_wallet_address: walletAddress.toLowerCase(),
+          p_eth_wallet_address: walletAddress.toLowerCase(),
+          p_privy_user_id: walletAddress,
+          p_first_name: profile.fullName.split(' ')[0] || null,
+          p_last_name: profile.fullName.split(' ').slice(1).join(' ') || null,
+          p_telegram_handle: profile.socialProfiles || null,
+          p_wallet_linked: true,
+        });
+
+        if (upsertError) {
+          console.warn('[BaseWallet] upsert_canonical_user RPC warning:', upsertError);
+        } else {
+          console.log('[BaseWallet] upsert_canonical_user RPC success');
+        }
+      } catch (upsertErr) {
+        console.warn('[BaseWallet] upsert_canonical_user RPC exception:', upsertErr);
       }
     }
 
