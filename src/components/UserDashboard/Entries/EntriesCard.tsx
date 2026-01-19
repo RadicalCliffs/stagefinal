@@ -276,9 +276,9 @@ const EntriesCard = ({
         </div>
       </div>
       {
-        isPromoCard && <div className="mt-7 flex justify-between gap-4">
-        <input className="bg-white/25 text-black sm:text-base text-xs w-full rounded-md sequel-45 sm:pl-4 pl-2 placeholder:text-white/70" placeholder="Enter Promotional Code..."/>
-        <button className="sequel-95 bg-[#DDE404] sm:text-base text-xs cursor-pointer text-[#000] uppercase px-4 py-2 rounded-md">Enter</button>
+        isPromoCard && <div className="mt-7 flex flex-col sm:flex-row justify-between gap-3 sm:gap-4">
+        <input className="bg-white/25 text-black sm:text-base text-sm w-full rounded-md sequel-45 px-3 sm:pl-4 py-2.5 sm:py-3 placeholder:text-white/70" placeholder="Enter Promotional Code..."/>
+        <button className="sequel-95 bg-[#DDE404] sm:text-base text-sm cursor-pointer text-[#000] uppercase px-4 py-2.5 sm:py-3 rounded-md flex-shrink-0">Enter</button>
       </div>
       }
 

@@ -150,7 +150,7 @@ export default function Account() {
 
                 <ProfileForm isEditMode={isEditMode} setIsEditMode={setisEditMode} profile={profile} setProfile={handleProfileUpdate} />
                 {
-                    !isEditMode && <button type="button" onClick={() => setisEditMode(true)} className="bg-white uppercase sm:text-lg text-black  sequel-95 sm:w-auto w-full hover:bg-white/90 px-8 py-3 cursor-pointer rounded-lg">Edit user details</button>
+                    !isEditMode && <button type="button" onClick={() => setisEditMode(true)} className="bg-white uppercase sm:text-base text-sm text-black sequel-95 sm:w-auto w-full hover:bg-white/90 px-6 sm:px-8 py-2.5 sm:py-3 cursor-pointer rounded-lg">Edit user details</button>
                 }
 
             </div>

@@ -93,6 +93,7 @@ import trustPilotMobileReviews from './mobile-trust-pilot.png'
 import trustpilotDesktop from './trustpilot-desktop.png'
 import trustpilotMobile from './trustpilot-mobile.png'
 import trustpilotIsolation from './Isolation_Mode.png'
+import howItWorksMobile from './how-it-works-mobile.png'
 
 export {
   bitNews,
@@ -189,5 +190,6 @@ export {
   trustpilotIsolation,
   btcGiveaway,
   rolexWatch,
-  lamboUrus
+  lamboUrus,
+  howItWorksMobile
 };

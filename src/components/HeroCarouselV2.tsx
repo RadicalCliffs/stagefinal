@@ -69,33 +69,47 @@ const HeroCarouselV2 = () => {
             <div className="relative">
               {/* Hero Image */}
               <div className="relative w-full">
+                {/* Desktop image */}
                 <img
-                  className="w-full rounded-t-xl sm:min-h-[571px] sm:max-h-[571px] max-h-[500px] min-h-[500px] object-cover"
+                  className="w-full rounded-t-xl sm:min-h-[571px] sm:max-h-[571px] object-cover hidden sm:block"
                   src={slide.image}
                   alt={slide.title}
                   loading={idx === 0 ? 'eager' : 'lazy'}
                 />
-
-                {/* Mobile overlay content */}
+                {/* Mobile image container with gradient */}
                 {isMobile && (
-                  <div className="absolute bottom-0 left-0 right-0 bg-black p-3 pb-4">
-                    <h2 className="sequel-95 text-white text-base mb-1.5 leading-tight uppercase">
-                      {slide.title}
-                    </h2>
-                    <p className="sequel-45 text-white/90 text-[11px] mb-3 line-clamp-2 leading-snug">
-                      {slide.description}
-                    </p>
-                    <div className="flex items-stretch gap-0 relative">
-                      <div className="bg-white rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 z-10">
-                        <span className="sequel-95 text-xs text-black">{slide.price}</span>
-                        <span className="sequel-45 text-xs text-black/70">/ Entry</span>
+                  <div className="relative bg-black rounded-t-xl overflow-hidden" style={{ aspectRatio: '4/3' }}>
+                    <img
+                      className="w-full h-full object-cover object-center"
+                      src={slide.image}
+                      alt={slide.title}
+                      loading={idx === 0 ? 'eager' : 'lazy'}
+                    />
+                    {/* Fading black gradient on bottom portion - extends to just below the top of hero text */}
+                    <div
+                      className="absolute bottom-0 left-0 right-0 h-4/5 pointer-events-none"
+                      style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.3) 25%, rgba(0,0,0,0.7) 50%, rgba(0,0,0,0.9) 70%, rgba(0,0,0,1) 85%)' }}
+                    />
+                    {/* Mobile overlay content */}
+                    <div className="absolute bottom-0 left-0 right-0 p-4 pb-5 z-10">
+                      <h2 className="sequel-95 text-white text-[15px] mb-2 leading-tight uppercase">
+                        {slide.title}
+                      </h2>
+                      <p className="sequel-45 text-white/90 text-xs mb-3 line-clamp-2 leading-snug">
+                        {slide.description}
+                      </p>
+                      <div className="flex items-stretch gap-0 relative">
+                        <div className="bg-white rounded-lg px-3 py-2 flex items-center gap-1.5 z-10">
+                          <span className="sequel-95 text-sm text-black">{slide.price}</span>
+                          <span className="sequel-45 text-sm text-black/70">/ Entry</span>
+                        </div>
+                        <span
+                          className="sequel-95 bg-[#494949] text-white/70 px-4 py-2 rounded-lg text-sm flex-1 text-center -ml-5 relative cursor-not-allowed"
+                          style={{ boxShadow: '-8px 0 16px rgba(0, 0, 0, 0.3)' }}
+                        >
+                          {slide.cta}
+                        </span>
                       </div>
-                      <span
-                        className="sequel-95 bg-[#494949] text-white/70 px-4 py-1.5 rounded-lg text-xs flex-1 text-center -ml-5 relative cursor-not-allowed"
-                        style={{ boxShadow: '-8px 0 16px rgba(0, 0, 0, 0.3)' }}
-                      >
-                        {slide.cta}
-                      </span>
                     </div>
                   </div>
                 )}
