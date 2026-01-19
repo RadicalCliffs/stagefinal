@@ -393,7 +393,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (userProfile) {
         try {
           console.log('[AuthContext] Calling upsert_canonical_user RPC after auth');
-          const canonicalUserId = toCanonicalUserId(effectiveWalletAddress);
+          const canonicalUserId = toPrizePid(effectiveWalletAddress);
           const { error: rpcError } = await supabase.rpc('upsert_canonical_user', {
             p_uid: userProfile.uid || userProfile.id,
             p_canonical_user_id: canonicalUserId,
