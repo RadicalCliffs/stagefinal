@@ -510,11 +510,38 @@ button::after {
   z-index: 99999 !important;
 }
 
+/* OnchainKit wallet dropdown and connect modal - additional selectors */
+[data-testid="ockConnectWallet_Container"] ~ div[class*="fixed"],
+[data-testid="ockConnectModal"],
+[class*="ock-modal"],
+[class*="ockModal"] {
+  z-index: 100000 !important;
+}
+
+/* OnchainKit uses inline styles sometimes, target the overlay specifically */
+body > div[style*="position: fixed"][style*="inset: 0"],
+body > div[class*="fixed"][class*="inset-0"][class*="bg-"] {
+  z-index: 99999 !important;
+}
+
 /* Coinbase Wallet SDK popup - appears when connecting external wallet */
 .cbw-popup-container,
 [class*="cbw-popup"],
 #cbw-popup-portal {
   z-index: 100000 !important;
+}
+
+/* Coinbase Smart Wallet iframe and popup */
+iframe[src*="wallet.coinbase.com"],
+iframe[src*="keys.coinbase.com"],
+[class*="CoinbaseWallet"],
+.coinbase-wallet-sdk-connect-dialog {
+  z-index: 100001 !important;
+}
+
+/* Coinbase Wallet SDK link popup (mobile flow) */
+#coinbase-wallet-sdk {
+  z-index: 100001 !important;
 }
 
 /* Reown AppKit modal (WalletConnect) - may be used for wallet connections */

@@ -360,6 +360,9 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
   // Track if we're waiting for the wallet address after CDP sign-in
   const [waitingForWallet, setWaitingForWallet] = useState(false);
   const walletPollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Track wallet connection attempt timeout
+  const connectionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [connectionTimedOut, setConnectionTimedOut] = useState(false);
 
   // Reset state when modal opens
   useEffect(() => {
@@ -368,6 +371,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
       profileCheckedRef.current = false;
       setEmailError('');
       setWaitingForWallet(false);
+      setConnectionTimedOut(false);
 
       // Clear any existing auto-close timer
       if (autoCloseTimerRef.current) {
@@ -379,6 +383,12 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
       if (walletPollIntervalRef.current) {
         clearInterval(walletPollIntervalRef.current);
         walletPollIntervalRef.current = null;
+      }
+
+      // Clear any connection timeout
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current);
+        connectionTimeoutRef.current = null;
       }
 
       // Set userEmail from options if provided
@@ -430,8 +440,41 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
       if (walletPollIntervalRef.current) {
         clearInterval(walletPollIntervalRef.current);
       }
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current);
+      }
     };
   }, [isOpen, options]);
+
+  // Track wallet connection attempts and timeout to prevent stuck loading state
+  // This helps when the wallet popup is dismissed without completing the connection
+  useEffect(() => {
+    if (isConnecting && flowState === 'wallet-choice') {
+      // Start a timeout when connection attempt begins
+      connectionTimeoutRef.current = setTimeout(() => {
+        console.log('[BaseWallet] Wallet connection attempt timed out');
+        setConnectionTimedOut(true);
+        setEmailError('Connection timed out. Please try again.');
+      }, 60000); // 60 second timeout for wallet connection
+    } else {
+      // Clear timeout if not connecting
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current);
+        connectionTimeoutRef.current = null;
+      }
+      // Reset timeout state if we're no longer connecting and wallet is now connected
+      if (wagmiIsConnected && connectionTimedOut) {
+        setConnectionTimedOut(false);
+        setEmailError('');
+      }
+    }
+
+    return () => {
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current);
+      }
+    };
+  }, [isConnecting, flowState, wagmiIsConnected, connectionTimedOut]);
 
   // Handle CDP sign-in success - create user with wallet or link to existing user
   // This effect may need to wait for evmAddress to become available after CDP sign-in
@@ -636,15 +679,55 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
         if (pendingDataStr) {
           try {
             pendingData = JSON.parse(pendingDataStr);
-            // Clear it so it's not used again
-            localStorage.removeItem('pendingSignupData');
+            // DON'T clear it yet - we'll clear after successful connection
+            console.log('[BaseWallet] Found pending signup data:', {
+              isReturningUser: pendingData?.isReturningUser,
+              hasProfileData: !!pendingData?.profileData,
+              profileEmail: pendingData?.profileData?.email ? '***' : undefined,
+            });
           } catch (e) {
             console.error('[BaseWallet] Failed to parse pending signup data:', e);
           }
         }
 
-        // If we have pending profile data, create user with wallet
-        if (pendingData?.profileData) {
+        // CRITICAL FIX: For returning users, the email comes from options (passed from NewAuthModal)
+        // NOT from pendingData.profileData (which may be empty for returning users)
+        // Use the userEmail state (set from options.email) as the primary source
+        const effectiveEmailForLinking = userEmail || pendingData?.profileData?.email || options?.email;
+
+        console.log('[BaseWallet] Effective email for linking:', {
+          userEmail: userEmail ? '***' : undefined,
+          pendingDataEmail: pendingData?.profileData?.email ? '***' : undefined,
+          optionsEmail: options?.email ? '***' : undefined,
+          effectiveEmail: effectiveEmailForLinking ? '***' : undefined,
+          isReturningUser: pendingData?.isReturningUser || options?.isReturningUser,
+        });
+
+        // RETURNING USER FLOW: If this is a returning user, link wallet to existing account
+        // Returning users already have an account - we just need to link the wallet
+        if ((pendingData?.isReturningUser || options?.isReturningUser) && effectiveEmailForLinking) {
+          console.log('[BaseWallet] Returning user flow - linking wallet to existing user');
+          const result = await linkWalletToExistingUser(effectiveEmailForLinking, wagmiAddress);
+
+          if (result.success) {
+            // Clear pending data after successful connection
+            localStorage.removeItem('pendingSignupData');
+            savedToDbRef.current = true;
+            localStorage.setItem('cdp:wallet_address', wagmiAddress);
+
+            window.dispatchEvent(new CustomEvent('auth-complete', {
+              detail: { walletAddress: wagmiAddress, email: effectiveEmailForLinking }
+            }));
+
+            setFlowState('logged-in-success');
+          } else {
+            setEmailError('No account found with this email. Please sign up first.');
+          }
+          return;
+        }
+
+        // NEW USER FLOW: If we have pending profile data with email, create user with wallet
+        if (pendingData?.profileData?.email) {
           console.log('[BaseWallet] Creating user with profile data + external wallet');
           const profileData = pendingData.profileData;
 
@@ -674,6 +757,8 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               throw new Error('Failed to create account');
             }
 
+            // Clear pending data after successful creation
+            localStorage.removeItem('pendingSignupData');
             savedToDbRef.current = true;
             localStorage.setItem('cdp:wallet_address', wagmiAddress);
 
@@ -686,18 +771,18 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             console.error('[BaseWallet] Failed to create user:', err);
             setEmailError('Failed to create account. Please try again.');
           }
-        } else if (userEmail) {
-          // RETURNING USER FLOW: Link wallet to existing user by email
-          // This PROPERLY saves the wallet address to Supabase
-          console.log('[BaseWallet] Linking wallet to existing user by email:', userEmail);
-          const result = await linkWalletToExistingUser(userEmail, wagmiAddress);
+        } else if (effectiveEmailForLinking) {
+          // Fallback: Link wallet to existing user by email
+          console.log('[BaseWallet] Fallback - linking wallet to existing user by email');
+          const result = await linkWalletToExistingUser(effectiveEmailForLinking, wagmiAddress);
 
           if (result.success) {
+            localStorage.removeItem('pendingSignupData');
             savedToDbRef.current = true;
             localStorage.setItem('cdp:wallet_address', wagmiAddress);
 
             window.dispatchEvent(new CustomEvent('auth-complete', {
-              detail: { walletAddress: wagmiAddress, email: userEmail }
+              detail: { walletAddress: wagmiAddress, email: effectiveEmailForLinking }
             }));
 
             setFlowState('logged-in-success');
@@ -705,21 +790,16 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             setEmailError('No account found with this email. Please sign up first.');
           }
         } else {
-          // No pending data and no email - show success anyway
-          savedToDbRef.current = true;
-          localStorage.setItem('cdp:wallet_address', wagmiAddress);
-
-          window.dispatchEvent(new CustomEvent('auth-complete', {
-            detail: { walletAddress: wagmiAddress }
-          }));
-
-          setFlowState('logged-in-success');
+          // No email available - this shouldn't happen for authenticated users
+          // Show error instead of silently succeeding
+          console.error('[BaseWallet] No email available for wallet linking');
+          setEmailError('Unable to link wallet. Please try logging in again.');
         }
       }
     };
 
     handleWagmiConnection();
-  }, [flowState, wagmiIsConnected, wagmiAddress, userEmail]);
+  }, [flowState, wagmiIsConnected, wagmiAddress, userEmail, options?.email, options?.isReturningUser]);
 
   // Auto-close modal after showing success screen for 2 seconds
   // This effect is critical for ensuring the modal doesn't freeze after successful auth
@@ -1079,25 +1159,63 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               {!wagmiIsConnected ? (
                 <>
                   <div className="space-y-3">
-                    <div className="flex justify-center w-full">
-                      <WalletComponent>
-                        <ConnectWallet className="w-full bg-[#0052FF] hover:bg-[#0052FF]/90 text-white font-bold py-3 px-6 rounded-lg flex items-center justify-center gap-2">
-                          <Wallet size={20} className="flex-shrink-0" />
-                          <span>
-                            {options?.isReturningUser
-                              ? 'Connect wallet to sign in'
-                              : 'Connect an existing Base wallet'}
-                          </span>
-                        </ConnectWallet>
-                        <WalletDropdown>
-                          <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
-                            <Avatar />
-                            <Name />
-                            <Address />
-                          </Identity>
-                        </WalletDropdown>
-                      </WalletComponent>
-                    </div>
+                    {/* Show loading indicator when connection is in progress */}
+                    {isConnecting && (
+                      <div className="p-4 bg-[#0052FF]/10 border border-[#0052FF]/30 rounded-lg text-center">
+                        <div className="flex items-center justify-center gap-2 text-[#0052FF] mb-2">
+                          <Loader2 size={20} className="animate-spin flex-shrink-0" />
+                          <span className="font-semibold">Connecting wallet...</span>
+                        </div>
+                        <p className="text-white/60 text-xs">
+                          Please complete the connection in your wallet app or browser popup.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Show timeout/error message with retry button */}
+                    {connectionTimedOut && !isConnecting && (
+                      <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-center">
+                        <div className="flex items-center justify-center gap-2 text-yellow-400 mb-2">
+                          <AlertCircle size={20} className="flex-shrink-0" />
+                          <span className="font-semibold">Connection timed out</span>
+                        </div>
+                        <p className="text-white/60 text-xs mb-3">
+                          The wallet connection took too long. Please try again.
+                        </p>
+                        <button
+                          onClick={() => {
+                            setConnectionTimedOut(false);
+                            setEmailError('');
+                          }}
+                          className="text-[#0052FF] text-sm font-semibold hover:underline"
+                        >
+                          Dismiss and try again
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Only show the connect button if not showing timeout message */}
+                    {!connectionTimedOut && (
+                      <div className="flex justify-center w-full">
+                        <WalletComponent>
+                          <ConnectWallet className="w-full bg-[#0052FF] hover:bg-[#0052FF]/90 text-white font-bold py-3 px-6 rounded-lg flex items-center justify-center gap-2">
+                            <Wallet size={20} className="flex-shrink-0" />
+                            <span>
+                              {isConnecting ? 'Connecting...' : options?.isReturningUser
+                                ? 'Connect wallet to sign in'
+                                : 'Connect an existing Base wallet'}
+                            </span>
+                          </ConnectWallet>
+                          <WalletDropdown>
+                            <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
+                              <Avatar />
+                              <Name />
+                              <Address />
+                            </Identity>
+                          </WalletDropdown>
+                        </WalletComponent>
+                      </div>
+                    )}
 
                     <p className="text-white/60 text-xs text-center">
                       {options?.isReturningUser
