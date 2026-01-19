@@ -48,10 +48,8 @@ const HeroSection = () => {
         <HeroCarouselV2 />
         <Reviews />
       </div>
-      <div className="bg-[#3E3E3E] max-w-[77rem] mx-auto pt-2 pb-4 rounded-b-xl rounded-t-none sm:mt-0 -mt-[11px] relative z-0">
-        <div className="mt-1">
-          <CardPayments />
-        </div>
+      <div className="max-w-[77rem] mx-auto sm:mt-0 -mt-2 relative z-0">
+        <CardPayments />
       </div>
       <div className="max-w-[77rem] mx-auto">
         <div className="max-w-[calc(100%*11.5/12)] mx-auto">
@@ -60,7 +58,7 @@ const HeroSection = () => {
         <div className="text-center sm:px-0 px-4">
           <Link
             to={"/competitions"}
-            className="md:sequel-95 inline-block sequel-95 sm:mt-9 mt-6 mb-8 font-medium  md:text-xl sm:text-sm text-xs md:max-w-7xl bg-[#DDE404] sm:pt-2.5 sm:pb-3 pt-3.5 pb-2.5 sm:rounded-xl rounded-lg text-[#1B1B1B] md:px-14 px-4 max-[410px]:text-[0.65rem] max-w-11/12 cursor-pointer border border-white hover:bg-[#c7cc04] custom-box-shadow"
+            className="md:sequel-95 inline-block sequel-95 sm:mt-9 mt-6 mb-4 font-medium  md:text-xl sm:text-sm text-xs md:max-w-7xl bg-[#DDE404] sm:pt-2.5 sm:pb-3 pt-3.5 pb-2.5 sm:rounded-xl rounded-lg text-[#1B1B1B] md:px-14 px-4 max-[410px]:text-[0.65rem] max-w-11/12 cursor-pointer border border-white hover:bg-[#c7cc04] custom-box-shadow"
           >
             BROWSE ALL COMPETITIONS
           </Link>

@@ -10,7 +10,7 @@ const FairDrawsV2 = () => {
   return (
     <div
       id="landing-page-fair-draws"
-      className="sm:py-10 py-5 max-w-7xl mx-auto 2xl:px-0 sm:px-4 overflow-visible"
+      className="sm:py-10 py-2 max-w-7xl mx-auto 2xl:px-0 sm:px-4 overflow-visible"
     >
       <h1 className="text-white xl:block hidden uppercase text-[2.1rem] leading-normal sequel-95 text-center">
         How Blockchain Powers <br />

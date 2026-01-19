@@ -78,33 +78,37 @@ const HeroCarouselV2 = () => {
                 />
                 {/* Mobile image container with gradient */}
                 {isMobile && (
-                  <div className="relative bg-black rounded-t-xl overflow-hidden" style={{ aspectRatio: '4/3' }}>
-                    <img
-                      className="w-full h-full object-cover object-center"
-                      src={slide.image}
-                      alt={slide.title}
-                      loading={idx === 0 ? 'eager' : 'lazy'}
-                    />
-                    {/* Fading black gradient on bottom portion - extends to just below the top of hero text */}
+                  <div className="relative bg-black rounded-t-xl overflow-hidden" style={{ aspectRatio: '9/16' }}>
+                    <div className="absolute inset-0 overflow-hidden">
+                      <img
+                        className="h-full min-w-[140%] object-cover object-center animate-hero-pan"
+                        src={slide.image}
+                        alt={slide.title}
+                        loading={idx === 0 ? 'eager' : 'lazy'}
+                      />
+                    </div>
+                    {/* Black area at the very bottom */}
+                    <div className="absolute bottom-0 left-0 right-0 h-[8%] bg-black pointer-events-none" />
+                    {/* Fading black gradient on bottom portion - smaller to show more image */}
                     <div
-                      className="absolute bottom-0 left-0 right-0 h-4/5 pointer-events-none"
-                      style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.3) 25%, rgba(0,0,0,0.7) 50%, rgba(0,0,0,0.9) 70%, rgba(0,0,0,1) 85%)' }}
+                      className="absolute bottom-[8%] left-0 right-0 h-[35%] pointer-events-none"
+                      style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.5) 30%, rgba(0,0,0,0.85) 60%, rgba(0,0,0,1) 100%)' }}
                     />
-                    {/* Mobile overlay content */}
-                    <div className="absolute bottom-0 left-0 right-0 p-4 pt-0 pb-5 z-10">
-                      <h2 className="sequel-95 text-white text-[15px] mb-2 leading-tight uppercase">
+                    {/* Mobile overlay content - more compact */}
+                    <div className="absolute bottom-0 left-0 right-0 p-4 pt-0 pb-4 z-10">
+                      <h2 className="sequel-95 text-white text-[14px] mb-1.5 leading-tight uppercase">
                         {slide.title}
                       </h2>
-                      <p className="sequel-45 text-white/90 text-xs mb-3 line-clamp-2 leading-snug">
+                      <p className="sequel-45 text-white/90 text-[11px] mb-2.5 line-clamp-2 leading-snug">
                         {slide.description}
                       </p>
                       <div className="flex items-stretch gap-0 relative">
-                        <div className="bg-white rounded-lg px-3 py-2 flex items-center gap-1.5 z-10">
+                        <div className="bg-white rounded-lg px-3 py-1.5 flex items-center gap-1.5 z-10">
                           <span className="sequel-95 text-sm text-black">{slide.price}</span>
                           <span className="sequel-45 text-sm text-black/70">/ Entry</span>
                         </div>
                         <span
-                          className="sequel-95 bg-[#494949] text-white/70 px-4 py-2 rounded-lg text-sm flex-1 text-center -ml-5 relative cursor-not-allowed"
+                          className="sequel-95 bg-[#494949] text-white/70 px-4 py-1.5 rounded-lg text-sm flex-1 text-center -ml-5 relative cursor-not-allowed"
                           style={{ boxShadow: '-8px 0 16px rgba(0, 0, 0, 0.3)' }}
                         >
                           {slide.cta}
