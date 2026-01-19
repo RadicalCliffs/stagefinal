@@ -72,6 +72,15 @@ const wagmiConfig = createConfig({
   },
 });
 
+// TypeScript declaration merging for Wagmi type inference
+// This enables strong type-safety across React Context boundaries
+// See: https://wagmi.sh/react/typescript#declaration-merging
+declare module 'wagmi' {
+  interface Register {
+    config: typeof wagmiConfig
+  }
+}
+
 // Query client for React Query (required by wagmi)
 const queryClient = new QueryClient();
 
