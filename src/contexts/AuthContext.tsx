@@ -388,6 +388,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
       setProfile(userProfile);
 
+      // CRITICAL: Call upsert_canonical_user RPC after auth sign-in/signup
+      // This ensures canonical_users table is up-to-date with auth data
+      if (userProfile) {
+        try {
+          console.log('[AuthContext] Calling upsert_canonical_user RPC after auth');
+          const canonicalUserId = toPrizePid(effectiveWalletAddress);
+          const { error: rpcError } = await supabase.rpc('upsert_canonical_user', {
+            p_uid: userProfile.uid || userProfile.id,
+            p_canonical_user_id: canonicalUserId,
+            p_email: effectiveEmail,
+            p_username: userProfile.username || null,
+            p_wallet_address: effectiveWalletAddress.toLowerCase(),
+            p_base_wallet_address: effectiveWalletAddress.toLowerCase(),
+            p_eth_wallet_address: effectiveWalletAddress.toLowerCase(),
+            p_privy_user_id: effectiveWalletAddress,
+            p_first_name: userProfile.first_name || null,
+            p_last_name: userProfile.last_name || null,
+            p_telegram_handle: userProfile.telegram_handle || null,
+            p_wallet_linked: false, // Not a wallet link event, just auth
+          });
+          
+          if (rpcError) {
+            console.warn('[AuthContext] upsert_canonical_user RPC warning:', rpcError);
+          } else {
+            console.log('[AuthContext] upsert_canonical_user RPC success');
+          }
+        } catch (rpcErr) {
+          console.warn('[AuthContext] upsert_canonical_user RPC exception:', rpcErr);
+        }
+      }
+
       // Extract linked wallets - distinguish between CDP embedded wallets and external wallets
       const { wallets, baseAccount: detectedBase, embeddedWallet: detectedEmbedded } = extractLinkedWallets(effectiveWalletAddress, isFromCDP);
       setLinkedWallets(wallets);
