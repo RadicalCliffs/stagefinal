@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { toPrizePid, isPrizePid } from '../utils/userId';
+import { VALID_AVATAR_FILENAMES, SUPABASE_AVATAR_BASE_URL, getAvatarUrl, getRandomAvatarUrl } from '../lib/avatarConstants';
 
 export interface UserDataAggregation {
   totalTickets: number;
