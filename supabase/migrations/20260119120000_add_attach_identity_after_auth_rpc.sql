@@ -27,8 +27,8 @@ DROP FUNCTION IF EXISTS attach_identity_after_auth(
 CREATE OR REPLACE FUNCTION attach_identity_after_auth(
   in_canonical_user_id text,
   in_wallet_address text,
-  in_email text,
-  in_privy_user_id text,
+  in_email text DEFAULT NULL,
+  in_privy_user_id text DEFAULT NULL,
   in_prior_payload jsonb DEFAULT NULL,
   in_base_wallet_address text DEFAULT NULL,
   in_eth_wallet_address text DEFAULT NULL
@@ -41,24 +41,27 @@ DECLARE
   v_user_id uuid;
   v_result jsonb;
 BEGIN
-  -- Normalize inputs
-  in_wallet_address := LOWER(TRIM(in_wallet_address));
-  in_email := LOWER(TRIM(in_email));
-  in_base_wallet_address := COALESCE(LOWER(TRIM(in_base_wallet_address)), in_wallet_address);
-  in_eth_wallet_address := COALESCE(LOWER(TRIM(in_eth_wallet_address)), in_wallet_address);
+  -- Normalize inputs with NULL handling
+  in_wallet_address := CASE WHEN in_wallet_address IS NOT NULL THEN LOWER(TRIM(in_wallet_address)) ELSE NULL END;
+  in_email := CASE WHEN in_email IS NOT NULL THEN LOWER(TRIM(in_email)) ELSE NULL END;
+  in_base_wallet_address := CASE WHEN in_base_wallet_address IS NOT NULL THEN LOWER(TRIM(in_base_wallet_address)) ELSE in_wallet_address END;
+  in_eth_wallet_address := CASE WHEN in_eth_wallet_address IS NOT NULL THEN LOWER(TRIM(in_eth_wallet_address)) ELSE in_wallet_address END;
   
-  -- Log the operation
-  RAISE NOTICE 'attach_identity_after_auth: email=%, wallet=%', in_email, SUBSTRING(in_wallet_address, 1, 10);
+  -- Log the operation (without exposing full email for security)
+  RAISE NOTICE 'attach_identity_after_auth: email=%**, wallet=%', 
+    CASE WHEN in_email IS NOT NULL THEN SUBSTRING(in_email, 1, 3) ELSE 'NULL' END,
+    CASE WHEN in_wallet_address IS NOT NULL THEN SUBSTRING(in_wallet_address, 1, 10) ELSE 'NULL' END;
   
-  -- Find user by email (case-insensitive)
-  -- CRITICAL: Use ILIKE for case-insensitive matching
-  SELECT id INTO v_user_id
-  FROM canonical_users
-  WHERE email ILIKE in_email
-  LIMIT 1;
+  -- Find user by email (case-insensitive) if email provided
+  IF in_email IS NOT NULL THEN
+    SELECT id INTO v_user_id
+    FROM canonical_users
+    WHERE email ILIKE in_email
+    LIMIT 1;
+  END IF;
   
-  -- If user not found, try to find by wallet address
-  IF v_user_id IS NULL THEN
+  -- If user not found and wallet provided, try to find by wallet address
+  IF v_user_id IS NULL AND in_wallet_address IS NOT NULL THEN
     SELECT id INTO v_user_id
     FROM canonical_users
     WHERE wallet_address ILIKE in_wallet_address
@@ -69,12 +72,14 @@ BEGIN
   
   -- If still not found, log error and return
   IF v_user_id IS NULL THEN
-    RAISE WARNING 'attach_identity_after_auth: User not found for email=% or wallet=%', in_email, in_wallet_address;
+    RAISE WARNING 'attach_identity_after_auth: User not found for email=** or wallet=%', 
+      CASE WHEN in_email IS NOT NULL THEN SUBSTRING(in_email, 1, 3) ELSE 'NULL' END,
+      CASE WHEN in_wallet_address IS NOT NULL THEN SUBSTRING(in_wallet_address, 1, 10) ELSE 'NULL' END;
     RETURN jsonb_build_object(
       'success', false,
       'error', 'User not found',
-      'email', in_email,
-      'wallet', in_wallet_address
+      'has_email', (in_email IS NOT NULL),
+      'has_wallet', (in_wallet_address IS NOT NULL)
     );
   END IF;
   
@@ -125,8 +130,7 @@ BEGIN
     'success', true,
     'user_id', v_user_id,
     'canonical_user_id', in_canonical_user_id,
-    'wallet_address', in_wallet_address,
-    'email', in_email,
+    'wallet_linked', (in_wallet_address IS NOT NULL),
     'prior_payload_merged', (in_prior_payload IS NOT NULL)
   );
   
@@ -139,9 +143,7 @@ EXCEPTION
     RAISE WARNING 'attach_identity_after_auth: Error - %', SQLERRM;
     RETURN jsonb_build_object(
       'success', false,
-      'error', SQLERRM,
-      'email', in_email,
-      'wallet', in_wallet_address
+      'error', SQLERRM
     );
 END;
 $$;

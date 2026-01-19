@@ -41,10 +41,8 @@ export const WalletSettingsPanel: React.FC<WalletSettingsPanelProps> = ({ onClos
       await signOut();
       setSuccess('CDP wallet disconnected successfully');
       
-      // Refresh user data after disconnect
-      setTimeout(() => {
-        refreshUserData();
-      }, 1000);
+      // Refresh user data after disconnect completes
+      await refreshUserData();
     } catch (err) {
       console.error('[WalletSettings] CDP disconnect error:', err);
       setError('Failed to disconnect CDP wallet');
@@ -62,10 +60,8 @@ export const WalletSettingsPanel: React.FC<WalletSettingsPanelProps> = ({ onClos
       wagmiDisconnect();
       setSuccess('External wallet disconnected successfully');
       
-      // Refresh user data after disconnect
-      setTimeout(() => {
-        refreshUserData();
-      }, 1000);
+      // Refresh user data after disconnect completes
+      await refreshUserData();
     } catch (err) {
       console.error('[WalletSettings] External disconnect error:', err);
       setError('Failed to disconnect external wallet');
@@ -91,7 +87,11 @@ export const WalletSettingsPanel: React.FC<WalletSettingsPanelProps> = ({ onClos
   const openBlockExplorer = (address: string) => {
     const isMainnet = import.meta.env.VITE_BASE_MAINNET === 'true';
     const explorerDomain = isMainnet ? 'basescan.org' : 'sepolia.basescan.org';
-    window.open(`https://${explorerDomain}/address/${address}`, '_blank');
+    const newWindow = window.open(`https://${explorerDomain}/address/${address}`, '_blank', 'noopener,noreferrer');
+    // Additional security for older browsers
+    if (newWindow) {
+      newWindow.opener = null;
+    }
   };
 
   return (
