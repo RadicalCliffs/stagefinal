@@ -470,6 +470,17 @@ export const userDataService = {
         }
       }
 
+      // Check for new format: {status: 'ok', canonical_user_id: '...'}
+      if (data && typeof data === 'object' && 'status' in data) {
+        if (data.status === 'ok' || data.status === 'success') {
+          console.log('[userDataService] Profile updated successfully (new format):', data);
+          return true;
+        } else {
+          console.error('[userDataService] Profile update failed (new format):', data);
+          return false;
+        }
+      }
+
       // If data is null/undefined or doesn't have a success field, the RPC likely failed
       // Don't assume success - log and return false to avoid misleading the user
       if (!data) {

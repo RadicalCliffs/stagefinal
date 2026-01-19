@@ -123,7 +123,12 @@ export default function EntriesList() {
       // ISSUE 4C FIX: After initial load, try to sync stale competition statuses
       // This runs in the background and doesn't block the UI
       if (data && data.length > 0 && !isBackgroundRefresh) {
-        const competitionIds = [...new Set(data.map((e: any) => e.competition_id).filter(Boolean))];
+        // Filter out synthetic IDs (legacy-* or entry-*) that aren't real UUIDs
+        const competitionIds = [...new Set(
+          data
+            .map((e: any) => e.competition_id)
+            .filter(id => id && !id.startsWith('legacy-') && !id.startsWith('entry-'))
+        )];
         if (competitionIds.length > 0) {
           // Run sync in background - don't await to avoid blocking UI
           database.syncStaleCompetitionStatuses(competitionIds).then(result => {
