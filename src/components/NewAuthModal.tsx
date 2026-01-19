@@ -368,12 +368,17 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
       // DO NOT create user here - wait until CDP wallet is successfully created
       // User creation will happen in BaseWalletAuthModal after wallet is linked
       console.log('[NewAuthModal] Email verified successfully, proceeding to wallet connection');
-      
+
       // OTP verified, open BaseWalletAuthModal directly
+      // For new users: go to wallet-choice so they can connect an existing wallet OR create new
+      // This avoids asking for email again in CDP SignIn (since we already verified it)
       openBaseWalletAuthModal({
         resumeSignup: true,
         email: profileData.email,
-        isReturningUser
+        isReturningUser,
+        // Signal that email is already verified - show wallet choice directly
+        // This prevents duplicate email entry in CDP SignIn
+        connectExisting: !isReturningUser, // For new users, show wallet-choice not cdp-signin
       });
     } catch (err) {
       console.error('[NewAuthModal] Error verifying OTP:', err);

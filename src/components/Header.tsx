@@ -49,11 +49,27 @@ const Header: React.FC = () => {
   }, [authenticated, ready]);
 
   // Listen for open-base-wallet-auth events (triggered when user needs dedicated CDP wallet auth flow)
+  // CRITICAL: This must properly pass through the isReturningUser flag to show correct UI
   useEffect(() => {
     const handleOpenBaseWalletAuth = (event: CustomEvent) => {
-      console.log('[Header] Opening Base wallet auth modal', event.detail);
-      setBaseWalletAuthOptions(event.detail || {});
-      setShowBaseWalletAuthModal(true);
+      const options = event.detail || {};
+      console.log('[Header] Opening Base wallet auth modal with options:', {
+        isReturningUser: options.isReturningUser,
+        email: options.email ? '***' : undefined,
+        resumeSignup: options.resumeSignup,
+        hasReturningUserWalletAddress: !!options.returningUserWalletAddress,
+      });
+
+      // Ensure NewAuthModal is fully closed before opening BaseWalletAuthModal
+      // to prevent both modals being visible simultaneously
+      setShowAuthModal(false);
+
+      // Small delay to ensure state updates are processed before opening new modal
+      // This prevents race conditions where both modals might flash on screen
+      setTimeout(() => {
+        setBaseWalletAuthOptions(options);
+        setShowBaseWalletAuthModal(true);
+      }, 50);
     };
 
     window.addEventListener('open-base-wallet-auth', handleOpenBaseWalletAuth as EventListener);
