@@ -473,6 +473,80 @@ button::after {
   height: 1px;
   background: blue;
 } */
+/**
+ * CRITICAL: Override z-index for third-party wallet modals (CDP, OnchainKit)
+ * These modals are rendered at the document body level and need to appear
+ * ABOVE our BaseWalletAuthModal (z-index: 9999) and NewAuthModal (z-index: 50)
+ *
+ * Without these overrides, clicking "Connect wallet" in our modal opens
+ * the Base/CDP authentication modal BEHIND our modal, making it invisible/inaccessible.
+ */
+
+/* CDP React Modal overlay - rendered via Radix dialog at document body level */
+[data-radix-popper-content-wrapper] {
+  z-index: 99999 !important;
+}
+
+/* CDP React Modal - overlay and content need extreme z-index */
+.Modal-module__overlay___-RqGQ,
+[class*="Modal-module__overlay"] {
+  z-index: 99999 !important;
+}
+
+.Modal-module__modal___MUsZA,
+[class*="Modal-module__modal"] {
+  z-index: 100000 !important;
+}
+
+/* OnchainKit Connect modal - uses different class patterns */
+[class*="ock:fixed"][class*="ock:inset-0"],
+.ock\:fixed.ock\:inset-0 {
+  z-index: 99999 !important;
+}
+
+/* OnchainKit modal content */
+[class*="ock:z-50"],
+.ock\:z-50 {
+  z-index: 99999 !important;
+}
+
+/* Coinbase Wallet SDK popup - appears when connecting external wallet */
+.cbw-popup-container,
+[class*="cbw-popup"],
+#cbw-popup-portal {
+  z-index: 100000 !important;
+}
+
+/* Reown AppKit modal (WalletConnect) - may be used for wallet connections */
+w3m-modal,
+.w3m-modal,
+[class*="w3m-overlay"],
+[class*="w3m-container"] {
+  z-index: 100000 !important;
+}
+
+/* MetaMask SDK modal */
+[class*="mm-install-modal"],
+[class*="mm-pending-modal"],
+[class*="mm-select-modal"] {
+  z-index: 100000 !important;
+}
+
+/* Generic portal containers that may host wallet modals */
+#headlessui-portal-root > div {
+  z-index: 99999 !important;
+}
+
+/* Radix UI dialog overlay - used by many modal implementations */
+[data-radix-dialog-overlay] {
+  z-index: 99999 !important;
+}
+
+/* Radix UI dialog content */
+[data-radix-dialog-content] {
+  z-index: 100000 !important;
+}
+
 .hero-carousel .swiper-pagination {
   bottom: 20px \!important;
   z-index: 10;

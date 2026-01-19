@@ -387,15 +387,28 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
       }
 
       // Determine initial flow state based on options
-      // SIMPLE FLOW: Returning users go to wallet-choice where they click ONE button
+      // CRITICAL: Returning users MUST go to wallet-choice, NOT cdp-signin
+      // cdp-signin creates a NEW wallet - we want to CONNECT an existing wallet
+      console.log('[BaseWallet] Modal opened with options:', {
+        isReturningUser: options?.isReturningUser,
+        connectExisting: options?.connectExisting,
+        createNew: options?.createNew,
+        hasEmail: !!options?.email,
+        hasWalletAddress: !!options?.returningUserWalletAddress,
+      });
+
       if (options?.isReturningUser || options?.connectExisting) {
         // Returning user or connecting existing wallet - go straight to wallet choice
+        // This shows ONLY the "Connect wallet" button, no create new wallet option
+        console.log('[BaseWallet] Routing to wallet-choice (returning user flow)');
         setFlowState('wallet-choice');
       } else if (options?.createNew) {
-        // User wants to create a new wallet - go to CDP sign-in
+        // User explicitly wants to create a new wallet - go to CDP sign-in
+        console.log('[BaseWallet] Routing to cdp-signin (new wallet creation)');
         setFlowState('cdp-signin');
       } else {
-        // Default to CDP sign-in
+        // Default to CDP sign-in for new users without explicit options
+        console.log('[BaseWallet] Routing to cdp-signin (default/new user)');
         setFlowState('cdp-signin');
       }
 
@@ -1046,7 +1059,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               {options?.isReturningUser
                 ? 'Connect your wallet to sign in to your account.'
                 : options?.resumeSignup
-                  ? 'Signup with an existing Base wallet'
+                  ? 'Almost there! Connect your wallet to complete signup.'
                   : 'Connect an existing wallet or create a new one in seconds.'
               }
             </p>
@@ -1090,7 +1103,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                       {options?.isReturningUser
                         ? 'Click the button above to connect and sign in.'
                         : options?.resumeSignup
-                          ? 'Connect your Base or Coinbase Wallet to get started. Click the button to continue.'
+                          ? 'If you have Coinbase Wallet or another Base-compatible wallet, connect it now. Otherwise, create a free wallet below.'
                           : 'If you have a Base or Coinbase Wallet installed, it will be detected automatically. Otherwise, you can create a new wallet with your email below.'
                       }
                     </p>
