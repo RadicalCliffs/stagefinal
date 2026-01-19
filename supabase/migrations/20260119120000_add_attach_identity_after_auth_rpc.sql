@@ -48,7 +48,7 @@ BEGIN
   in_eth_wallet_address := CASE WHEN in_eth_wallet_address IS NOT NULL THEN LOWER(TRIM(in_eth_wallet_address)) ELSE in_wallet_address END;
   
   -- Log the operation (without exposing full email for security)
-  RAISE NOTICE 'attach_identity_after_auth: email=%**, wallet=%', 
+  RAISE NOTICE 'attach_identity_after_auth: email=%%**, wallet=%%', 
     CASE WHEN in_email IS NOT NULL THEN SUBSTRING(in_email, 1, 3) ELSE 'NULL' END,
     CASE WHEN in_wallet_address IS NOT NULL THEN SUBSTRING(in_wallet_address, 1, 10) ELSE 'NULL' END;
   
@@ -72,7 +72,7 @@ BEGIN
   
   -- If still not found, log error and return
   IF v_user_id IS NULL THEN
-    RAISE WARNING 'attach_identity_after_auth: User not found for email=** or wallet=%', 
+    RAISE WARNING 'attach_identity_after_auth: User not found for email=%%** or wallet=%%', 
       CASE WHEN in_email IS NOT NULL THEN SUBSTRING(in_email, 1, 3) ELSE 'NULL' END,
       CASE WHEN in_wallet_address IS NOT NULL THEN SUBSTRING(in_wallet_address, 1, 10) ELSE 'NULL' END;
     RETURN jsonb_build_object(

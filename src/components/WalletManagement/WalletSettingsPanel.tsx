@@ -232,7 +232,10 @@ export const WalletSettingsPanel: React.FC<WalletSettingsPanelProps> = ({ onClos
             
             <div className="w-full">
               <WalletComponent>
-                <ConnectWallet className="w-full bg-[#0052FF] hover:bg-[#0052FF]/90 text-white sequel-75 py-3 px-6 rounded-lg flex items-center justify-center gap-2 transition-colors">
+                <ConnectWallet 
+                  className="w-full bg-[#0052FF] hover:bg-[#0052FF]/90 text-white sequel-75 py-3 px-6 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                  aria-label="Connect additional wallet to your account"
+                >
                   <Wallet size={18} />
                   <span>Connect Wallet</span>
                 </ConnectWallet>
@@ -291,9 +294,19 @@ export const WalletSettingsPanel: React.FC<WalletSettingsPanelProps> = ({ onClos
 
               {/* Refresh Connection */}
               <button
-                onClick={() => {
+                onClick={async () => {
                   setIsLoading(true);
-                  refreshUserData().finally(() => setIsLoading(false));
+                  setError(null);
+                  setSuccess(null);
+                  try {
+                    await refreshUserData();
+                    setSuccess('Connection refreshed successfully');
+                  } catch (err) {
+                    console.error('[WalletSettings] Refresh error:', err);
+                    setError('Failed to refresh connection. Please try again.');
+                  } finally {
+                    setIsLoading(false);
+                  }
                 }}
                 disabled={isLoading}
                 className="w-full bg-[#2A2A2A] hover:bg-[#3A3A3A] disabled:bg-[#1A1A1A] text-white sequel-75 py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
