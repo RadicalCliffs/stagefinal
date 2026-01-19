@@ -305,7 +305,167 @@ Deno.serve(async (req: Request) => {
   // Get origin for CORS headers on all responses
   const corsHeaders = buildCorsHeaders(req.headers.get('origin'));
 
+  // Health check endpoint: GET request returns health status
+  if (req.method === "GET") {
+    const incidentId = `health-check-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    const timestamp = new Date().toISOString();
+    
+    const checks: Record<string, { status: "pass" | "fail" | "warn"; message: string; details?: any }> = {};
+    let overallHealthy = true;
+
+    // Check environment variables
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+    if (!supabaseUrl) {
+      checks.env_supabase_url = {
+        status: "fail",
+        message: "Missing SUPABASE_URL environment variable",
+      };
+      overallHealthy = false;
+    } else {
+      checks.env_supabase_url = {
+        status: "pass",
+        message: "Supabase URL configured",
+        details: { url: supabaseUrl.substring(0, 30) + "..." },
+      };
+    }
+
+    if (!serviceRoleKey) {
+      checks.env_service_role_key = {
+        status: "fail",
+        message: "Missing SUPABASE_SERVICE_ROLE_KEY environment variable",
+      };
+      overallHealthy = false;
+    } else {
+      checks.env_service_role_key = {
+        status: "pass",
+        message: "Service role key configured",
+        details: { keyLength: serviceRoleKey.length },
+      };
+    }
+
+    // Test database connectivity
+    if (supabaseUrl && serviceRoleKey) {
+      try {
+        const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+        // Test basic query
+        const { error: compError } = await supabase
+          .from("competitions")
+          .select("id")
+          .limit(1);
+
+        if (compError) {
+          checks.database_connection = {
+            status: "fail",
+            message: "Failed to query database",
+            details: { error: compError.message },
+          };
+          overallHealthy = false;
+        } else {
+          checks.database_connection = {
+            status: "pass",
+            message: "Database connection successful",
+          };
+        }
+
+        // Test pending_tickets table
+        const { error: ptError } = await supabase
+          .from("pending_tickets")
+          .select("id")
+          .limit(1);
+
+        if (ptError) {
+          checks.pending_tickets_table = {
+            status: "fail",
+            message: "pending_tickets table not accessible",
+            details: { error: ptError.message },
+          };
+          overallHealthy = false;
+        } else {
+          checks.pending_tickets_table = {
+            status: "pass",
+            message: "pending_tickets table accessible",
+          };
+        }
+
+        // Test incident log table
+        const { error: logError } = await supabase
+          .from("confirmation_incident_log")
+          .select("id")
+          .limit(1);
+
+        if (logError) {
+          checks.incident_log_table = {
+            status: "warn",
+            message: "Incident log table not accessible - logging may not work",
+            details: { error: logError.message },
+          };
+        } else {
+          checks.incident_log_table = {
+            status: "pass",
+            message: "Incident log table accessible",
+          };
+        }
+
+      } catch (e) {
+        checks.database_connection = {
+          status: "fail",
+          message: "Exception testing database connection",
+          details: { error: e instanceof Error ? e.message : String(e) },
+        };
+        overallHealthy = false;
+      }
+    }
+
+    const response = {
+      healthy: overallHealthy,
+      timestamp,
+      incidentId,
+      source: "supabase_function",
+      endpoint: "/confirm-pending-tickets",
+      environment: {
+        deno: true,
+        denoVersion: Deno.version.deno,
+        v8Version: Deno.version.v8,
+        typescriptVersion: Deno.version.typescript,
+      },
+      checks,
+    };
+
+    const statusCode = overallHealthy ? 200 : 503;
+
+    console.log(`[Health Check] ${overallHealthy ? "✅ PASS" : "❌ FAIL"} - ${timestamp} - incident: ${incidentId}`);
+
+    return new Response(
+      JSON.stringify(response, null, 2),
+      { 
+        status: statusCode, 
+        headers: { ...corsHeaders, "Content-Type": "application/json" } 
+      }
+    );
+  }
+
+  // Declare requestBody at top level for error handler access
+  let requestBody: any = {};
+
   try {
+    // Parse JSON with error handling
+    try {
+      requestBody = await req.json();
+    } catch (jsonError) {
+      console.error("Failed to parse request JSON:", jsonError);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: "Invalid JSON in request body",
+          message: "Request must contain valid JSON"
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
     const {
       reservationId,  // The pending ticket reservation ID
       userId,         // User ID (for fallback lookup)
@@ -317,7 +477,7 @@ Deno.serve(async (req: Request) => {
       sessionId,      // Payment session ID (for lookup)
       selectedTickets, // Direct selected tickets array (for non-reservation flows)
       ticketCount: requestedTicketCount // Ticket count passed from payment service
-    } = await req.json();
+    } = requestBody;
 
     // Convert to canonical prize:pid: format IMMEDIATELY for consistent matching
     const canonicalUserId = toPrizePid(userId);
@@ -1286,9 +1446,55 @@ Deno.serve(async (req: Request) => {
     );
 
   } catch (error) {
+    const incidentId = `supabase-func-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    const errorMessage = (error as Error).message || "Failed to confirm tickets";
+    const errorStack = (error as Error).stack;
+    
     console.error("Confirm pending tickets error:", error);
+    console.error(`Incident ID: ${incidentId}`);
+
+    // Try to log incident to database (best effort)
+    try {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL");
+      const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      
+      if (supabaseUrl && serviceRoleKey) {
+        const supabase = createClient(supabaseUrl, serviceRoleKey);
+        await supabase.rpc("log_confirmation_incident", {
+          p_incident_id: incidentId,
+          p_source: "supabase_function",
+          p_endpoint: "/confirm-pending-tickets",
+          p_error_type: (error as Error).name || "Error",
+          p_error_message: errorMessage,
+          p_error_stack: errorStack,
+          p_user_id: requestBody?.userId || null,
+          p_competition_id: requestBody?.competitionId || null,
+          p_reservation_id: requestBody?.reservationId || null,
+          p_session_id: requestBody?.sessionId || null,
+          p_transaction_hash: requestBody?.transactionHash || null,
+          p_env_context: {
+            deno: true,
+            hasSupabaseUrl: !!supabaseUrl,
+            hasServiceRoleKey: !!serviceRoleKey,
+            denoVersion: Deno.version.deno,
+          },
+          p_metadata: {
+            timestamp: new Date().toISOString(),
+          },
+        });
+        console.log(`Logged incident to database: ${incidentId}`);
+      }
+    } catch (logErr) {
+      console.error("Failed to log incident to database:", logErr);
+    }
+
     return new Response(
-      JSON.stringify({ success: false, error: (error as Error).message || "Failed to confirm tickets" }),
+      JSON.stringify({ 
+        success: false, 
+        error: errorMessage,
+        incidentId,
+        message: "An error occurred during ticket confirmation. Please contact support with this incident ID if the issue persists.",
+      }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

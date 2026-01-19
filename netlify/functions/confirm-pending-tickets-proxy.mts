@@ -263,6 +263,7 @@ async function assignTickets(params: {
 // ---------- Main handler ----------
 export default async (req: Request, _context: Context): Promise<Response> => {
   const origin = req.headers.get("origin");
+  let body: Record<string, any> = {}; // Declare at function scope for error handler access
 
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders(origin) });
@@ -275,7 +276,6 @@ export default async (req: Request, _context: Context): Promise<Response> => {
   try {
     const supabase = getSupabase();
 
-    let body: Record<string, any>;
     try {
       body = (await req.json()) as Record<string, any>;
     } catch {
@@ -1286,8 +1286,54 @@ function isValidUserId(userId: string): boolean {
       origin
     );
   } catch (err) {
+    const incidentId = `netlify-proxy-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    const errorStack = err instanceof Error ? err.stack : undefined;
+
     console.error("[Confirm Tickets] Unexpected error:", err);
-    return json({ success: false, error: err instanceof Error ? err.message : "Internal server error" }, 500, origin);
+    console.error(`[Confirm Tickets] Incident ID: ${incidentId}`);
+
+    // Try to log incident to database (best effort - don't fail if logging fails)
+    try {
+      const supabase = getSupabase();
+      await supabase.rpc("log_confirmation_incident", {
+        p_incident_id: incidentId,
+        p_source: "netlify_proxy",
+        p_endpoint: "/api/confirm-pending-tickets",
+        p_error_type: err instanceof Error && err.name ? err.name : "UnknownError",
+        p_error_message: errorMessage,
+        p_error_stack: errorStack,
+        p_user_id: body?.userId || body?.userIdentifier || null,
+        p_competition_id: body?.competitionId || null,
+        p_reservation_id: body?.reservationId || null,
+        p_session_id: body?.sessionId || null,
+        p_transaction_hash: body?.transactionHash || null,
+        p_env_context: {
+          netlify: true,
+          hasSupabaseUrl: !!(Netlify.env.get("VITE_SUPABASE_URL") || Netlify.env.get("SUPABASE_URL")),
+          hasServiceRoleKey: !!Netlify.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+          nodeVersion: process.version,
+        },
+        p_metadata: {
+          timestamp: new Date().toISOString(),
+          origin: origin || "unknown",
+        },
+      });
+      console.log(`[Confirm Tickets] Logged incident to database: ${incidentId}`);
+    } catch (logErr) {
+      console.error("[Confirm Tickets] Failed to log incident to database:", logErr);
+    }
+
+    return json(
+      {
+        success: false,
+        error: errorMessage,
+        incidentId,
+        message: "An error occurred during ticket confirmation. Please contact support with this incident ID if the issue persists.",
+      },
+      500,
+      origin
+    );
   }
 };
 

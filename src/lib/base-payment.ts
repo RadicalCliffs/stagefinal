@@ -538,9 +538,43 @@ export class BasePaymentService {
         );
         confirmationSucceeded = confirmResult.data?.success === true;
       } catch (retryError) {
-        // All retries exhausted
-        console.error('Ticket confirmation failed after all retries:', retryError);
-        confirmResult = { data: null, error: retryError };
+        // All retries exhausted via proxy, attempt direct Supabase Edge Function call as fallback
+        console.error('Netlify proxy confirmation failed after all retries, attempting direct Supabase call:', retryError);
+        
+        try {
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+          const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+          
+          if (!supabaseUrl || !anonKey) {
+            throw new Error('Missing Supabase configuration for direct call fallback');
+          }
+
+          console.log('Attempting direct Supabase Edge Function call as fallback...');
+          const directResponse = await fetch(
+            `${supabaseUrl}/functions/v1/confirm-pending-tickets`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${anonKey}`,
+              },
+              body: JSON.stringify(confirmBody),
+            }
+          );
+
+          const directData = await directResponse.json();
+          
+          if (directResponse.ok && directData.success) {
+            console.log('✅ Direct Supabase call succeeded! Tickets confirmed via fallback.');
+            confirmResult = { data: directData, error: null };
+            confirmationSucceeded = true;
+          } else {
+            throw new Error(directData?.error || `Direct call failed: HTTP ${directResponse.status}`);
+          }
+        } catch (fallbackError) {
+          console.error('Direct Supabase call also failed:', fallbackError);
+          confirmResult = { data: null, error: retryError }; // Keep original error
+        }
       }
 
       if (!confirmationSucceeded) {
