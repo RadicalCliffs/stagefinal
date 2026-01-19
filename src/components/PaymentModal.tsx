@@ -576,9 +576,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         // Dispatch event to notify other components to refresh balance
         // CRITICAL: Pass the new balance from server response to avoid stale RPC data
         // The database write may not be immediately visible to read queries due to replication lag
-        window.dispatchEvent(new CustomEvent('balance-updated', {
-          detail: { newBalance: result.balanceAfterPurchase }
-        }));
+        // Only dispatch if we have valid balance data
+        if (result.balanceAfterPurchase !== undefined && result.balanceAfterPurchase !== null) {
+          window.dispatchEvent(new CustomEvent('balance-updated', {
+            detail: { newBalance: result.balanceAfterPurchase }
+          }));
+        }
         // Call success callback to refresh entries display
         if (onPaymentSuccess) {
           onPaymentSuccess();

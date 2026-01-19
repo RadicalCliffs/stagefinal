@@ -121,7 +121,8 @@ export async function purchaseTicketsWithBalance({
 
     // Dispatch balance-updated event so dashboard components refresh
     // This ensures entries and orders appear immediately after purchase
-    if (typeof window !== 'undefined') {
+    // Only dispatch if we have valid balance data
+    if (typeof window !== 'undefined' && data?.balanceAfterPurchase !== undefined) {
       window.dispatchEvent(new CustomEvent('balance-updated', {
         detail: {
           newBalance: data.balanceAfterPurchase,
@@ -567,7 +568,8 @@ export async function payWithBalance({
 
     // Dispatch balance-updated event for any local listeners
     // Note: The realtime-balance-broadcaster also sends wallet_balance_changed via Supabase broadcast
-    if (typeof window !== 'undefined' && data?.result) {
+    // Only dispatch if we have valid balance data
+    if (typeof window !== 'undefined' && data?.result?.new_balance !== undefined) {
       window.dispatchEvent(new CustomEvent('balance-updated', {
         detail: {
           newBalance: data.result.new_balance,

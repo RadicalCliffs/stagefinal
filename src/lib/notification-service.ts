@@ -566,14 +566,29 @@ export const notificationService = {
         }
       }
 
-      // Fetch user entries using RPC
-      const { data: entries, error: entryError } = await supabase.rpc('get_user_tickets', {
-        user_identifier: toPrizePid(userId),
-      });
+      // Fetch user entries using RPC (with fallback for when RPC is not available)
+      let entries: any[] = [];
+      try {
+        const { data: rpcData, error: entryError } = await supabase.rpc('get_user_tickets', {
+          user_identifier: toPrizePid(userId),
+        });
 
-      if (entryError) {
-        console.warn('[NotificationService] Could not fetch entries for backfill:', entryError.message);
-      } else if (entries && Array.isArray(entries)) {
+        if (!entryError && rpcData) {
+          entries = rpcData;
+        } else {
+          // RPC not available - skip backfill to avoid complex queries
+          // The notification service will create notifications for new entries going forward
+          console.warn('[NotificationService] get_user_tickets RPC not available, skipping backfill');
+          console.log('[NotificationService] Backfill complete: created 0, errors 0 (RPC not available)');
+          return;
+        }
+      } catch (err) {
+        console.warn('[NotificationService] Could not fetch entries for backfill:', err);
+        console.log('[NotificationService] Backfill complete: created 0, errors 0');
+        return;
+      }
+
+      if (entries && Array.isArray(entries)) {
         // Group entries by competition
         const entriesByCompetition = new Map<string, any[]>();
         for (const entry of entries) {

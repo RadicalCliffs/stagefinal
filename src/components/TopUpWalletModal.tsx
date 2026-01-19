@@ -372,9 +372,12 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
       setStep('success');
       await refreshUserData();
       // Dispatch event to update balance display
-      window.dispatchEvent(new CustomEvent('balance-updated', {
-        detail: { newBalance: result.newBalance }
-      }));
+      // Only dispatch if we have valid balance data
+      if (result.newBalance !== undefined && result.newBalance !== null) {
+        window.dispatchEvent(new CustomEvent('balance-updated', {
+          detail: { newBalance: result.newBalance }
+        }));
+      }
 
       // Send in-app notification for the successful top-up
       if (baseUser?.id) {
