@@ -13,7 +13,7 @@ export default function FilterTabs({
         <button
           key={option.key}
           onClick={() => onChange(option)}
-          className={`py-3 px-4 sm:px-6 lg:text-sm md:text-xs text-xs uppercase rounded-lg cursor-pointer transition-all duration-200
+          className={`py-3 px-3 sm:px-4 lg:px-6 lg:text-sm md:text-xs text-[11px] uppercase rounded-lg cursor-pointer transition-all duration-200 leading-tight
             ${
               active?.key === option.key
                 ? "bg-[#DDE404] sequel-75 text-[#1A1A1A] border-2 border-[#DDE404] shadow-lg shadow-[#DDE404]/20"

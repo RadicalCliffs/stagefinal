@@ -31,7 +31,7 @@ export default function Promo() {
         <div>
             <Heading text='PROMOTIONAL COMPETITIONS' classes='text-white sequel-95' />
             <p className='sequel-45 text-white text-center mt-6 sm:leading-relaxed leading-loose sm:w-10/12 mx-auto sm:text-base text-sm'>If you have been lucky enough to receive one of our <span className='sequel-75'>PROMOTIONAL CODES</span> for one of our competitions please enter it into the box to redeem your free entries. Good luck!</p>
-            <div className='bg-[#151515]  lg:py-14 xl:px-18 px-4 py-8 rounded-lg my-8 w-full'>
+            <div className='bg-[#151515] lg:py-14 xl:px-18 px-3 sm:px-4 py-6 sm:py-8 rounded-lg my-8 w-full'>
                 <div className="grid lg:grid-cols-2 gap-6  lg:max-h-max max-h-[600px] overflow-auto custom-scrollbar lg:pr-0 pr-2.5">
                     {promoCompetitions.length > 0 ? (
                         promoCompetitions.map((comp) => (
