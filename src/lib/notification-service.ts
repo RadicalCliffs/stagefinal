@@ -576,10 +576,9 @@ export const notificationService = {
         if (!entryError && rpcData) {
           entries = rpcData;
         } else {
-          // Fallback: Use database.getUserEntries which handles identity resolution
-          console.warn('[NotificationService] get_user_tickets RPC not available, using getUserEntries fallback');
-          // Skip the backfill if RPC is not available to avoid complex queries
+          // RPC not available - skip backfill to avoid complex queries
           // The notification service will create notifications for new entries going forward
+          console.warn('[NotificationService] get_user_tickets RPC not available, skipping backfill');
           console.log('[NotificationService] Backfill complete: created 0, errors 0 (RPC not available)');
           return;
         }
