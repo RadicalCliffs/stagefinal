@@ -117,7 +117,7 @@ supabase db push
      'User',
      'US',
      'testhandle',
-     'https://api.dicebear.com/7.x/bottts/svg?seed=testuser'
+     'https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Avatars/777btc_Avatars_EH-01.png'
    );
    ```
 
