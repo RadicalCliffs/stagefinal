@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { toPrizePid, isPrizePid } from '../utils/userId';
+import { VALID_AVATAR_FILENAMES, SUPABASE_AVATAR_BASE_URL, getAvatarUrl, getRandomAvatarUrl } from '../lib/avatarConstants';
 
 export interface UserDataAggregation {
   totalTickets: number;
@@ -15,54 +16,13 @@ export interface AvatarOption {
   isGenerated?: boolean;
 }
 
-// Avatar URLs from Supabase public storage bucket "Avatars"
-// These are the official 777btc avatars that are publicly accessible
-const SUPABASE_AVATAR_BASE_URL = 'https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Avatars';
-
 // Cache key for persisting avatar URL across page navigations
 const AVATAR_CACHE_KEY = 'user_avatar_cache';
 
-// All available avatars - using the correct 777btc naming convention (EH-01 through EH-33)
-const allAvatarFilenames = [
-  '777btc_Avatars_EH-01.png',
-  '777btc_Avatars_EH-02.png',
-  '777btc_Avatars_EH-03.png',
-  '777btc_Avatars_EH-04.png',
-  '777btc_Avatars_EH-05.png',
-  '777btc_Avatars_EH-06.png',
-  '777btc_Avatars_EH-07.png',
-  '777btc_Avatars_EH-08.png',
-  '777btc_Avatars_EH-09.png',
-  '777btc_Avatars_EH-10.png',
-  '777btc_Avatars_EH-11.png',
-  '777btc_Avatars_EH-12.png',
-  '777btc_Avatars_EH-13.png',
-  '777btc_Avatars_EH-14.png',
-  '777btc_Avatars_EH-15.png',
-  '777btc_Avatars_EH-16.png',
-  '777btc_Avatars_EH-17.png',
-  '777btc_Avatars_EH-18.png',
-  '777btc_Avatars_EH-19.png',
-  '777btc_Avatars_EH-20.png',
-  '777btc_Avatars_EH-21.png',
-  '777btc_Avatars_EH-22.png',
-  '777btc_Avatars_EH-23.png',
-  '777btc_Avatars_EH-24.png',
-  '777btc_Avatars_EH-25.png',
-  '777btc_Avatars_EH-26.png',
-  '777btc_Avatars_EH-27.png',
-  '777btc_Avatars_EH-28.png',
-  '777btc_Avatars_EH-29.png',
-  '777btc_Avatars_EH-30.png',
-  '777btc_Avatars_EH-31.png',
-  '777btc_Avatars_EH-32.png',
-  '777btc_Avatars_EH-33.png',
-];
-
 export const userDataService = {
-  // Get avatar URL from Supabase storage - using hardcoded base URL for reliability
+  // Get avatar URL from Supabase storage - using the shared constants module
   getAvatarUrl(avatarFileName: string): string {
-    return `${SUPABASE_AVATAR_BASE_URL}/${avatarFileName}`;
+    return getAvatarUrl(avatarFileName);
   },
 
   // Cache the avatar URL to localStorage to prevent visual swapping during navigation
@@ -107,19 +67,18 @@ export const userDataService = {
   // If you want a random avatar assigned once, call getRandomAvatar() during account creation only
   getDefaultAvatar(): string {
     // Return a consistent default avatar - the first one in the list
-    return this.getAvatarUrl(allAvatarFilenames[0]);
+    return this.getAvatarUrl(VALID_AVATAR_FILENAMES[0]);
   },
 
   // Get a random avatar - should only be called ONCE during account creation
   // Do NOT use this for getting current avatar display
   getRandomAvatar(): string {
-    const randomIndex = Math.floor(Math.random() * allAvatarFilenames.length);
-    return this.getAvatarUrl(allAvatarFilenames[randomIndex]);
+    return getRandomAvatarUrl();
   },
 
   // Get all available avatars for selection - using the 777btc avatars
   getAllAvatars(): AvatarOption[] {
-    return allAvatarFilenames.map((filename, index) => ({
+    return VALID_AVATAR_FILENAMES.map((filename, index) => ({
       name: filename,
       url: this.getAvatarUrl(filename),
       isDefault: index < 5, // First 5 are considered "default"

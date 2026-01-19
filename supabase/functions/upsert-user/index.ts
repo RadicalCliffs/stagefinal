@@ -7,7 +7,7 @@ const cors = {
 };
 
 // Avatar URLs from Supabase public storage bucket "Avatars"
-// These are the official 777btc avatars (EH-01 through EH-33)
+// These are the official 777btc avatars (EH-01 through EH-34)
 const SUPABASE_AVATAR_BASE_URL = 'https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Avatars';
 const AVATAR_FILENAMES = [
   '777btc_Avatars_EH-01.png', '777btc_Avatars_EH-02.png', '777btc_Avatars_EH-03.png',
@@ -21,6 +21,7 @@ const AVATAR_FILENAMES = [
   '777btc_Avatars_EH-25.png', '777btc_Avatars_EH-26.png', '777btc_Avatars_EH-27.png',
   '777btc_Avatars_EH-28.png', '777btc_Avatars_EH-29.png', '777btc_Avatars_EH-30.png',
   '777btc_Avatars_EH-31.png', '777btc_Avatars_EH-32.png', '777btc_Avatars_EH-33.png',
+  '777btc_Avatars_EH-34.png',
 ];
 
 // Get a random avatar URL from the Supabase storage bucket

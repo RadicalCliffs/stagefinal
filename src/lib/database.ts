@@ -29,6 +29,7 @@ import {
   monkeyNft,
   nft
 } from '../assets/images';
+import { VALID_AVATAR_FILENAMES, SUPABASE_AVATAR_BASE_URL } from './avatarConstants';
 
 // ISSUE #5 FIX: Visibility configuration is now centralized in src/lib/appConfig.ts
 // Use isCompetitionVisible() to check if a competition should be shown
@@ -428,51 +429,16 @@ export const database = {
         }
       }
 
-      const avatars = [
-        '777btc_Avatars_EH-02.png', '777btc_Avatars_EH-03.png', '777btc_Avatars_EH-05.png',
-        '777btc_Avatars_EH-06.png', '777btc_Avatars_EH-07.png', '777btc_Avatars_EH-08.png',
-        '777btc_Avatars_EH-09.png', '777btc_Avatars_EH-10.png', '777btc_Avatars_EH-11.png',
-        '777btc_Avatars_EH-12.png', '777btc_Avatars_EH-13.png', '777btc_Avatars_EH-14.png',
-        '777btc_Avatars_EH-15.png', '777btc_Avatars_EH-16.png', '777btc_Avatars_EH-17.png',
-        '777btc_Avatars_EH-18.png', '777btc_Avatars_EH-19.png', '777btc_Avatars_EH-20.png',
-        '777btc_Avatars_EH-21.png', '777btc_Avatars_EH-22.png', '777btc_Avatars_EH-23.png',
-        '777btc_Avatars_EH-24.png', '777btc_Avatars_EH-25.png', '777btc_Avatars_EH-26.png',
-        '777btc_Avatars_EH-27.png', '777btc_Avatars_EH-28.png', '777btc_Avatars_EH-29.png',
-        '777btc_Avatars_EH-30.png', '777btc_Avatars_EH-31.png', '777btc_Avatars_EH-32.png',
-        '777btc_Avatars_EH-33.png', '777btc_Avatars_EH-34.png', '777btc_Avatars_EH-35.png',
-        '777btc_Avatars_EH-36.png', '777btc_Avatars_EH-37.png', '777btc_Avatars_EH-38.png',
-        '777btc_Avatars_EH-39.png', '777btc_Avatars_EH-40.png', '777btc_Avatars_EH-41.png',
-        '777btc_Avatars_EH-42.png', '777btc_Avatars_EH-43.png', '777btc_Avatars_EH-44.png',
-        '777btc_Avatars_EH-45.png', '777btc_Avatars_EH-46.png', '777btc_Avatars_EH-47.png',
-        '777btc_Avatars_EH-48.png', '777btc_Avatars_EH-49.png', '777btc_Avatars_EH-50.png',
-        '777btc_Avatars_EH-51.png', '777btc_Avatars_EH-52.png', '777btc_Avatars_EH-53.png',
-        '777btc_Avatars_EH-54.png', '777btc_Avatars_EH-55.png', '777btc_Avatars_EH-56.png',
-        '777btc_Avatars_EH-57.png', '777btc_Avatars_EH-58.png', '777btc_Avatars_EH-59.png',
-        '777btc_Avatars_EH-60.png', '777btc_Avatars_EH-61.png', '777btc_Avatars_EH-62.png',
-        '777btc_Avatars_EH-63.png', '777btc_Avatars_EH-64.png', '777btc_Avatars_EH-65.png',
-        '777btc_Avatars_EH-66.png', '777btc_Avatars_EH-67.png', '777btc_Avatars_EH-68.png',
-        '777btc_Avatars_EH-69.png', '777btc_Avatars_EH-70.png', '777btc_Avatars_EH-71.png',
-        '777btc_Avatars_EH-72.png', '777btc_Avatars_EH-73.png', '777btc_Avatars_EH-74.png',
-        '777btc_Avatars_EH-75.png', '777btc_Avatars_EH-76.png', '777btc_Avatars_EH-77.png',
-        '777btc_Avatars_EH-78.png', '777btc_Avatars_EH-79.png', '777btc_Avatars_EH-80.png',
-        '777btc_Avatars_EH-81.png', '777btc_Avatars_EH-82.png', '777btc_Avatars_EH-83.png',
-        '777btc_Avatars_EH-84.png', '777btc_Avatars_EH-85.png', '777btc_Avatars_EH-86.png',
-        '777btc_Avatars_EH-87.png', '777btc_Avatars_EH-88.png', '777btc_Avatars_EH-89.png',
-        '777btc_Avatars_EH-90.png', '777btc_Avatars_EH-91.png',
-        'Default Avatar_EH-01.png', 'Default Avatar_EH-02.png', 'Default Avatar_EH-03.png',
-        'Default Avatar_EH-04.png', 'Default Avatar_EH-05.png'
-      ];
-
       let lastUsedAvatar = '';
       const getRandomAvatar = () => {
         let avatar;
         do {
-          const randomIndex = Math.floor(Math.random() * avatars.length);
-          avatar = avatars[randomIndex];
-        } while (avatar === lastUsedAvatar && avatars.length > 1);
+          const randomIndex = Math.floor(Math.random() * VALID_AVATAR_FILENAMES.length);
+          avatar = VALID_AVATAR_FILENAMES[randomIndex];
+        } while (avatar === lastUsedAvatar && VALID_AVATAR_FILENAMES.length > 1);
 
         lastUsedAvatar = avatar;
-        return `https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Avatars/${avatar}`;
+        return `${SUPABASE_AVATAR_BASE_URL}/${avatar}`;
       };
 
       // Helper to format date
@@ -611,51 +577,16 @@ export const database = {
       }
     }
 
-    const avatars = [
-      '777btc_Avatars_EH-02.png', '777btc_Avatars_EH-03.png', '777btc_Avatars_EH-05.png',
-      '777btc_Avatars_EH-06.png', '777btc_Avatars_EH-07.png', '777btc_Avatars_EH-08.png',
-      '777btc_Avatars_EH-09.png', '777btc_Avatars_EH-10.png', '777btc_Avatars_EH-11.png',
-      '777btc_Avatars_EH-12.png', '777btc_Avatars_EH-13.png', '777btc_Avatars_EH-14.png',
-      '777btc_Avatars_EH-15.png', '777btc_Avatars_EH-16.png', '777btc_Avatars_EH-17.png',
-      '777btc_Avatars_EH-18.png', '777btc_Avatars_EH-19.png', '777btc_Avatars_EH-20.png',
-      '777btc_Avatars_EH-21.png', '777btc_Avatars_EH-22.png', '777btc_Avatars_EH-23.png',
-      '777btc_Avatars_EH-24.png', '777btc_Avatars_EH-25.png', '777btc_Avatars_EH-26.png',
-      '777btc_Avatars_EH-27.png', '777btc_Avatars_EH-28.png', '777btc_Avatars_EH-29.png',
-      '777btc_Avatars_EH-30.png', '777btc_Avatars_EH-31.png', '777btc_Avatars_EH-32.png',
-      '777btc_Avatars_EH-33.png', '777btc_Avatars_EH-34.png', '777btc_Avatars_EH-35.png',
-      '777btc_Avatars_EH-36.png', '777btc_Avatars_EH-37.png', '777btc_Avatars_EH-38.png',
-      '777btc_Avatars_EH-39.png', '777btc_Avatars_EH-40.png', '777btc_Avatars_EH-41.png',
-      '777btc_Avatars_EH-42.png', '777btc_Avatars_EH-43.png', '777btc_Avatars_EH-44.png',
-      '777btc_Avatars_EH-45.png', '777btc_Avatars_EH-46.png', '777btc_Avatars_EH-47.png',
-      '777btc_Avatars_EH-48.png', '777btc_Avatars_EH-49.png', '777btc_Avatars_EH-50.png',
-      '777btc_Avatars_EH-51.png', '777btc_Avatars_EH-52.png', '777btc_Avatars_EH-53.png',
-      '777btc_Avatars_EH-54.png', '777btc_Avatars_EH-55.png', '777btc_Avatars_EH-56.png',
-      '777btc_Avatars_EH-57.png', '777btc_Avatars_EH-58.png', '777btc_Avatars_EH-59.png',
-      '777btc_Avatars_EH-60.png', '777btc_Avatars_EH-61.png', '777btc_Avatars_EH-62.png',
-      '777btc_Avatars_EH-63.png', '777btc_Avatars_EH-64.png', '777btc_Avatars_EH-65.png',
-      '777btc_Avatars_EH-66.png', '777btc_Avatars_EH-67.png', '777btc_Avatars_EH-68.png',
-      '777btc_Avatars_EH-69.png', '777btc_Avatars_EH-70.png', '777btc_Avatars_EH-71.png',
-      '777btc_Avatars_EH-72.png', '777btc_Avatars_EH-73.png', '777btc_Avatars_EH-74.png',
-      '777btc_Avatars_EH-75.png', '777btc_Avatars_EH-76.png', '777btc_Avatars_EH-77.png',
-      '777btc_Avatars_EH-78.png', '777btc_Avatars_EH-79.png', '777btc_Avatars_EH-80.png',
-      '777btc_Avatars_EH-81.png', '777btc_Avatars_EH-82.png', '777btc_Avatars_EH-83.png',
-      '777btc_Avatars_EH-84.png', '777btc_Avatars_EH-85.png', '777btc_Avatars_EH-86.png',
-      '777btc_Avatars_EH-87.png', '777btc_Avatars_EH-88.png', '777btc_Avatars_EH-89.png',
-      '777btc_Avatars_EH-90.png', '777btc_Avatars_EH-91.png',
-      'Default Avatar_EH-01.png', 'Default Avatar_EH-02.png', 'Default Avatar_EH-03.png',
-      'Default Avatar_EH-04.png', 'Default Avatar_EH-05.png'
-    ];
-
     let lastUsedAvatar = '';
     const getRandomAvatar = () => {
       let avatar;
       do {
-        const randomIndex = Math.floor(Math.random() * avatars.length);
-        avatar = avatars[randomIndex];
-      } while (avatar === lastUsedAvatar && avatars.length > 1);
+        const randomIndex = Math.floor(Math.random() * VALID_AVATAR_FILENAMES.length);
+        avatar = VALID_AVATAR_FILENAMES[randomIndex];
+      } while (avatar === lastUsedAvatar && VALID_AVATAR_FILENAMES.length > 1);
 
       lastUsedAvatar = avatar;
-      return `https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Avatars/${avatar}`;
+      return `${SUPABASE_AVATAR_BASE_URL}/${avatar}`;
     };
 
     // Helper to format date
@@ -1026,51 +957,16 @@ export const database = {
       return [];
     }
 
-    const avatars = [
-      '777btc_Avatars_EH-02.png', '777btc_Avatars_EH-03.png', '777btc_Avatars_EH-05.png',
-      '777btc_Avatars_EH-06.png', '777btc_Avatars_EH-07.png', '777btc_Avatars_EH-08.png',
-      '777btc_Avatars_EH-09.png', '777btc_Avatars_EH-10.png', '777btc_Avatars_EH-11.png',
-      '777btc_Avatars_EH-12.png', '777btc_Avatars_EH-13.png', '777btc_Avatars_EH-14.png',
-      '777btc_Avatars_EH-15.png', '777btc_Avatars_EH-16.png', '777btc_Avatars_EH-17.png',
-      '777btc_Avatars_EH-18.png', '777btc_Avatars_EH-19.png', '777btc_Avatars_EH-20.png',
-      '777btc_Avatars_EH-21.png', '777btc_Avatars_EH-22.png', '777btc_Avatars_EH-23.png',
-      '777btc_Avatars_EH-24.png', '777btc_Avatars_EH-25.png', '777btc_Avatars_EH-26.png',
-      '777btc_Avatars_EH-27.png', '777btc_Avatars_EH-28.png', '777btc_Avatars_EH-29.png',
-      '777btc_Avatars_EH-30.png', '777btc_Avatars_EH-31.png', '777btc_Avatars_EH-32.png',
-      '777btc_Avatars_EH-33.png', '777btc_Avatars_EH-34.png', '777btc_Avatars_EH-35.png',
-      '777btc_Avatars_EH-36.png', '777btc_Avatars_EH-37.png', '777btc_Avatars_EH-38.png',
-      '777btc_Avatars_EH-39.png', '777btc_Avatars_EH-40.png', '777btc_Avatars_EH-41.png',
-      '777btc_Avatars_EH-42.png', '777btc_Avatars_EH-43.png', '777btc_Avatars_EH-44.png',
-      '777btc_Avatars_EH-45.png', '777btc_Avatars_EH-46.png', '777btc_Avatars_EH-47.png',
-      '777btc_Avatars_EH-48.png', '777btc_Avatars_EH-49.png', '777btc_Avatars_EH-50.png',
-      '777btc_Avatars_EH-51.png', '777btc_Avatars_EH-52.png', '777btc_Avatars_EH-53.png',
-      '777btc_Avatars_EH-54.png', '777btc_Avatars_EH-55.png', '777btc_Avatars_EH-56.png',
-      '777btc_Avatars_EH-57.png', '777btc_Avatars_EH-58.png', '777btc_Avatars_EH-59.png',
-      '777btc_Avatars_EH-60.png', '777btc_Avatars_EH-61.png', '777btc_Avatars_EH-62.png',
-      '777btc_Avatars_EH-63.png', '777btc_Avatars_EH-64.png', '777btc_Avatars_EH-65.png',
-      '777btc_Avatars_EH-66.png', '777btc_Avatars_EH-67.png', '777btc_Avatars_EH-68.png',
-      '777btc_Avatars_EH-69.png', '777btc_Avatars_EH-70.png', '777btc_Avatars_EH-71.png',
-      '777btc_Avatars_EH-72.png', '777btc_Avatars_EH-73.png', '777btc_Avatars_EH-74.png',
-      '777btc_Avatars_EH-75.png', '777btc_Avatars_EH-76.png', '777btc_Avatars_EH-77.png',
-      '777btc_Avatars_EH-78.png', '777btc_Avatars_EH-79.png', '777btc_Avatars_EH-80.png',
-      '777btc_Avatars_EH-81.png', '777btc_Avatars_EH-82.png', '777btc_Avatars_EH-83.png',
-      '777btc_Avatars_EH-84.png', '777btc_Avatars_EH-85.png', '777btc_Avatars_EH-86.png',
-      '777btc_Avatars_EH-87.png', '777btc_Avatars_EH-88.png', '777btc_Avatars_EH-89.png',
-      '777btc_Avatars_EH-90.png', '777btc_Avatars_EH-91.png',
-      'Default Avatar_EH-01.png', 'Default Avatar_EH-02.png', 'Default Avatar_EH-03.png',
-      'Default Avatar_EH-04.png', 'Default Avatar_EH-05.png'
-    ];
-
     let lastUsedAvatar = '';
     const getRandomAvatar = () => {
       let avatar;
       do {
-        const randomIndex = Math.floor(Math.random() * avatars.length);
-        avatar = avatars[randomIndex];
-      } while (avatar === lastUsedAvatar && avatars.length > 1);
+        const randomIndex = Math.floor(Math.random() * VALID_AVATAR_FILENAMES.length);
+        avatar = VALID_AVATAR_FILENAMES[randomIndex];
+      } while (avatar === lastUsedAvatar && VALID_AVATAR_FILENAMES.length > 1);
 
       lastUsedAvatar = avatar;
-      return `https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Avatars/${avatar}`;
+      return `${SUPABASE_AVATAR_BASE_URL}/${avatar}`;
     };
 
     // Default placeholder image when no competition image is available
