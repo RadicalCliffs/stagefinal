@@ -12,7 +12,11 @@ import { useRealTimeBalance } from '../hooks/useRealTimeBalance'
 // Lazy load TopUpWalletModal - only loaded when user clicks "Top Up"
 const TopUpWalletModal = lazy(() => import('./TopUpWalletModal'))
 
-const LoggedInUserBtn = () => {
+interface LoggedInUserBtnProps {
+  fullWidth?: boolean;
+}
+
+const LoggedInUserBtn = ({ fullWidth = false }: LoggedInUserBtnProps) => {
   const { profile, entryCount, linkedWallets, isLoading, refreshUserData, logout, baseUser } = useAuthUser();
   // Use real-time balance from useRealTimeBalance for live updates instead of walletBalance from AuthContext
   // walletBalance from AuthContext only updates on refresh, while useRealTimeBalance has Supabase subscriptions
@@ -179,10 +183,10 @@ const LoggedInUserBtn = () => {
   }, [baseUser]);
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className={`relative ${fullWidth ? 'w-full' : ''}`} ref={dropdownRef}>
       {/* Main Button - responsive sizing for mobile */}
       <div
-        className="bg-[#DDE404] overflow-hidden rounded-lg cursor-pointer relative hover:bg-[#DDE404]/90 transition-colors"
+        className={`bg-[#DDE404] overflow-hidden rounded-lg cursor-pointer relative hover:bg-[#DDE404]/90 transition-colors ${fullWidth ? 'w-full' : ''}`}
         onClick={() => setShowDropdown(!showDropdown)}
       >
         {unreadCount > 0 && (
@@ -190,13 +194,13 @@ const LoggedInUserBtn = () => {
             {unreadCount > 99 ? '99+' : unreadCount}
           </div>
         )}
-        <div className="flex items-stretch">
+        <div className={`flex items-stretch ${fullWidth ? 'justify-between' : ''}`}>
           <div className="px-1 sm:px-1.5 py-1 flex items-center border-r border-[#1A1A1A]/10">
             <img src={avatarUrl} alt="avatar" className="w-8 h-8 sm:w-10 sm:h-10 rounded-md object-cover" crossOrigin="anonymous" referrerPolicy="no-referrer" onError={() => setAvatarError(true)} />
           </div>
-          <div className="flex flex-col justify-center px-2 sm:px-3 py-1 sm:py-1.5">
+          <div className={`flex flex-col justify-center px-2 sm:px-3 py-1 sm:py-1.5 ${fullWidth ? 'flex-1' : ''}`}>
             <div className="flex items-center gap-1 sm:gap-1.5">
-              <span className="sequel-75 text-[#1A1A1A] text-[10px] sm:text-xs max-w-[80px] sm:max-w-none truncate">{displayName}</span>
+              <span className={`sequel-75 text-[#1A1A1A] text-[10px] sm:text-xs truncate ${fullWidth ? 'max-w-none' : 'max-w-[80px] sm:max-w-none'}`}>{displayName}</span>
               <ChevronRight size={12} className={`text-[#1A1A1A] transition-transform flex-shrink-0 sm:w-[14px] sm:h-[14px] ${showDropdown ? 'rotate-90' : ''}`} />
             </div>
             <div className="flex items-center gap-1 sm:gap-1.5 mt-0.5">

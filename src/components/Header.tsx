@@ -165,9 +165,9 @@ const Header: React.FC = () => {
               {/* Login/Logout section */}
               {isLoggedIn ? (
                 <div className="mt-8 flex flex-col items-center gap-4 px-8 sm:px-0">
-                  {/* Show LoggedInUserBtn for account info */}
-                  <div className="w-full flex justify-center">
-                    <LoggedInUserBtn />
+                  {/* Show LoggedInUserBtn for account info - full width on mobile */}
+                  <div className="w-full sm:w-auto">
+                    <LoggedInUserBtn fullWidth />
                   </div>
                   {/* Dedicated mobile logout button for easier access */}
                   <button
