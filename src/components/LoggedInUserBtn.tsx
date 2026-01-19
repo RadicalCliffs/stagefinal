@@ -180,53 +180,53 @@ const LoggedInUserBtn = () => {
 
   return (
     <div className="relative" ref={dropdownRef}>
-      {/* Main Button */}
+      {/* Main Button - responsive sizing for mobile */}
       <div
         className="bg-[#DDE404] overflow-hidden rounded-lg cursor-pointer relative hover:bg-[#DDE404]/90 transition-colors"
         onClick={() => setShowDropdown(!showDropdown)}
       >
         {unreadCount > 0 && (
-          <div className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full min-w-[20px] h-[20px] flex items-center justify-center text-xs sequel-75 px-1 z-10 border-2 border-[#1A1A1A]">
+          <div className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full min-w-[18px] h-[18px] sm:min-w-[20px] sm:h-[20px] flex items-center justify-center text-[10px] sm:text-xs sequel-75 px-1 z-10 border-2 border-[#1A1A1A]">
             {unreadCount > 99 ? '99+' : unreadCount}
           </div>
         )}
         <div className="flex items-stretch">
-          <div className="px-1.5 py-1 flex items-center border-r border-[#1A1A1A]/10">
-            <img src={avatarUrl} alt="avatar" className="w-10 h-10 rounded-md object-cover" crossOrigin="anonymous" referrerPolicy="no-referrer" onError={() => setAvatarError(true)} />
+          <div className="px-1 sm:px-1.5 py-1 flex items-center border-r border-[#1A1A1A]/10">
+            <img src={avatarUrl} alt="avatar" className="w-8 h-8 sm:w-10 sm:h-10 rounded-md object-cover" crossOrigin="anonymous" referrerPolicy="no-referrer" onError={() => setAvatarError(true)} />
           </div>
-          <div className="flex flex-col justify-center px-3 py-1.5">
-            <div className="flex items-center gap-1.5">
-              <span className="sequel-75 text-[#1A1A1A] text-xs">{displayName}</span>
-              <ChevronRight size={14} className={`text-[#1A1A1A] transition-transform ${showDropdown ? 'rotate-90' : ''}`} />
+          <div className="flex flex-col justify-center px-2 sm:px-3 py-1 sm:py-1.5">
+            <div className="flex items-center gap-1 sm:gap-1.5">
+              <span className="sequel-75 text-[#1A1A1A] text-[10px] sm:text-xs max-w-[80px] sm:max-w-none truncate">{displayName}</span>
+              <ChevronRight size={12} className={`text-[#1A1A1A] transition-transform flex-shrink-0 sm:w-[14px] sm:h-[14px] ${showDropdown ? 'rotate-90' : ''}`} />
             </div>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <WalletCards size={14} className="text-[#1A1A1A]" />
-              <span className="sequel-95 text-[#1A1A1A] text-sm">${realTimeLoading ? '...' : realTimeBalance.toFixed(2)}</span>
+            <div className="flex items-center gap-1 sm:gap-1.5 mt-0.5">
+              <WalletCards size={12} className="text-[#1A1A1A] flex-shrink-0 sm:w-[14px] sm:h-[14px]" />
+              <span className="sequel-95 text-[#1A1A1A] text-xs sm:text-sm">${realTimeLoading ? '...' : realTimeBalance.toFixed(2)}</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Dropdown Menu - Improved mobile and desktop design */}
+      {/* Dropdown Menu - Improved mobile and desktop responsive design */}
       {showDropdown && (
         <>
           {/* Mobile overlay backdrop */}
           <div className="fixed inset-0 bg-black/50 z-[99] sm:hidden" onClick={() => setShowDropdown(false)} />
 
-          <div className="fixed sm:absolute inset-x-0 sm:inset-x-auto bottom-0 sm:bottom-auto sm:top-full sm:right-0 sm:mt-2 bg-[#1A1A1A] rounded-t-2xl sm:rounded-xl shadow-2xl z-[100] w-full sm:w-[380px] md:w-[420px] border border-[#2A2A2A] overflow-hidden max-h-[85vh] sm:max-h-[80vh] flex flex-col">
+          <div className="fixed sm:absolute inset-x-0 sm:inset-x-auto bottom-0 sm:bottom-auto sm:top-full sm:right-0 sm:mt-2 bg-[#1A1A1A] rounded-t-2xl sm:rounded-xl shadow-2xl z-[100] w-full sm:w-[340px] md:w-[380px] lg:w-[420px] border border-[#2A2A2A] overflow-hidden max-h-[90vh] sm:max-h-[80vh] flex flex-col safe-area-inset-bottom">
           {/* Mobile drag handle */}
-          <div className="sm:hidden w-full py-2 flex justify-center">
-            <div className="w-12 h-1 bg-white/20 rounded-full"></div>
+          <div className="sm:hidden w-full py-3 flex justify-center touch-pan-y">
+            <div className="w-12 h-1.5 bg-white/30 rounded-full"></div>
           </div>
 
-          {/* Header */}
-          <div className="bg-gradient-to-r from-[#2A2A2A] to-[#232323] p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-              <img src={avatarUrl} alt="avatar" className="w-12 h-12 rounded-lg object-cover border-2 border-[#DDE404]" crossOrigin="anonymous" referrerPolicy="no-referrer" onError={() => setAvatarError(true)} />
+          {/* Header - responsive padding and avatar sizes */}
+          <div className="bg-gradient-to-r from-[#2A2A2A] to-[#232323] p-3 sm:p-4 flex items-center justify-between">
+            <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+              <img src={avatarUrl} alt="avatar" className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover border-2 border-[#DDE404] flex-shrink-0" crossOrigin="anonymous" referrerPolicy="no-referrer" onError={() => setAvatarError(true)} />
               <div className="flex-1 min-w-0">
-                <p className="sequel-95 text-white text-sm truncate">{displayName}</p>
-                <p className="sequel-45 text-white/60 text-xs mt-0.5 truncate">{primaryEmail || truncateString(primaryWallet?.address, 16)}</p>
-                <p className="sequel-45 text-[#DDE404] text-xs mt-0.5">{entryCount} active entries</p>
+                <p className="sequel-95 text-white text-xs sm:text-sm truncate">{displayName}</p>
+                <p className="sequel-45 text-white/60 text-[10px] sm:text-xs mt-0.5 truncate">{primaryEmail || truncateString(primaryWallet?.address, 12)}</p>
+                <p className="sequel-45 text-[#DDE404] text-[10px] sm:text-xs mt-0.5">{entryCount} active entries</p>
               </div>
             </div>
             <button
@@ -234,20 +234,21 @@ const LoggedInUserBtn = () => {
                 e.stopPropagation();
                 setShowDropdown(false);
               }}
-              className="text-gray-400 hover:text-white p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+              className="text-gray-400 hover:text-white p-2 sm:p-1.5 hover:bg-white/10 rounded-lg transition-colors -mr-1 sm:mr-0"
+              aria-label="Close menu"
             >
-              <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="sm:w-[18px] sm:h-[18px]">
                 <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
               </svg>
             </button>
           </div>
 
-          {/* Account Balance - Prominent Display */}
-          <div className="p-4 bg-[#DDE404]/5 border-b border-[#2A2A2A]">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="sequel-45 text-white/60 text-xs uppercase">Account Balance</p>
-                <p className="sequel-95 text-[#DDE404] text-3xl mt-1">
+          {/* Account Balance - Prominent Display with responsive sizing */}
+          <div className="p-3 sm:p-4 bg-[#DDE404]/5 border-b border-[#2A2A2A]">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="sequel-45 text-white/60 text-[10px] sm:text-xs uppercase">Account Balance</p>
+                <p className="sequel-95 text-[#DDE404] text-2xl sm:text-3xl mt-0.5 sm:mt-1">
                   ${realTimeLoading ? '...' : realTimeBalance.toFixed(2)}
                 </p>
               </div>
@@ -256,26 +257,26 @@ const LoggedInUserBtn = () => {
                   e.stopPropagation();
                   setShowTopUpModal(true);
                 }}
-                className="bg-[#DDE404] hover:bg-[#DDE404]/90 text-[#1A1A1A] sequel-75 text-sm px-4 py-2.5 rounded-lg transition-colors flex items-center gap-2"
+                className="bg-[#DDE404] hover:bg-[#DDE404]/90 text-[#1A1A1A] sequel-75 text-xs sm:text-sm px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg transition-colors flex items-center gap-1.5 sm:gap-2 flex-shrink-0"
               >
-                <Plus size={16} />
-                Top Up
+                <Plus size={14} className="sm:w-4 sm:h-4" />
+                <span>Top Up</span>
               </button>
             </div>
           </div>
 
-          {/* Quick Actions */}
-          <div className="p-3 grid grid-cols-2 gap-2 border-b border-[#2A2A2A]">
+          {/* Quick Actions - responsive grid */}
+          <div className="p-2 sm:p-3 grid grid-cols-2 gap-2 border-b border-[#2A2A2A]">
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 setShowDropdown(false);
                 navigate('/dashboard');
               }}
-              className="flex items-center gap-2 px-3 py-2.5 bg-[#2A2A2A] hover:bg-[#3A3A3A] rounded-lg transition-colors"
+              className="flex items-center justify-center sm:justify-start gap-2 px-3 py-3 sm:py-2.5 bg-[#2A2A2A] hover:bg-[#3A3A3A] rounded-lg transition-colors active:scale-[0.98]"
             >
               <LayoutDashboard size={18} className="text-[#DDE404]" />
-              <span className="sequel-75 text-white text-xs">Dashboard</span>
+              <span className="sequel-75 text-white text-[11px] sm:text-xs">Dashboard</span>
             </button>
             <button
               onClick={(e) => {
@@ -283,10 +284,10 @@ const LoggedInUserBtn = () => {
                 setShowDropdown(false);
                 navigate('/dashboard/notifications');
               }}
-              className="flex items-center gap-2 px-3 py-2.5 bg-[#2A2A2A] hover:bg-[#3A3A3A] rounded-lg transition-colors relative"
+              className="flex items-center justify-center sm:justify-start gap-2 px-3 py-3 sm:py-2.5 bg-[#2A2A2A] hover:bg-[#3A3A3A] rounded-lg transition-colors relative active:scale-[0.98]"
             >
               <Bell size={18} className="text-[#DDE404]" />
-              <span className="sequel-75 text-white text-xs">Notifications</span>
+              <span className="sequel-75 text-white text-[11px] sm:text-xs">Notifications</span>
               {unreadCount > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center text-[10px] sequel-75">
                   {unreadCount > 99 ? '99+' : unreadCount}
@@ -295,11 +296,11 @@ const LoggedInUserBtn = () => {
             </button>
           </div>
 
-          {/* Connected Wallets - scrollable section */}
-          <div className="p-4 flex-1 overflow-y-auto">
-            <div className="flex items-center justify-between mb-3">
-              <span className="sequel-75 text-white text-sm">Connected Wallets</span>
-              <span className="sequel-45 text-white/40 text-xs">{connectedWallets.length} connected</span>
+          {/* Connected Wallets - scrollable section with responsive padding */}
+          <div className="p-3 sm:p-4 flex-1 overflow-y-auto overscroll-contain">
+            <div className="flex items-center justify-between mb-2 sm:mb-3">
+              <span className="sequel-75 text-white text-xs sm:text-sm">Connected Wallets</span>
+              <span className="sequel-45 text-white/40 text-[10px] sm:text-xs">{connectedWallets.length} connected</span>
             </div>
 
             {connectedWallets.length > 0 ? (
@@ -439,14 +440,14 @@ const LoggedInUserBtn = () => {
 
           </div>
 
-          {/* Action Buttons */}
-          <div className="p-3 border-t border-[#2A2A2A] space-y-2">
+          {/* Action Buttons - responsive with safe area for mobile */}
+          <div className="p-3 sm:p-3 border-t border-[#2A2A2A] space-y-2 pb-4 sm:pb-3">
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 alert('Export wallet functionality coming soon');
               }}
-              className="w-full bg-[#2A2A2A] hover:bg-[#3A3A3A] text-white sequel-75 py-2.5 rounded-lg transition-colors text-sm"
+              className="w-full bg-[#2A2A2A] hover:bg-[#3A3A3A] text-white sequel-75 py-3 sm:py-2.5 rounded-lg transition-colors text-sm active:scale-[0.98]"
             >
               Export Wallet
             </button>
@@ -455,7 +456,7 @@ const LoggedInUserBtn = () => {
                 e.stopPropagation();
                 handleLogout();
               }}
-              className="w-full bg-[#EF008F] hover:bg-[#EF008F]/90 text-white sequel-95 uppercase py-2.5 rounded-lg transition-colors text-sm"
+              className="w-full bg-[#EF008F] hover:bg-[#EF008F]/90 text-white sequel-95 uppercase py-3 sm:py-2.5 rounded-lg transition-colors text-sm active:scale-[0.98]"
             >
               Log Out
             </button>

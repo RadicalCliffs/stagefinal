@@ -111,11 +111,12 @@ async function linkWalletToExistingUser(email: string, walletAddress: string): P
     const normalizedEmail = email.toLowerCase().trim();
     const canonicalUserId = toPrizePid(walletAddress);
 
-    // Find user by email
+    // Find user by email (case-insensitive)
+    // CRITICAL: Use ilike for case-insensitive matching to find pre-created users
     const { data: existingUser, error: fetchError } = await supabase
       .from('canonical_users')
       .select('id, username, email, country, first_name, last_name')
-      .eq('email', normalizedEmail)
+      .ilike('email', normalizedEmail)
       .maybeSingle();
 
     if (fetchError) {
@@ -210,11 +211,11 @@ async function saveUserWithProfile(email: string, walletAddress: string, profile
       telegram_handle: profile.socialProfiles || null,
     };
 
-    // Check if user exists by email first
+    // Check if user exists by email first (case-insensitive)
     const { data: existingUser } = await supabase
       .from('canonical_users')
       .select('id')
-      .eq('email', normalizedEmail)
+      .ilike('email', normalizedEmail)
       .maybeSingle();
 
     let saveSuccess = false;
