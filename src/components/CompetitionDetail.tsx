@@ -8,6 +8,19 @@ import FinishedCompetition from './FinishedCompetition/FinishedCompetition';
 import type { Competition } from '../models/models';
 import { isFinalState } from './CompetitionStatusIndicator';
 
+// Helper to check if a competition is sold out
+const isSoldOut = (competition: Competition): boolean => {
+  const totalTickets = competition.total_tickets || 0;
+  const ticketsSold = competition.tickets_sold || 0;
+  return totalTickets > 0 && ticketsSold >= totalTickets;
+};
+
+// Helper to check if competition has ended (end_date passed)
+const hasEnded = (competition: Competition): boolean => {
+  if (!competition.end_date) return false;
+  const endDate = new Date(competition.end_date);
+  return endDate <= new Date();
+};
 
 
 const CompetitionDetail = () => {
@@ -53,8 +66,9 @@ const CompetitionDetail = () => {
   }
 
   // Route to FinishedCompetition for all terminal states (drawn, completed, cancelled, expired)
+  // Also route to FinishedCompetition for sold-out or ended competitions
   // This prevents users from interacting with ticket purchase UI for ended competitions
-  if (isFinalState(competition.status)) {
+  if (isFinalState(competition.status) || isSoldOut(competition) || hasEnded(competition)) {
     return <FinishedCompetition competition={competition}/>;
   }
 

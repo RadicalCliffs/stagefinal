@@ -52,14 +52,23 @@ export function useCompetitions() {
 
       // Filter out competitions that have ended (end_date has passed)
       // These should be shown in "drawn" section even if status hasn't been updated yet
+      // Also filter out sold-out competitions
       const stillActiveComps = activeComps.filter(comp => {
+        // Check if sold out
+        const isSoldOut = (comp.total_tickets || 0) > 0 && (comp.tickets_sold || 0) >= (comp.total_tickets || 0);
+        if (isSoldOut) return false; // Move sold-out to drawn section
+
         if (!comp.end_date) return true; // No end date = still active
         const endDate = new Date(comp.end_date);
         return endDate > now; // Only include if end date is in the future
       });
 
-      // Competitions that are "active" but have passed their end_date
+      // Competitions that are "active" but have passed their end_date OR are sold out
       const expiredActiveComps = activeComps.filter(comp => {
+        // Check if sold out
+        const isSoldOut = (comp.total_tickets || 0) > 0 && (comp.tickets_sold || 0) >= (comp.total_tickets || 0);
+        if (isSoldOut) return true; // Include sold-out competitions
+
         if (!comp.end_date) return false;
         const endDate = new Date(comp.end_date);
         return endDate <= now;

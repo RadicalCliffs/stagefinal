@@ -37,14 +37,45 @@ const EntriesTable: React.FC<EntriesTableProps> = ({ entries, itemsPerPage = 20 
 
     // Format username from wallet address or use provided username
     const formatUsername = (walletAddress: string, username?: string): string => {
-        if (username && username !== 'Unknown' && username !== walletAddress) {
+        // If we have a valid username that's not a placeholder, use it
+        if (username && username !== 'Unknown' && username !== 'Anonymous' && username !== walletAddress) {
             return username;
         }
-        if (!walletAddress || walletAddress === 'Unknown') return 'Anonymous';
+        // If wallet address is missing or placeholder, show Anonymous
+        if (!walletAddress || walletAddress === 'Unknown' || walletAddress === 'Anonymous') return 'Anonymous';
+        // If it's a wallet address, format it nicely
         if (walletAddress.startsWith('0x') && walletAddress.length >= 10) {
             return `${walletAddress.substring(0, 6)}...${walletAddress.slice(-4)}`;
         }
+        // If it's a canonical user ID (prize:pid:), extract and format the address part
+        if (walletAddress.startsWith('prize:pid:')) {
+            const addressPart = walletAddress.substring(10); // Remove 'prize:pid:' prefix
+            if (addressPart.startsWith('0x') && addressPart.length >= 10) {
+                return `${addressPart.substring(0, 6)}...${addressPart.slice(-4)}`;
+            }
+            return addressPart.substring(0, 10) + '...';
+        }
         return walletAddress.substring(0, 10);
+    };
+
+    // Format wallet address for display
+    const formatWalletAddress = (walletAddress: string): string => {
+        if (!walletAddress || walletAddress === 'Unknown' || walletAddress === 'Anonymous') {
+            return 'Unknown';
+        }
+        // If it's already a 0x address, format it
+        if (walletAddress.startsWith('0x') && walletAddress.length >= 10) {
+            return `${walletAddress.substring(0, 6)}...${walletAddress.slice(-4)}`;
+        }
+        // If it's a canonical user ID, extract the address part
+        if (walletAddress.startsWith('prize:pid:')) {
+            const addressPart = walletAddress.substring(10);
+            if (addressPart.startsWith('0x') && addressPart.length >= 10) {
+                return `${addressPart.substring(0, 6)}...${addressPart.slice(-4)}`;
+            }
+        }
+        // Return truncated version for other formats
+        return walletAddress.length > 12 ? `${walletAddress.substring(0, 10)}...` : walletAddress;
     };
 
     // Copy BaseScan URL to clipboard (not the hash itself)
@@ -135,6 +166,7 @@ const EntriesTable: React.FC<EntriesTableProps> = ({ entries, itemsPerPage = 20 
                 <div className="sm:max-h-full overflow-auto max-h-[300px] custom-scrollbar space-y-4 ">
                     {currentEntries.map((entry, index) => {
                         const username = formatUsername(entry.walletAddress, entry.username);
+                        const displayWallet = formatWalletAddress(entry.walletAddress);
 
                         return (
                             <div key={index}>
@@ -142,7 +174,7 @@ const EntriesTable: React.FC<EntriesTableProps> = ({ entries, itemsPerPage = 20 
                                 <div className="hidden sm:grid grid-cols-4 text-white sequel-45 items-center">
                                     <p className="text-white/60">{entry.ticketNumber}</p>
                                     <p className="text-white/60">{username}</p>
-                                    <p className="text-white/60 truncate max-w-[180px]">{entry.walletAddress}</p>
+                                    <p className="text-white/60 truncate max-w-[180px]" title={entry.walletAddress}>{displayWallet}</p>
                                     {renderVRFHash(entry)}
                                 </div>
 
@@ -158,7 +190,7 @@ const EntriesTable: React.FC<EntriesTableProps> = ({ entries, itemsPerPage = 20 
                                     </div>
                                     <div className="flex justify-between gap-4">
                                         <p className="text-white/60">Wallet</p>
-                                        <p className="text-white truncate max-w-[160px] text-right">{entry.walletAddress}</p>
+                                        <p className="text-white truncate max-w-[160px] text-right" title={entry.walletAddress}>{displayWallet}</p>
                                     </div>
                                     <div className="flex justify-between gap-4 items-center">
                                         <p className="text-white/60">VRF Hash</p>
