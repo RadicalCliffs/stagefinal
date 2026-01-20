@@ -18,6 +18,7 @@ const Footer = () => {
         { name: "Competitions", path: "/competitions" },
         { name: "How to Play", path: "/how-to-play" },
         { name: "Winners", path: "/winners" },
+        { name: "About", path: "/about" },
     ];
 
     return (

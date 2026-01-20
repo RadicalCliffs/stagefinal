@@ -17,7 +17,7 @@ const AvatarImg = ({ src, alt, className }: { src: string; alt: string; classNam
 };
 
 export default function ActivityTable({ data }: { data: TableRow[] }) {
-  const [displayCount, setDisplayCount] = useState(10);
+  const [displayCount, setDisplayCount] = useState(6);
 
   const visibleData = data.slice(0, displayCount);
   const hasMore = data.length > displayCount;
