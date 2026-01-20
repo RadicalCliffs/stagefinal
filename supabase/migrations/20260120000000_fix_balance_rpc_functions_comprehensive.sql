@@ -226,7 +226,7 @@ BEGIN
     v_previous_balance,
     v_new_balance,
     p_reference_id,
-    COALESCE(p_description, 'Balance credit'),
+    COALESCE(p_description, 'Account balance credited'),
     NOW()
   );
 
@@ -347,7 +347,7 @@ BEGIN
     v_previous_balance,
     v_new_balance,
     p_reference_id,
-    COALESCE(p_description, 'Balance debit'),
+    COALESCE(p_description, 'Account balance debited'),
     NOW()
   );
 
