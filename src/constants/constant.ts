@@ -1,68 +1,14 @@
 import {
   crown,
   individualFairDrawBg,
-  monkeyNftV3,
   rocket,
   ticket,
 } from "../assets/images";
 import type {
-  EntryCard,
   Faq,
   Step,
   WinnerCardProps,
 } from "../models/models";
-
-// Placeholder entries for user dashboard display until live data is populated
-export const MOCK_ENTRIES: EntryCard[] = [
-  {
-    id: 1,
-    title: "BAYC NFT",
-    description:
-      "Rev up your excitement! Enter our car raffle for a chance to win the sleek and",
-    image: monkeyNftV3,
-    status: "win",
-  },
-  {
-    id: 2,
-    title: "Tesla Model Y",
-    description:
-      "Join the draw for a chance to win the brand new Tesla Model Y — fully electric and sleek.",
-    image: monkeyNftV3,
-    status: "loss",
-  },
-  {
-    id: 3,
-    title: "MacBook Pro 16 inch",
-    description:
-      "Upgrade your setup! Participate to win a MacBook Pro with M3 Max performance.",
-    image: monkeyNftV3,
-    status: "win",
-  },
-  {
-    id: 4,
-    title: "Dubai Luxury Trip",
-    description:
-      "A 7-day all-inclusive trip to Dubai for two — win your dream vacation!",
-    image: monkeyNftV3,
-    status: "loss",
-  },
-  {
-    id: 5,
-    title: "PlayStation 5 Bundle",
-    description:
-      "Join to win a PlayStation 5 bundle with extra controllers and top games.",
-    image: monkeyNftV3,
-    status: "win",
-  },
-  {
-    id: 6,
-    title: "iPhone 15 Pro",
-    description:
-      "Win Apple's latest iPhone 15 Pro with cutting-edge titanium finish.",
-    image: monkeyNftV3,
-    status: "loss",
-  },
-];
 
 // Static content for "How it works" section
 export const steps: Step[] = [
