@@ -2234,6 +2234,10 @@ export const database = {
               ticket_count,
               payment_status,
               tx_id,
+              order_id,
+              charge_id,
+              charge_code,
+              tx_ref,
               created_at,
               canonical_user_id,
               competitions (
@@ -2271,7 +2275,8 @@ export const database = {
                 amount_spent: tx.amount,
                 purchase_date: tx.created_at,
                 wallet_address: tx.wallet_address || identity.walletAddress,
-                transaction_hash: tx.tx_id,
+                // Balance payments won't have tx_id, so generate from charge_id, charge_code, tx_ref, or order_id
+                transaction_hash: tx.tx_id || tx.charge_id || tx.charge_code || tx.tx_ref || tx.order_id || null,
                 is_instant_win: comp?.is_instant_win || false,
                 prize_value: comp?.prize_value,
                 competition_status: comp?.status || 'active',

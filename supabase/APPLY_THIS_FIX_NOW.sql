@@ -304,7 +304,8 @@ BEGIN
     COALESCE(ut.ticket_count, 0)::INTEGER AS total_tickets,
     COALESCE(ut.amount, 0) AS total_amount_spent,
     ut.created_at AS purchase_date,
-    ut.tx_id AS transaction_hash,
+    -- Balance payments won't have tx_id, so generate from charge_id, charge_code, tx_ref, or order_id
+    COALESCE(ut.tx_id, ut.charge_id, ut.charge_code, ut.tx_ref, ut.order_id) AS transaction_hash,
     COALESCE(c.is_instant_win, FALSE) AS is_instant_win,
     c.prize_value AS prize_value,
     COALESCE(c.status, 'completed') AS competition_status,
