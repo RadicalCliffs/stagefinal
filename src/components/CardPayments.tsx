@@ -2,11 +2,11 @@ import { applePay, bancontactLogo, blikLogo, googlePay, iDealLogo, interacLogo, 
 
 const CardPayments = () => {
     return (
-        <div className="flex flex-wrap justify-center items-center sm:gap-6 gap-3 lg:px-0 px-4 max-[400px]:px-2 py-6 sm:py-8">
-            <img src={masterCardLogo} alt="Mastercard" title="Mastercard" className="rounded py-[5px] px-2" />
-            <img src={visaLogo} alt="Visa" title="Visa" className="rounded py-[5px] px-2" />
-            <img src={applePay} alt="Apple Pay" title="Apple Pay" className="rounded py-[5px] px-2" />
-            <img src={googlePay} alt="Google Pay" title="Google Pay" className="rounded py-[5px] px-2" />
+        <div className="flex sm:flex-wrap flex-nowrap justify-center items-center sm:gap-6 gap-1 lg:px-0 px-2 max-[400px]:px-1 py-6 sm:py-8">
+            <img src={masterCardLogo} alt="Mastercard" title="Mastercard" className="rounded py-[5px] sm:px-2 px-1 max-sm:max-w-[22%]" />
+            <img src={visaLogo} alt="Visa" title="Visa" className="rounded py-[5px] sm:px-2 px-1 max-sm:max-w-[22%]" />
+            <img src={applePay} alt="Apple Pay" title="Apple Pay" className="rounded py-[5px] sm:px-2 px-1 max-sm:max-w-[22%]" />
+            <img src={googlePay} alt="Google Pay" title="Google Pay" className="rounded py-[5px] sm:px-2 px-1 max-sm:max-w-[22%]" />
             <img src={pixLogo} alt="Pix" title="Pix" className='sm:block hidden rounded py-[5px] px-2' />
             <img src={interacLogo} alt="Interac" title="Interac" className='sm:block hidden rounded py-[5px] px-2' />
             <img src={iDealLogo} alt="iDeal" title="iDeal" className='sm:block hidden rounded py-[5px] px-2' />
