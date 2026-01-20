@@ -11,6 +11,38 @@ import { notificationService } from './notification-service';
 export { supabase };
 
 /**
+ * Check if a competition is sold out and mark it for drawing if so.
+ * This is called after ticket purchases to ensure timely status updates.
+ */
+export async function checkCompetitionSoldOut(competitionId: string): Promise<boolean> {
+  if (!competitionId) return false;
+
+  try {
+    // Call the RPC function that checks and marks sold-out competitions
+    // Note: This function is defined in the migration and may not exist yet in all environments
+    const { data, error } = await supabase.rpc('check_and_mark_competition_sold_out' as any, {
+      p_competition_id: competitionId
+    });
+
+    if (error) {
+      // Function might not exist yet, log and continue
+      console.log('[checkCompetitionSoldOut] RPC not available or failed:', error.message);
+      return false;
+    }
+
+    if (data === true) {
+      console.log('[checkCompetitionSoldOut] Competition marked as sold out:', competitionId);
+      return true;
+    }
+
+    return false;
+  } catch (err) {
+    console.log('[checkCompetitionSoldOut] Error (non-blocking):', err);
+    return false;
+  }
+}
+
+/**
  * Purchase tickets using wallet balance
  * NOTE: Bonus credits are now applied on wallet top-ups, not on ticket purchases
  * Includes retry logic for network failures
@@ -155,6 +187,12 @@ export async function purchaseTicketsWithBalance({
       } catch (notifyErr) {
         console.warn('[purchaseTicketsWithBalance] Notification error (non-blocking):', notifyErr);
       }
+
+      // Check if competition is now sold out and mark for drawing if so
+      // This is done asynchronously so it doesn't block the response
+      checkCompetitionSoldOut(competitionId).then(() => {}).catch((err: any) => {
+        console.log('[purchaseTicketsWithBalance] Sold-out check (non-blocking):', err);
+      });
     }
 
     return {

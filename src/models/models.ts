@@ -56,6 +56,7 @@ export interface Entry {
   entryNumber: string | number;
   date: string;
   walletAddress: string;
+  username?: string;
 }
 
 // Dashboard entry type returned from get_comprehensive_user_dashboard_entries

@@ -20,7 +20,7 @@ const FinishedCompetition = ({competition}:CompetitionWrapper) => {
           <WinnerDetails competitionId={competition.id} />
         </div>
         <div className="mt-10 xl:px-0 px-4">
-          <WinnerResultsTable />
+          <WinnerResultsTable competitionId={competition.id} />
         </div>
       </div>
       <div className=" bg-[#1E1E1E] xl:px-0 px-4 relative">
