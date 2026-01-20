@@ -461,11 +461,13 @@ export type Database = {
         Row: {
           amountspent: number | null
           buytime: string | null
+          canonical_user_id: string | null
           chain: string | null
           competitionid: string
           created_at: string | null
           id: string
           numberoftickets: number | null
+          privy_user_id: string | null
           purchasedate: string | null
           ticketnumbers: string | null
           transactionhash: string | null
@@ -476,11 +478,13 @@ export type Database = {
         Insert: {
           amountspent?: number | null
           buytime?: string | null
+          canonical_user_id?: string | null
           chain?: string | null
           competitionid: string
           created_at?: string | null
           id?: string
           numberoftickets?: number | null
+          privy_user_id?: string | null
           purchasedate?: string | null
           ticketnumbers?: string | null
           transactionhash?: string | null
@@ -491,11 +495,13 @@ export type Database = {
         Update: {
           amountspent?: number | null
           buytime?: string | null
+          canonical_user_id?: string | null
           chain?: string | null
           competitionid?: string
           created_at?: string | null
           id?: string
           numberoftickets?: number | null
+          privy_user_id?: string | null
           purchasedate?: string | null
           ticketnumbers?: string | null
           transactionhash?: string | null
@@ -1223,6 +1229,7 @@ export type Database = {
       }
       tickets: {
         Row: {
+          canonical_user_id: string | null
           competition_id: string | null
           created_at: string | null
           id: string
@@ -1235,6 +1242,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          canonical_user_id?: string | null
           competition_id?: string | null
           created_at?: string | null
           id?: string
@@ -1247,6 +1255,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          canonical_user_id?: string | null
           competition_id?: string | null
           created_at?: string | null
           id?: string
@@ -1773,61 +1782,112 @@ export type Database = {
       user_transactions: {
         Row: {
           amount: number | null
+          balance_after: number | null
+          balance_before: number | null
+          canonical_user_id: string | null
+          charge_code: string | null
+          charge_id: string | null
+          checkout_url: string | null
           competition_id: string | null
           completed_at: string | null
           created_at: string | null
           credit_synced: boolean | null
           currency: string | null
+          description: string | null
+          fallback_provider: string | null
           id: string
+          metadata: Json | null
           network: string | null
           order_id: string | null
+          payment_provider: string | null
           payment_status: string | null
+          primary_provider: string | null
+          provider: string | null
+          provider_attempts: number | null
+          provider_error: string | null
           session_id: string | null
           status: string | null
           ticket_count: number | null
           tx_id: string | null
+          tx_ref: string | null
+          type: string | null
           updated_at: string | null
           user_id: string | null
+          user_privy_id: string | null
           wallet_address: string | null
           webhook_ref: string | null
         }
         Insert: {
           amount?: number | null
+          balance_after?: number | null
+          balance_before?: number | null
+          canonical_user_id?: string | null
+          charge_code?: string | null
+          charge_id?: string | null
+          checkout_url?: string | null
           competition_id?: string | null
           completed_at?: string | null
           created_at?: string | null
           credit_synced?: boolean | null
           currency?: string | null
+          description?: string | null
+          fallback_provider?: string | null
           id?: string
+          metadata?: Json | null
           network?: string | null
           order_id?: string | null
+          payment_provider?: string | null
           payment_status?: string | null
+          primary_provider?: string | null
+          provider?: string | null
+          provider_attempts?: number | null
+          provider_error?: string | null
           session_id?: string | null
           status?: string | null
           ticket_count?: number | null
           tx_id?: string | null
+          tx_ref?: string | null
+          type?: string | null
           updated_at?: string | null
           user_id?: string | null
+          user_privy_id?: string | null
           wallet_address?: string | null
           webhook_ref?: string | null
         }
         Update: {
           amount?: number | null
+          balance_after?: number | null
+          balance_before?: number | null
+          canonical_user_id?: string | null
+          charge_code?: string | null
+          charge_id?: string | null
+          checkout_url?: string | null
           competition_id?: string | null
           completed_at?: string | null
           created_at?: string | null
           credit_synced?: boolean | null
           currency?: string | null
+          description?: string | null
+          fallback_provider?: string | null
           id?: string
+          metadata?: Json | null
           network?: string | null
           order_id?: string | null
+          payment_provider?: string | null
           payment_status?: string | null
+          primary_provider?: string | null
+          provider?: string | null
+          provider_attempts?: number | null
+          provider_error?: string | null
           session_id?: string | null
           status?: string | null
           ticket_count?: number | null
           tx_id?: string | null
+          tx_ref?: string | null
+          type?: string | null
           updated_at?: string | null
           user_id?: string | null
+          user_privy_id?: string | null
           wallet_address?: string | null
           webhook_ref?: string | null
         }

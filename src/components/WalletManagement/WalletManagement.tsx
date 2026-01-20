@@ -141,7 +141,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
           .select('*')
           .is('competition_id', null)
           .in('status', ['pending', 'pending_payment', 'waiting', 'processing', 'finished', 'completed', 'confirmed', 'success'])
-          .or(`user_id.ilike.${normalizedWallet},canonical_user_id.eq.${canonicalId},wallet_address.ilike.${normalizedWallet}`)
+          .or(`user_id.eq.${normalizedWallet},canonical_user_id.eq.${canonicalId},wallet_address.eq.${normalizedWallet}`)
           .order('created_at', { ascending: false })
           .limit(10);
 

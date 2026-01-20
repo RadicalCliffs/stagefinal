@@ -137,12 +137,12 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
       const canonicalUserIdLower = canonicalUserId.toLowerCase();
 
       // Try sub_account_balances directly with case-insensitive matching
-      // Use ilike for canonical_user_id to handle potential case mismatches
+      // Use eq for canonical_user_id (TEXT type in sub_account_balances)
       const { data: subAccountData, error: subAccountError } = await supabase
         .from('sub_account_balances')
         .select('id, user_id, available_balance, pending_balance, canonical_user_id, privy_user_id')
         .eq('currency', 'USD')
-        .or(`canonical_user_id.ilike.${canonicalUserIdLower},canonical_user_id.eq.${canonicalUserId},user_id.eq.${userId},privy_user_id.eq.${userId}`)
+        .or(`canonical_user_id.eq.${canonicalUserId},user_id.eq.${userId},privy_user_id.eq.${userId}`)
         .limit(1);
 
       if (subAccountData && subAccountData.length > 0 && !subAccountError) {
