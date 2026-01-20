@@ -91,27 +91,27 @@ export default function ActivityTable({ data }: { data: TableRow[] }) {
       </div>
 
       {/* ✅ Mobile Layout (Custom Cards) */}
-      <div className="md:hidden space-y-4">
+      <div className="md:hidden space-y-3">
         {visibleData.map((row, idx) => (
           <div
             key={idx}
-            className="bg-[#272727] rounded-md p-4 text-white sequel-45 sm:text-sm text-xs"
+            className="bg-[#272727] rounded-md p-3 text-white sequel-45 text-xs"
           >
             {/* Top row: username, amount, action */}
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-2">
+            <div className="flex justify-between items-center gap-2">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
                 <AvatarImg
                   src={row.user.avatar}
                   alt={row.user.name}
-                  className="w-7 h-7 rounded-md object-contain"
+                  className="w-6 h-6 rounded-md object-contain flex-shrink-0"
                 />
-                <span className="sequel-75">{row.user.name}</span>
+                <span className="sequel-75 truncate">{row.user.name}</span>
               </div>
 
-              <div className="flex items-center gap-3">
-                <span className="sequel-75">{row.amount}</span>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <span className="sequel-75 whitespace-nowrap">{row.amount}</span>
                 <span
-                  className={`uppercase sequel-75 ${
+                  className={`uppercase sequel-75 whitespace-nowrap ${
                     row.action === "Win" ? "text-[#79C500]" : "text-white"
                   }`}
                 >
@@ -121,25 +121,25 @@ export default function ActivityTable({ data }: { data: TableRow[] }) {
             </div>
 
             {/* Divider */}
-            <div className="border-b border-[#5A5A5A] my-3"></div>
+            <div className="border-b border-[#5A5A5A] my-2"></div>
 
             {/* Bottom row: competition & time */}
-            <div className="flex justify-between items-center text-xs text-[#bdbdbd]">
-              <span className="uppercase">{row.competition}</span>
-              <span>{row.time}</span>
+            <div className="flex justify-between items-center gap-2 text-[11px] text-[#bdbdbd]">
+              <span className="uppercase truncate flex-1">{row.competition}</span>
+              <span className="flex-shrink-0 whitespace-nowrap">{row.time}</span>
             </div>
           </div>
         ))}
 
         {/* View More Button */}
         {hasMore && (
-          <div onClick={handleLoadMore} className=" text-center cursor-pointer">
-            <span className="text-[#DDE404] mr-1 sequel-45 text-sm ">
+          <div onClick={handleLoadMore} className="text-center cursor-pointer py-2">
+            <span className="text-[#DDE404] mr-1 sequel-45 text-sm">
               View More ({data.length - displayCount} remaining)
             </span>
             <ChevronDown size={20} color="#DDE404" className="inline" />
           </div>
-         )} 
+         )}
       </div>
     </div>
   );

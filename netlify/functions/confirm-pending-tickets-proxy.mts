@@ -102,6 +102,64 @@ async function getCompetitionWithUid(supabase: SupabaseClient, competitionId: st
   return data;
 }
 
+// Helper to lookup user details from canonical_users table
+// This ensures winner records have proper usernames instead of "Unknown"
+async function lookupUserDetails(
+  supabase: SupabaseClient,
+  walletAddress: string | null,
+  userId: string | null,
+  privyUserId: string | null
+): Promise<{ username: string; country: string | null; wallet_address: string | null }> {
+  let user = null;
+
+  // Try wallet address lookup first (most reliable)
+  if (walletAddress) {
+    const { data } = await supabase
+      .from("canonical_users")
+      .select("username, country, wallet_address")
+      .ilike("wallet_address", walletAddress)
+      .maybeSingle();
+    if (data) user = data;
+  }
+
+  // Try privy user ID lookup
+  if (!user && privyUserId) {
+    const { data } = await supabase
+      .from("canonical_users")
+      .select("username, country, wallet_address")
+      .eq("privy_user_id", privyUserId)
+      .maybeSingle();
+    if (data) user = data;
+  }
+
+  // Try canonical_user_id lookup (handles prize:pid: format)
+  if (!user && userId) {
+    const canonicalId = toPrizePid(userId);
+    const { data } = await supabase
+      .from("canonical_users")
+      .select("username, country, wallet_address")
+      .eq("canonical_user_id", canonicalId)
+      .maybeSingle();
+    if (data) user = data;
+  }
+
+  // Try direct ID lookup as fallback
+  if (!user && userId) {
+    const { data } = await supabase
+      .from("canonical_users")
+      .select("username, country, wallet_address")
+      .eq("id", userId)
+      .maybeSingle();
+    if (data) user = data;
+  }
+
+  return {
+    username: user?.username || "Anonymous",
+    country: user?.country || null,
+    wallet_address: user?.wallet_address || walletAddress || null,
+  };
+}
+
 // ISSUE 3D FIX: Improved race condition handling with user-friendly recovery
 async function assignTickets(params: {
   supabase: SupabaseClient;
@@ -810,21 +868,30 @@ function isValidUserId(userId: string): boolean {
               if (!existingWinner && winningEntry) {
                 // Convert winning entry userid to canonical format for consistency
                 const winnerUserId = toPrizePid(winningEntry.userid || winningEntry.privy_user_id);
+
+                // Lookup user details from canonical_users to get proper username
+                const userDetails = await lookupUserDetails(
+                  supabase,
+                  winningEntry.walletaddress,
+                  winningEntry.userid,
+                  winningEntry.privy_user_id
+                );
+
                 const { error: winnerInsertError } = await supabase.from("winners").insert({
                   competition_id: competitionId,
                   user_id: winnerUserId,
                   ticket_number: winningTicketNumber,
                   prize_value: 0,
                   prize_claimed: false,
-                  username: winningEntry.username || "Unknown",
-                  country: winningEntry.country || null,
-                  wallet_address: winningEntry.walletaddress || null,
+                  username: userDetails.username,
+                  country: userDetails.country,
+                  wallet_address: userDetails.wallet_address,
                   crdate: new Date().toISOString(),
                 });
                 if (winnerInsertError) {
                   console.error("[Confirm Tickets] Failed to insert winner for sold-out competition (lucky dip):", winnerInsertError);
                 } else {
-                  console.log(`[Confirm Tickets] Winner recorded for sold-out competition ${competitionId}: user ${winnerUserId}, ticket #${winningTicketNumber}`);
+                  console.log(`[Confirm Tickets] Winner recorded for sold-out competition ${competitionId}: user ${winnerUserId}, ticket #${winningTicketNumber}, username: ${userDetails.username}`);
                 }
               }
 
@@ -1238,21 +1305,30 @@ function isValidUserId(userId: string): boolean {
             if (!existingWinner && winningEntry) {
               // Convert winning entry userid to canonical format for consistency
               const winnerUserId = toPrizePid(winningEntry.userid || winningEntry.privy_user_id);
+
+              // Lookup user details from canonical_users to get proper username
+              const userDetails = await lookupUserDetails(
+                supabase,
+                winningEntry.walletaddress,
+                winningEntry.userid,
+                winningEntry.privy_user_id
+              );
+
               const { error: winnerInsertError } = await supabase.from("winners").insert({
                 competition_id: finalCompetitionId,
                 user_id: winnerUserId,
                 ticket_number: winningTicketNumber,
                 prize_value: 0,
                 prize_claimed: false,
-                username: winningEntry.username || "Unknown",
-                country: winningEntry.country || null,
-                wallet_address: winningEntry.walletaddress || null,
+                username: userDetails.username,
+                country: userDetails.country,
+                wallet_address: userDetails.wallet_address,
                 crdate: new Date().toISOString(),
               });
               if (winnerInsertError) {
                 console.error("[Confirm Tickets] Failed to insert winner for sold-out competition:", winnerInsertError);
               } else {
-                console.log(`[Confirm Tickets] Winner recorded for sold-out competition ${finalCompetitionId}: user ${winnerUserId}, ticket #${winningTicketNumber}`);
+                console.log(`[Confirm Tickets] Winner recorded for sold-out competition ${finalCompetitionId}: user ${winnerUserId}, ticket #${winningTicketNumber}, username: ${userDetails.username}`);
               }
             }
 
