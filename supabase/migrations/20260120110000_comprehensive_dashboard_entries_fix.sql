@@ -538,7 +538,7 @@ BEGIN
     LOWER(cu.base_wallet_address),
     LOWER(cu.eth_wallet_address),
     cu.privy_user_id,
-    cu.id::TEXT
+    cu.uid
   INTO
     resolved_canonical_user_id,
     resolved_wallet_address,
@@ -556,8 +556,8 @@ BEGIN
     OR LOWER(cu.eth_wallet_address) = lower_identifier
     -- Match by privy_user_id
     OR cu.privy_user_id = user_identifier
-    -- Match by id
-    OR cu.id::TEXT = user_identifier
+    -- Match by uid
+    OR cu.uid = user_identifier
     -- Match by search_wallet if it's a wallet address
     OR (search_wallet IS NOT NULL AND (
       LOWER(cu.wallet_address) = search_wallet
