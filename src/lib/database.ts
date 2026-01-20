@@ -1829,6 +1829,20 @@ export const database = {
 
       // Format entries for display (data already includes competition details from RPC)
       const formattedEntries = entries.map((entry: any) => {
+        // Filter out entries with missing required data (no id AND no competition_id)
+        // These are phantom entries that shouldn't be displayed
+        if (!entry.competition_id && !entry.id) {
+          databaseLogger.warn('getUserEntries: Filtering out entry with no id and no competition_id');
+          return null;
+        }
+
+        // Also filter out entries where competition_id is missing or empty
+        // These are orphaned entries that reference deleted competitions
+        if (!entry.competition_id || entry.competition_id === '' || entry.competition_id === 'null') {
+          databaseLogger.warn(`getUserEntries: Filtering out entry ${entry.id} with missing competition_id`);
+          return null;
+        }
+
         // Entry type determines if it's pending or completed
         const entryType = entry.entry_type || 'completed';
 
@@ -1848,17 +1862,9 @@ export const database = {
           ? `$${Number(entry.prize_value).toLocaleString()}`
           : null;
 
-        // Handle entries without a competition ID - generate synthetic ID from entry data
-        // This ensures users can still see their historical entries even if competition data is missing
-        const effectiveCompetitionId = entry.competition_id || `legacy-${entry.id || 'unknown'}`;
-
-        if (!entry.competition_id) {
-          databaseLogger.warn(`Entry ${entry.id} has missing competition ID - using synthetic ID: ${effectiveCompetitionId}`);
-        }
-
         return {
           id: entry.id,
-          competition_id: effectiveCompetitionId,
+          competition_id: entry.competition_id,
           title: entry.title || 'Unknown Competition',
           description: entry.description || '',
           image: getImageUrl(entry.image),
