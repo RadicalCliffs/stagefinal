@@ -39,7 +39,7 @@ FROM joincompetition jc
 -- Use OR to handle both UUID format (c.id) and text format (c.uid) for competitionid
 LEFT JOIN competitions c ON (
   -- Try UUID match first (when competitionid is stored as UUID string) - case insensitive
-  (jc.competitionid ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' 
+  (jc.competitionid::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' 
    AND jc.competitionid::uuid = c.id)
   OR
   -- Fallback to uid match (legacy text format)
@@ -93,7 +93,6 @@ DECLARE
   v_order_id UUID;
   v_transaction_id UUID;
   v_ticket_num INTEGER;
-  v_competition_uid TEXT;
   v_canonical_user_id TEXT;
   v_wallet_address TEXT;
   v_found_user_id TEXT;
@@ -213,16 +212,7 @@ BEGIN
       updated_at = NOW()
   WHERE id = v_found_user_id;
 
-  -- Step 6: Get competition UID for foreign key
-  SELECT uid INTO v_competition_uid
-  FROM competitions
-  WHERE id = p_competition_id;
-
-  IF v_competition_uid IS NULL THEN
-    RAISE EXCEPTION 'Competition not found';
-  END IF;
-
-  -- Step 7: Create order record with non-null amount
+  -- Step 6: Create order record with non-null amount
   v_order_id := gen_random_uuid();
   INSERT INTO orders (
     id,
@@ -238,7 +228,7 @@ BEGIN
   ) VALUES (
     v_order_id,
     v_canonical_user_id,
-    v_competition_uid,
+    p_competition_id,
     array_length(v_reservation.ticket_numbers, 1),
     v_total_amount,
     'completed',
@@ -248,7 +238,8 @@ BEGIN
     NOW()
   );
 
-  -- Step 8: Insert order_tickets for each ticket number
+  -- Step 7: Insert order_tickets for each ticket number
+  -- Note: order_tickets.ticket_number is TEXT to support future non-numeric ticket formats
   FOREACH v_ticket_num IN ARRAY v_reservation.ticket_numbers
   LOOP
     INSERT INTO order_tickets (
@@ -257,39 +248,46 @@ BEGIN
       created_at
     ) VALUES (
       v_order_id,
-      v_ticket_num,
+      v_ticket_num::text,
       NOW()
     );
   END LOOP;
 
-  -- Step 9: Insert tickets (confirmed tickets) with conflict handling
+  -- Step 8: Insert tickets (confirmed tickets) with conflict handling
+  -- Conflict resolution: DO NOTHING prevents duplicate ticket assignments
+  -- This is by design to handle race conditions where the same ticket might be
+  -- reserved and confirmed by another transaction. Such tickets won't be double-sold.
   FOREACH v_ticket_num IN ARRAY v_reservation.ticket_numbers
   LOOP
     INSERT INTO tickets (
-      uid,
-      userid,
-      competitionid,
-      ticketnumber,
-      purchasedate,
-      transactionhash,
-      walletaddress,
-      created_at
+      id,
+      competition_id,
+      ticket_number,
+      canonical_user_id,
+      order_id,
+      wallet_address,
+      status,
+      purchased_at,
+      purchase_price,
+      payment_tx_hash
     ) VALUES (
       gen_random_uuid(),
-      v_canonical_user_id,
-      v_competition_uid,
+      p_competition_id,
       v_ticket_num,
-      NOW(),
-      'balance_payment_' || v_order_id::text,
+      v_canonical_user_id,
+      v_order_id,
       v_wallet_address,
-      NOW()
+      'sold',
+      NOW(),
+      p_unit_price,
+      'balance_payment_' || v_order_id::text
     )
     -- Handle duplicate ticket numbers gracefully (prevents race conditions)
     -- Only ignore conflict if ticket was already sold for this competition
-    ON CONFLICT (competitionid, ticketnumber) DO NOTHING;
+    ON CONFLICT (competition_id, ticket_number) DO NOTHING;
   END LOOP;
 
-  -- Step 10: Create user_transaction record with non-null amount
+  -- Step 9: Create user_transaction record with non-null amount
   v_transaction_id := gen_random_uuid();
   INSERT INTO user_transactions (
     id,
@@ -308,8 +306,8 @@ BEGIN
   ) VALUES (
     v_transaction_id,
     v_canonical_user_id,
-    v_order_id::text,
-    v_competition_uid,
+    v_order_id,
+    p_competition_id,
     v_total_amount,
     array_length(v_reservation.ticket_numbers, 1),
     'completed',
@@ -321,7 +319,7 @@ BEGIN
     NOW()
   );
 
-  -- Step 11: Mark pending_tickets as confirmed/consumed
+  -- Step 10: Mark pending_tickets as confirmed/consumed
   UPDATE pending_tickets
   SET
     status = 'confirmed',
@@ -330,7 +328,7 @@ BEGIN
     transaction_hash = 'balance_payment_' || v_order_id::text
   WHERE id = p_reservation_id;
 
-  -- Step 12: Return success with order details
+  -- Step 11: Return success with order details
   RETURN jsonb_build_object(
     'success', true,
     'order_id', v_order_id,
