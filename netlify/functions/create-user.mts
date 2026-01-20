@@ -4,6 +4,49 @@ export const config = {
   path: "/api/create-user",
 };
 
+/**
+ * Send welcome email using SendGrid dynamic template
+ */
+async function sendWelcomeEmail(email: string, username: string, requestId: string): Promise<void> {
+  const sendgridApiKey = Netlify.env.get("SENDGRID_API_KEY");
+  const fromEmail = Netlify.env.get("SENDGRID_FROM_EMAIL") || "contact@theprize.io";
+  const templateId = Netlify.env.get("SENDGRID_TEMPLATE_WELCOME");
+
+  if (!sendgridApiKey || !templateId) {
+    console.log(`[create-user][${requestId}] SendGrid welcome email not configured, skipping`);
+    return;
+  }
+
+  try {
+    const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${sendgridApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        personalizations: [{
+          to: [{ email }],
+          dynamic_template_data: {
+            "Player Username": username,
+          },
+        }],
+        from: { email: fromEmail, name: "ThePrize.io" },
+        template_id: templateId,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[create-user][${requestId}] Welcome email failed:`, errorText);
+    } else {
+      console.log(`[create-user][${requestId}] Welcome email sent to ${email}`);
+    }
+  } catch (error) {
+    console.error(`[create-user][${requestId}] Welcome email error:`, error);
+  }
+}
+
 // Avatar URLs from Supabase public storage bucket "Avatars"
 // These are the official 777btc avatars (EH-01 through EH-34)
 const SUPABASE_AVATAR_BASE_URL = 'https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Avatars';
@@ -181,6 +224,9 @@ export default async function handler(request: Request, _context: Context) {
     const createdUser = createdUsers[0];
 
     console.log(`[create-user][${requestId}] User created: ${createdUser.id} (${normalizedUsername})`);
+
+    // Send welcome email using SendGrid template
+    await sendWelcomeEmail(normalizedEmail, normalizedUsername, requestId);
 
     // Mark email_auth_session as used
     await fetch(`${supabaseUrl}/rest/v1/email_auth_sessions?email=eq.${encodeURIComponent(normalizedEmail)}`, {

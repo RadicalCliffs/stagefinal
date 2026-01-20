@@ -126,6 +126,58 @@ async function createWinnerNotification(
   }
 }
 
+/**
+ * Send winner email using SendGrid dynamic template
+ */
+async function sendWinnerEmail(
+  email: string,
+  username: string,
+  competitionTitle: string,
+  prizeValue: string,
+  ticketNumber: number
+): Promise<void> {
+  const sendgridApiKey = Netlify.env.get("SENDGRID_API_KEY");
+  const fromEmail = Netlify.env.get("SENDGRID_FROM_EMAIL") || "contact@theprize.io";
+  const templateId = Netlify.env.get("SENDGRID_TEMPLATE_WINNER");
+
+  if (!sendgridApiKey || !templateId) {
+    console.log("[BackfillWinners] SendGrid winner email not configured, skipping");
+    return;
+  }
+
+  try {
+    const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${sendgridApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        personalizations: [{
+          to: [{ email }],
+          dynamic_template_data: {
+            "Player Username": username,
+            "Competition Name": competitionTitle,
+            "Prize Value": prizeValue,
+            "Winning Ticket": `#${ticketNumber}`,
+          },
+        }],
+        from: { email: fromEmail, name: "ThePrize.io" },
+        template_id: templateId,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[BackfillWinners] Winner email failed:`, errorText);
+    } else {
+      console.log(`[BackfillWinners] Winner email sent to ${email}`);
+    }
+  } catch (error) {
+    console.error(`[BackfillWinners] Winner email error:`, error);
+  }
+}
+
 // ---------- Core functions ----------
 
 /**
@@ -195,7 +247,7 @@ async function createWinner(
       // Try lookup by privy_user_id
       const { data: userByPrivy } = await supabase
         .from("canonical_users")
-        .select("id, username, country, wallet_address")
+        .select("id, username, email, country, wallet_address")
         .eq("privy_user_id", userId)
         .maybeSingle();
 
@@ -205,7 +257,7 @@ async function createWinner(
         // Try by direct ID
         const { data: userById } = await supabase
           .from("canonical_users")
-          .select("id, username, country, wallet_address")
+          .select("id, username, email, country, wallet_address")
           .eq("id", userId)
           .maybeSingle();
         userData = userById;
@@ -216,7 +268,7 @@ async function createWinner(
     if (!userData && entry.walletaddress) {
       const { data: userByWallet } = await supabase
         .from("canonical_users")
-        .select("id, username, country, wallet_address")
+        .select("id, username, email, country, wallet_address")
         .eq("wallet_address", entry.walletaddress)
         .maybeSingle();
       userData = userByWallet;
@@ -249,11 +301,23 @@ async function createWinner(
 
     console.log(`[BackfillWinners] Winner created for ${competition.title}: ticket #${ticketNumber}`);
 
-    // Create winner notification
+    // Create winner notification and send email
     // Use the profile ID (UUID) for notification storage
     const profileId = userData?.id || userId;
     if (profileId) {
       await createWinnerNotification(supabase, profileId, competition, ticketNumber);
+    }
+
+    // Send winner email if user has an email address
+    if (userData?.email) {
+      const prizeValue = competition.prize_value ? `£${competition.prize_value}` : competition.title;
+      await sendWinnerEmail(
+        userData.email,
+        userData.username || "Player",
+        competition.title,
+        prizeValue,
+        ticketNumber
+      );
     }
 
     return true;
