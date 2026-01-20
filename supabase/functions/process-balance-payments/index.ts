@@ -163,112 +163,36 @@ Deno.serve(async (req) => {
 
           console.log(`[process-balance-payments][${requestId}] Bonus calculation: isFirstTopup=${isFirstTopup}, base=${amountUsd}, bonus=${bonusAmount}, total=${totalCredit}`);
 
-          // Insert real balance ledger entry
-          // balance_ledger columns: id, user_id (UUID), balance_type, source, amount, transaction_id (UUID), metadata, created_at, expires_at
-          const ledgerRow = {
-            user_id: userUuid, // UUID from canonical_users.id
-            balance_type: 'real', // Real USD balance
-            source: transaction.payment_provider || 'coinbase_onramp',
-            amount: amountUsd,
-            transaction_id: transaction.id, // This is already a UUID from user_transactions.id
-            metadata: {
-              ...(transaction.metadata || {}),
-              is_first_topup: isFirstTopup,
-              bonus_amount: bonusAmount,
-            },
-            created_at: new Date().toISOString(),
-            expires_at: null, // Real balance doesn't expire
-          };
+          // CRITICAL: Use credit_sub_account_balance RPC to update balance AND create ledger entry
+          // This is the proper way to credit user's balance with audit trail
+          console.log(`[process-balance-payments][${requestId}] Calling credit_sub_account_balance RPC for ${canonicalUserId}, amount: ${totalCredit}`);
+          
+          const { data: creditResult, error: creditRpcError } = await supabase
+            .rpc('credit_sub_account_balance', {
+              p_canonical_user_id: canonicalUserId,
+              p_amount: totalCredit,
+              p_currency: 'USD',
+              p_reference_id: transaction.id,
+              p_description: `Top-up ${amountUsd}${bonusAmount > 0 ? ` + bonus ${bonusAmount}` : ''}`
+            });
 
-          const { error: ledgerError } = await supabase
-            .from('balance_ledger')
-            .insert(ledgerRow);
-
-          if (ledgerError) {
-            throw new Error(`Failed to credit ledger: ${ledgerError.message}`);
+          if (creditRpcError) {
+            console.error(`[process-balance-payments][${requestId}] Error calling credit_sub_account_balance RPC:`, creditRpcError);
+            throw new Error(`Failed to credit balance via RPC: ${creditRpcError.message}`);
           }
 
-          // Insert bonus ledger entry if applicable
-          if (bonusAmount > 0) {
-            const bonusLedgerRow = {
-              user_id: userUuid,
-              balance_type: 'bonus', // Bonus balance type for tracking
-              source: 'first_topup_bonus',
-              amount: bonusAmount,
-              transaction_id: transaction.id,
-              metadata: {
-                base_topup_amount: amountUsd,
-                bonus_percentage: 50,
-                original_transaction_id: transaction.id,
-              },
-              created_at: new Date().toISOString(),
-              expires_at: null, // Bonus doesn't expire
-            };
-
-            const { error: bonusLedgerError } = await supabase
-              .from('balance_ledger')
-              .insert(bonusLedgerRow);
-
-            if (bonusLedgerError) {
-              console.warn(`[process-balance-payments][${requestId}] Failed to insert bonus ledger entry (non-critical):`, bonusLedgerError.message);
-            } else {
-              console.log(`[process-balance-payments][${requestId}] ✅ Bonus ledger entry created: ${bonusAmount}`);
-            }
+          if (!creditResult || creditResult.length === 0 || !creditResult[0].success) {
+            const errorMsg = creditResult?.[0]?.error_message || 'Unknown error';
+            console.error(`[process-balance-payments][${requestId}] credit_sub_account_balance RPC failed:`, errorMsg);
+            throw new Error(`Failed to credit balance: ${errorMsg}`);
           }
 
-          // CRITICAL: Update sub_account_balances.available_balance (primary source of truth)
+          const { previous_balance, new_balance } = creditResult[0];
+          console.log(`[process-balance-payments][${requestId}] ✅ Balance credited via RPC: ${previous_balance} → ${new_balance} (includes ${bonusAmount} bonus)`);
+
           // Also update canonical_users.usdc_balance for backwards compatibility
-          // Include both the base amount AND the bonus in the total balance
           const currentBalance = Number(userRecord?.usdc_balance || 0);
           const newBalance = currentBalance + totalCredit;
-
-          // First, update sub_account_balances (primary source of truth)
-          const { data: subAccountRecord, error: subAccountFetchError } = await supabase
-            .from('sub_account_balances')
-            .select('id, available_balance, canonical_user_id')
-            .eq('currency', 'USD')
-            .or(`canonical_user_id.eq.${canonicalUserId},user_id.eq.${userUuid},privy_user_id.eq.${userIdentifier}`)
-            .maybeSingle();
-
-          if (subAccountRecord && !subAccountFetchError) {
-            // Update existing sub_account_balances record
-            const subAccountCurrentBalance = Number(subAccountRecord.available_balance || 0);
-            const subAccountNewBalance = subAccountCurrentBalance + totalCredit;
-
-            const { error: subAccountUpdateError } = await supabase
-              .from('sub_account_balances')
-              .update({
-                available_balance: subAccountNewBalance,
-                last_updated: new Date().toISOString(),
-              })
-              .eq('id', subAccountRecord.id);
-
-            if (subAccountUpdateError) {
-              console.error(`[process-balance-payments][${requestId}] Error updating sub_account_balances:`, subAccountUpdateError);
-            } else {
-              console.log(`[process-balance-payments][${requestId}] ✅ sub_account_balances updated: ${subAccountCurrentBalance} → ${subAccountNewBalance} (includes ${bonusAmount} bonus)`);
-            }
-          } else {
-            // Create new sub_account_balances record if it doesn't exist
-            console.log(`[process-balance-payments][${requestId}] No sub_account_balances record found, creating new one`);
-            const { error: subAccountInsertError } = await supabase
-              .from('sub_account_balances')
-              .insert({
-                canonical_user_id: canonicalUserId,
-                user_id: userUuid,
-                privy_user_id: isWallet ? null : userIdentifier,
-                currency: 'USD',
-                available_balance: totalCredit,
-                pending_balance: 0,
-                last_updated: new Date().toISOString(),
-              });
-
-            if (subAccountInsertError) {
-              console.error(`[process-balance-payments][${requestId}] Error creating sub_account_balances:`, subAccountInsertError);
-            } else {
-              console.log(`[process-balance-payments][${requestId}] ✅ sub_account_balances record created with balance: ${totalCredit}`);
-            }
-          }
 
           // Also update canonical_users for backwards compatibility
           // Update balance and mark bonus as used if this was first top-up
@@ -316,7 +240,10 @@ Deno.serve(async (req) => {
         }
 
         if (isEntryPurchase) {
-          // ENTRY PURCHASE: create joincompetition row if missing
+          // ENTRY PURCHASE: Use debit_sub_account_balance_with_entry RPC
+          // This atomically debits balance AND creates joincompetition entry
+          console.log(`[process-balance-payments][${requestId}] Processing entry purchase for transaction ${transaction.id}`);
+          
           const { data: existingEntry } = await supabase
             .from('joincompetition')
             .select('uid')
@@ -345,32 +272,32 @@ Deno.serve(async (req) => {
           // Convert user_id to canonical format for consistent storage
           const entryCanonicalUserId = toPrizePid(transaction.user_id);
 
-          // Note: privy_user_id column may not exist in all environments
-          // The userid field stores the canonical user identifier
-          const entryData = {
-            uid: crypto.randomUUID(),
-            competitionid: transaction.competition_id,
-            userid: entryCanonicalUserId,  // Use canonical ID
-            numberoftickets: ticketCount,
-            ticketnumbers: '',
-            amountspent: totalCost,
-            walletaddress: isWalletAddress(transaction.user_id) ? transaction.user_id.toLowerCase() : transaction.user_id,
-            chain: 'USDC',
-            transactionhash: transaction.id,
-            purchasedate: new Date().toISOString(),
-            buytime: new Date().toISOString(),
-            created_at: new Date().toISOString(),
-          } as any;
+          // CRITICAL: Use RPC to atomically debit balance AND create entry
+          // This ensures balance is properly debited when paying with balance
+          console.log(`[process-balance-payments][${requestId}] Calling debit_sub_account_balance_with_entry RPC for ${entryCanonicalUserId}, amount: ${totalCost}`);
+          
+          const { data: purchaseResult, error: purchaseRpcError } = await supabase
+            .rpc('debit_sub_account_balance_with_entry', {
+              p_canonical_user_id: entryCanonicalUserId,
+              p_competition_id: transaction.competition_id,
+              p_amount: totalCost,
+              p_ticket_count: ticketCount,
+              p_ticket_numbers: '', // ticket numbers if available from transaction
+              p_transaction_id: transaction.id
+            });
 
-          console.log(`[process-balance-payments][${requestId}] Inserting entry data:`, JSON.stringify(entryData, null, 2));
-
-          const { error: entryError } = await supabase
-            .from('joincompetition')
-            .insert(entryData);
-
-          if (entryError) {
-            throw new Error(`Failed to create entry: ${entryError.message}`);
+          if (purchaseRpcError) {
+            console.error(`[process-balance-payments][${requestId}] Error calling debit_sub_account_balance_with_entry RPC:`, purchaseRpcError);
+            throw new Error(`Failed to process purchase via RPC: ${purchaseRpcError.message}`);
           }
+
+          if (!purchaseResult || !purchaseResult.success) {
+            const errorMsg = purchaseResult?.error || 'Unknown error';
+            console.error(`[process-balance-payments][${requestId}] debit_sub_account_balance_with_entry RPC failed:`, errorMsg);
+            throw new Error(`Failed to process purchase: ${errorMsg}`);
+          }
+
+          console.log(`[process-balance-payments][${requestId}] ✅ Entry created via RPC: ${purchaseResult.entry_uid}, balance: ${purchaseResult.previous_balance} → ${purchaseResult.new_balance}`);
 
           await supabase
             .from('user_transactions')
@@ -383,6 +310,9 @@ Deno.serve(async (req) => {
             ticketsCreated: ticketCount,
             totalCost,
             entryCreated: true,
+            entryUid: purchaseResult.entry_uid,
+            previousBalance: purchaseResult.previous_balance,
+            newBalance: purchaseResult.new_balance,
           });
           processed++;
           continue;
