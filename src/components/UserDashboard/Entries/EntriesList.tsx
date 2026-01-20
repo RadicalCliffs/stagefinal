@@ -1,4 +1,4 @@
-import { Link, useOutletContext } from "react-router";
+import { Link, useOutletContext, useSearchParams } from "react-router";
 import EntriesCard from "./EntriesCard";
 import type { Options } from "../../../models/models";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
@@ -83,6 +83,7 @@ export default function EntriesList() {
   const [currentPage, setCurrentPage] = useState(1);
   const { baseUser, authenticated } = useAuthUser();
   const { showToast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // ISSUE 9A FIX: Track background refresh state separately from initial loading
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -179,6 +180,34 @@ export default function EntriesList() {
       fetchEntries(true); // Mark as background refresh
     }, 500); // 500ms debounce
   }, [fetchEntries]);
+
+  // Check for payment success/cancelled parameters in URL and show appropriate message
+  useEffect(() => {
+    const paymentStatus = searchParams.get('payment');
+    const status = searchParams.get('status');
+    
+    // Helper function to clean up URL parameters
+    const cleanupUrlParams = (...paramsToRemove: string[]) => {
+      const newParams = new URLSearchParams(searchParams);
+      paramsToRemove.forEach(param => newParams.delete(param));
+      setSearchParams(newParams, { replace: true });
+    };
+    
+    if (paymentStatus === 'success') {
+      showToast('Payment successful! Your entries will appear below.', 'success');
+      cleanupUrlParams('payment', 'txId', 'status');
+      // Refresh entries to show the new purchase
+      debouncedFetchEntries();
+    } else if (paymentStatus === 'cancelled') {
+      showToast('Payment was cancelled. You can try again anytime.', 'info');
+      cleanupUrlParams('payment', 'txId', 'status');
+    } else if (status === 'complete') {
+      // Handle legacy status parameter from onramp/offramp redirects
+      showToast('Transaction completed successfully!', 'success');
+      cleanupUrlParams('status');
+      debouncedFetchEntries();
+    }
+  }, [searchParams, showToast, setSearchParams, debouncedFetchEntries]);
 
   useEffect(() => {
     fetchEntries(false); // Initial load, not background refresh

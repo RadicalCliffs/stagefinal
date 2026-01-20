@@ -64,7 +64,7 @@ Deno.serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     // Support both COINBASE_COMMERCE_API_KEY and COMMERCE_API_KEY for flexibility
     const coinbaseApiKey = Deno.env.get("COINBASE_COMMERCE_API_KEY") || Deno.env.get("COMMERCE_API_KEY");
-    const successBaseUrl = Deno.env.get("SUCCESS_URL") || "https://stage.theprize.io";
+    const successBaseUrl = Deno.env.get("SUCCESS_URL") || "https://substage.theprize.io";
 
     console.log(`[create-charge][${requestId}] Config check: supabaseUrl=${!!supabaseUrl}, serviceKey=${!!supabaseServiceKey}, apiKey=${!!coinbaseApiKey}`);
 
@@ -319,13 +319,10 @@ Deno.serve(async (req: Request) => {
         type,
         selected_tickets: selectedTickets ? JSON.stringify(selectedTickets) : null,
       } as ChargeMetadata,
-      // Redirect to appropriate page based on transaction type
-      redirect_url: isEntry 
-        ? `${successBaseUrl}/dashboard/entries?payment=success&txId=${transactionId}`
-        : `${successBaseUrl}/dashboard/wallet?payment=success&txId=${transactionId}`,
-      cancel_url: isEntry
-        ? `${successBaseUrl}/dashboard/entries?payment=cancelled&txId=${transactionId}`
-        : `${successBaseUrl}/dashboard/wallet?payment=cancelled&txId=${transactionId}`,
+      // CRITICAL: Always redirect to /dashboard/entries for ALL payment types (entries and top-ups)
+      // This ensures users see their entries immediately after payment completion
+      redirect_url: `${successBaseUrl}/dashboard/entries?payment=success&txId=${transactionId}`,
+      cancel_url: `${successBaseUrl}/dashboard/entries?payment=cancelled&txId=${transactionId}`,
     };
 
     console.log(`[create-charge][${requestId}] Creating Coinbase Commerce charge for $${normalizedAmount}`);
