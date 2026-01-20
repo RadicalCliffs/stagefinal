@@ -38,8 +38,8 @@ SELECT
 FROM joincompetition jc
 -- Use OR to handle both UUID format (c.id) and text format (c.uid) for competitionid
 LEFT JOIN competitions c ON (
-  -- Try UUID match first (when competitionid is stored as UUID string)
-  (jc.competitionid ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' 
+  -- Try UUID match first (when competitionid is stored as UUID string) - case insensitive
+  (jc.competitionid ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' 
    AND jc.competitionid::uuid = c.id)
   OR
   -- Fallback to uid match (legacy text format)
