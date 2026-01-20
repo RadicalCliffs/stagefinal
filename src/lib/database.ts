@@ -1393,7 +1393,7 @@ export const database = {
       });
 
       const { data: unavailableTickets, error: rpcError } = await supabase
-        .rpc('get_unavailable_tickets', { p_competition_id: competitionId.trim() });
+        .rpc('get_unavailable_tickets', { competition_id: competitionId.trim() });
 
       if (rpcError) {
         // RPC call failed - log error and try direct query fallback
@@ -1731,9 +1731,17 @@ export const database = {
         databaseLogger.info('getUserEntries: Using direct query fallback with unified identity filter');
 
         try {
-          // ISSUE #1 FIX: Use single OR query with all identifier types instead of sequential fallback queries
-          // This ensures we find all entries regardless of which identifier was stored
-          const identityFilter = buildIdentityFilter(identity);
+          // FIX: Use identity filter WITHOUT canonical_user_id for v_joincompetition_active
+          // The view does not have canonical_user_id column (yet), so we exclude it
+          // to prevent "column does not exist" errors
+          const identityFilter = buildIdentityFilter(identity, {
+            // Skip canonical_user_id by setting it to a non-existent empty column name
+            // This effectively removes it from the filter
+            canonicalColumn: '', // Disabled - column doesn't exist in this view
+            walletColumn: 'walletaddress',
+            privyColumn: 'privy_user_id',
+            userIdColumn: 'userid',
+          });
 
           // Log the filter for debugging
           databaseLogger.debug('getUserEntries identity filter', { filter: identityFilter });
@@ -1761,7 +1769,7 @@ export const database = {
                     winner_address
                   )
                 `)
-                .eq('walletaddress', identity.walletAddress)
+                .ilike('walletaddress', identity.walletAddress)
                 .order('purchasedate', { ascending: false });
 
               if (directError) {
@@ -1802,8 +1810,8 @@ export const database = {
                 filter: identityFilter
               });
 
-              // If OR filter fails (400 error), try individual queries as fallback
-              if (joinError.code === 'PGRST100' || joinError.message?.includes('400')) {
+              // If OR filter fails (400 error or column doesn't exist), try individual queries as fallback
+              if (joinError.code === 'PGRST100' || joinError.code === '42703' || joinError.message?.includes('400') || joinError.message?.includes('does not exist')) {
                 databaseLogger.info('getUserEntries: OR filter failed, trying individual queries');
                 entries = await this._getUserEntriesIndividualQueries(identity);
               }
