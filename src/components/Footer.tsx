@@ -35,10 +35,10 @@ const Footer = () => {
                         </a>
                     </p>
                     <div className="flex items-center gap-4 mt-1">
-                        <img src={masterCardLogo} alt="mastercard" />
-                        <img src={visaLogo} alt="visa" />
-                        <img src={applePay} alt="applePay" />
-                        <img src={googlePay} alt="googlePay" />
+                        <img src={masterCardLogo} alt="mastercard" className="rounded py-[5px] px-2" />
+                        <img src={visaLogo} alt="visa" className="rounded py-[5px] px-2" />
+                        <img src={applePay} alt="applePay" className="rounded py-[5px] px-2" />
+                        <img src={googlePay} alt="googlePay" className="rounded py-[5px] px-2" />
                     </div>
                 </div>
 
@@ -161,10 +161,10 @@ const Footer = () => {
 
                 {/* Payment methods */}
                 <div className="flex items-center gap-3 mb-3">
-                    <img src={visaLogo} alt="visa" className="h-6" />
-                    <img src={masterCardLogo} alt="mastercard" className="h-6" />
-                    <img src={applePay} alt="applePay" className="h-6" />
-                    <img src={googlePay} alt="googlePay" className="h-6" />
+                    <img src={visaLogo} alt="visa" className="rounded py-[5px] px-2" />
+                    <img src={masterCardLogo} alt="mastercard" className="rounded py-[5px] px-2" />
+                    <img src={applePay} alt="applePay" className="rounded py-[5px] px-2" />
+                    <img src={googlePay} alt="googlePay" className="rounded py-[5px] px-2" />
                 </div>
             </div>
 
