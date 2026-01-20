@@ -1824,12 +1824,19 @@ export const database = {
           }
         } catch (fallbackError) {
           databaseLogger.error('getUserEntries unified query exception', fallbackError);
-          return [];
+          // Don't return early - try individual queries as ultimate fallback
         }
       }
 
+      // CRITICAL FIX: If still no entries found, try individual queries as ultimate fallback
+      // This queries multiple sources: joincompetition table, tickets table, user_transactions table
       if (!entries || entries.length === 0) {
-        databaseLogger.info('getUserEntries: No entries found for user: ' + userId.substring(0, 20) + '...');
+        databaseLogger.info('getUserEntries: No entries from primary sources, trying multi-source fallback');
+        entries = await this._getUserEntriesIndividualQueries(identity);
+      }
+
+      if (!entries || entries.length === 0) {
+        databaseLogger.info('getUserEntries: No entries found after all fallbacks for user: ' + userId.substring(0, 20) + '...');
         return [];
       }
 
@@ -1903,12 +1910,28 @@ export const database = {
   /**
    * Fallback method to query entries using individual queries instead of OR filter
    * This is used when the unified OR filter fails (e.g., due to PostgREST syntax issues)
+   *
+   * UPDATED: Now queries multiple data sources:
+   * 1. v_joincompetition_active view (if exists)
+   * 2. Base joincompetition table directly (ultimate fallback)
+   * 3. tickets table
+   * 4. user_transactions table (for completed payments)
    */
   async _getUserEntriesIndividualQueries(identity: ResolvedIdentity): Promise<any[]> {
     const allEntries: any[] = [];
     const seenIds = new Set<string>();
 
-    const selectQuery = `
+    // Helper to add entry if not already seen
+    const addEntry = (entry: any, source: string) => {
+      const id = entry.id || entry.uid || `${source}-${entry.competition_id || entry.competitionid}-${Date.now()}`;
+      if (!seenIds.has(id)) {
+        seenIds.add(id);
+        allEntries.push(entry);
+      }
+    };
+
+    // Query options for v_joincompetition_active view (may not exist)
+    const viewSelectQuery = `
       *,
       competitions!inner (
         id,
@@ -1924,85 +1947,345 @@ export const database = {
       )
     `;
 
-    // Try wallet address first (most common for Base auth)
+    // ===== SOURCE 1: Try v_joincompetition_active view first =====
+    let viewQueryFailed = false;
+
     if (identity.walletAddress) {
       try {
         const { data, error } = await supabase
           .from('v_joincompetition_active')
-          .select(selectQuery)
-          .eq('walletaddress', identity.walletAddress)
+          .select(viewSelectQuery)
+          .ilike('walletaddress', identity.walletAddress)
           .order('purchasedate', { ascending: false });
 
-        if (!error && data) {
+        if (error) {
+          databaseLogger.warn('View query (wallet) error - will try base table', { code: error.code });
+          viewQueryFailed = true;
+        } else if (data && data.length > 0) {
           data.forEach((jc: any) => {
-            const id = jc.uid || jc.id;
-            if (!seenIds.has(id)) {
-              seenIds.add(id);
-              allEntries.push(transformJoinCompetitionEntry(jc, identity));
-            }
+            addEntry(transformJoinCompetitionEntry(jc, identity), 'view');
           });
-          databaseLogger.debug('Individual query (wallet) found entries', { count: data.length });
-        } else if (error) {
-          databaseLogger.error('Individual query (wallet) error', error);
+          databaseLogger.debug('View query (wallet) found entries', { count: data.length });
         }
       } catch (e) {
-        databaseLogger.error('Individual query (wallet) exception', e);
+        databaseLogger.warn('View query (wallet) exception - will try base table');
+        viewQueryFailed = true;
       }
     }
 
-    // Try canonical_user_id if available
-    if (identity.canonicalUserId) {
+    // ===== SOURCE 2: Query base joincompetition table directly (ultimate fallback) =====
+    // This works even if the view doesn't exist or has issues
+    // NOTE: We query without join first, then fetch competition data separately
+    // This avoids issues with PostgREST not inferring relationships correctly
+    if (viewQueryFailed || allEntries.length === 0) {
+      databaseLogger.info('Using base joincompetition table fallback');
+
+      if (identity.walletAddress) {
+        try {
+          // Query joincompetition WITHOUT join to competitions
+          const { data, error } = await supabase
+            .from('joincompetition')
+            .select('*')
+            .ilike('walletaddress', identity.walletAddress)
+            .order('purchasedate', { ascending: false });
+
+          if (!error && data && data.length > 0) {
+            databaseLogger.success('Base joincompetition query (wallet) found entries', { count: data.length });
+
+            // Fetch competition data separately for all unique competition IDs
+            const competitionIds = [...new Set(data.map((jc: any) => jc.competitionid).filter(Boolean))];
+
+            // Fetch competitions by both id (UUID) and uid (legacy text)
+            let competitionsMap = new Map<string, any>();
+            if (competitionIds.length > 0) {
+              try {
+                // Try to fetch by id (UUID format) first
+                const uuidIds = competitionIds.filter(id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
+                const textIds = competitionIds.filter(id => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
+
+                // Fetch UUID-based competitions
+                if (uuidIds.length > 0) {
+                  const { data: compData } = await supabase
+                    .from('competitions')
+                    .select('id, uid, title, description, image_url, status, prize_value, is_instant_win, end_date, winner_address')
+                    .in('id', uuidIds);
+                  if (compData) {
+                    compData.forEach((c: any) => {
+                      competitionsMap.set(c.id, c);
+                    });
+                  }
+                }
+
+                // Fetch text UID-based competitions (legacy)
+                if (textIds.length > 0) {
+                  const { data: compData } = await supabase
+                    .from('competitions')
+                    .select('id, uid, title, description, image_url, status, prize_value, is_instant_win, end_date, winner_address')
+                    .in('uid', textIds);
+                  if (compData) {
+                    compData.forEach((c: any) => {
+                      competitionsMap.set(c.uid, c);
+                    });
+                  }
+                }
+
+                databaseLogger.debug('Fetched competition data', { found: competitionsMap.size, requested: competitionIds.length });
+              } catch (compErr) {
+                databaseLogger.warn('Error fetching competition data', compErr);
+              }
+            }
+
+            // Transform entries with competition data
+            data.forEach((jc: any) => {
+              // Try to find competition by competitionid (could be UUID or legacy text uid)
+              const comp = competitionsMap.get(jc.competitionid);
+
+              // Create synthetic jc.competitions object for transform function
+              const jcWithComp = { ...jc, competitions: comp || null };
+              addEntry(transformJoinCompetitionEntry(jcWithComp, identity), 'joincompetition');
+            });
+          } else if (error) {
+            databaseLogger.error('Base joincompetition query (wallet) error', error);
+          }
+        } catch (e) {
+          databaseLogger.error('Base joincompetition query (wallet) exception', e);
+        }
+      }
+
+      // Also try by userid
+      if (identity.legacyUserId && allEntries.length === 0) {
+        try {
+          const { data, error } = await supabase
+            .from('joincompetition')
+            .select('*')
+            .eq('userid', identity.legacyUserId)
+            .order('purchasedate', { ascending: false });
+
+          if (!error && data && data.length > 0) {
+            // Fetch competition data separately (same logic as above)
+            const competitionIds = [...new Set(data.map((jc: any) => jc.competitionid).filter(Boolean))];
+            let competitionsMap = new Map<string, any>();
+
+            if (competitionIds.length > 0) {
+              try {
+                const uuidIds = competitionIds.filter(id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
+                const textIds = competitionIds.filter(id => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
+
+                if (uuidIds.length > 0) {
+                  const { data: compData } = await supabase
+                    .from('competitions')
+                    .select('id, uid, title, description, image_url, status, prize_value, is_instant_win, end_date, winner_address')
+                    .in('id', uuidIds);
+                  if (compData) compData.forEach((c: any) => competitionsMap.set(c.id, c));
+                }
+
+                if (textIds.length > 0) {
+                  const { data: compData } = await supabase
+                    .from('competitions')
+                    .select('id, uid, title, description, image_url, status, prize_value, is_instant_win, end_date, winner_address')
+                    .in('uid', textIds);
+                  if (compData) compData.forEach((c: any) => competitionsMap.set(c.uid, c));
+                }
+              } catch (compErr) {
+                databaseLogger.warn('Error fetching competition data (userid)', compErr);
+              }
+            }
+
+            data.forEach((jc: any) => {
+              const comp = competitionsMap.get(jc.competitionid);
+              const jcWithComp = { ...jc, competitions: comp || null };
+              addEntry(transformJoinCompetitionEntry(jcWithComp, identity), 'joincompetition-userid');
+            });
+            databaseLogger.debug('Base joincompetition query (userid) found entries', { count: data.length });
+          }
+        } catch (e) {
+          databaseLogger.error('Base joincompetition query (userid) exception', e);
+        }
+      }
+    }
+
+    // ===== SOURCE 3: Query tickets table =====
+    // Some entries may exist in tickets table but not in joincompetition
+    if (identity.walletAddress || identity.legacyUserId) {
       try {
-        const { data, error } = await supabase
-          .from('v_joincompetition_active')
-          .select(selectQuery)
-          .eq('userid', identity.canonicalUserId)
-          .order('purchasedate', { ascending: false });
+        let ticketsQuery = supabase
+          .from('tickets')
+          .select(`
+            id,
+            competition_id,
+            user_id,
+            ticket_number,
+            purchase_price,
+            purchased_at,
+            is_winner,
+            canonical_user_id,
+            competitions (
+              id,
+              uid,
+              title,
+              description,
+              image_url,
+              status,
+              prize_value,
+              is_instant_win,
+              end_date,
+              winner_address
+            )
+          `)
+          .order('purchased_at', { ascending: false });
 
-        if (!error && data) {
-          data.forEach((jc: any) => {
-            const id = jc.uid || jc.id;
-            if (!seenIds.has(id)) {
-              seenIds.add(id);
-              allEntries.push(transformJoinCompetitionEntry(jc, identity));
-            }
-          });
-          databaseLogger.debug('Individual query (canonical) found entries', { count: data.length });
-        } else if (error) {
-          databaseLogger.error('Individual query (canonical) error', error);
+        // Build OR filter for tickets
+        const ticketFilters: string[] = [];
+        if (identity.walletAddress) {
+          ticketFilters.push(`user_id.ilike.${identity.walletAddress}`);
+        }
+        if (identity.canonicalUserId) {
+          ticketFilters.push(`canonical_user_id.eq.${identity.canonicalUserId}`);
+        }
+        if (identity.legacyUserId) {
+          ticketFilters.push(`user_id.eq.${identity.legacyUserId}`);
+        }
+
+        if (ticketFilters.length > 0) {
+          const { data: ticketsData, error: ticketsError } = await ticketsQuery.or(ticketFilters.join(','));
+
+          if (!ticketsError && ticketsData && ticketsData.length > 0) {
+            // Group tickets by competition_id
+            const ticketsByComp = new Map<string, any[]>();
+            ticketsData.forEach((t: any) => {
+              const compId = t.competition_id;
+              if (!ticketsByComp.has(compId)) {
+                ticketsByComp.set(compId, []);
+              }
+              ticketsByComp.get(compId)!.push(t);
+            });
+
+            // Transform grouped tickets to entries
+            ticketsByComp.forEach((tickets, compId) => {
+              const firstTicket = tickets[0];
+              const comp = firstTicket.competitions;
+              const ticketNumbers = tickets.map((t: any) => t.ticket_number).filter(Boolean).join(',');
+              const totalAmount = tickets.reduce((sum: number, t: any) => sum + (parseFloat(t.purchase_price) || 0), 0);
+              const isWinner = tickets.some((t: any) => t.is_winner);
+
+              const entry = {
+                id: `tickets-${compId}-${identity.walletAddress?.substring(0, 8) || 'user'}`,
+                competition_id: compId,
+                title: comp?.title || 'Unknown Competition',
+                description: comp?.description || '',
+                image: comp?.image_url,
+                status: comp?.status === 'active' ? 'live' : (comp?.status || 'live'),
+                entry_type: 'completed',
+                expires_at: null,
+                is_winner: isWinner,
+                ticket_numbers: ticketNumbers,
+                number_of_tickets: tickets.length,
+                amount_spent: totalAmount,
+                purchase_date: firstTicket.purchased_at,
+                wallet_address: identity.walletAddress,
+                transaction_hash: null,
+                is_instant_win: comp?.is_instant_win || false,
+                prize_value: comp?.prize_value,
+                competition_status: comp?.status || 'active',
+                end_date: comp?.end_date,
+              };
+
+              addEntry(entry, 'tickets');
+            });
+            databaseLogger.debug('Tickets query found entries', { count: ticketsByComp.size });
+          } else if (ticketsError) {
+            databaseLogger.warn('Tickets query error', { code: ticketsError.code, message: ticketsError.message });
+          }
         }
       } catch (e) {
-        databaseLogger.error('Individual query (canonical) exception', e);
+        databaseLogger.warn('Tickets query exception', e);
       }
     }
 
-    // Try legacy userid
-    if (identity.legacyUserId) {
+    // ===== SOURCE 4: Query user_transactions table =====
+    // Completed payments that may not be in joincompetition yet
+    if (identity.walletAddress || identity.legacyUserId || identity.canonicalUserId) {
       try {
-        const { data, error } = await supabase
-          .from('v_joincompetition_active')
-          .select(selectQuery)
-          .eq('userid', identity.legacyUserId)
-          .order('purchasedate', { ascending: false });
+        const txFilters: string[] = [];
+        if (identity.walletAddress) {
+          txFilters.push(`wallet_address.ilike.${identity.walletAddress}`);
+        }
+        if (identity.canonicalUserId) {
+          txFilters.push(`canonical_user_id.eq.${identity.canonicalUserId}`);
+        }
+        if (identity.legacyUserId) {
+          txFilters.push(`user_id.eq.${identity.legacyUserId}`);
+        }
 
-        if (!error && data) {
-          data.forEach((jc: any) => {
-            const id = jc.uid || jc.id;
-            if (!seenIds.has(id)) {
-              seenIds.add(id);
-              allEntries.push(transformJoinCompetitionEntry(jc, identity));
-            }
-          });
-          databaseLogger.debug('Individual query (legacy) found entries', { count: data.length });
-        } else if (error) {
-          databaseLogger.error('Individual query (legacy) error', error);
+        if (txFilters.length > 0) {
+          const { data: txData, error: txError } = await supabase
+            .from('user_transactions')
+            .select(`
+              id,
+              competition_id,
+              user_id,
+              wallet_address,
+              amount,
+              ticket_count,
+              payment_status,
+              tx_id,
+              created_at,
+              canonical_user_id,
+              competitions (
+                id,
+                uid,
+                title,
+                description,
+                image_url,
+                status,
+                prize_value,
+                is_instant_win,
+                end_date,
+                winner_address
+              )
+            `)
+            .or(txFilters.join(','))
+            .in('payment_status', ['completed', 'finished'])
+            .order('created_at', { ascending: false });
+
+          if (!txError && txData && txData.length > 0) {
+            txData.forEach((tx: any) => {
+              const comp = tx.competitions;
+              const entry = {
+                id: tx.id,
+                competition_id: tx.competition_id,
+                title: comp?.title || 'Unknown Competition',
+                description: comp?.description || '',
+                image: comp?.image_url,
+                status: comp?.status === 'active' ? 'live' : (comp?.status || 'live'),
+                entry_type: 'completed',
+                expires_at: null,
+                is_winner: false,
+                ticket_numbers: '',
+                number_of_tickets: tx.ticket_count || 1,
+                amount_spent: tx.amount,
+                purchase_date: tx.created_at,
+                wallet_address: tx.wallet_address || identity.walletAddress,
+                transaction_hash: tx.tx_id,
+                is_instant_win: comp?.is_instant_win || false,
+                prize_value: comp?.prize_value,
+                competition_status: comp?.status || 'active',
+                end_date: comp?.end_date,
+              };
+
+              addEntry(entry, 'user_transactions');
+            });
+            databaseLogger.debug('User transactions query found entries', { count: txData.length });
+          } else if (txError) {
+            databaseLogger.warn('User transactions query error', { code: txError.code, message: txError.message });
+          }
         }
       } catch (e) {
-        databaseLogger.error('Individual query (legacy) exception', e);
+        databaseLogger.warn('User transactions query exception', e);
       }
     }
 
-    databaseLogger.info('Individual queries complete', { totalEntries: allEntries.length });
+    databaseLogger.info('Individual queries complete', { totalEntries: allEntries.length, sources: 'view+joincompetition+tickets+transactions' });
     return allEntries;
   },
 
