@@ -339,7 +339,8 @@ export function buildIdentityFilter(
 
   // PRIORITY 1: Add canonical_user_id filter (HIGHEST PRIORITY!)
   // This is the new standard and should be checked first
-  if (identity.canonicalUserId && isValidFilterValue(identity.canonicalUserId)) {
+  // Skip if canonicalColumn is empty (allows disabling canonical filter for views without this column)
+  if (canonicalColumn && identity.canonicalUserId && isValidFilterValue(identity.canonicalUserId)) {
     const escapedCanonical = escapeFilterValue(identity.canonicalUserId);
     if (escapedCanonical) {
       filters.push(`${canonicalColumn}.eq.${escapedCanonical}`);
@@ -392,29 +393,41 @@ export function buildIdentityFilter(
   // Fallback: always include the primary ID in the appropriate column as last resort
   if (filters.length === 0 && isValidFilterValue(identity.primaryId)) {
     if (isPrizePid(identity.primaryId)) {
-      // It's a prize:pid: format - add as canonical_user_id
-      const escapedPrimaryId = escapeFilterValue(identity.primaryId);
-      if (escapedPrimaryId) {
-        filters.push(`${canonicalColumn}.eq.${escapedPrimaryId}`);
+      // It's a prize:pid: format - add as canonical_user_id (only if column is enabled)
+      if (canonicalColumn) {
+        const escapedPrimaryId = escapeFilterValue(identity.primaryId);
+        if (escapedPrimaryId) {
+          filters.push(`${canonicalColumn}.eq.${escapedPrimaryId}`);
+        }
+      } else {
+        // canonical column disabled - try to extract wallet from prize:pid:0x... format
+        const idPart = identity.primaryId.substring(10); // Remove "prize:pid:" prefix
+        if (isWalletAddress(idPart)) {
+          const normalizedWallet = idPart.toLowerCase();
+          const escapedWallet = escapeFilterValue(normalizedWallet);
+          if (escapedWallet && walletColumn) {
+            filters.push(`${walletColumn}.ilike.${escapedWallet}`);
+          }
+        }
       }
     } else if (isWalletAddress(identity.primaryId)) {
       const normalizedPrimaryWallet = identity.primaryId.toLowerCase();
       const escapedPrimaryWallet = escapeFilterValue(normalizedPrimaryWallet);
-      if (escapedPrimaryWallet) {
+      if (escapedPrimaryWallet && walletColumn) {
         filters.push(`${walletColumn}.ilike.${escapedPrimaryWallet}`);
         // Also check privy_user_id for Base auth compatibility
-        if (privyColumn !== walletColumn) {
+        if (privyColumn && privyColumn !== walletColumn) {
           filters.push(`${privyColumn}.ilike.${escapedPrimaryWallet}`);
         }
       }
     } else if (isPrivyDid(identity.primaryId)) {
       const escapedPrimaryId = escapeFilterValue(identity.primaryId);
-      if (escapedPrimaryId) {
+      if (escapedPrimaryId && privyColumn) {
         filters.push(`${privyColumn}.eq.${escapedPrimaryId}`);
       }
     } else {
       const escapedPrimaryId = escapeFilterValue(identity.primaryId);
-      if (escapedPrimaryId) {
+      if (escapedPrimaryId && userIdColumn) {
         filters.push(`${userIdColumn}.eq.${escapedPrimaryId}`);
       }
     }
@@ -445,7 +458,14 @@ export async function fetchUserEntriesWithIdentity(identifier: string): Promise<
     return [];
   }
 
-  const filter = buildIdentityFilter(identity);
+  // FIX: Use identity filter WITHOUT canonical_user_id for v_joincompetition_active
+  // The view may not have canonical_user_id column, so we exclude it
+  const filter = buildIdentityFilter(identity, {
+    canonicalColumn: '', // Disabled - column may not exist in this view
+    walletColumn: 'walletaddress',
+    privyColumn: 'privy_user_id',
+    userIdColumn: 'userid',
+  });
 
   try {
     const { data, error } = await supabase
