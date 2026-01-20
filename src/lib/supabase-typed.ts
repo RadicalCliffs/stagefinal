@@ -252,7 +252,7 @@ export async function releaseReservation(params: {
  */
 export async function getUnavailableTickets(competitionId: string): Promise<number[]> {
   const { data, error } = await supabase.rpc('get_unavailable_tickets', {
-    p_competition_id: competitionId,
+    competition_id: competitionId,
   } satisfies GetUnavailableTicketsArgs);
 
   if (error) throw error;

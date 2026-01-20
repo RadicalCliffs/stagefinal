@@ -1393,7 +1393,7 @@ export const database = {
       });
 
       const { data: unavailableTickets, error: rpcError } = await supabase
-        .rpc('get_unavailable_tickets', { p_competition_id: competitionId.trim() });
+        .rpc('get_unavailable_tickets', { competition_id: competitionId.trim() });
 
       if (rpcError) {
         // RPC call failed - log error and try direct query fallback
