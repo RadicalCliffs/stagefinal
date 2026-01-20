@@ -335,12 +335,12 @@ const LoggedInUserBtn = ({ fullWidth = false }: LoggedInUserBtnProps) => {
                                 {getWalletLabel(walletAccount)}
                               </p>
                               {isPrimary && (
-                                <span className="bg-[#DDE404] text-[#1A1A1A] sequel-75 text-[10px] px-1.5 py-0.5 rounded">
+                                <span className="bg-[#DDE404] text-[#1A1A1A] sequel-75 text-[10px] px-1.5 py-0.5 rounded ml-1">
                                   PRIMARY
                                 </span>
                               )}
                             </div>
-                            <p className="sequel-45 text-white/50 text-xs truncate">
+                            <p className="sequel-45 text-white/50 text-xs truncate mt-1">
                               {truncateString(walletAccount.address || '', 20)}
                             </p>
                           </div>

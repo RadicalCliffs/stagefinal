@@ -444,9 +444,9 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
           <div className="flex flex-col gap-2">
             <button
               onClick={() => setShowTopUpModal(true)}
-              className="bg-[#DDE404] hover:bg-[#DDE404]/90 text-black sequel-75 px-6 py-3 rounded-lg flex items-center gap-2 transition-colors"
+              className="bg-[#DDE404] hover:bg-[#DDE404]/90 text-black sequel-75 px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm"
             >
-              <Plus size={18} />
+              <Plus size={16} />
               Top Up Balance
             </button>
             <button
@@ -550,17 +550,17 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
                     <div className="flex items-center gap-2">
                       <p className="text-white sequel-75 text-sm">{getWalletTypeLabel(wallet)}</p>
                       {(wallet.isEmbeddedWallet || (wallet.isBaseAccount && !wallet.isExternalWallet)) && (
-                        <span className="bg-[#DDE404] text-black sequel-75 text-[10px] px-2 py-0.5 rounded">
+                        <span className="bg-[#DDE404] text-black sequel-75 text-[10px] px-2 py-0.5 rounded ml-1">
                           PRIMARY
                         </span>
                       )}
                       {(wallet.isExternalWallet || wallet.walletClient === 'external') && (
-                        <span className="bg-purple-500 text-white sequel-75 text-[10px] px-2 py-0.5 rounded">
+                        <span className="bg-purple-500 text-white sequel-75 text-[10px] px-2 py-0.5 rounded ml-1">
                           EXTERNAL
                         </span>
                       )}
                     </div>
-                    <p className="text-white/50 sequel-45 text-xs mt-1 font-mono">
+                    <p className="text-white/50 sequel-45 text-xs mt-1.5 font-mono">
                       {truncateString(wallet.address, 24)}
                     </p>
                     <p className="text-white/30 sequel-45 text-xs mt-0.5">
@@ -663,43 +663,6 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
             </div>
           )}
         </div>
-
-        {/* Get Free Base Wallet Prompt - Show when user has only external wallet */}
-        {hasOnlyExternalWallet && (
-          <div className="mt-4 bg-gradient-to-r from-[#0052FF]/20 to-[#0052FF]/10 border border-[#0052FF]/40 rounded-xl p-5">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 bg-[#0052FF] rounded-full flex items-center justify-center flex-shrink-0">
-                <Shield size={24} className="text-white" />
-              </div>
-              <div className="flex-1">
-                <h4 className="text-white sequel-75 text-base mb-1">Get Your Free Base Wallet</h4>
-                <p className="text-white/60 sequel-45 text-xs mb-3">
-                  Create a free embedded Base wallet powered by Coinbase for a smoother experience with faster transactions and easier top-ups.
-                </p>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="bg-[#DDE404]/20 text-[#DDE404] sequel-75 text-[10px] px-2 py-1 rounded">
-                    50% First Top-Up Bonus
-                  </span>
-                  <span className="bg-[#0052FF]/20 text-[#0052FF] sequel-75 text-[10px] px-2 py-1 rounded">
-                    Powered by Coinbase
-                  </span>
-                </div>
-                <button
-                  onClick={() => {
-                    // Dispatch event to open auth modal for wallet creation
-                    window.dispatchEvent(new CustomEvent('open-auth-modal', {
-                      detail: { action: 'create-wallet' }
-                    }));
-                  }}
-                  className="bg-[#0052FF] hover:bg-[#0052FF]/90 text-white sequel-75 px-4 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors"
-                >
-                  <Wallet size={16} />
-                  Create Free Base Wallet
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Link External Wallet Form */}
         {showLinkForm && !linkedExternalWallet && (
