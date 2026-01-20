@@ -90,7 +90,7 @@ BEGIN
   RETURN QUERY
   -- Source 1: joincompetition table (primary source)
   SELECT
-    COALESCE(jc.uid::text, jc.id::text, gen_random_uuid()::text) as uid,
+    COALESCE(jc.uid::text, gen_random_uuid()::text) as uid,
     COALESCE(jc.competitionid, '')::text as competitionid,
     COALESCE(jc.userid, '')::text as userid,
     COALESCE(jc.privy_user_id, jc.walletaddress, '')::text as privy_user_id,
@@ -576,7 +576,7 @@ BEGIN
   -- ALWAYS ensure we have a valid ID and competition_id
   -- Use deterministic ID generation to ensure same entry always gets same ID
   SELECT
-    COALESCE(jc.uid, jc.id::TEXT, 'jc-' || COALESCE(jc.competitionid, '') || '-' || COALESCE(jc.walletaddress, '') || '-' || COALESCE(jc.created_at::TEXT, '')) AS id,
+    COALESCE(jc.uid, 'jc-' || COALESCE(jc.competitionid, '') || '-' || COALESCE(jc.walletaddress, '') || '-' || COALESCE(jc.created_at::TEXT, '')) AS id,
     COALESCE(jc.competitionid, c.id::TEXT, c.uid) AS competition_id,
     COALESCE(c.title, '') AS title,
     COALESCE(c.description, '') AS description,

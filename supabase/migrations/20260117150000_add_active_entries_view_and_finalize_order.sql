@@ -17,7 +17,6 @@
 
 CREATE OR REPLACE VIEW public.v_joincompetition_active AS
 SELECT
-  jc.id,
   jc.uid,
   jc.userid,
   jc.walletaddress,
