@@ -602,9 +602,14 @@ BEGIN
     COALESCE(c.status, 'completed') AS competition_status,
     c.end_date AS end_date
   FROM public.joincompetition jc
+  -- Use OR to handle both UUID format (c.id) and text format (c.uid) for competitionid
   LEFT JOIN public.competitions c ON (
-    jc.competitionid = c.id::TEXT
-    OR jc.competitionid = c.uid
+    -- Try UUID match first (when competitionid is stored as UUID string)
+    (jc.competitionid ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+     AND jc.competitionid::uuid = c.id)
+    OR
+    -- Fallback to uid match (legacy text format)
+    c.uid = jc.competitionid
   )
   WHERE (
     -- Match using resolved identifiers from canonical_users

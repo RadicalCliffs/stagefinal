@@ -36,7 +36,15 @@ SELECT
   c.status as competition_status,
   c.draw_date as competition_draw_date
 FROM joincompetition jc
-LEFT JOIN competitions c ON c.uid = jc.competitionid
+-- Use OR to handle both UUID format (c.id) and text format (c.uid) for competitionid
+LEFT JOIN competitions c ON (
+  -- Try UUID match first (when competitionid is stored as UUID string)
+  (jc.competitionid ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' 
+   AND jc.competitionid::uuid = c.id)
+  OR
+  -- Fallback to uid match (legacy text format)
+  c.uid = jc.competitionid
+)
 WHERE
   -- Only include entries for active or completed competitions
   c.status IN ('active', 'completed', 'drawing', 'drawn')
@@ -45,7 +53,7 @@ WHERE
   AND jc.ticketnumbers IS NOT NULL;
 
 -- Add comment for documentation
-COMMENT ON VIEW public.v_joincompetition_active IS 'Stable view for active competition entries. Use this instead of direct joincompetition queries.';
+COMMENT ON VIEW public.v_joincompetition_active IS 'Stable view for active competition entries with canonical_user_id support. Handles both UUID and text format competition IDs. Use this instead of direct joincompetition queries.';
 
 -- Grant permissions on the view
 GRANT SELECT ON public.v_joincompetition_active TO authenticated;
