@@ -7,7 +7,7 @@ import { supabase } from "../../../lib/supabase";
 import Loader from "../../Loader";
 import { useAuthUser } from '../../../contexts/AuthContext';
 import { useToast } from '../../Toast';
-import { Ticket, Trophy, AlertCircle, Clock, Zap, RefreshCw, CheckCircle } from 'lucide-react';
+import { Ticket, Trophy, AlertCircle, Clock, Zap, RefreshCw } from 'lucide-react';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -184,31 +184,27 @@ export default function EntriesList() {
   // Check for payment success/cancelled parameters in URL and show appropriate message
   useEffect(() => {
     const paymentStatus = searchParams.get('payment');
+    const status = searchParams.get('status');
+    
+    // Helper function to clean up URL parameters
+    const cleanupUrlParams = (...paramsToRemove: string[]) => {
+      const newParams = new URLSearchParams(searchParams);
+      paramsToRemove.forEach(param => newParams.delete(param));
+      setSearchParams(newParams, { replace: true });
+    };
     
     if (paymentStatus === 'success') {
       showToast('Payment successful! Your entries will appear below.', 'success');
-      // Clean up URL parameters after showing message
-      const newParams = new URLSearchParams(searchParams);
-      newParams.delete('payment');
-      newParams.delete('txId');
-      newParams.delete('status');
-      setSearchParams(newParams, { replace: true });
+      cleanupUrlParams('payment', 'txId', 'status');
       // Refresh entries to show the new purchase
       debouncedFetchEntries();
     } else if (paymentStatus === 'cancelled') {
       showToast('Payment was cancelled. You can try again anytime.', 'info');
-      // Clean up URL parameters
-      const newParams = new URLSearchParams(searchParams);
-      newParams.delete('payment');
-      newParams.delete('txId');
-      newParams.delete('status');
-      setSearchParams(newParams, { replace: true });
-    } else if (searchParams.get('status') === 'complete') {
+      cleanupUrlParams('payment', 'txId', 'status');
+    } else if (status === 'complete') {
       // Handle legacy status parameter from onramp/offramp redirects
       showToast('Transaction completed successfully!', 'success');
-      const newParams = new URLSearchParams(searchParams);
-      newParams.delete('status');
-      setSearchParams(newParams, { replace: true });
+      cleanupUrlParams('status');
       debouncedFetchEntries();
     }
   }, [searchParams, showToast, setSearchParams, debouncedFetchEntries]);
