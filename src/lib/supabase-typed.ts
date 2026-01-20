@@ -252,8 +252,8 @@ export async function releaseReservation(params: {
  */
 export async function getUnavailableTickets(competitionId: string): Promise<number[]> {
   const { data, error } = await supabase.rpc('get_unavailable_tickets', {
-    competition_id: competitionId,
-  } satisfies GetUnavailableTicketsArgs);
+    p_competition_id: competitionId,
+  } as any); // Using 'as any' because PostgREST expects p_competition_id but generated types show competition_id
 
   if (error) throw error;
   return data ?? [];
