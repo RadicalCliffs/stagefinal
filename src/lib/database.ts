@@ -1080,9 +1080,10 @@ export const database = {
     }
 
     // Fetch all winners without date filter
+    // Include winner_username from the updated competition_winners view
     const { data: winnerData } = await supabase
       .from('competition_winners')
-      .select('competitionprize, Winner, crDate, competitionname, imageurl')
+      .select('competitionprize, Winner, winner_username, crDate, competitionname, imageurl')
       .not('Winner', 'is', null)
       .order('crDate', { ascending: false, nullsLast: true })
       .limit(50);
@@ -1159,7 +1160,12 @@ export const database = {
         timeDisplay = 'Recent';
       }
 
-      const displayName = userData?.username ||
+      // Priority for username display:
+      // 1. winner_username from winners table (stored directly when winner is declared)
+      // 2. username from canonical_users lookup
+      // 3. Truncated wallet address as fallback
+      const displayName = (comp as any).winner_username ||
+        userData?.username ||
         (comp.Winner
           ? comp.Winner.substring(0, 6) + '...' + comp.Winner.slice(-4)
           : 'Anonymous');
