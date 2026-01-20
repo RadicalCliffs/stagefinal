@@ -373,7 +373,7 @@ Accepts competition ID (UUID) or uid (text).';
 DROP FUNCTION IF EXISTS get_unavailable_tickets(text) CASCADE;
 DROP FUNCTION IF EXISTS get_unavailable_tickets(uuid) CASCADE;
 
-CREATE OR REPLACE FUNCTION get_unavailable_tickets(competition_id TEXT)
+CREATE OR REPLACE FUNCTION get_unavailable_tickets(p_competition_id TEXT)
 RETURNS int4[]
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -390,11 +390,11 @@ DECLARE
 BEGIN
   -- Convert text to UUID (or look up by uid)
   BEGIN
-    v_competition_uuid := competition_id::UUID;
+    v_competition_uuid := p_competition_id::UUID;
   EXCEPTION WHEN invalid_text_representation THEN
     SELECT c.id, c.uid INTO v_competition_uuid, v_comp_uid
     FROM competitions c
-    WHERE c.uid = competition_id
+    WHERE c.uid = p_competition_id
     LIMIT 1;
 
     IF v_competition_uuid IS NULL THEN
@@ -417,7 +417,7 @@ BEGIN
     WHERE (
       competitionid = v_competition_uuid::text
       OR (v_comp_uid IS NOT NULL AND competitionid = v_comp_uid)
-      OR competitionid = competition_id
+      OR competitionid = p_competition_id
     )
       AND ticketnumbers IS NOT NULL
       AND trim(ticketnumbers) != ''
@@ -538,7 +538,7 @@ BEGIN
     LOWER(cu.base_wallet_address),
     LOWER(cu.eth_wallet_address),
     cu.privy_user_id,
-    cu.uid::TEXT
+    cu.id::TEXT
   INTO
     resolved_canonical_user_id,
     resolved_wallet_address,
@@ -556,8 +556,8 @@ BEGIN
     OR LOWER(cu.eth_wallet_address) = lower_identifier
     -- Match by privy_user_id
     OR cu.privy_user_id = user_identifier
-    -- Match by uid
-    OR cu.uid::TEXT = user_identifier
+    -- Match by id
+    OR cu.id::TEXT = user_identifier
     -- Match by search_wallet if it's a wallet address
     OR (search_wallet IS NOT NULL AND (
       LOWER(cu.wallet_address) = search_wallet
@@ -613,12 +613,12 @@ BEGIN
     OR (resolved_base_wallet_address IS NOT NULL AND LOWER(jc.walletaddress) = resolved_base_wallet_address)
     OR (resolved_eth_wallet_address IS NOT NULL AND LOWER(jc.walletaddress) = resolved_eth_wallet_address)
     OR (resolved_privy_user_id IS NOT NULL AND jc.privy_user_id = resolved_privy_user_id)
-    OR (resolved_uid IS NOT NULL AND jc.userid = resolved_uid)
+    OR (resolved_uid IS NOT NULL AND jc.userid::TEXT = resolved_uid)
     -- Fallback: Direct matching if user not found in canonical_users
     OR (resolved_canonical_user_id IS NULL AND (
       jc.canonical_user_id = user_identifier
       OR LOWER(jc.walletaddress) = lower_identifier
-      OR jc.userid = user_identifier
+      OR jc.userid::TEXT = user_identifier
       OR (search_wallet IS NOT NULL AND LOWER(jc.walletaddress) = search_wallet)
     ))
   )

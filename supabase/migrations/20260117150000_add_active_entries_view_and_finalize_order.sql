@@ -21,6 +21,8 @@ SELECT
   jc.uid,
   jc.userid,
   jc.walletaddress,
+  jc.canonical_user_id,
+  jc.privy_user_id,
   jc.competitionid,
   jc.numberoftickets,
   jc.ticketnumbers,
