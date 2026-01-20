@@ -69,51 +69,33 @@ const HeroCarouselV2 = () => {
             <div className="relative">
               {/* Hero Image */}
               <div className="relative w-full">
-                {/* Desktop image */}
                 <img
-                  className="w-full rounded-t-xl sm:min-h-[571px] sm:max-h-[571px] object-cover hidden sm:block"
+                  className="w-full rounded-t-xl sm:min-h-[571px] sm:max-h-[571px] max-h-[350px] min-h-[350px] object-cover"
                   src={slide.image}
                   alt={slide.title}
                   loading={idx === 0 ? 'eager' : 'lazy'}
                 />
-                {/* Mobile image container with gradient */}
+
+                {/* Mobile content below image */}
                 {isMobile && (
-                  <div className="relative bg-black rounded-t-xl overflow-hidden" style={{ aspectRatio: '9/16' }}>
-                    <div className="absolute inset-0 overflow-hidden">
-                      <img
-                        className="h-full min-w-[140%] object-cover object-center animate-hero-pan"
-                        src={slide.image}
-                        alt={slide.title}
-                        loading={idx === 0 ? 'eager' : 'lazy'}
-                      />
-                    </div>
-                    {/* Black area at the very bottom */}
-                    <div className="absolute bottom-0 left-0 right-0 h-[8%] bg-black pointer-events-none" />
-                    {/* Fading black gradient on bottom portion - smaller to show more image */}
-                    <div
-                      className="absolute bottom-[8%] left-0 right-0 h-[35%] pointer-events-none"
-                      style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.5) 30%, rgba(0,0,0,0.85) 60%, rgba(0,0,0,1) 100%)' }}
-                    />
-                    {/* Mobile overlay content - more compact */}
-                    <div className="absolute bottom-0 left-0 right-0 p-4 pt-0 pb-4 z-10">
-                      <h2 className="sequel-95 text-white text-[14px] mb-1.5 leading-tight uppercase">
-                        {slide.title}
-                      </h2>
-                      <p className="sequel-45 text-white/90 text-[11px] mb-2.5 line-clamp-2 leading-snug">
-                        {slide.description}
-                      </p>
-                      <div className="flex items-stretch gap-0 relative">
-                        <div className="bg-white rounded-lg px-3 py-1.5 flex items-center gap-1.5 z-10">
-                          <span className="sequel-95 text-sm text-black">{slide.price}</span>
-                          <span className="sequel-45 text-sm text-black/70">/ Entry</span>
-                        </div>
-                        <span
-                          className="sequel-95 bg-[#494949] text-white/70 px-4 py-1.5 rounded-lg text-sm flex-1 text-center -ml-5 relative cursor-not-allowed"
-                          style={{ boxShadow: '-8px 0 16px rgba(0, 0, 0, 0.3)' }}
-                        >
-                          {slide.cta}
-                        </span>
+                  <div className="bg-black p-3 pb-4">
+                    <h2 className="sequel-95 text-white text-base mb-1.5 leading-tight uppercase">
+                      {slide.title}
+                    </h2>
+                    <p className="sequel-45 text-white/90 text-[11px] mb-3 line-clamp-2 leading-snug">
+                      {slide.description}
+                    </p>
+                    <div className="flex items-stretch gap-0 relative">
+                      <div className="bg-white rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 z-10">
+                        <span className="sequel-95 text-xs text-black">{slide.price}</span>
+                        <span className="sequel-45 text-xs text-black/70">/ Entry</span>
                       </div>
+                      <span
+                        className="sequel-95 bg-[#494949] text-white/70 px-4 py-1.5 rounded-lg text-xs flex-1 text-center -ml-5 relative cursor-not-allowed"
+                        style={{ boxShadow: '-8px 0 16px rgba(0, 0, 0, 0.3)' }}
+                      >
+                        {slide.cta}
+                      </span>
                     </div>
                   </div>
                 )}

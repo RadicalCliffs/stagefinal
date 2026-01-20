@@ -48,7 +48,7 @@ const HeroSection = () => {
         <HeroCarouselV2 />
         <Reviews />
       </div>
-      <div className="max-w-[77rem] mx-auto sm:mt-0 -mt-2 relative z-0">
+      <div className="max-w-[77rem] mx-auto relative z-0">
         <CardPayments />
       </div>
       <div className="max-w-[77rem] mx-auto">
