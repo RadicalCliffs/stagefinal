@@ -164,8 +164,9 @@ BEGIN
 
   -- Part 1: Entries from joincompetition table (authoritative source)
   -- ALWAYS ensure we have a valid ID and competition_id
+  -- Use deterministic ID generation to ensure same entry always gets same ID
   SELECT
-    COALESCE(jc.uid, jc.id::TEXT, gen_random_uuid()::TEXT) AS id,
+    COALESCE(jc.uid, jc.id::TEXT, 'jc-' || COALESCE(jc.competitionid, '') || '-' || COALESCE(jc.walletaddress, '') || '-' || COALESCE(jc.created_at::TEXT, '')) AS id,
     COALESCE(jc.competitionid, c.id::TEXT, c.uid) AS competition_id,
     COALESCE(c.title, '') AS title,
     COALESCE(c.description, '') AS description,
@@ -221,8 +222,9 @@ BEGIN
 
   -- Part 2: Entries from tickets table
   -- ALWAYS ensure we have a valid ID and competition_id
+  -- Use deterministic ID generation with competition_id and user identifier
   SELECT
-    ('tickets-' || COALESCE(t.canonical_user_id, t.user_id, 'unknown') || '-' || t.competition_id::TEXT)::TEXT AS id,
+    ('tickets-' || COALESCE(t.canonical_user_id, t.user_id, 'anon-' || t.competition_id::TEXT) || '-' || t.competition_id::TEXT)::TEXT AS id,
     t.competition_id::TEXT AS competition_id,
     COALESCE(c.title, '') AS title,
     COALESCE(c.description, '') AS description,
@@ -263,8 +265,6 @@ BEGIN
   AND t.competition_id IS NOT NULL
   GROUP BY t.competition_id, t.canonical_user_id, t.user_id, c.id, c.title, c.description, c.image_url,
            c.imageurl, c.status, c.winner_address, c.is_instant_win, c.prize_value, c.end_date, c.ticket_price
-  -- CRITICAL: Only include groups where we have a valid competition
-  HAVING t.competition_id IS NOT NULL
 
   UNION ALL
 
