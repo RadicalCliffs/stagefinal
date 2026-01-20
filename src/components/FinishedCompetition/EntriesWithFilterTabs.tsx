@@ -328,33 +328,133 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
           }
         }
 
-        // Fetch usernames for all wallet addresses
+        // Fetch usernames for all wallet addresses from multiple sources
         if (walletAddresses.size > 0) {
           try {
             const walletArray = Array.from(walletAddresses);
+
+            // First try: Query canonical_users with direct wallet_address match
             const { data: usersData } = await supabase
               .from('canonical_users')
-              .select('wallet_address, username')
-              .in('wallet_address', walletArray);
+              .select('wallet_address, username, canonical_user_id, base_wallet_address')
+              .or(`wallet_address.in.(${walletArray.map(w => `"${w}"`).join(',')}),base_wallet_address.in.(${walletArray.map(w => `"${w}"`).join(',')})`);
+
+            const walletToUsername = new Map<string, string>();
+            const walletToAddress = new Map<string, string>();
 
             if (usersData && usersData.length > 0) {
-              const walletToUsername = new Map<string, string>();
               usersData.forEach((user: any) => {
-                if (user.wallet_address && user.username) {
-                  walletToUsername.set(user.wallet_address.toLowerCase(), user.username);
-                }
-              });
-
-              // Update entries with usernames
-              transformedEntries.forEach(entry => {
-                if (entry.walletAddress && entry.walletAddress.startsWith('0x')) {
-                  const username = walletToUsername.get(entry.walletAddress.toLowerCase());
-                  if (username) {
-                    entry.username = username;
+                if (user.wallet_address) {
+                  const lowercaseWallet = user.wallet_address.toLowerCase();
+                  if (user.username) {
+                    walletToUsername.set(lowercaseWallet, user.username);
                   }
+                  walletToAddress.set(lowercaseWallet, user.wallet_address);
+                }
+                if (user.base_wallet_address) {
+                  const lowercaseBase = user.base_wallet_address.toLowerCase();
+                  if (user.username) {
+                    walletToUsername.set(lowercaseBase, user.username);
+                  }
+                  walletToAddress.set(lowercaseBase, user.base_wallet_address);
                 }
               });
             }
+
+            // Second try: Look up by canonical_user_id in joincompetition entries
+            // Get canonical_user_ids from entries and look them up
+            const canonicalIds = new Set<string>();
+            transformedEntries.forEach(entry => {
+              if (entry.walletAddress && entry.walletAddress.startsWith('prize:pid:')) {
+                canonicalIds.add(entry.walletAddress);
+              }
+            });
+
+            if (canonicalIds.size > 0) {
+              const canonicalArray = Array.from(canonicalIds);
+              const { data: canonicalUsersData } = await supabase
+                .from('canonical_users')
+                .select('wallet_address, username, canonical_user_id, base_wallet_address')
+                .in('canonical_user_id', canonicalArray);
+
+              if (canonicalUsersData && canonicalUsersData.length > 0) {
+                canonicalUsersData.forEach((user: any) => {
+                  if (user.canonical_user_id) {
+                    if (user.username) {
+                      walletToUsername.set(user.canonical_user_id.toLowerCase(), user.username);
+                    }
+                    if (user.wallet_address) {
+                      walletToAddress.set(user.canonical_user_id.toLowerCase(), user.wallet_address);
+                    }
+                  }
+                });
+              }
+            }
+
+            // Third try: Query joincompetition for this competition to get wallet/user mapping
+            const { data: joinData } = await supabase
+              .from('joincompetition')
+              .select('walletaddress, userid, canonical_user_id')
+              .eq('competitionid', idToUse);
+
+            if (joinData && joinData.length > 0) {
+              // Collect all user IDs to lookup
+              const userIds = new Set<string>();
+              joinData.forEach((entry: any) => {
+                if (entry.userid) userIds.add(entry.userid);
+                if (entry.canonical_user_id) userIds.add(entry.canonical_user_id);
+              });
+
+              // Look up these users
+              if (userIds.size > 0) {
+                const userIdArray = Array.from(userIds);
+                const { data: moreUsersData } = await supabase
+                  .from('canonical_users')
+                  .select('wallet_address, username, canonical_user_id, base_wallet_address')
+                  .or(`canonical_user_id.in.(${userIdArray.map(u => `"${u}"`).join(',')}),wallet_address.in.(${userIdArray.map(u => `"${u}"`).join(',')})`);
+
+                if (moreUsersData && moreUsersData.length > 0) {
+                  moreUsersData.forEach((user: any) => {
+                    if (user.wallet_address) {
+                      const lowercaseWallet = user.wallet_address.toLowerCase();
+                      if (user.username && !walletToUsername.has(lowercaseWallet)) {
+                        walletToUsername.set(lowercaseWallet, user.username);
+                      }
+                    }
+                    if (user.canonical_user_id) {
+                      const lowercaseId = user.canonical_user_id.toLowerCase();
+                      if (user.username && !walletToUsername.has(lowercaseId)) {
+                        walletToUsername.set(lowercaseId, user.username);
+                      }
+                      if (user.wallet_address && !walletToAddress.has(lowercaseId)) {
+                        walletToAddress.set(lowercaseId, user.wallet_address);
+                      }
+                    }
+                  });
+                }
+              }
+            }
+
+            // Update entries with usernames and wallet addresses
+            transformedEntries.forEach(entry => {
+              if (entry.walletAddress) {
+                const lowercaseWallet = entry.walletAddress.toLowerCase();
+
+                // Try to get username
+                const username = walletToUsername.get(lowercaseWallet);
+                if (username) {
+                  entry.username = username;
+                }
+
+                // If wallet is not a proper 0x address, try to resolve it
+                if (!entry.walletAddress.startsWith('0x') || entry.walletAddress === 'Unknown') {
+                  const resolvedAddress = walletToAddress.get(lowercaseWallet);
+                  if (resolvedAddress && resolvedAddress.startsWith('0x')) {
+                    entry.walletAddress = resolvedAddress;
+                  }
+                }
+              }
+            });
           } catch (userErr) {
             entriesLogger.warn('Failed to fetch usernames', userErr);
           }

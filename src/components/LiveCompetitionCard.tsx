@@ -80,9 +80,21 @@ const LiveCompetitionCard: React.FC<CompetitionCardProps> = ({
     onEnter,
     isSoldOut,
   }: Pick<CompetitionCardProps, "onEnter"> & { isSoldOut?: boolean }) => (
-    <div className="md:mt-3 mt-0 opacity-60">
-      <button className={`sequel-95 ${isSoldOut ? 'bg-[#EF008F]' : 'bg-[#161616]'} text-white uppercase md:pt-[13px] md:pb-3.5 pt-2.5 pb-2 md:text-xl text-xs md:rounded-xl rounded-md w-full`}>
-        {isSoldOut ? 'Sold Out' : 'Finished'}
+    <div className="md:mt-3 mt-0">
+      <button
+        className={`sequel-95 text-white uppercase md:pt-[13px] md:pb-3.5 pt-2.5 pb-2 md:text-xl text-xs md:rounded-xl rounded-md w-full ${
+          isSoldOut
+            ? 'bg-gradient-to-r from-red-600 via-white via-red-600 to-white bg-[length:20px_100%] animate-pulse'
+            : 'bg-[#161616] opacity-60'
+        }`}
+        style={isSoldOut ? {
+          background: 'repeating-linear-gradient(45deg, #dc2626, #dc2626 10px, #ffffff 10px, #ffffff 20px)',
+          color: '#dc2626',
+          fontWeight: 'bold',
+          textShadow: '1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff'
+        } : undefined}
+      >
+        {isSoldOut ? 'SOLD OUT' : 'Finished'}
       </button>
       <button
         onClick={onEnter}

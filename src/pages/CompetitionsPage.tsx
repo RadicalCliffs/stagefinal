@@ -102,6 +102,7 @@ const CompetitionsPage = () => {
                   onEnter={() => navigate(`/competitions/${comp.id}`)}
                   isInstantWin={comp.is_instant_win}
                   onchainCompetitionId={comp.onchain_competition_id}
+                  isSoldOut={(comp.total_tickets || 0) > 0 && (comp.tickets_sold || 0) >= (comp.total_tickets || 0)}
                 />
               );
             })}
@@ -153,6 +154,7 @@ const CompetitionsPage = () => {
                   onEnter={() => navigate(`/competitions/${comp.id}`)}
                   isInstantWin={true}
                   onchainCompetitionId={comp.onchain_competition_id}
+                  isSoldOut={(comp.total_tickets || 0) > 0 && (comp.tickets_sold || 0) >= (comp.total_tickets || 0)}
                 />
               );
             })}
@@ -212,6 +214,7 @@ const CompetitionsPage = () => {
                   isLastChanceCompetition
                   isInstantWin={comp.is_instant_win}
                   onchainCompetitionId={comp.onchain_competition_id}
+                  isSoldOut={(comp.total_tickets || 0) > 0 && (comp.tickets_sold || 0) >= (comp.total_tickets || 0)}
                 />
               );
             })}

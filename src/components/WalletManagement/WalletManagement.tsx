@@ -6,11 +6,9 @@ import {
   Check,
   ExternalLink,
   RefreshCw,
-  Plus,
   AlertCircle,
   Shield,
   Coins,
-  Link,
   Unlink,
   History,
   ArrowUpRight,
@@ -24,7 +22,7 @@ import { useWalletTokens } from '../../hooks/useWalletTokens';
 import { useRealTimeBalance } from '../../hooks/useRealTimeBalance';
 import { supabase } from '../../lib/supabase';
 import { database } from '../../lib/database';
-import { userIdsEqual, toPrizePid, isWalletAddress } from '../../utils/userId';
+import { toPrizePid, isWalletAddress } from '../../utils/userId';
 
 // Lazy load TopUpWalletModal - only loaded when user clicks "Top Up"
 const TopUpWalletModal = lazy(() => import('../TopUpWalletModal'));
@@ -33,11 +31,6 @@ const ExportWalletKey = lazy(() => import('./ExportWalletKey'));
 const SendTransaction = lazy(() => import('./SendTransaction'));
 // Lazy load wallet settings panel
 const WalletSettingsPanel = lazy(() => import('./WalletSettingsPanel'));
-
-// Helper function to validate Ethereum address
-const isValidEthereumAddress = (address: string): boolean => {
-  return /^0x[a-fA-F0-9]{40}$/.test(address);
-};
 
 // Interface for transaction display
 interface WalletTransaction {
@@ -79,14 +72,11 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
   const [showExportModal, setShowExportModal] = useState(false);
   const [showSendModal, setShowSendModal] = useState(false);
   const [showSettingsPanel, setShowSettingsPanel] = useState(false);
-  const [isLinking, setIsLinking] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
   const [linkSuccess, setLinkSuccess] = useState<string | null>(null);
 
   // External wallet linking state
   const [linkedExternalWallet, setLinkedExternalWallet] = useState<string | null>(null);
-  const [showLinkForm, setShowLinkForm] = useState(false);
-  const [newWalletAddress, setNewWalletAddress] = useState('');
   const [isUnlinking, setIsUnlinking] = useState(false);
 
   // Transaction history state
@@ -254,77 +244,6 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
       } catch (fallbackErr) {
         console.error('Copy failed:', fallbackErr);
       }
-    }
-  };
-
-  // Note: Wallet linking is not available with CDP/Base authentication
-  // The Base Account is created automatically and external wallet linking
-  // requires a different integration approach (e.g., WalletConnect)
-  const handleLinkNewWallet = async () => {
-    // If user already has a linked external wallet, show error
-    if (linkedExternalWallet) {
-      setLinkError('You can only link one external wallet. Please unlink the current one first.');
-      return;
-    }
-
-    // Show the link form
-    setShowLinkForm(true);
-    setLinkError(null);
-    setLinkSuccess(null);
-  };
-
-  const handleLinkWalletSubmit = async () => {
-    if (!baseUser?.id) {
-      setLinkError('Please log in to link a wallet.');
-      return;
-    }
-
-    const trimmedAddress = newWalletAddress.trim();
-
-    // Validate the address
-    if (!isValidEthereumAddress(trimmedAddress)) {
-      setLinkError('Please enter a valid Ethereum address (0x followed by 40 hex characters).');
-      return;
-    }
-
-    // Check if the address is the same as the user's primary wallet
-    if (trimmedAddress.toLowerCase() === baseUser.id.toLowerCase() ||
-        trimmedAddress.toLowerCase() === baseAccount?.address?.toLowerCase()) {
-      setLinkError('You cannot link your own primary wallet address.');
-      return;
-    }
-
-    setIsLinking(true);
-    setLinkError(null);
-    setLinkSuccess(null);
-
-    try {
-      // Use RPC function which bypasses RLS and has proper validation
-      const { data, error } = await supabase.rpc('link_external_wallet', {
-        user_identifier: baseUser.id,
-        wallet_address_to_link: trimmedAddress
-      });
-
-      if (error) {
-        console.error('Error linking wallet:', error);
-        setLinkError('Failed to link wallet. Please try again.');
-        return;
-      }
-
-      // RPC returns { success: boolean, message?: string, error?: string }
-      if (data?.success) {
-        setLinkedExternalWallet(data.linked_wallet || trimmedAddress);
-        setNewWalletAddress('');
-        setShowLinkForm(false);
-        setLinkSuccess('External wallet linked successfully! Note: Top-ups always credit your ledger balance.');
-      } else {
-        setLinkError(data?.error || 'Failed to link wallet. Please try again.');
-      }
-    } catch (err) {
-      console.error('Error linking wallet:', err);
-      setLinkError('Failed to link wallet. Please try again.');
-    } finally {
-      setIsLinking(false);
     }
   };
 
@@ -663,66 +582,6 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
             </div>
           )}
         </div>
-
-        {/* Link External Wallet Form */}
-        {showLinkForm && !linkedExternalWallet && (
-          <div className="mt-4 bg-[#2A2A2A] rounded-lg p-4 border border-purple-500/30">
-            <div className="flex items-center gap-2 mb-3">
-              <Link size={16} className="text-purple-400" />
-              <p className="text-white sequel-75 text-sm">Link External Wallet</p>
-            </div>
-            <p className="text-white/60 sequel-45 text-xs mb-3">
-              Enter an Ethereum wallet address to link. This is for display/reference only - all top-ups and transactions will use your primary ledger balance.
-            </p>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={newWalletAddress}
-                onChange={(e) => setNewWalletAddress(e.target.value)}
-                placeholder="0x..."
-                className="flex-1 bg-[#1A1A1A] border border-white/20 rounded-lg px-4 py-2 text-white sequel-45 text-sm placeholder:text-white/30 focus:border-purple-500 focus:outline-none"
-              />
-              <button
-                onClick={handleLinkWalletSubmit}
-                disabled={isLinking || !newWalletAddress.trim()}
-                className="bg-purple-500 hover:bg-purple-600 disabled:bg-purple-500/50 text-white sequel-75 px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:cursor-not-allowed"
-              >
-                {isLinking ? (
-                  <RefreshCw size={14} className="animate-spin" />
-                ) : (
-                  <Link size={14} />
-                )}
-                Link
-              </button>
-              <button
-                onClick={() => {
-                  setShowLinkForm(false);
-                  setNewWalletAddress('');
-                  setLinkError(null);
-                }}
-                className="bg-[#404040] hover:bg-[#505050] text-white/60 sequel-75 px-4 py-2 rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Link New Wallet Button - only show if no external wallet linked */}
-        {!linkedExternalWallet && !showLinkForm && (
-          <button
-            onClick={handleLinkNewWallet}
-            disabled={isLinking}
-            className="mt-4 w-full bg-[#2A2A2A] hover:bg-[#3A3A3A] text-white sequel-75 py-3 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
-          >
-            {isLinking ? (
-              <RefreshCw size={16} className="animate-spin" />
-            ) : (
-              <Plus size={16} />
-            )}
-            Link External Wallet
-          </button>
-        )}
 
         {/* Info about wallet limit */}
         {linkedExternalWallet && (
