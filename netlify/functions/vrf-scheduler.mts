@@ -83,6 +83,58 @@ async function createWinnerNotification(
 }
 
 /**
+ * Send winner email using SendGrid dynamic template
+ */
+async function sendWinnerEmail(
+  email: string,
+  username: string,
+  competitionTitle: string,
+  prizeValue: string,
+  ticketNumber: number
+): Promise<void> {
+  const sendgridApiKey = Netlify.env.get("SENDGRID_API_KEY");
+  const fromEmail = Netlify.env.get("SENDGRID_FROM_EMAIL") || "contact@theprize.io";
+  const templateId = Netlify.env.get("SENDGRID_TEMPLATE_WINNER");
+
+  if (!sendgridApiKey || !templateId) {
+    console.log("[VRF-Scheduler] SendGrid winner email not configured, skipping");
+    return;
+  }
+
+  try {
+    const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${sendgridApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        personalizations: [{
+          to: [{ email }],
+          dynamic_template_data: {
+            "Player Username": username,
+            "Competition Name": competitionTitle,
+            "Prize Value": prizeValue,
+            "Winning Ticket": `#${ticketNumber}`,
+          },
+        }],
+        from: { email: fromEmail, name: "ThePrize.io" },
+        template_id: templateId,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[VRF-Scheduler] Winner email failed:`, errorText);
+    } else {
+      console.log(`[VRF-Scheduler] Winner email sent to ${email}`);
+    }
+  } catch (error) {
+    console.error(`[VRF-Scheduler] Winner email error:`, error);
+  }
+}
+
+/**
  * Notify all non-winning participants that the competition has ended
  */
 async function notifyLosingParticipants(
@@ -308,12 +360,42 @@ async function checkVRFDrawResults(supabase: SupabaseClient): Promise<void> {
         })
         .eq("id", comp.id);
 
+      // Get user details for notification and email
+      let userData = null;
+      if (existingWinner.user_id) {
+        const { data: user } = await supabase
+          .from("canonical_users")
+          .select("id, username, email")
+          .eq("id", existingWinner.user_id)
+          .maybeSingle();
+        userData = user;
+      }
+
       // Create winner notification
       if (existingWinner.user_id) {
         await createWinnerNotification(
           supabase,
           existingWinner.user_id,
           comp as CompetitionForDraw,
+          existingWinner.ticket_number
+        );
+      }
+
+      // Send winner email if user has an email address
+      if (userData?.email) {
+        // Get competition prize value
+        const { data: compDetails } = await supabase
+          .from("competitions")
+          .select("prize_value")
+          .eq("id", comp.id)
+          .maybeSingle();
+
+        const prizeValue = compDetails?.prize_value ? `£${compDetails.prize_value}` : comp.title;
+        await sendWinnerEmail(
+          userData.email,
+          userData.username || "Player",
+          comp.title,
+          prizeValue,
           existingWinner.ticket_number
         );
       }
