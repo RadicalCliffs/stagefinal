@@ -319,8 +319,18 @@ class OmnipotentDataService {
 
       if (error) throw error;
 
-      const entries = (data || []).map(entry => this.transformEntry(entry, identity));
-      
+      // Filter out entries with missing required data before transformation
+      const validEntries = (data || []).filter(entry => {
+        // Skip entries with no competition_id - these are phantom entries
+        if (!entry.competition_id || entry.competition_id === '' || entry.competition_id === 'null') {
+          databaseLogger.warn('[OmnipotentData] Filtering out entry with missing competition_id', { entryId: entry.id });
+          return false;
+        }
+        return true;
+      });
+
+      const entries = validEntries.map(entry => this.transformEntry(entry, identity));
+
       dataCache.set(cacheKey, entries, options.cacheDuration || 30000);
       return entries;
 
