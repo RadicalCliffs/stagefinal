@@ -395,17 +395,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           console.log('[AuthContext] Calling upsert_canonical_user RPC after auth');
           const canonicalUserId = toPrizePid(effectiveWalletAddress);
           const { error: rpcError } = await supabase.rpc('upsert_canonical_user', {
-            p_uid: userProfile.uid || userProfile.id,
-            p_canonical_user_id: canonicalUserId,
-            p_email: effectiveEmail || null,
-            p_username: userProfile.username || null,
-            p_wallet_address: effectiveWalletAddress.toLowerCase(),
+            p_auth_provider: 'privy',
+            p_avatar_url: userProfile.avatar_url || null,
             p_base_wallet_address: effectiveWalletAddress.toLowerCase(),
+            p_canonical_user_id: canonicalUserId,
+            p_country: userProfile.country || null,
+            p_email: effectiveEmail || null,
             p_eth_wallet_address: effectiveWalletAddress.toLowerCase(),
-            p_privy_user_id: effectiveWalletAddress,
             p_first_name: userProfile.first_name || null,
             p_last_name: userProfile.last_name || null,
-            p_telegram_handle: userProfile.telegram_handle || null,
+            p_phone: userProfile.telephone_number || null,
+            p_privy_user_id: effectiveWalletAddress,
+            p_uid: userProfile.uid || userProfile.id,
+            p_username: userProfile.username || null,
+            p_wallet_address: effectiveWalletAddress.toLowerCase(),
             p_wallet_linked: false, // Not a wallet link event, just auth
           });
           

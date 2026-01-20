@@ -229,17 +229,20 @@ async function linkWalletToExistingUser(
         console.log('[BaseWallet] Calling upsert_canonical_user RPC for wallet link completion');
         
         const { error: upsertError } = await supabase.rpc('upsert_canonical_user', {
-          p_uid: existingUser.id,
-          p_canonical_user_id: canonicalUserId,
-          p_email: normalizedEmail || null,
-          p_username: existingUser.username || null,
-          p_wallet_address: walletAddress.toLowerCase(),
+          p_auth_provider: 'cdp',
+          p_avatar_url: null,
           p_base_wallet_address: walletAddress.toLowerCase(),
+          p_canonical_user_id: canonicalUserId,
+          p_country: existingUser.country || null,
+          p_email: normalizedEmail || null,
           p_eth_wallet_address: walletAddress.toLowerCase(),
-          p_privy_user_id: walletAddress,
           p_first_name: existingUser.first_name || null,
           p_last_name: existingUser.last_name || null,
-          p_telegram_handle: null,
+          p_phone: null,
+          p_privy_user_id: walletAddress,
+          p_uid: existingUser.id,
+          p_username: existingUser.username || null,
+          p_wallet_address: walletAddress.toLowerCase(),
           p_wallet_linked: true, // CRITICAL: This is a wallet link event
         });
 
@@ -294,17 +297,20 @@ async function linkWalletToExistingUser(
         console.log('[BaseWallet] Calling upsert_canonical_user RPC for wallet found by address');
         
         const { error: upsertError } = await supabase.rpc('upsert_canonical_user', {
-          p_uid: existingByWallet.id,
-          p_canonical_user_id: canonicalUserId,
-          p_email: normalizedEmail || existingByWallet.email || null,
-          p_username: existingByWallet.username || null,
-          p_wallet_address: walletAddress.toLowerCase(),
+          p_auth_provider: 'cdp',
+          p_avatar_url: null,
           p_base_wallet_address: walletAddress.toLowerCase(),
+          p_canonical_user_id: canonicalUserId,
+          p_country: existingByWallet.country || null,
+          p_email: normalizedEmail || existingByWallet.email || null,
           p_eth_wallet_address: walletAddress.toLowerCase(),
-          p_privy_user_id: walletAddress,
           p_first_name: existingByWallet.first_name || null,
           p_last_name: existingByWallet.last_name || null,
-          p_telegram_handle: null,
+          p_phone: null,
+          p_privy_user_id: walletAddress,
+          p_uid: existingByWallet.id,
+          p_username: existingByWallet.username || null,
+          p_wallet_address: walletAddress.toLowerCase(),
           p_wallet_linked: true,
         });
 
@@ -506,17 +512,20 @@ async function saveUserWithProfile(email: string, walletAddress: string, profile
         console.log('[BaseWallet] Calling upsert_canonical_user RPC after profile completion');
         
         const { error: upsertError } = await supabase.rpc('upsert_canonical_user', {
-          p_uid: existingUser?.id || null,
-          p_canonical_user_id: canonicalUserId,
-          p_email: normalizedEmail || null,
-          p_username: profile.username.toLowerCase(),
-          p_wallet_address: walletAddress.toLowerCase(),
+          p_auth_provider: 'cdp',
+          p_avatar_url: profile.avatar || null,
           p_base_wallet_address: walletAddress.toLowerCase(),
+          p_canonical_user_id: canonicalUserId,
+          p_country: profile.country || null,
+          p_email: normalizedEmail || null,
           p_eth_wallet_address: walletAddress.toLowerCase(),
-          p_privy_user_id: walletAddress,
           p_first_name: profile.fullName?.split(' ')[0] || null,
           p_last_name: profile.fullName?.split(' ').slice(1).join(' ') || null,
-          p_telegram_handle: profile.socialProfiles || null,
+          p_phone: profile.mobile || null,
+          p_privy_user_id: walletAddress,
+          p_uid: existingUser?.id || null,
+          p_username: profile.username.toLowerCase(),
+          p_wallet_address: walletAddress.toLowerCase(),
           p_wallet_linked: true,
         });
 

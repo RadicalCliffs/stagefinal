@@ -450,7 +450,7 @@ class OmnipotentDataService {
       // The RPC function get_unavailable_tickets returns distinct ticket numbers that are not available
       // Uses pending_tickets.ticket_numbers (array), filters where expires_at > now() and status IN ('pending','confirming')
       const { data: unavailableTickets, error: rpcError } = await supabase
-        .rpc('get_unavailable_tickets', { competition_id: competitionId });
+        .rpc('get_unavailable_tickets', { p_competition_id: competitionId });
 
       if (rpcError) {
         databaseLogger.warn('[OmnipotentData] RPC get_unavailable_tickets failed, using fallback', { error: rpcError.message });
