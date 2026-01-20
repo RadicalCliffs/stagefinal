@@ -20,7 +20,7 @@ interface EntriesWithFilterTabsProps {
 }
 
 const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFilterTabsProps = {}) => {
-  const [entries, setEntries] = useState<Array<{ ticketNumber: number; date: string; walletAddress: string }>>([]);
+  const [entries, setEntries] = useState<Array<{ ticketNumber: number; date: string; walletAddress: string; username?: string }>>([]);
   const [loading, setLoading] = useState(true);
 
   // Fetch real competition entries
@@ -48,7 +48,10 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
         });
 
         // Transform data to match expected format
-        const transformedEntries: Array<{ ticketNumber: number; date: string; walletAddress: string }> = [];
+        const transformedEntries: Array<{ ticketNumber: number; date: string; walletAddress: string; username?: string }> = [];
+
+        // Collect wallet addresses for username lookup
+        const walletAddresses = new Set<string>();
 
         // Strategy 1: Try standard RPC function first (staging compatible with anon key)
         let rpcSucceeded = false;
@@ -96,6 +99,11 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
             });
 
             rpcData.forEach((entry: any) => {
+              const wallet = entry.walletaddress || entry.privy_user_id || '';
+              if (wallet && wallet.startsWith('0x')) {
+                walletAddresses.add(wallet.toLowerCase());
+              }
+
               if (entry.ticketnumbers) {
                 const ticketNumbers = entry.ticketnumbers
                   .split(',')
@@ -114,7 +122,8 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
                       second: '2-digit',
                       hour12: false
                     }),
-                    walletAddress: entry.walletaddress || entry.privy_user_id || 'Unknown'
+                    walletAddress: wallet || 'Unknown',
+                    username: entry.username || undefined
                   });
                 });
               }
@@ -150,7 +159,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
           const exactStartTime = Date.now();
           const { data: exactData, error: exactError } = await supabase
             .from('v_joincompetition_active')
-            .select('ticketnumbers, purchasedate, walletaddress, userid')
+            .select('ticketnumbers, purchasedate, walletaddress, userid, canonical_user_id')
             .eq('competitionid', idToUse);
 
           if (!exactError && exactData && exactData.length > 0) {
@@ -182,7 +191,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
               const uidStartTime = Date.now();
               const { data: uidData, error: uidError } = await supabase
                 .from('v_joincompetition_active')
-                .select('ticketnumbers, purchasedate, walletaddress, userid')
+                .select('ticketnumbers, purchasedate, walletaddress, userid, canonical_user_id')
                 .eq('competitionid', compData.uid);
 
               if (!uidError && uidData && uidData.length > 0) {
@@ -213,6 +222,11 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
             });
 
             jcData.forEach((entry: any) => {
+              const wallet = entry.walletaddress || entry.userid || '';
+              if (wallet && wallet.startsWith('0x')) {
+                walletAddresses.add(wallet.toLowerCase());
+              }
+
               if (entry.ticketnumbers) {
                 const ticketNumbers = entry.ticketnumbers
                   .split(',')
@@ -233,7 +247,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
                         second: '2-digit',
                         hour12: false
                       }) : 'Unknown',
-                      walletAddress: entry.walletaddress || entry.userid || 'Unknown'
+                      walletAddress: wallet || 'Unknown'
                     });
                   }
                 });
@@ -259,7 +273,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
           const ticketsStartTime = Date.now();
           const { data: ticketsData, error: ticketsError } = await supabase
             .from('tickets')
-            .select('ticket_number, created_at, privy_user_id')
+            .select('ticket_number, created_at, privy_user_id, user_id')
             .eq('competition_id', idToUse);
 
           if (!ticketsError && ticketsData && ticketsData.length > 0) {
@@ -277,6 +291,11 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
             });
 
             ticketsData.forEach((ticket: any) => {
+              const wallet = ticket.user_id || ticket.privy_user_id || '';
+              if (wallet && wallet.startsWith('0x')) {
+                walletAddresses.add(wallet.toLowerCase());
+              }
+
               if (ticket.ticket_number != null) {
                 const ticketNum = parseInt(ticket.ticket_number);
                 if (!isNaN(ticketNum) && !transformedEntries.some(e => e.ticketNumber === ticketNum)) {
@@ -291,7 +310,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
                       second: '2-digit',
                       hour12: false
                     }) : 'Unknown',
-                    walletAddress: ticket.privy_user_id || 'Unknown'
+                    walletAddress: wallet || 'Unknown'
                   });
                 }
               }
@@ -306,6 +325,38 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
               success: false,
               error: ticketsError.message
             });
+          }
+        }
+
+        // Fetch usernames for all wallet addresses
+        if (walletAddresses.size > 0) {
+          try {
+            const walletArray = Array.from(walletAddresses);
+            const { data: usersData } = await supabase
+              .from('canonical_users')
+              .select('wallet_address, username')
+              .in('wallet_address', walletArray);
+
+            if (usersData && usersData.length > 0) {
+              const walletToUsername = new Map<string, string>();
+              usersData.forEach((user: any) => {
+                if (user.wallet_address && user.username) {
+                  walletToUsername.set(user.wallet_address.toLowerCase(), user.username);
+                }
+              });
+
+              // Update entries with usernames
+              transformedEntries.forEach(entry => {
+                if (entry.walletAddress && entry.walletAddress.startsWith('0x')) {
+                  const username = walletToUsername.get(entry.walletAddress.toLowerCase());
+                  if (username) {
+                    entry.username = username;
+                  }
+                }
+              });
+            }
+          } catch (userErr) {
+            entriesLogger.warn('Failed to fetch usernames', userErr);
           }
         }
 
