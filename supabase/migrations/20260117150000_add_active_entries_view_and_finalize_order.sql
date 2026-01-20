@@ -239,6 +239,7 @@ BEGIN
   );
 
   -- Step 7: Insert order_tickets for each ticket number
+  -- Note: order_tickets.ticket_number is TEXT to support future non-numeric ticket formats
   FOREACH v_ticket_num IN ARRAY v_reservation.ticket_numbers
   LOOP
     INSERT INTO order_tickets (
@@ -253,6 +254,9 @@ BEGIN
   END LOOP;
 
   -- Step 8: Insert tickets (confirmed tickets) with conflict handling
+  -- Conflict resolution: DO NOTHING prevents duplicate ticket assignments
+  -- This is by design to handle race conditions where the same ticket might be
+  -- reserved and confirmed by another transaction. Such tickets won't be double-sold.
   FOREACH v_ticket_num IN ARRAY v_reservation.ticket_numbers
   LOOP
     INSERT INTO tickets (
