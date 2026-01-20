@@ -34,8 +34,8 @@ function corsHeaders(req: Request) {
   };
 }
 
-// Default redirect URL - Use staging URL during development
-const DEFAULT_REDIRECT_URL = 'https://vocal-cascaron-bcef9b.netlify.app/dashboard/wallet?status=complete';
+// Default redirect URL - Always redirect to substage.theprize.io/dashboard/entries
+const DEFAULT_REDIRECT_URL = 'https://substage.theprize.io/dashboard/entries?status=complete';
 
 Deno.serve(async (req: Request) => {
   const cors = corsHeaders(req);
