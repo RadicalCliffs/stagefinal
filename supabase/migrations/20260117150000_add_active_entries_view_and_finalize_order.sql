@@ -264,6 +264,9 @@ BEGIN
       competition_id,
       ticket_number,
       canonical_user_id,
+      order_id,
+      wallet_address,
+      status,
       purchased_at,
       purchase_price,
       payment_tx_hash
@@ -272,6 +275,9 @@ BEGIN
       p_competition_id,
       v_ticket_num,
       v_canonical_user_id,
+      v_order_id,
+      v_wallet_address,
+      'sold',
       NOW(),
       p_unit_price,
       'balance_payment_' || v_order_id::text
