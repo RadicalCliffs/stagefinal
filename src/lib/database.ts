@@ -1602,10 +1602,12 @@ export const database = {
       const normalizedWallet = isWalletAddress(userId) ? userId.toLowerCase() : userId;
 
       // Direct query to user_transactions table
-      const { data, error } = await supabase
+      // NOTE: user_id is TEXT type, so we can safely use eq/ilike
+      // But wallet_address might be UUID, so we use eq for exact match
+      const { data, error} = await supabase
         .from('user_transactions')
         .select('*')
-        .or(`user_id.ilike.${normalizedWallet},canonical_user_id.eq.${canonicalId},wallet_address.ilike.${normalizedWallet}`)
+        .or(`user_id.eq.${normalizedWallet},canonical_user_id.eq.${canonicalId},wallet_address.eq.${normalizedWallet}`)
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -2135,9 +2137,11 @@ export const database = {
           .order('purchased_at', { ascending: false });
 
         // Build OR filter for tickets
+        // NOTE: user_id is TEXT type in tickets table, use eq for exact match (case-insensitive handled by LOWER())
         const ticketFilters: string[] = [];
         if (identity.walletAddress) {
-          ticketFilters.push(`user_id.ilike.${identity.walletAddress}`);
+          // Use eq instead of ilike to avoid UUID type error
+          ticketFilters.push(`user_id.eq.${identity.walletAddress}`);
         }
         if (identity.canonicalUserId) {
           ticketFilters.push(`canonical_user_id.eq.${identity.canonicalUserId}`);
@@ -2208,7 +2212,8 @@ export const database = {
       try {
         const txFilters: string[] = [];
         if (identity.walletAddress) {
-          txFilters.push(`wallet_address.ilike.${identity.walletAddress}`);
+          // Use eq instead of ilike to avoid UUID type error
+          txFilters.push(`wallet_address.eq.${identity.walletAddress}`);
         }
         if (identity.canonicalUserId) {
           txFilters.push(`canonical_user_id.eq.${identity.canonicalUserId}`);

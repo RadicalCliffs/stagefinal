@@ -539,6 +539,70 @@ GRANT EXECUTE ON FUNCTION get_competition_entries(text) TO anon;
 GRANT EXECUTE ON FUNCTION get_competition_entries(text) TO service_role;
 
 -- ============================================================================
+-- PART 5: Fix get_user_tickets RPC (create with correct parameter name)
+-- ============================================================================
+DROP FUNCTION IF EXISTS get_user_tickets(TEXT) CASCADE;
+DROP FUNCTION IF EXISTS get_user_tickets(p_identifier TEXT) CASCADE;
+
+-- Create get_user_tickets with BOTH parameter names supported
+CREATE OR REPLACE FUNCTION get_user_tickets(user_identifier TEXT DEFAULT NULL, p_identifier TEXT DEFAULT NULL)
+RETURNS TABLE (
+  id uuid,
+  competition_id uuid,
+  ticket_number integer,
+  user_id text,
+  canonical_user_id text,
+  purchase_price numeric,
+  purchased_at timestamptz,
+  is_winner boolean,
+  created_at timestamptz
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+DECLARE
+  lower_identifier TEXT;
+  identifier TEXT;
+BEGIN
+  -- Accept either parameter name
+  identifier := COALESCE(user_identifier, p_identifier);
+  
+  IF identifier IS NULL THEN
+    RETURN;
+  END IF;
+
+  lower_identifier := LOWER(TRIM(identifier));
+  
+  RETURN QUERY
+  SELECT 
+    t.id,
+    t.competition_id,
+    t.ticket_number,
+    t.user_id,
+    t.canonical_user_id,
+    t.purchase_price,
+    t.purchased_at,
+    t.is_winner,
+    t.created_at
+  FROM tickets t
+  WHERE 
+    -- Use LOWER() and eq instead of ilike to avoid UUID type errors
+    LOWER(t.user_id) = lower_identifier
+    OR t.canonical_user_id = identifier
+  ORDER BY t.purchased_at DESC;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION get_user_tickets(TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_user_tickets(TEXT, TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION get_user_tickets(TEXT, TEXT) TO service_role;
+
+COMMENT ON FUNCTION get_user_tickets IS
+'Returns all tickets for a user. Accepts user_identifier OR p_identifier parameter for backward compatibility.';
+
+-- ============================================================================
 -- VERIFICATION
 -- ============================================================================
 DO $$
@@ -562,7 +626,8 @@ BEGIN
     AND p.proname IN (
       'get_competition_entries_bypass_rls',
       'get_competition_entries',
-      'get_comprehensive_user_dashboard_entries'
+      'get_comprehensive_user_dashboard_entries',
+      'get_user_tickets'
     );
 
   SELECT relrowsecurity INTO tickets_rls_enabled
@@ -579,7 +644,7 @@ BEGIN
   RAISE NOTICE 'CRITICAL FIX APPLIED - VERIFICATION RESULTS';
   RAISE NOTICE '=====================================================';
   RAISE NOTICE 'competitions.uid column exists: %', uid_column_exists;
-  RAISE NOTICE 'RPC Functions created: % (expected: 3)', func_count;
+  RAISE NOTICE 'RPC Functions created: % (expected: 4)', func_count;
   RAISE NOTICE 'tickets RLS enabled: %', tickets_rls_enabled;
   RAISE NOTICE 'user_transactions RLS enabled: %', user_transactions_rls_enabled;
   RAISE NOTICE '';
@@ -587,6 +652,7 @@ BEGIN
   RAISE NOTICE '  ✓ get_comprehensive_user_dashboard_entries (404 fix)';
   RAISE NOTICE '  ✓ get_competition_entries (wrapper)';
   RAISE NOTICE '  ✓ get_competition_entries_bypass_rls (uuid/text handling)';
+  RAISE NOTICE '  ✓ get_user_tickets (parameter name fixed)';
   RAISE NOTICE '';
   RAISE NOTICE 'Fixed tables:';
   RAISE NOTICE '  ✓ tickets (RLS policies allow anon/authenticated read)';
@@ -594,8 +660,9 @@ BEGIN
   RAISE NOTICE '';
   RAISE NOTICE 'Issues fixed:';
   RAISE NOTICE '  ✓ POST /rpc/get_comprehensive_user_dashboard_entries - 404';
-  RAISE NOTICE '  ✓ GET /tickets?select=... - 404';
-  RAISE NOTICE '  ✓ GET /user_transactions?select=... - 400';
+  RAISE NOTICE '  ✓ GET /tickets?select=... - 404 (UUID ilike operator)';
+  RAISE NOTICE '  ✓ GET /user_transactions?select=... - 400 (tx_id exists)';
+  RAISE NOTICE '  ✓ POST /rpc/get_user_tickets - 404 (parameter name)';
   RAISE NOTICE '=====================================================';
   RAISE NOTICE 'Now refresh your frontend and the errors should be gone!';
   RAISE NOTICE '=====================================================';
