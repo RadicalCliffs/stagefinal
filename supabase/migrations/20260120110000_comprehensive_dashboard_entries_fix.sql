@@ -90,7 +90,7 @@ BEGIN
   RETURN QUERY
   -- Source 1: joincompetition table (primary source)
   SELECT
-    COALESCE(jc.uid::text, jc.id::text, gen_random_uuid()::text) as uid,
+    COALESCE(jc.uid::text, gen_random_uuid()::text) as uid,
     COALESCE(jc.competitionid, '')::text as competitionid,
     COALESCE(jc.userid, '')::text as userid,
     COALESCE(jc.privy_user_id, jc.walletaddress, '')::text as privy_user_id,
@@ -373,7 +373,7 @@ Accepts competition ID (UUID) or uid (text).';
 DROP FUNCTION IF EXISTS get_unavailable_tickets(text) CASCADE;
 DROP FUNCTION IF EXISTS get_unavailable_tickets(uuid) CASCADE;
 
-CREATE OR REPLACE FUNCTION get_unavailable_tickets(competition_id TEXT)
+CREATE OR REPLACE FUNCTION get_unavailable_tickets(p_competition_id TEXT)
 RETURNS int4[]
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -390,11 +390,11 @@ DECLARE
 BEGIN
   -- Convert text to UUID (or look up by uid)
   BEGIN
-    v_competition_uuid := competition_id::UUID;
+    v_competition_uuid := p_competition_id::UUID;
   EXCEPTION WHEN invalid_text_representation THEN
     SELECT c.id, c.uid INTO v_competition_uuid, v_comp_uid
     FROM competitions c
-    WHERE c.uid = competition_id
+    WHERE c.uid = p_competition_id
     LIMIT 1;
 
     IF v_competition_uuid IS NULL THEN
@@ -417,7 +417,7 @@ BEGIN
     WHERE (
       competitionid = v_competition_uuid::text
       OR (v_comp_uid IS NOT NULL AND competitionid = v_comp_uid)
-      OR competitionid = competition_id
+      OR competitionid = p_competition_id
     )
       AND ticketnumbers IS NOT NULL
       AND trim(ticketnumbers) != ''
@@ -538,7 +538,7 @@ BEGIN
     LOWER(cu.base_wallet_address),
     LOWER(cu.eth_wallet_address),
     cu.privy_user_id,
-    cu.uid::TEXT
+    cu.uid
   INTO
     resolved_canonical_user_id,
     resolved_wallet_address,
@@ -557,7 +557,7 @@ BEGIN
     -- Match by privy_user_id
     OR cu.privy_user_id = user_identifier
     -- Match by uid
-    OR cu.uid::TEXT = user_identifier
+    OR cu.uid = user_identifier
     -- Match by search_wallet if it's a wallet address
     OR (search_wallet IS NOT NULL AND (
       LOWER(cu.wallet_address) = search_wallet
@@ -576,7 +576,7 @@ BEGIN
   -- ALWAYS ensure we have a valid ID and competition_id
   -- Use deterministic ID generation to ensure same entry always gets same ID
   SELECT
-    COALESCE(jc.uid, jc.id::TEXT, 'jc-' || COALESCE(jc.competitionid, '') || '-' || COALESCE(jc.walletaddress, '') || '-' || COALESCE(jc.created_at::TEXT, '')) AS id,
+    COALESCE(jc.uid, 'jc-' || COALESCE(jc.competitionid, '') || '-' || COALESCE(jc.walletaddress, '') || '-' || COALESCE(jc.created_at::TEXT, '')) AS id,
     COALESCE(jc.competitionid, c.id::TEXT, c.uid) AS competition_id,
     COALESCE(c.title, '') AS title,
     COALESCE(c.description, '') AS description,
@@ -602,9 +602,14 @@ BEGIN
     COALESCE(c.status, 'completed') AS competition_status,
     c.end_date AS end_date
   FROM public.joincompetition jc
+  -- Use OR to handle both UUID format (c.id) and text format (c.uid) for competitionid
   LEFT JOIN public.competitions c ON (
-    jc.competitionid = c.id::TEXT
-    OR jc.competitionid = c.uid
+    -- Try UUID match first (when competitionid is stored as UUID string) - case insensitive
+    (jc.competitionid ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+     AND jc.competitionid::uuid = c.id)
+    OR
+    -- Fallback to uid match (legacy text format)
+    c.uid = jc.competitionid
   )
   WHERE (
     -- Match using resolved identifiers from canonical_users
@@ -613,12 +618,12 @@ BEGIN
     OR (resolved_base_wallet_address IS NOT NULL AND LOWER(jc.walletaddress) = resolved_base_wallet_address)
     OR (resolved_eth_wallet_address IS NOT NULL AND LOWER(jc.walletaddress) = resolved_eth_wallet_address)
     OR (resolved_privy_user_id IS NOT NULL AND jc.privy_user_id = resolved_privy_user_id)
-    OR (resolved_uid IS NOT NULL AND jc.userid = resolved_uid)
+    OR (resolved_uid IS NOT NULL AND jc.userid::TEXT = resolved_uid)
     -- Fallback: Direct matching if user not found in canonical_users
     OR (resolved_canonical_user_id IS NULL AND (
       jc.canonical_user_id = user_identifier
       OR LOWER(jc.walletaddress) = lower_identifier
-      OR jc.userid = user_identifier
+      OR jc.userid::TEXT = user_identifier
       OR (search_wallet IS NOT NULL AND LOWER(jc.walletaddress) = search_wallet)
     ))
   )
