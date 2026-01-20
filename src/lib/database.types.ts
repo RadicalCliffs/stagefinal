@@ -162,13 +162,18 @@ export interface Database {
         Row: {
           id: string
           user_id: string | null
+          canonical_user_id: string | null
           wallet_address: string | null
+          type: string | null
           competition_id: string | null
           amount: number | null
           currency: string | null
+          balance_before: number | null
+          balance_after: number | null
           payment_status: string | null
           status: string | null
           tx_id: string | null
+          tx_ref: string | null
           session_id: string | null
           order_id: string | null
           ticket_count: number | null
@@ -180,17 +185,32 @@ export interface Database {
           payment_provider: string | null
           pay_currency: string | null
           user_privy_id: string | null
+          charge_id: string | null
+          charge_code: string | null
+          checkout_url: string | null
+          description: string | null
+          metadata: Json | null
+          provider: string | null
+          primary_provider: string | null
+          fallback_provider: string | null
+          provider_attempts: number | null
+          provider_error: string | null
         }
         Insert: {
           id?: string
           user_id?: string | null
+          canonical_user_id?: string | null
           wallet_address?: string | null
+          type?: string | null
           competition_id?: string | null
           amount?: number | null
           currency?: string | null
+          balance_before?: number | null
+          balance_after?: number | null
           payment_status?: string | null
           status?: string | null
           tx_id?: string | null
+          tx_ref?: string | null
           session_id?: string | null
           order_id?: string | null
           ticket_count?: number | null
@@ -202,17 +222,32 @@ export interface Database {
           payment_provider?: string | null
           pay_currency?: string | null
           user_privy_id?: string | null
+          charge_id?: string | null
+          charge_code?: string | null
+          checkout_url?: string | null
+          description?: string | null
+          metadata?: Json | null
+          provider?: string | null
+          primary_provider?: string | null
+          fallback_provider?: string | null
+          provider_attempts?: number | null
+          provider_error?: string | null
         }
         Update: {
           id?: string
           user_id?: string | null
+          canonical_user_id?: string | null
           wallet_address?: string | null
+          type?: string | null
           competition_id?: string | null
           amount?: number | null
           currency?: string | null
+          balance_before?: number | null
+          balance_after?: number | null
           payment_status?: string | null
           status?: string | null
           tx_id?: string | null
+          tx_ref?: string | null
           session_id?: string | null
           order_id?: string | null
           ticket_count?: number | null
@@ -224,6 +259,16 @@ export interface Database {
           payment_provider?: string | null
           pay_currency?: string | null
           user_privy_id?: string | null
+          charge_id?: string | null
+          charge_code?: string | null
+          checkout_url?: string | null
+          description?: string | null
+          metadata?: Json | null
+          provider?: string | null
+          primary_provider?: string | null
+          fallback_provider?: string | null
+          provider_attempts?: number | null
+          provider_error?: string | null
         }
       }
       Prize_Instantprizes: {
