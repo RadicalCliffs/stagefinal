@@ -3,7 +3,7 @@
 import { Buffer } from 'buffer';
 globalThis.Buffer = Buffer;
 
-import { StrictMode, lazy, Suspense, useEffect } from 'react';
+import { StrictMode, lazy, Suspense, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App.tsx';
@@ -23,12 +23,13 @@ import '@coinbase/onchainkit/styles.css';
 import { WagmiProvider, createConfig, http } from 'wagmi';
 import { coinbaseWallet, metaMask, injected } from 'wagmi/connectors';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+// Server-side OnchainKit configuration hook
+import { useOnchainKitConfig, type OnchainKitConfig } from './hooks/useOnchainKitConfig';
 
 // Determine which network to use based on environment variable
 // When VITE_BASE_MAINNET is 'true', use Base Mainnet; otherwise use Base Sepolia testnet
 const isBaseMainnet = import.meta.env.VITE_BASE_MAINNET === 'true';
 const activeChain = isBaseMainnet ? base : baseSepolia;
-const supportedChainsList = isBaseMainnet ? [base] : [base, baseSepolia];
 
 // Wagmi configuration for wallet connections
 // We support multiple wallet types with proper deep linking for mobile users:
@@ -201,21 +202,24 @@ const router = createBrowserRouter([
   },
 ]);
 
-const cdpApiKey = import.meta.env.VITE_CDP_API_KEY;
 const cdpProjectId = import.meta.env.VITE_CDP_PROJECT_ID;
 
-if (!cdpApiKey) {
-  console.error('VITE_CDP_API_KEY is not defined - OnchainKit features will not work correctly');
-} else if (cdpApiKey.length < 20) {
-  console.warn('VITE_CDP_API_KEY appears to be invalid (too short) - OnchainKit RPC calls may fail');
+// Fallback API key from environment (used until server config loads)
+// This enables initial render while the server-side config is being fetched
+const fallbackApiKey = import.meta.env.VITE_CDP_API_KEY || '';
+
+if (!fallbackApiKey) {
+  console.warn('[main] VITE_CDP_API_KEY is not defined - will fetch from server');
+} else if (fallbackApiKey.length < 20) {
+  console.warn('[main] VITE_CDP_API_KEY appears to be invalid (too short) - will fetch from server');
 }
 
 if (!cdpProjectId) {
-  console.error('VITE_CDP_PROJECT_ID is not defined - Coinbase wallet creation will not work');
+  console.error('[main] VITE_CDP_PROJECT_ID is not defined - Coinbase wallet creation will not work');
 } else {
-  console.log('CDP Project ID configured:', cdpProjectId);
-  console.log('Current origin:', typeof window !== 'undefined' ? window.location.origin : 'SSR');
-  console.log('NOTE: Make sure this domain is whitelisted in CDP Portal at https://portal.cdp.coinbase.com/products/embedded-wallets/domains');
+  console.log('[main] CDP Project ID configured:', cdpProjectId);
+  console.log('[main] Current origin:', typeof window !== 'undefined' ? window.location.origin : 'SSR');
+  console.log('[main] NOTE: Make sure this domain is whitelisted in CDP Portal at https://portal.cdp.coinbase.com/products/embedded-wallets/domains');
 }
 
 // CDP React Provider configuration for Base embedded wallet creation
@@ -272,8 +276,85 @@ const cdpTheme: Partial<CDPTheme> = {
   'borderRadius-modal': 'var(--cdp-web-borderRadius-xl)',
 };
 
+/**
+ * OnchainKit Provider Wrapper
+ *
+ * This component fetches the OnchainKit API key from the server and provides it
+ * to the OnchainKitProvider. This ensures the API key is securely managed server-side
+ * and not exposed in the client-side bundle (VITE_* variables are bundled).
+ *
+ * The component:
+ * 1. Fetches the API key from /api/onchainkit/config on mount
+ * 2. Uses a fallback key from VITE_CDP_API_KEY while loading (for immediate render)
+ * 3. Logs warnings if the server config fails to load
+ */
+function OnchainKitProviderWrapper({ children }: { children: React.ReactNode }) {
+  const { config: serverConfig, isLoading, error } = useOnchainKitConfig();
+
+  // Use server config API key if available, otherwise fall back to env variable
+  const apiKey = serverConfig?.apiKey || fallbackApiKey;
+
+  // Log status
+  useEffect(() => {
+    if (serverConfig?.apiKey) {
+      console.log('[OnchainKitProviderWrapper] Using server-provided API key');
+    } else if (isLoading) {
+      console.log('[OnchainKitProviderWrapper] Loading API key from server...');
+    } else if (error) {
+      console.warn('[OnchainKitProviderWrapper] Failed to load server config:', error);
+      if (fallbackApiKey) {
+        console.log('[OnchainKitProviderWrapper] Using fallback VITE_CDP_API_KEY');
+      } else {
+        console.error('[OnchainKitProviderWrapper] No API key available - OnchainKit features will not work');
+      }
+    }
+  }, [serverConfig, isLoading, error]);
+
+  // If no API key is available at all, still render children but without OnchainKit features
+  if (!apiKey) {
+    console.error('[OnchainKitProviderWrapper] No OnchainKit API key available');
+    return <>{children}</>;
+  }
+
+  return (
+    <OnchainKitProvider
+      apiKey={apiKey}
+      chain={activeChain}
+      config={{
+        appearance: {
+          name: 'The Prize',
+          logo: 'https://theprize.io/logo.png',
+          mode: 'dark',
+          theme: 'base',
+        },
+        wallet: {
+          // IMPORTANT: Use 'modal' display for proper Base popup experience on mobile
+          // This triggers the native Coinbase/Base wallet popup instead of inline UI
+          display: 'modal',
+          // Support Base/Coinbase wallets as primary, but allow other wallets via injected connector
+          // The injected connector (from wagmi config) will detect ANY wallet in browser/phone
+          // This includes MetaMask, Rainbow, Phantom, or any wallet the user has connected
+          supportedWallets: {
+            // Keep MetaMask disabled to prioritize Base, but injected will catch it
+            metamask: false,
+            // Keep Phantom disabled to prioritize Base, but injected will catch it
+            phantom: false,
+            // Keep other wallets disabled
+            rabby: false,
+            trust: false,
+            frame: false,
+          },
+        },
+      }}
+    >
+      {children}
+    </OnchainKitProvider>
+  );
+}
+
 // Render the app with Base/CDP as the primary auth
 // NOTE: Competition lifecycle checking has been moved server-side to a scheduled function
+// NOTE: OnchainKit API key is now fetched from server via OnchainKitProviderWrapper
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AppLoader>
@@ -281,43 +362,14 @@ createRoot(document.getElementById('root')!).render(
         <WagmiProvider config={wagmiConfig}>
           <QueryClientProvider client={queryClient}>
             <CDPReactProvider config={cdpConfig} theme={cdpTheme}>
-              <OnchainKitProvider
-                apiKey={cdpApiKey}
-                chain={activeChain}
-                config={{
-                  appearance: {
-                    name: 'The Prize',
-                    logo: 'https://theprize.io/logo.png',
-                    mode: 'dark',
-                    theme: 'base',
-                  },
-                  wallet: {
-                    // IMPORTANT: Use 'modal' display for proper Base popup experience on mobile
-                    // This triggers the native Coinbase/Base wallet popup instead of inline UI
-                    display: 'modal',
-                    // Support Base/Coinbase wallets as primary, but allow other wallets via injected connector
-                    // The injected connector (from wagmi config) will detect ANY wallet in browser/phone
-                    // This includes MetaMask, Rainbow, Phantom, or any wallet the user has connected
-                    supportedWallets: {
-                      // Keep MetaMask disabled to prioritize Base, but injected will catch it
-                      metamask: false,
-                      // Keep Phantom disabled to prioritize Base, but injected will catch it
-                      phantom: false,
-                      // Keep other wallets disabled
-                      rabby: false,
-                      trust: false,
-                      frame: false,
-                    },
-                  },
-                }}
-              >
+              <OnchainKitProviderWrapper>
                 <AuthProvider>
                   <EnsureBaseChain />
                   <Suspense fallback={<Loader />}>
                     <RouterProvider router={router} />
                   </Suspense>
                 </AuthProvider>
-              </OnchainKitProvider>
+              </OnchainKitProviderWrapper>
             </CDPReactProvider>
           </QueryClientProvider>
         </WagmiProvider>
