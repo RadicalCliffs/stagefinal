@@ -361,13 +361,13 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
               USD Balance
             </p>
           </div>
-          <div className="flex flex-row sm:flex-col gap-2 shrink-0">
+          <div className="flex flex-row sm:flex-col gap-3 shrink-0">
             <button
               onClick={() => setShowTopUpModal(true)}
-              className="bg-[#DDE404] hover:bg-[#DDE404]/90 text-black sequel-75 px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm flex-1 sm:flex-auto whitespace-nowrap"
+              className="bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 px-6 py-3 rounded-xl flex items-center justify-center gap-2 transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98] flex-1 sm:flex-auto whitespace-nowrap"
             >
-              <Plus size={16} />
-              Top Up
+              <Plus size={18} />
+              <span className="text-sm font-semibold">Top Up</span>
             </button>
             <button
               onClick={() => {
@@ -375,9 +375,9 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
                 refreshUserData();
               }}
               disabled={realTimeLoading || isLoading}
-              className="text-white/60 hover:text-white sequel-45 text-xs flex items-center gap-1 justify-center transition-colors px-3 py-2"
+              className="text-white/60 hover:text-white sequel-45 text-xs flex items-center gap-2 justify-center transition-all px-4 py-2 hover:bg-white/5 rounded-lg disabled:opacity-50"
             >
-              <RefreshCw size={12} className={realTimeLoading || isLoading ? 'animate-spin' : ''} />
+              <RefreshCw size={14} className={realTimeLoading || isLoading ? 'animate-spin' : ''} />
               Refresh
             </button>
           </div>
@@ -398,23 +398,23 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
       {embeddedWallet && (
         <div className="bg-[#1E1E1E] rounded-xl p-6">
           <h3 className="text-white sequel-75 text-lg mb-4">Wallet Actions</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <button
               onClick={() => setShowSendModal(true)}
-              className="bg-[#2A2A2A] hover:bg-[#3A3A3A] text-white sequel-75 py-4 rounded-lg flex items-center justify-center gap-2 transition-colors group"
+              className="bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 py-4 px-6 rounded-xl flex items-center justify-center gap-3 transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98]"
             >
-              <Send size={20} className="text-[#DDE404] group-hover:text-[#DDE404]/90" />
-              <span>Send ETH</span>
+              <Send size={22} />
+              <span className="text-base">Send ETH</span>
             </button>
             <button
               onClick={() => setShowExportModal(true)}
-              className="bg-[#2A2A2A] hover:bg-[#3A3A3A] text-white sequel-75 py-4 rounded-lg flex items-center justify-center gap-2 transition-colors group"
+              className="bg-[#2A2A2A] hover:bg-[#3A3A3A] text-white sequel-75 py-4 px-6 rounded-xl flex items-center justify-center gap-3 transition-all duration-300 border border-white/10 hover:border-white/20 hover:scale-[1.02] active:scale-[0.98]"
             >
-              <Download size={20} className="text-[#DDE404] group-hover:text-[#DDE404]/90" />
-              <span>Export Private Key</span>
+              <Download size={22} className="text-[#DDE404]" />
+              <span className="text-base">Export Private Key</span>
             </button>
           </div>
-          <div className="mt-3 bg-blue-500/10 border border-blue-500/20 rounded-lg px-4 py-3">
+          <div className="mt-4 bg-blue-500/10 border border-blue-500/20 rounded-lg px-4 py-3">
             <p className="text-blue-300/70 sequel-45 text-xs">
               Use your embedded wallet to send ETH to other addresses or export your private key to use in other wallet apps like MetaMask.
             </p>

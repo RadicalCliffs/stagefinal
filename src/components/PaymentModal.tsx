@@ -1503,7 +1503,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                     <button
                       onClick={handleBalancePayment}
                       disabled={balanceLoading || loadingBalance}
-                      className="w-full flex items-center justify-center gap-3 py-3.5 px-6 bg-gradient-to-r from-violet-600 to-purple-600 text-white sequel-75 uppercase rounded-lg hover:from-violet-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      className="w-full flex items-center justify-center gap-3 py-4 px-6 bg-gradient-to-r from-violet-600 to-purple-600 text-white sequel-75 uppercase rounded-xl hover:from-violet-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg shadow-violet-600/20 hover:shadow-violet-600/30 hover:scale-[1.01] active:scale-[0.99]"
                     >
                       <DollarSign size={18} />
                       {balanceLoading ? 'Processing...' : `Pay $${amount.toFixed(2)} Instantly`}
@@ -1528,7 +1528,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                     <button
                       onClick={handleOnchainKitPayment}
                       disabled={onchainKitLoading}
-                      className="w-full flex items-center justify-center gap-3 py-4 px-6 bg-gradient-to-r from-[#0052FF] to-blue-500 text-white sequel-75 uppercase rounded-lg hover:from-[#0052FF]/90 hover:to-blue-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-base"
+                      className="w-full flex items-center justify-center gap-3 py-4 px-6 bg-gradient-to-r from-[#0052FF] to-blue-500 text-white sequel-75 uppercase rounded-xl hover:from-blue-500 hover:to-[#0052FF] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg shadow-[#0052FF]/20 hover:shadow-[#0052FF]/30 hover:scale-[1.01] active:scale-[0.99] text-base"
                     >
                       {onchainKitLoading ? 'Connecting...' : `Pay $${amount.toFixed(2)}`}
                       <ChevronRight size={18} />
@@ -1544,7 +1544,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
               <button
                 onClick={onClose}
                 type="button"
-                className="w-full bg-transparent border border-white/20 uppercase text-sm text-white/50 sequel-45 hover:bg-white/5 hover:text-white/70 px-6 py-2.5 cursor-pointer rounded-lg transition-all"
+                className="w-full bg-transparent border border-white/20 uppercase text-sm text-white/60 sequel-45 hover:bg-white/5 hover:text-white hover:border-white/40 px-6 py-3 cursor-pointer rounded-xl transition-all duration-200"
               >
                 Cancel
               </button>
@@ -1566,7 +1566,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
               </p>
               <button
                 onClick={handleCloseModal}
-                className="py-3 px-8 bg-[#DDE404] text-black sequel-75 uppercase rounded-lg hover:bg-[#DDE404]/90 transition-all"
+                className="py-4 px-10 bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98]"
               >
                 Select Tickets
               </button>
@@ -1637,7 +1637,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
               <button
                 onClick={handleReturn}
-                className="w-full bg-transparent border border-white/30 uppercase text-sm text-white/70 sequel-45 hover:bg-white/10 px-6 py-2.5 cursor-pointer rounded-lg transition-all"
+                className="w-full bg-transparent border border-white/20 uppercase text-sm text-white/60 sequel-45 hover:bg-white/5 hover:text-white hover:border-white/40 px-6 py-3 cursor-pointer rounded-xl transition-all duration-200"
               >
                 Cancel
               </button>
@@ -1719,7 +1719,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
               {/* Cancel button */}
               <button
                 onClick={handleReturn}
-                className="w-full bg-transparent border border-white/20 uppercase text-sm text-white/50 sequel-45 hover:bg-white/5 hover:text-white/70 px-6 py-2.5 cursor-pointer rounded-lg transition-all"
+                className="w-full bg-transparent border border-white/20 uppercase text-sm text-white/60 sequel-45 hover:bg-white/5 hover:text-white hover:border-white/40 px-6 py-3 cursor-pointer rounded-xl transition-all duration-200"
               >
                 Cancel
               </button>
@@ -1786,7 +1786,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
               <button
                 onClick={handleReturn}
-                className="w-full bg-transparent border border-white/30 uppercase text-sm text-white/70 sequel-45 hover:bg-white/10 px-6 py-2.5 cursor-pointer rounded-lg transition-all"
+                className="w-full bg-transparent border border-white/20 uppercase text-sm text-white/60 sequel-45 hover:bg-white/5 hover:text-white hover:border-white/40 px-6 py-3 cursor-pointer rounded-xl transition-all duration-200"
               >
                 Cancel
               </button>
@@ -1811,7 +1811,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                   href={commerceCheckoutUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 py-3 px-8 bg-purple-600 text-white sequel-75 uppercase rounded-lg hover:bg-purple-700 transition-all"
+                  className="inline-flex items-center gap-2 py-4 px-10 bg-gradient-to-r from-purple-600 to-violet-600 hover:from-violet-600 hover:to-purple-600 text-white sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-purple-600/30 hover:shadow-purple-600/40 hover:scale-[1.02] active:scale-[0.98]"
                 >
                   <ExternalLink size={18} />
                   Pay via Coinbase
@@ -1841,7 +1841,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
               <button
                 onClick={handleReturn}
-                className="w-full bg-transparent border border-white/30 uppercase text-sm text-white/70 sequel-45 hover:bg-white/10 px-6 py-2.5 cursor-pointer rounded-lg transition-all"
+                className="w-full bg-transparent border border-white/20 uppercase text-sm text-white/60 sequel-45 hover:bg-white/5 hover:text-white hover:border-white/40 px-6 py-3 cursor-pointer rounded-xl transition-all duration-200"
               >
                 Cancel
               </button>
@@ -1861,7 +1861,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
               </p>
               <button
                 onClick={handleReturn}
-                className="mt-4 bg-transparent border border-white/30 uppercase text-sm text-white/70 sequel-45 hover:bg-white/10 px-6 py-2.5 cursor-pointer rounded-lg transition-all"
+                className="mt-4 bg-transparent border border-white/20 uppercase text-sm text-white/60 sequel-45 hover:bg-white/5 hover:text-white hover:border-white/40 px-6 py-3 cursor-pointer rounded-xl transition-all duration-200"
               >
                 Cancel
               </button>
@@ -1917,7 +1917,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
               <button
                 onClick={handleViewEntries}
-                className="py-3 px-8 bg-[#DDE404] text-black sequel-75 uppercase rounded-lg hover:bg-[#DDE404]/90 transition-all"
+                className="py-4 px-10 bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98]"
               >
                 View My Entries
               </button>
@@ -1955,7 +1955,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                 {errorInfo?.retryable !== false && (
                   <button
                     onClick={handleReturn}
-                    className="py-3 px-8 bg-[#DDE404] text-black sequel-75 uppercase rounded-lg hover:bg-[#DDE404]/90 transition-all"
+                    className="py-4 px-10 bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98]"
                   >
                     Try Again
                   </button>
@@ -1966,7 +1966,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                       handleCloseModal();
                       window.location.reload();
                     }}
-                    className="py-3 px-8 bg-transparent border border-white/30 text-white sequel-75 uppercase rounded-lg hover:bg-white/10 transition-all"
+                    className="py-4 px-10 bg-transparent border border-white/30 text-white sequel-75 uppercase rounded-xl hover:bg-white/10 hover:border-white/50 transition-all duration-200"
                   >
                     Refresh & Select New Tickets
                   </button>

@@ -549,105 +549,111 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                   {hasWalletBalance && (
                     <button
                       onClick={() => handleMethodSelect('instant')}
-                      className={`p-4 rounded-lg transition-all flex items-start gap-4 text-left w-full ${
+                      className={`p-4 rounded-lg transition-all text-left w-full overflow-hidden ${
                         paymentMethod === 'instant'
                           ? 'bg-green-500/20 border-2 border-green-500'
                           : 'bg-[#3A3A3A] border-2 border-green-500/30 hover:border-green-500/60'
                       }`}
                     >
-                      <div className={`p-2 rounded-lg ${paymentMethod === 'instant' ? 'bg-green-500' : 'bg-gradient-to-br from-green-500 to-emerald-600'}`}>
-                        <Wallet size={24} className="text-white" />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className={`sequel-75 mb-1 ${paymentMethod === 'instant' ? 'text-green-400' : 'text-white'}`}>
-                          {textOverrides?.instantTopUpLabel || 'Top up with another wallet'}
-                        </h3>
-                        <p className="text-gray-400 text-xs sequel-45">
-                          {textOverrides?.instantTopUpDesc || 'Transfer USDC from your connected wallet to your balance. No wallet replacement.'}
-                        </p>
-                        <div className="flex items-center gap-2 mt-2">
-                          <Wallet size={14} className="text-green-400" />
-                          <span className="text-green-400 text-xs sequel-45">
-                            Available: ${walletUsdcBalance.toFixed(2)} USDC
-                          </span>
+                      <div className="flex items-start gap-3">
+                        <div className={`p-2 rounded-lg flex-shrink-0 ${paymentMethod === 'instant' ? 'bg-green-500' : 'bg-gradient-to-br from-green-500 to-emerald-600'}`}>
+                          <Wallet size={20} className="text-white" />
                         </div>
-                        <p className="text-green-500 text-xs sequel-45 mt-2">
-                          ✓ Instant • No fees
-                        </p>
+                        <div className="flex-1 min-w-0">
+                          <h3 className={`sequel-75 text-sm mb-1 ${paymentMethod === 'instant' ? 'text-green-400' : 'text-white'}`}>
+                            {textOverrides?.instantTopUpLabel || 'Top up with another wallet'}
+                          </h3>
+                          <p className="text-gray-400 text-xs sequel-45 leading-tight">
+                            {textOverrides?.instantTopUpDesc || 'Transfer USDC from your connected wallet to your balance.'}
+                          </p>
+                          <div className="flex items-center gap-1.5 mt-2">
+                            <Wallet size={12} className="text-green-400 flex-shrink-0" />
+                            <span className="text-green-400 text-xs sequel-45 truncate">
+                              Available: ${walletUsdcBalance.toFixed(2)} USDC
+                            </span>
+                          </div>
+                          <p className="text-green-500 text-xs sequel-45 mt-1">
+                            ✓ Instant • No fees
+                          </p>
+                        </div>
+                        <ChevronRight size={18} className="text-green-400 opacity-60 flex-shrink-0 mt-1" />
                       </div>
-                      <ChevronRight size={20} className="text-green-400 opacity-60" />
                     </button>
                   )}
 
                   {/* Option 2: Top up with Coinbase (Commerce flow with hardcoded URLs) */}
                   <button
                     onClick={() => handleMethodSelect('commerce')}
-                    className={`p-4 rounded-lg transition-all flex items-start gap-4 text-left w-full ${
+                    className={`p-4 rounded-lg transition-all text-left w-full overflow-hidden ${
                       paymentMethod === 'commerce'
                         ? 'bg-[#DDE404]/20 border-2 border-[#DDE404]'
                         : 'bg-[#3A3A3A] border-2 border-[#DDE404]/30 hover:border-[#DDE404]/60'
                     }`}
                   >
-                    <div className={`p-2 rounded-lg ${paymentMethod === 'commerce' ? 'bg-[#DDE404]' : 'bg-gradient-to-br from-[#DDE404] to-[#9ACD32]'}`}>
-                      <Coins size={24} className="text-black" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className={`sequel-75 mb-1 ${paymentMethod === 'commerce' ? 'text-[#DDE404]' : 'text-white'}`}>
-                          {textOverrides?.cryptoTopUpLabel || 'Top up with Coinbase'}
-                        </h3>
-                        <span className="bg-[#DDE404] text-black text-xs sequel-75 px-2 py-0.5 rounded">
-                          RECOMMENDED
-                        </span>
+                    <div className="flex items-start gap-3">
+                      <div className={`p-2 rounded-lg flex-shrink-0 ${paymentMethod === 'commerce' ? 'bg-[#DDE404]' : 'bg-gradient-to-br from-[#DDE404] to-[#9ACD32]'}`}>
+                        <Coins size={20} className="text-black" />
                       </div>
-                      <p className="text-gray-400 text-xs sequel-45">
-                        {textOverrides?.cryptoTopUpDesc || 'Bitcoin, Ethereum, Solana, Dogecoin & 60+ cryptocurrencies via Coinbase Commerce.'}
-                      </p>
-                      <div className="flex items-center gap-2 mt-2">
-                        <span className="text-orange-400 text-xs">₿</span>
-                        <span className="text-blue-400 text-xs">Ξ</span>
-                        <span className="text-purple-400 text-xs">◎</span>
-                        <span className="text-gray-400 text-xs">+ more</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <h3 className={`sequel-75 text-sm ${paymentMethod === 'commerce' ? 'text-[#DDE404]' : 'text-white'}`}>
+                            {textOverrides?.cryptoTopUpLabel || 'Top up with Coinbase'}
+                          </h3>
+                          <span className="bg-[#DDE404] text-black text-[10px] sequel-75 px-1.5 py-0.5 rounded whitespace-nowrap">
+                            RECOMMENDED
+                          </span>
+                        </div>
+                        <p className="text-gray-400 text-xs sequel-45 leading-tight">
+                          {textOverrides?.cryptoTopUpDesc || 'Bitcoin, Ethereum, Solana, Dogecoin & 60+ cryptocurrencies via Coinbase Commerce.'}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-2">
+                          <span className="text-orange-400 text-xs">₿</span>
+                          <span className="text-blue-400 text-xs">Ξ</span>
+                          <span className="text-purple-400 text-xs">◎</span>
+                          <span className="text-gray-400 text-xs">+ more</span>
+                        </div>
+                        <p className="text-green-500 text-xs sequel-45 mt-1">
+                          ✓ Lowest fees • Fast • Secure
+                        </p>
                       </div>
-                      <p className="text-green-500 text-xs sequel-45 mt-2">
-                        ✓ Lowest fees • Fast • Secure
-                      </p>
+                      <ChevronRight size={18} className="text-[#DDE404] opacity-60 flex-shrink-0 mt-1" />
                     </div>
-                    <ChevronRight size={20} className="text-[#DDE404] opacity-60" />
                   </button>
 
                   {/* Option 3: Pay with Card (InstaXchange) - Coming Soon */}
                   <button
                     disabled={true}
-                    className="p-4 rounded-lg transition-all flex items-start gap-4 text-left w-full bg-[#3A3A3A] border-2 border-gray-600/30 opacity-50 cursor-not-allowed"
+                    className="p-4 rounded-lg transition-all text-left w-full overflow-hidden bg-[#3A3A3A] border-2 border-gray-600/30 opacity-50 cursor-not-allowed"
                   >
-                    <div className="p-2 rounded-lg bg-gray-600">
-                      <CreditCard size={24} className="text-gray-400" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="sequel-75 mb-1 text-gray-400">
-                          Pay with Card (powered by InstaXchange)
-                        </h3>
-                        <span className="bg-gray-600/80 text-gray-300 text-xs sequel-75 px-2 py-0.5 rounded">
-                          COMING SOON
-                        </span>
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 rounded-lg bg-gray-600 flex-shrink-0">
+                        <CreditCard size={20} className="text-gray-400" />
                       </div>
-                      <p className="text-gray-500 text-xs sequel-45">
-                        Credit or debit card payment via InstaXchange secure payment processor.
-                      </p>
-                      <div className="flex items-center gap-2 mt-2">
-                        <span className="text-white/30 text-xs">Visa</span>
-                        <span className="text-white/20">•</span>
-                        <span className="text-white/30 text-xs">Mastercard</span>
-                        <span className="text-white/20">•</span>
-                        <span className="text-white/30 text-xs">Apple Pay</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <h3 className="sequel-75 text-sm text-gray-400">
+                            Pay with Card
+                          </h3>
+                          <span className="bg-gray-600/80 text-gray-300 text-[10px] sequel-75 px-1.5 py-0.5 rounded whitespace-nowrap">
+                            COMING SOON
+                          </span>
+                        </div>
+                        <p className="text-gray-500 text-xs sequel-45 leading-tight">
+                          Credit or debit card payment via InstaXchange secure payment processor.
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                          <span className="text-white/30 text-xs">Visa</span>
+                          <span className="text-white/20">•</span>
+                          <span className="text-white/30 text-xs">Mastercard</span>
+                          <span className="text-white/20">•</span>
+                          <span className="text-white/30 text-xs">Apple Pay</span>
+                        </div>
+                        <p className="text-gray-500 text-xs sequel-45 mt-1">
+                          Instant credit - Available soon
+                        </p>
                       </div>
-                      <p className="text-gray-500 text-xs sequel-45 mt-2">
-                        Instant credit to balance - Available soon
-                      </p>
+                      <ChevronRight size={18} className="text-gray-600 opacity-30 flex-shrink-0 mt-1" />
                     </div>
-                    <ChevronRight size={20} className="text-gray-600 opacity-30" />
                   </button>
                 </div>
               </div>
@@ -655,7 +661,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
               <button
                 onClick={handleMethodContinue}
                 disabled={!paymentMethod}
-                className="w-full py-3 px-6 bg-[#DDE404] text-black sequel-75 uppercase rounded-lg hover:bg-[#DDE404]/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-4 px-6 bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.01] active:scale-[0.99] text-base"
               >
                 Continue
               </button>
@@ -771,11 +777,11 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                   (paymentMethod === 'instant' && amount > walletUsdcBalance) ||
                   ((paymentMethod === 'crypto' || paymentMethod === 'commerce') && !TOP_UP_CHECKOUT_URLS[amount])
                 }
-                className={`w-full py-3 px-6 sequel-75 uppercase rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all ${
-                  paymentMethod === 'fund' ? 'bg-blue-500 text-white hover:bg-blue-400' :
-                  paymentMethod === 'crypto' ? 'bg-orange-500 text-white hover:bg-orange-400' :
-                  paymentMethod === 'commerce' ? 'bg-violet-500 text-white hover:bg-violet-400' :
-                  'bg-[#DDE404] text-black hover:bg-[#DDE404]/90'
+                className={`w-full py-4 px-6 sequel-75 uppercase rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg hover:scale-[1.01] active:scale-[0.99] text-base ${
+                  paymentMethod === 'fund' ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-500 text-white shadow-blue-500/20 hover:shadow-blue-500/30' :
+                  paymentMethod === 'crypto' ? 'bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-500 text-white shadow-orange-500/20 hover:shadow-orange-500/30' :
+                  paymentMethod === 'commerce' ? 'bg-gradient-to-r from-violet-500 to-violet-600 hover:from-violet-600 hover:to-violet-500 text-white shadow-violet-500/20 hover:shadow-violet-500/30' :
+                  'bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30'
                 }`}
               >
                 {paymentMethod === 'offramp'
@@ -864,7 +870,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                     refreshUserData();
                     onSuccess?.();
                   }}
-                  className="w-full py-3 px-6 bg-blue-500 text-white sequel-75 uppercase rounded-lg hover:bg-blue-400 transition-all"
+                  className="w-full py-4 px-6 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-500 text-white sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 hover:scale-[1.01] active:scale-[0.99]"
                 >
                   I've Completed Funding
                 </button>
@@ -875,7 +881,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
 
               <button
                 onClick={() => setStep('method')}
-                className="w-full py-2 px-4 text-gray-400 text-sm sequel-45 hover:text-white transition-colors"
+                className="w-full py-3 px-4 bg-transparent border border-white/20 text-white/60 hover:text-white hover:border-white/40 sequel-45 text-sm rounded-xl transition-all duration-200"
               >
                 Cancel
               </button>
@@ -918,7 +924,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
 
               <button
                 onClick={() => setStep('method')}
-                className="w-full py-2 px-4 text-gray-400 text-sm sequel-45 hover:text-white transition-colors"
+                className="w-full py-3 px-4 bg-transparent border border-white/20 text-white/60 hover:text-white hover:border-white/40 sequel-45 text-sm rounded-xl transition-all duration-200"
               >
                 Cancel
               </button>
@@ -940,7 +946,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                   href={checkoutUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 py-3 px-8 bg-[#0052FF] text-white sequel-75 uppercase rounded-lg hover:bg-[#0052FF]/90 transition-all"
+                  className="inline-flex items-center gap-2 py-4 px-10 bg-gradient-to-r from-[#0052FF] to-[#0066FF] hover:from-[#0066FF] hover:to-[#0052FF] text-white sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#0052FF]/30 hover:shadow-[#0052FF]/40 hover:scale-[1.02] active:scale-[0.98]"
                 >
                   <ExternalLink size={18} />
                   Pay with Coinbase
@@ -972,7 +978,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
               <div className="border-t border-gray-700 pt-4 mt-4">
                 <button
                   onClick={onClose}
-                  className="w-full py-3 px-6 bg-[#DDE404] text-black sequel-75 uppercase rounded-lg hover:bg-[#DDE404]/90 transition-all"
+                  className="w-full py-4 px-6 bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.01] active:scale-[0.99]"
                 >
                   Head Back to Site
                 </button>
@@ -983,7 +989,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
 
               <button
                 onClick={() => setStep('method')}
-                className="w-full py-2 px-4 text-gray-400 text-sm sequel-45 hover:text-white transition-colors"
+                className="w-full py-3 px-4 bg-transparent border border-white/20 text-white/60 hover:text-white hover:border-white/40 sequel-45 text-sm rounded-xl transition-all duration-200"
               >
                 Cancel
               </button>
@@ -1003,7 +1009,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
               </p>
               <button
                 onClick={() => setStep('method')}
-                className="mt-4 py-2 px-4 text-gray-400 text-sm sequel-45 hover:text-white transition-colors"
+                className="mt-4 py-3 px-6 bg-transparent border border-white/20 text-white/60 hover:text-white hover:border-white/40 sequel-45 text-sm rounded-xl transition-all duration-200"
               >
                 Cancel
               </button>
@@ -1025,7 +1031,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                   href={checkoutUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 py-3 px-8 bg-[#DDE404] text-black sequel-75 uppercase rounded-lg hover:bg-[#DDE404]/90 transition-all"
+                  className="inline-flex items-center gap-2 py-4 px-10 bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98]"
                 >
                   <ExternalLink size={18} />
                   Complete Cash Out
@@ -1038,7 +1044,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
 
               <button
                 onClick={onClose}
-                className="w-full py-2 px-4 text-gray-400 text-sm sequel-45 hover:text-white transition-colors"
+                className="w-full py-3 px-4 bg-transparent border border-white/20 text-white/60 hover:text-white hover:border-white/40 sequel-45 text-sm rounded-xl transition-all duration-200"
               >
                 Close
               </button>
@@ -1054,7 +1060,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
               <p className="text-gray-400 sequel-45 mb-6">Your balance has been updated.</p>
               <button
                 onClick={onClose}
-                className="py-3 px-8 bg-[#DDE404] text-black sequel-75 uppercase rounded-lg hover:bg-[#DDE404]/90 transition-all"
+                className="py-4 px-10 bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98] text-base"
               >
                 Done
               </button>
@@ -1072,7 +1078,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
               <p className="text-gray-400 sequel-45 mb-6">{error || 'Something went wrong. Please try again.'}</p>
               <button
                 onClick={() => setStep('method')}
-                className="py-3 px-8 bg-[#DDE404] text-black sequel-75 uppercase rounded-lg hover:bg-[#DDE404]/90 transition-all"
+                className="py-4 px-10 bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98] text-base"
               >
                 Try Again
               </button>
