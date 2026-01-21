@@ -70,7 +70,7 @@ const HeroCarouselV2 = () => {
               {/* Hero Image */}
               <div className="relative w-full">
                 <img
-                  className="w-full rounded-t-xl sm:min-h-[571px] sm:max-h-[571px] max-h-[350px] min-h-[350px] object-cover"
+                  className="w-full rounded-t-xl sm:min-h-[480px] sm:max-h-[480px] max-h-[300px] min-h-[300px] object-cover"
                   src={slide.image}
                   alt={slide.title}
                   loading={idx === 0 ? 'eager' : 'lazy'}
