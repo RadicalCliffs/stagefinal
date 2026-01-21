@@ -2299,6 +2299,54 @@ TESTING CHECKLIST:
    * This saves a .tsx file that can be sent to developers
    */
   const handleDownloadFile = () => {
+    // Special handling for IndividualCompetitionPage - generate config file
+    if (state.editorTarget.type === 'page' && state.editorTarget.value === 'IndividualCompetitionPage') {
+      const configContent = `/**
+ * Competition Page Text Configuration
+ * 
+ * This file contains the text content for individual competition pages.
+ * These values directly affect all live competition pages on the site.
+ * 
+ * Generated: ${new Date().toISOString()}
+ * 
+ * To deploy these changes:
+ * 1. Replace src/config/competitionPageConfig.ts with this file
+ * 2. Commit and push to GitHub
+ * 3. Deploy - changes are now LIVE on all competition pages!
+ */
+
+export const competitionPageConfig = {
+  ticketNumbersDescription: "${state.texts.find(t => t.name === 'ticketNumbersDescription')?.value || competitionPageConfig.ticketNumbersDescription}",
+  picturesDisclaimer: "${state.texts.find(t => t.name === 'picturesDisclaimer')?.value || competitionPageConfig.picturesDisclaimer}",
+  minimumWinText: "${state.texts.find(t => t.name === 'minimumWinText')?.value || competitionPageConfig.minimumWinText}",
+  additionalInfo: "${state.texts.find(t => t.name === 'additionalInfo')?.value || ''}", // Optional additional text to display
+};
+
+export type CompetitionPageConfig = typeof competitionPageConfig;
+`;
+      
+      const filename = `competitionPageConfig.ts`;
+      const blob = new Blob([configContent], { type: 'text/typescript' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setSaveStatus('success');
+      setSaveMessage(`File downloaded as ${filename}. Replace src/config/competitionPageConfig.ts with this file and deploy to make changes LIVE!`);
+      
+      setTimeout(() => {
+        setSaveStatus('idle');
+        setSaveMessage('');
+      }, 10000);
+      return;
+    }
+    
+    // Default handling for modals and other pages
     const fileContent = generateDownloadableFile();
     const filename = `${state.selectedModal}-customizations-${Date.now()}.tsx`;
     
