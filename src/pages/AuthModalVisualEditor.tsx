@@ -63,6 +63,8 @@ import NewAuthModal, { type NewAuthModalTextOverrides } from '../components/NewA
 import { BaseWalletAuthModal, type BaseWalletAuthModalTextOverrides } from '../components/BaseWalletAuthModal';
 import PaymentModal, { type PaymentModalTextOverrides } from '../components/PaymentModal';
 import TopUpWalletModal, { type TopUpWalletModalTextOverrides } from '../components/TopUpWalletModal';
+import { type CompetitionPageTextOverrides } from '../components/IndividualCompetition/IndividualCompetitionInfo';
+import { competitionPageConfig } from '../config/competitionPageConfig';
 
 // Lazy load pages for the editor
 const LandingPage = lazy(() => import('./LandingPage'));
@@ -79,6 +81,7 @@ const TermsAndConditionsPage = lazy(() => import('./TermsAndConditionsPage'));
 const CookiePolicyPage = lazy(() => import('./CookiePolicyPage'));
 const TermsOfUsePage = lazy(() => import('./TermsOfUsePage'));
 const AcceptableUsePage = lazy(() => import('./AcceptableUsePage'));
+const IndividualCompetitionEditorPage = lazy(() => import('./IndividualCompetitionEditorPage'));
 
 interface ColorProperty {
   name: string;
@@ -179,7 +182,8 @@ type PageType =
   | 'TermsAndConditionsPage'
   | 'CookiePolicyPage'
   | 'TermsOfUsePage'
-  | 'AcceptableUsePage';
+  | 'AcceptableUsePage'
+  | 'IndividualCompetitionPage';
 
 type EditorTargetType = ModalType | PageType | 'SiteWide';
 
@@ -1118,6 +1122,15 @@ ${siteWideState.navigation.map(item => `- ${item.label} -> ${item.path} (visible
     return textMap as BaseWalletAuthModalTextOverrides;
   }, [state.selectedModal, state.texts]);
 
+  const competitionPageTextOverrides = useMemo((): CompetitionPageTextOverrides => {
+    if (state.editorTarget.value !== 'IndividualCompetitionPage') return {};
+    const textMap: Record<string, string> = {};
+    state.texts.forEach(t => {
+      textMap[t.name] = t.value;
+    });
+    return textMap as CompetitionPageTextOverrides;
+  }, [state.editorTarget.value, state.texts]);
+
   // Load initial properties based on selected modal
   // Load properties when editor target changes
   useEffect(() => {
@@ -1508,6 +1521,29 @@ ${siteWideState.navigation.map(item => `- ${item.label} -> ${item.path} (visible
         images: [
           { name: 'prizePhoto', label: 'Prize Photo', value: '/assets/images/rolex-watch.jpg', type: 'hero', format: 'jpg', acceptFormats: 'image/*' },
         ],
+      }));
+    } else if (pageType === 'IndividualCompetitionPage') {
+      setState(prev => ({
+        ...prev,
+        ...commonPageConfig,
+        colors: [
+          { name: 'heroBg', label: 'Hero Background', value: '#1A1A1A', description: 'Hero section background' },
+          { name: 'sectionBg', label: 'Section Background', value: '#1E1E1E', description: 'Main sections background' },
+          { name: 'fairDrawsBg', label: 'Fair Draws Background', value: '#1A1B1A', description: 'Fair draws section background' },
+          { name: 'accentYellow', label: 'Accent Yellow', value: '#DDE404', description: 'Brand accent color' },
+          { name: 'textPrimary', label: 'Primary Text', value: '#ffffff', description: 'Main text color' },
+        ],
+        fonts: [
+          { name: 'descriptionText', label: 'Description Text', family: 'sequel-45', size: '1.125rem', weight: '400' },
+          { name: 'minimumWinText', label: 'Minimum Win Text', family: 'sequel-75', size: '1.125rem', weight: '600' },
+        ],
+        texts: [
+          { name: 'ticketNumbersDescription', label: 'Ticket Numbers Description', value: competitionPageConfig.ticketNumbersDescription },
+          { name: 'picturesDisclaimer', label: 'Pictures Disclaimer', value: competitionPageConfig.picturesDisclaimer },
+          { name: 'minimumWinText', label: 'Minimum Win Text', value: competitionPageConfig.minimumWinText },
+          { name: 'additionalInfo', label: 'Additional Info (Optional)', value: competitionPageConfig.additionalInfo },
+        ],
+        images: [],
       }));
     } else {
       // Default configuration for legal pages and other pages
@@ -2263,6 +2299,54 @@ TESTING CHECKLIST:
    * This saves a .tsx file that can be sent to developers
    */
   const handleDownloadFile = () => {
+    // Special handling for IndividualCompetitionPage - generate config file
+    if (state.editorTarget.type === 'page' && state.editorTarget.value === 'IndividualCompetitionPage') {
+      const configContent = `/**
+ * Competition Page Text Configuration
+ * 
+ * This file contains the text content for individual competition pages.
+ * These values directly affect all live competition pages on the site.
+ * 
+ * Generated: ${new Date().toISOString()}
+ * 
+ * To deploy these changes:
+ * 1. Replace src/config/competitionPageConfig.ts with this file
+ * 2. Commit and push to GitHub
+ * 3. Deploy - changes are now LIVE on all competition pages!
+ */
+
+export const competitionPageConfig = {
+  ticketNumbersDescription: "${state.texts.find(t => t.name === 'ticketNumbersDescription')?.value || competitionPageConfig.ticketNumbersDescription}",
+  picturesDisclaimer: "${state.texts.find(t => t.name === 'picturesDisclaimer')?.value || competitionPageConfig.picturesDisclaimer}",
+  minimumWinText: "${state.texts.find(t => t.name === 'minimumWinText')?.value || competitionPageConfig.minimumWinText}",
+  additionalInfo: "${state.texts.find(t => t.name === 'additionalInfo')?.value || ''}", // Optional additional text to display
+};
+
+export type CompetitionPageConfig = typeof competitionPageConfig;
+`;
+      
+      const filename = `competitionPageConfig.ts`;
+      const blob = new Blob([configContent], { type: 'text/typescript' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setSaveStatus('success');
+      setSaveMessage(`File downloaded as ${filename}. Replace src/config/competitionPageConfig.ts with this file and deploy to make changes LIVE!`);
+      
+      setTimeout(() => {
+        setSaveStatus('idle');
+        setSaveMessage('');
+      }, 10000);
+      return;
+    }
+    
+    // Default handling for modals and other pages
     const fileContent = generateDownloadableFile();
     const filename = `${state.selectedModal}-customizations-${Date.now()}.tsx`;
     
@@ -4921,6 +5005,7 @@ TESTING CHECKLIST:
                 <optgroup label="📄 PAGES - Full Website Pages">
                   <option value="page:LandingPage">🏠 Landing Page (Home)</option>
                   <option value="page:CompetitionsPage">🎯 Competitions Page</option>
+                  <option value="page:IndividualCompetitionPage">🎫 Individual Competition Page</option>
                   <option value="page:WinnersPage">🏆 Winners Page</option>
                   <option value="page:AboutPage">ℹ️ About Page</option>
                   <option value="page:FaqPage">❓ FAQ Page</option>
@@ -5220,6 +5305,7 @@ TESTING CHECKLIST:
                     <Suspense fallback={<div className="flex items-center justify-center h-full"><div className="text-white">Loading preview...</div></div>}>
                       {state.editorTarget.value === 'LandingPage' && <LandingPage />}
                       {state.editorTarget.value === 'CompetitionsPage' && <CompetitionsPage />}
+                      {state.editorTarget.value === 'IndividualCompetitionPage' && <IndividualCompetitionEditorPage textOverrides={competitionPageTextOverrides} />}
                       {state.editorTarget.value === 'AboutPage' && <AboutPage />}
                       {state.editorTarget.value === 'FaqPage' && <FaqPage />}
                       {state.editorTarget.value === 'WinnersPage' && <WinnersPage />}

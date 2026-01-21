@@ -6,12 +6,17 @@ import EntriesWithFilterTabs from '../FinishedCompetition/EntriesWithFilterTabs'
 import Heading from '../Heading'
 import NeverMissGame from '../NeverMissGame'
 import IndividualCompetitionHeroSection from './IndividualCompetitionHeroSection'
-import IndividualCompetitionInfo from './IndividualCompetitionInfo'
+import IndividualCompetitionInfo, { type CompetitionPageTextOverrides } from './IndividualCompetitionInfo'
 import IndividualFairDraws from './IndividualFairDrawsSteps'
 import TicketSelector from './TicketSelectorWithTabs'
 import type {  CompetitionWrapper } from '../../models/models';
 
-const IndividualCompetition = ({ competition }: CompetitionWrapper) => {
+interface IndividualCompetitionProps extends CompetitionWrapper {
+  // Optional text overrides for visual editor live preview
+  competitionPageTextOverrides?: CompetitionPageTextOverrides;
+}
+
+const IndividualCompetition = ({ competition, competitionPageTextOverrides }: IndividualCompetitionProps) => {
   const [entriesRefreshKey, setEntriesRefreshKey] = useState(0);
 
   return (
@@ -38,7 +43,7 @@ const IndividualCompetition = ({ competition }: CompetitionWrapper) => {
       <div className='fair-draws-bg xl:px-0 px-4 relative'>
         <IndividualFairDraws />
         <div className='pt-8 pb-16 relative'>
-          <IndividualCompetitionInfo />
+          <IndividualCompetitionInfo textOverrides={competitionPageTextOverrides} />
         </div>
       </div>
       <div className=" bg-[#1E1E1E] xl:px-0 px-4 relative">
