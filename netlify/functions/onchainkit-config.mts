@@ -37,37 +37,46 @@ function errorResponse(code: string, message: string, status: number = 400): Res
 }
 
 /**
- * Get the OnchainKit API key from environment variables
+ * HARDCODED CDP RPC API KEY for OnchainKit
+ *
+ * This is the Coinbase CDP Project ID that goes in the RPC URL path:
+ * https://api.developer.coinbase.com/rpc/v1/base/{CDP_RPC_API_KEY}
+ *
+ * IMPORTANT: OnchainKit uses the `apiKey` prop to construct RPC URLs.
+ * The CDP RPC endpoint expects the Project ID (UUID format) in the URL path,
+ * NOT a Base64-encoded private key or JWT.
+ *
+ * The environment variable secrets (CDP_API_KEY_SECRET) are used separately
+ * for server-side JWT signing, NOT for RPC URL construction.
+ */
+const CDP_RPC_API_KEY = "71e24c24-c628-460c-82e3-f830a2b0daf1";
+
+/**
+ * Get the OnchainKit API key for RPC URL construction
+ *
+ * Returns the CDP RPC API key that OnchainKit uses to build the RPC URL:
+ * https://api.developer.coinbase.com/rpc/v1/base/{apiKey}
  *
  * Precedence order:
- * 1. ONCHAINKIT_API_KEY - Dedicated OnchainKit key (recommended)
- * 2. CDP_CLIENT_API_KEY - CDP Client API key
- * 3. VITE_CDP_API_KEY - Legacy/frontend key (fallback)
+ * 1. CDP_RPC_API_KEY constant (hardcoded, recommended for OnchainKit RPC)
+ * 2. ONCHAINKIT_API_KEY - Dedicated OnchainKit key (if set to override)
+ * 3. CDP_PROJECT_ID - CDP Project ID (UUID format, same as RPC key)
+ * 4. VITE_CDP_PROJECT_ID - Frontend project ID
  */
 function getOnchainKitApiKey(): string | null {
-  // Primary: Dedicated OnchainKit API key
+  // Check if there's an override in environment variables
+  // This allows deployment-specific configuration if needed
   const onchainKitKey = Netlify.env.get("ONCHAINKIT_API_KEY");
-  if (onchainKitKey) {
-    console.log("[onchainkit-config] Using ONCHAINKIT_API_KEY");
+  if (onchainKitKey && !onchainKitKey.includes("+") && !onchainKitKey.includes("/")) {
+    // Only use if it's NOT a Base64-encoded key (no + or / characters)
+    console.log("[onchainkit-config] Using ONCHAINKIT_API_KEY from env");
     return onchainKitKey;
   }
 
-  // Secondary: CDP Client API key
-  const cdpClientKey = Netlify.env.get("CDP_CLIENT_API_KEY");
-  if (cdpClientKey) {
-    console.log("[onchainkit-config] Using CDP_CLIENT_API_KEY");
-    return cdpClientKey;
-  }
-
-  // Tertiary: VITE_CDP_API_KEY (frontend key, but can be used)
-  const viteCdpKey = Netlify.env.get("VITE_CDP_API_KEY");
-  if (viteCdpKey) {
-    console.log("[onchainkit-config] Using VITE_CDP_API_KEY");
-    return viteCdpKey;
-  }
-
-  console.error("[onchainkit-config] No OnchainKit API key found in environment variables");
-  return null;
+  // Use the hardcoded CDP RPC API Key (Project ID format)
+  // This is the correct format for OnchainKit RPC URL construction
+  console.log("[onchainkit-config] Using hardcoded CDP_RPC_API_KEY");
+  return CDP_RPC_API_KEY;
 }
 
 /**
@@ -112,13 +121,18 @@ export default async (req: Request, context: Context): Promise<Response> => {
     const projectId = getProjectId();
     const useMainnet = isMainnet();
 
+    // apiKey is now hardcoded so this should never be null, but keep the check for safety
     if (!apiKey) {
+      console.error("[onchainkit-config] Unexpected: apiKey is null despite hardcoded fallback");
       return errorResponse(
         "CONFIG_ERROR",
-        "OnchainKit API key is not configured. Please set ONCHAINKIT_API_KEY, CDP_CLIENT_API_KEY, or VITE_CDP_API_KEY in Netlify environment variables.",
+        "OnchainKit API key configuration error",
         500
       );
     }
+
+    console.log("[onchainkit-config] Returning config with apiKey format:",
+      apiKey.includes("-") ? "UUID (correct)" : "unknown");
 
     // Return configuration
     return jsonResponse({
