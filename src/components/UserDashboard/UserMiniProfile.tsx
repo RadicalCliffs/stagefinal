@@ -66,8 +66,8 @@ const UserMiniProfile = () => {
 
   if (isLoading) {
     return (
-      <div className='flex items-center gap-2 sm:gap-3 animate-pulse'>
-        <div className='w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-full bg-[#3A3A3A] flex-shrink-0' />
+      <div className='flex items-center gap-3 sm:gap-4 animate-pulse'>
+        <div className='w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-lg bg-[#3A3A3A] flex-shrink-0' />
         <div className='flex-1 min-w-0'>
           <div className='h-4 bg-[#3A3A3A] rounded w-24 sm:w-32 mb-2' />
           <div className='h-3 bg-[#3A3A3A] rounded w-32 sm:w-48' />
@@ -99,56 +99,56 @@ const UserMiniProfile = () => {
 
   return (
     <>
-      <div className='flex items-start sm:items-center gap-2 sm:gap-3'>
+      <div className='flex items-center gap-3 sm:gap-4'>
           <div className='relative group flex-shrink-0'>
             <img
               src={avatarUrl}
               alt="user-avatar"
-              className='w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-full cursor-pointer transition-all hover:ring-2 hover:ring-[#DDE404] object-cover'
+              className='w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-lg cursor-pointer transition-all hover:ring-2 hover:ring-[#DDE404] object-cover'
               crossOrigin="anonymous"
               referrerPolicy="no-referrer"
               onClick={() => setShowAvatarModal(true)}
             />
-            <div className='absolute inset-0 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer' onClick={() => setShowAvatarModal(true)}>
+            <div className='absolute inset-0 bg-black/50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer' onClick={() => setShowAvatarModal(true)}>
               <Edit size={18} className='text-[#DDE404] sm:w-6 sm:h-6' />
             </div>
           </div>
           <div className='flex-1 min-w-0'>
-              <p className='text-white sequel-75 text-sm sm:text-base truncate'>
+              <p className='text-white sequel-75 text-sm sm:text-base md:text-lg truncate mb-1'>
                 {displayName}
               </p>
               {/* Prize ID (canonical user identifier) - Always show for all users */}
               {canonicalUserId && (
-                <div className='flex justify-between sequel-45 text-[#DDE404] items-end border-t-[2px] sm:border-t-[3px] my-1.5 sm:my-2 border-[#DDE404]'>
-                    <div className='mt-1.5 sm:mt-2 min-w-0 flex-1'>
-                      <span className='text-[10px] sm:text-xs text-white/60 block'>Prize ID</span>
-                      <p className='text-[11px] sm:text-xs md:text-sm truncate pr-1'>
+                <div className='flex items-center gap-2 sequel-45 text-[#DDE404] py-1'>
+                    <div className='min-w-0 flex-1'>
+                      <span className='text-[10px] sm:text-xs text-white/60'>Prize ID</span>
+                      <p className='text-[10px] sm:text-xs truncate'>
                         {formatPid(canonicalUserId)}
                       </p>
                     </div>
-                    <button onClick={handleCopyPid} className='flex-shrink-0 p-1 -mr-1' title='Copy Prize ID'>
+                    <button onClick={handleCopyPid} className='flex-shrink-0 p-0.5' title='Copy Prize ID'>
                       {copiedPid ? (
-                        <CheckIcon size={16} className='cursor-pointer text-[#DDE404] sm:w-[18px] sm:h-[18px]' />
+                        <CheckIcon size={14} className='cursor-pointer text-[#DDE404]' />
                       ) : (
-                        <CopyIcon size={16} className='cursor-pointer sm:w-[18px] sm:h-[18px]' />
+                        <CopyIcon size={14} className='cursor-pointer' />
                       )}
                     </button>
                 </div>
               )}
               {/* Wallet Address */}
               {walletAddress && (
-                <div className='flex justify-between sequel-45 text-white items-end border-t-[2px] sm:border-t-[3px] my-1 border-white/30'>
-                    <div className='mt-1.5 sm:mt-2 min-w-0 flex-1'>
-                      <span className='text-[10px] sm:text-xs text-white/60 block'>Wallet</span>
-                      <p className='text-[11px] sm:text-xs md:text-sm truncate pr-1'>
+                <div className='flex items-center gap-2 sequel-45 text-white/70 py-1'>
+                    <div className='min-w-0 flex-1'>
+                      <span className='text-[10px] sm:text-xs text-white/60'>Wallet</span>
+                      <p className='text-[10px] sm:text-xs truncate'>
                         {walletAddress.slice(0, 8)}...{walletAddress.slice(-4)}
                       </p>
                     </div>
-                    <button onClick={handleCopyWallet} className='flex-shrink-0 p-1 -mr-1' title='Copy Wallet Address'>
+                    <button onClick={handleCopyWallet} className='flex-shrink-0 p-0.5' title='Copy Wallet Address'>
                       {copiedWallet ? (
-                        <CheckIcon size={16} className='cursor-pointer text-[#DDE404] sm:w-[18px] sm:h-[18px]' />
+                        <CheckIcon size={14} className='cursor-pointer text-[#DDE404]' />
                       ) : (
-                        <CopyIcon size={16} className='cursor-pointer text-white/60 sm:w-[18px] sm:h-[18px]' />
+                        <CopyIcon size={14} className='cursor-pointer text-white/60' />
                       )}
                     </button>
                 </div>
