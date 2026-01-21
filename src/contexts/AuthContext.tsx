@@ -394,24 +394,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         try {
           console.log('[AuthContext] Calling upsert_canonical_user RPC after auth');
           const canonicalUserId = toPrizePid(effectiveWalletAddress);
+          // NOTE: Parameters must match the database function signature exactly:
+          // p_uid, p_canonical_user_id, p_email, p_username, p_wallet_address,
+          // p_base_wallet_address, p_eth_wallet_address, p_privy_user_id,
+          // p_first_name, p_last_name, p_telegram_handle, p_wallet_linked
           const { error: rpcError } = await supabase.rpc('upsert_canonical_user', {
-            p_auth_provider: 'privy',
-            p_avatar_url: userProfile.avatar_url || null,
-            p_base_wallet_address: effectiveWalletAddress.toLowerCase(),
-            p_canonical_user_id: canonicalUserId,
-            p_country: userProfile.country || null,
-            p_email: effectiveEmail || null,
-            p_eth_wallet_address: effectiveWalletAddress.toLowerCase(),
-            p_first_name: userProfile.first_name || null,
-            p_last_name: userProfile.last_name || null,
-            p_phone: userProfile.telephone_number || null,
-            p_privy_user_id: effectiveWalletAddress,
             p_uid: userProfile.uid || userProfile.id,
+            p_canonical_user_id: canonicalUserId,
+            p_email: effectiveEmail || null,
             p_username: userProfile.username || null,
             p_wallet_address: effectiveWalletAddress.toLowerCase(),
+            p_base_wallet_address: effectiveWalletAddress.toLowerCase(),
+            p_eth_wallet_address: effectiveWalletAddress.toLowerCase(),
+            p_privy_user_id: effectiveWalletAddress,
+            p_first_name: userProfile.first_name || null,
+            p_last_name: userProfile.last_name || null,
+            p_telegram_handle: userProfile.telegram_handle || null,
             p_wallet_linked: false, // Not a wallet link event, just auth
           });
-          
+
           if (rpcError) {
             console.warn('[AuthContext] upsert_canonical_user RPC warning:', rpcError);
           } else {
