@@ -2375,6 +2375,8 @@ export const database = {
    * Allocate lucky dip tickets atomically on the server side.
    * This function selects random available tickets and reserves them in a single transaction.
    * Use this instead of client-side selection + reservation for race condition prevention.
+   *
+   * For purchases of more than 100 tickets, use allocateBulkLuckyDipTickets instead.
    */
   async allocateLuckyDipTickets(
     competitionId: string,
@@ -2393,8 +2395,13 @@ export const database = {
     available_count?: number;
     error?: string;
   }> {
+    // For large purchases (>100 tickets), delegate to bulk allocation
+    if (count > 100) {
+      return this.allocateBulkLuckyDipTickets(competitionId, userId, count, ticketPrice, holdMinutes, sessionId);
+    }
+
     // Validate inputs
-    if (!competitionId || !userId || count < 1 || count > 100) {
+    if (!competitionId || !userId || count < 1) {
       return {
         success: false,
         error: 'Invalid input parameters'
@@ -2446,6 +2453,227 @@ export const database = {
       };
     } catch (error) {
       handleDatabaseError(error, 'allocateLuckyDipTickets');
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to allocate tickets'
+      };
+    }
+  },
+
+  /**
+   * Allocate bulk lucky dip tickets for large purchases (100+ tickets).
+   *
+   * This function handles purchases of up to 10,000+ tickets by:
+   * 1. Fetching all unavailable tickets upfront via get_competition_unavailable_tickets
+   * 2. Splitting the request into batches of max 500 tickets each
+   * 3. Executing batches with 3x quiet retries and exponential backoff
+   * 4. Aggregating results into a single response
+   *
+   * @param competitionId - The competition UUID
+   * @param userId - The user's canonical ID (will be converted to prize:pid: format)
+   * @param count - Number of tickets to allocate (1 to 10,000+)
+   * @param ticketPrice - Price per ticket (default: 1)
+   * @param holdMinutes - How long to hold the reservation (default: 15)
+   * @param sessionId - Optional session ID for tracking
+   */
+  async allocateBulkLuckyDipTickets(
+    competitionId: string,
+    userId: string,
+    count: number,
+    ticketPrice: number = 1,
+    holdMinutes: number = 15,
+    sessionId?: string
+  ): Promise<{
+    success: boolean;
+    reservation_id?: string;
+    reservation_ids?: string[];
+    ticket_numbers?: number[];
+    ticket_count?: number;
+    total_amount?: number;
+    expires_at?: string;
+    available_count?: number;
+    error?: string;
+    batch_count?: number;
+    retry_attempts?: number;
+  }> {
+    const MAX_BATCH_SIZE = 500;
+    const MAX_RETRIES = 3;
+    const BASE_RETRY_DELAY_MS = 500;
+
+    // Validate inputs
+    if (!competitionId || competitionId.trim() === '') {
+      return { success: false, error: 'Competition ID is required' };
+    }
+
+    if (!userId || userId.trim() === '') {
+      return { success: false, error: 'User ID is required' };
+    }
+
+    if (count < 1) {
+      return { success: false, error: 'Count must be at least 1' };
+    }
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(competitionId)) {
+      return { success: false, error: 'Invalid competition ID format' };
+    }
+
+    // Normalize user ID
+    const canonicalUserId = toPrizePid(userId.trim());
+    console.log(`[BulkLuckyDip] Starting allocation of ${count} tickets for ${canonicalUserId.slice(0, 20)}...`);
+
+    try {
+      // Step 1: Fetch all unavailable tickets upfront
+      let excludedTickets: number[] = [];
+      try {
+        const { data: unavailableData, error: unavailableError } = await supabase.rpc(
+          'get_competition_unavailable_tickets',
+          { p_competition_id: competitionId.trim() }
+        );
+
+        if (!unavailableError && unavailableData && Array.isArray(unavailableData)) {
+          excludedTickets = unavailableData
+            .filter((row: any) => row.ticket_number != null)
+            .map((row: any) => row.ticket_number);
+          console.log(`[BulkLuckyDip] Found ${excludedTickets.length} unavailable tickets`);
+        }
+      } catch (err) {
+        console.warn('[BulkLuckyDip] Could not fetch unavailable tickets, proceeding anyway:', err);
+      }
+
+      // Step 2: Calculate batches
+      const numBatches = Math.ceil(count / MAX_BATCH_SIZE);
+      const batches: number[] = [];
+      let remaining = count;
+      for (let i = 0; i < numBatches; i++) {
+        const batchSize = Math.min(remaining, MAX_BATCH_SIZE);
+        batches.push(batchSize);
+        remaining -= batchSize;
+      }
+
+      console.log(`[BulkLuckyDip] Split into ${numBatches} batches:`, batches);
+
+      // Step 3: Execute batches sequentially with retries
+      const allTicketNumbers: number[] = [];
+      const allReservationIds: string[] = [];
+      let totalRetries = 0;
+      let lastExpiresAt: string | null = null;
+
+      for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+        const batchSize = batches[batchIndex];
+        let batchSuccess = false;
+        let lastBatchError = '';
+
+        // Retry loop for this batch
+        for (let attempt = 0; attempt < MAX_RETRIES && !batchSuccess; attempt++) {
+          if (attempt > 0) {
+            totalRetries++;
+            const delay = Math.min(BASE_RETRY_DELAY_MS * Math.pow(2, attempt - 1), 5000);
+            const jitter = delay * 0.3 * (Math.random() * 2 - 1);
+            await new Promise(resolve => setTimeout(resolve, Math.max(0, delay + jitter)));
+            console.log(`[BulkLuckyDip] Batch ${batchIndex + 1} retry ${attempt}...`);
+          }
+
+          try {
+            // Combine pre-existing unavailable + newly allocated from previous batches
+            const currentExcluded = [...excludedTickets, ...allTicketNumbers];
+
+            const { data, error } = await supabase.rpc('allocate_lucky_dip_tickets_batch', {
+              p_user_id: canonicalUserId,
+              p_competition_id: competitionId.trim(),
+              p_count: batchSize,
+              p_ticket_price: ticketPrice,
+              p_hold_minutes: holdMinutes,
+              p_session_id: sessionId || null,
+              p_excluded_tickets: currentExcluded.length > 0 ? currentExcluded : null
+            });
+
+            if (error) {
+              lastBatchError = error.message;
+              console.warn(`[BulkLuckyDip] Batch ${batchIndex + 1} attempt ${attempt + 1} error:`, error.message);
+              continue;
+            }
+
+            const result = typeof data === 'string' ? JSON.parse(data) : data;
+
+            if (!result?.success) {
+              lastBatchError = result?.error || 'Unknown error';
+              const isRetryable = result?.retryable === true ||
+                lastBatchError.includes('locked') ||
+                lastBatchError.includes('temporarily');
+
+              if (!isRetryable) {
+                // Non-retryable error, break out of retry loop
+                break;
+              }
+              continue;
+            }
+
+            // Batch succeeded
+            batchSuccess = true;
+            if (result.ticket_numbers) {
+              allTicketNumbers.push(...result.ticket_numbers);
+            }
+            if (result.reservation_id) {
+              allReservationIds.push(result.reservation_id);
+            }
+            if (result.expires_at) {
+              lastExpiresAt = result.expires_at;
+            }
+
+            console.log(`[BulkLuckyDip] Batch ${batchIndex + 1} succeeded: ${result.ticket_count} tickets`);
+
+          } catch (err) {
+            lastBatchError = err instanceof Error ? err.message : 'Unknown error';
+            console.error(`[BulkLuckyDip] Batch ${batchIndex + 1} attempt ${attempt + 1} exception:`, lastBatchError);
+          }
+        }
+
+        // If batch failed after all retries
+        if (!batchSuccess) {
+          console.error(`[BulkLuckyDip] Batch ${batchIndex + 1} failed after ${MAX_RETRIES} attempts`);
+
+          // Return partial success if we have some tickets
+          if (allTicketNumbers.length > 0) {
+            return {
+              success: false,
+              reservation_ids: allReservationIds,
+              ticket_numbers: allTicketNumbers,
+              ticket_count: allTicketNumbers.length,
+              total_amount: allTicketNumbers.length * ticketPrice,
+              expires_at: lastExpiresAt || undefined,
+              error: `Partial allocation: ${allTicketNumbers.length}/${count} tickets reserved. Batch ${batchIndex + 1} failed: ${lastBatchError}`,
+              batch_count: batchIndex,
+              retry_attempts: totalRetries
+            };
+          }
+
+          return {
+            success: false,
+            error: lastBatchError || 'Failed to allocate tickets',
+            batch_count: 0,
+            retry_attempts: totalRetries
+          };
+        }
+      }
+
+      // All batches succeeded
+      console.log(`[BulkLuckyDip] Successfully allocated ${allTicketNumbers.length} tickets across ${numBatches} batches`);
+
+      return {
+        success: true,
+        reservation_id: allReservationIds[0], // Primary reservation ID
+        reservation_ids: allReservationIds,
+        ticket_numbers: allTicketNumbers,
+        ticket_count: allTicketNumbers.length,
+        total_amount: allTicketNumbers.length * ticketPrice,
+        expires_at: lastExpiresAt || undefined,
+        batch_count: numBatches,
+        retry_attempts: totalRetries
+      };
+
+    } catch (error) {
+      handleDatabaseError(error, 'allocateBulkLuckyDipTickets');
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to allocate tickets'
