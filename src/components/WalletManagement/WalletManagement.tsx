@@ -15,7 +15,8 @@ import {
   Clock,
   Download,
   Send,
-  Settings
+  Settings,
+  Plus
 } from 'lucide-react';
 import { truncateString } from '../../utils/util';
 import { useWalletTokens } from '../../hooks/useWalletTokens';
@@ -349,24 +350,24 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
       )}
 
       {/* Account Balance Section */}
-      <div className="bg-gradient-to-r from-[#DDE404]/10 to-[#DDE404]/5 border border-[#DDE404]/30 rounded-xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
+      <div className="bg-gradient-to-r from-[#DDE404]/10 to-[#DDE404]/5 border border-[#DDE404]/30 rounded-xl p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+          <div className="min-w-0">
             <p className="text-white/60 sequel-45 text-sm uppercase">Top Up Balance</p>
-            <p className="text-[#DDE404] sequel-95 text-4xl mt-1">
+            <p className="text-[#DDE404] sequel-95 text-2xl sm:text-4xl mt-1 truncate">
               ${realTimeLoading ? '...' : realTimeBalance.toFixed(2)}
             </p>
             <p className="text-white/40 sequel-45 text-xs mt-1">
               USD Balance
             </p>
           </div>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-row sm:flex-col gap-2 shrink-0">
             <button
               onClick={() => setShowTopUpModal(true)}
-              className="bg-[#DDE404] hover:bg-[#DDE404]/90 text-black sequel-75 px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm"
+              className="bg-[#DDE404] hover:bg-[#DDE404]/90 text-black sequel-75 px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm flex-1 sm:flex-auto whitespace-nowrap"
             >
               <Plus size={16} />
-              Top Up Balance
+              Top Up
             </button>
             <button
               onClick={() => {
@@ -374,7 +375,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
                 refreshUserData();
               }}
               disabled={realTimeLoading || isLoading}
-              className="text-white/60 hover:text-white sequel-45 text-xs flex items-center gap-1 justify-center transition-colors"
+              className="text-white/60 hover:text-white sequel-45 text-xs flex items-center gap-1 justify-center transition-colors px-3 py-2"
             >
               <RefreshCw size={12} className={realTimeLoading || isLoading ? 'animate-spin' : ''} />
               Refresh
