@@ -28,7 +28,7 @@ async function sendWelcomeEmail(email: string, username: string, requestId: stri
         personalizations: [{
           to: [{ email }],
           dynamic_template_data: {
-            "Player Username": username,
+            username: username,
           },
         }],
         from: { email: fromEmail, name: "ThePrize.io" },
