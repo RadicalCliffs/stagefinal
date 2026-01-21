@@ -201,13 +201,18 @@ const router = createBrowserRouter([
   },
 ]);
 
-const cdpApiKey = import.meta.env.VITE_CDP_API_KEY;
+// OnchainKit requires the Client API Key (not the server secret)
+// VITE_CDP_CLIENT_API_KEY is the short alphanumeric key from CDP Portal for client-side use
+// VITE_CDP_API_KEY may contain the server secret which should NOT be used for OnchainKit
+const cdpApiKey = import.meta.env.VITE_CDP_CLIENT_API_KEY || import.meta.env.VITE_CDP_API_KEY;
 const cdpProjectId = import.meta.env.VITE_CDP_PROJECT_ID;
 
 if (!cdpApiKey) {
-  console.error('VITE_CDP_API_KEY is not defined - OnchainKit features will not work correctly');
+  console.error('VITE_CDP_CLIENT_API_KEY is not defined - OnchainKit features will not work correctly');
 } else if (cdpApiKey.length < 20) {
-  console.warn('VITE_CDP_API_KEY appears to be invalid (too short) - OnchainKit RPC calls may fail');
+  console.warn('CDP API Key appears to be invalid (too short) - OnchainKit RPC calls may fail');
+} else if (cdpApiKey.length > 50) {
+  console.warn('CDP API Key appears to be a server secret (too long) - OnchainKit requires the Client API Key');
 }
 
 if (!cdpProjectId) {
