@@ -10,6 +10,27 @@ interface OrdersTableProps {
   data: PurchaseOrder[] | EntryOrder[];
 }
 
+/**
+ * Determines the effective status of a competition entry.
+ * If end_date has passed but status is still 'live', treats it as 'completed'.
+ */
+function getEffectiveStatus(item: any): string {
+  const rawStatus = (item.status || '').toLowerCase().trim();
+  const endDate = item.end_date ? new Date(item.end_date) : null;
+  const isCompetitionEnded = endDate !== null && endDate < new Date();
+
+  // If competition has ended but status still shows 'live', treat as 'completed'
+  if (isCompetitionEnded && (rawStatus === 'live' || rawStatus === 'active')) {
+    return 'completed';
+  }
+
+  // Normalize 'active' to 'live' and 'drawing' to 'drawn'
+  if (rawStatus === 'active') return 'live';
+  if (rawStatus === 'drawing') return 'drawn';
+
+  return rawStatus || 'live';
+}
+
 const OrdersTable: FC<OrdersTableProps> = ({ activeTab, data }) => {
   const navigate = useNavigate();
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -115,12 +136,18 @@ const OrdersTable: FC<OrdersTableProps> = ({ activeTab, data }) => {
                     >
                       {item.amount_spent ? `$${parseFloat(item.amount_spent).toFixed(2)}` : item.amount_usd || '-'}
                     </p>
-                    <button
-                      onClick={() => navigate(`/dashboard/entries/competition/${item.competition_id}`)}
-                      className="bg-[#DDE404] cursor-pointer hover:bg-[#DDE404]/90 text-black text-center sequel-95 py-1 rounded-md uppercase"
-                    >
-                      {item.status === 'live' ? 'Live' : item.status === 'pending' ? 'Pending' : item.status === 'drawn' ? (item.is_winner ? 'Won!' : 'View') : item.action || "View"}
-                    </button>
+                    {(() => {
+                      const effectiveStatus = getEffectiveStatus(item);
+                      const isFinished = effectiveStatus === 'completed' || effectiveStatus === 'drawn';
+                      return (
+                        <button
+                          onClick={() => navigate(`/dashboard/entries/competition/${item.competition_id}`)}
+                          className="bg-[#DDE404] cursor-pointer hover:bg-[#DDE404]/90 text-black text-center sequel-95 py-1 rounded-md uppercase"
+                        >
+                          {effectiveStatus === 'live' ? 'Live' : effectiveStatus === 'pending' ? 'Pending' : isFinished ? (item.is_winner ? 'Won!' : 'View Results') : item.action || "View"}
+                        </button>
+                      );
+                    })()}
                   </div>
                 )}
 
@@ -204,20 +231,28 @@ const OrdersTable: FC<OrdersTableProps> = ({ activeTab, data }) => {
                           {item.amount_spent ? `$${parseFloat(item.amount_spent).toFixed(2)}` : item.amount_usd || '-'}
                         </p>
                       </div>
-                      <div className="flex justify-between gap-4">
-                        <p className="text-white/60">Status</p>
-                        <p className={`text-right ${item.is_winner ? 'text-[#DDE404]' : 'text-white'}`}>
-                          {item.status === 'live' ? 'Live' : item.status === 'pending' ? 'Pending' : item.status === 'drawn' ? (item.is_winner ? 'Winner!' : 'Drawn') : '-'}
-                        </p>
-                      </div>
-                      <div >
-                          <button
-                            onClick={() => navigate(`/dashboard/entries/competition/${item.competition_id}`)}
-                            className="bg-[#DDE404] mt-2 text-sm cursor-pointer w-full hover:bg-[#DDE404]/90 text-black text-center sequel-95 py-2 rounded-md uppercase"
-                          >
-                            {item.status === 'live' ? 'View Entry' : item.status === 'pending' ? 'Complete Payment' : item.is_winner ? 'Claim Prize' : 'View Details'}
-                          </button>
-                      </div>
+                      {(() => {
+                        const effectiveStatus = getEffectiveStatus(item);
+                        const isFinished = effectiveStatus === 'completed' || effectiveStatus === 'drawn';
+                        return (
+                          <>
+                            <div className="flex justify-between gap-4">
+                              <p className="text-white/60">Status</p>
+                              <p className={`text-right ${item.is_winner ? 'text-[#DDE404]' : 'text-white'}`}>
+                                {effectiveStatus === 'live' ? 'Live' : effectiveStatus === 'pending' ? 'Pending' : isFinished ? (item.is_winner ? 'Winner!' : 'Finished') : '-'}
+                              </p>
+                            </div>
+                            <div>
+                              <button
+                                onClick={() => navigate(`/dashboard/entries/competition/${item.competition_id}`)}
+                                className="bg-[#DDE404] mt-2 text-sm cursor-pointer w-full hover:bg-[#DDE404]/90 text-black text-center sequel-95 py-2 rounded-md uppercase"
+                              >
+                                {effectiveStatus === 'live' ? 'View Entry' : effectiveStatus === 'pending' ? 'Complete Payment' : isFinished ? (item.is_winner ? 'Claim Prize' : 'View Results') : 'View Details'}
+                              </button>
+                            </div>
+                          </>
+                        );
+                      })()}
                     </>
                   )}
                 </div>
