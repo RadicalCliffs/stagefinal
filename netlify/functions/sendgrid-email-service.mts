@@ -19,7 +19,7 @@ type EmailType = "welcome" | "winner" | "fomo" | "comp_live";
 
 // Template data interfaces
 interface WelcomeEmailData {
-  "Player Username": string;
+  username: string;
   email?: string;
 }
 
@@ -227,7 +227,7 @@ export async function sendWelcomeEmail(
   }
 
   return sendTemplateEmail(sendgridApiKey, fromEmail, email, templateId, {
-    "Player Username": username,
+    username: username,
   });
 }
 
