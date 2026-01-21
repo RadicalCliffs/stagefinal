@@ -1,5 +1,11 @@
 import type { Context, Config } from "@netlify/functions";
 
+// Export config at the top for reliable Netlify function registration
+export const config: Config = {
+  path: "/api/create-charge",
+  method: ["POST", "OPTIONS"],
+};
+
 /**
  * Create Charge Proxy Function
  *
@@ -222,8 +228,4 @@ export default async (req: Request, context: Context): Promise<Response> => {
       500
     );
   }
-};
-
-export const config: Config = {
-  path: "/api/create-charge",
 };
