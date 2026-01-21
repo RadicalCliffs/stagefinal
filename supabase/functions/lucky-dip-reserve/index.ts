@@ -48,18 +48,18 @@ function handleCorsOptions(req: Request): Response {
  * This function handles the "Lucky Dip" flow where users request a specific COUNT
  * of tickets rather than specific ticket numbers. The function:
  *
- * 1. Calls the atomic `allocate_lucky_dip_tickets` RPC function
- * 2. The RPC atomically: locks rows, selects random tickets, creates reservation
- * 3. Returns selected ticket numbers + reservation ID for payment flow
+ * 1. For small requests (<=100): Uses allocate_lucky_dip_tickets RPC
+ * 2. For large requests (>100): Uses allocate_lucky_dip_tickets_batch RPC
+ *    with batching and retry logic for up to 10,000+ tickets
  *
- * This approach ensures no race conditions by doing selection + reservation
- * in a single database transaction.
+ * The approach ensures no race conditions by doing selection + reservation
+ * in database transactions with proper locking.
  *
  * Flow:
- * 1. User sets Lucky Dip slider (e.g., "I want 10 random tickets")
+ * 1. User sets Lucky Dip slider (e.g., "I want 5000 random tickets")
  * 2. Frontend calls this function with competition_id and count
- * 3. Function calls atomic RPC that selects + reserves in one transaction
- * 4. Returns selected ticket numbers + reservation ID for payment flow
+ * 3. Function splits into batches and calls atomic RPC for each
+ * 4. Returns aggregated ticket numbers + reservation IDs
  *
  * Error Codes:
  * - 400: Invalid input (missing fields, invalid count)
@@ -150,8 +150,8 @@ Deno.serve(async (req: Request) => {
       return errorResponse("competitionId is required and must be a string", 400, corsHeaders);
     }
 
-    if (!count || typeof count !== 'number' || count < 1 || count > 100) {
-      return errorResponse("count is required and must be between 1 and 100", 400, corsHeaders);
+    if (!count || typeof count !== 'number' || count < 1 || count > 10000) {
+      return errorResponse("count is required and must be between 1 and 10000", 400, corsHeaders);
     }
 
     // Validate UUID format
@@ -175,77 +175,240 @@ Deno.serve(async (req: Request) => {
     console.log(`[${requestId}] Allocating ${count} lucky dip tickets for competition:`, competitionId);
 
     // =========================================================================
-    // Use atomic allocation RPC - selects + reserves in single transaction
-    // This prevents race conditions by doing everything server-side atomically
-    // Pass canonical user ID to ensure consistent storage format
+    // Configuration for batch processing
     // =========================================================================
-    const { data: rpcResult, error: rpcError } = await supabase.rpc(
-      'allocate_lucky_dip_tickets',
-      {
-        p_user_id: canonicalUserId,
-        p_competition_id: competitionId,
-        p_count: count,
-        p_ticket_price: validTicketPrice,
-        p_hold_minutes: holdMins,
-        p_session_id: sessionId || null
-      }
-    );
+    const MAX_BATCH_SIZE = 500;
+    const MAX_RETRIES = 3;
+    const BASE_RETRY_DELAY_MS = 500;
 
-    if (rpcError) {
-      console.error(`[${requestId}] RPC error:`, rpcError);
-      return errorResponse(
-        "Failed to allocate tickets",
-        500,
-        corsHeaders,
-        { retryable: true, errorDetail: rpcError.message }
+    // Helper function to sleep
+    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+    // =========================================================================
+    // For small requests (<=100), use the original atomic allocation
+    // For large requests (>100), use batch allocation with retries
+    // =========================================================================
+    if (count <= 100) {
+      // Original atomic allocation for small requests
+      const { data: rpcResult, error: rpcError } = await supabase.rpc(
+        'allocate_lucky_dip_tickets',
+        {
+          p_user_id: canonicalUserId,
+          p_competition_id: competitionId,
+          p_count: count,
+          p_ticket_price: validTicketPrice,
+          p_hold_minutes: holdMins,
+          p_session_id: sessionId || null
+        }
       );
-    }
 
-    // Parse result (JSONB returned from RPC)
-    const result = typeof rpcResult === 'string' ? JSON.parse(rpcResult) : rpcResult;
-
-    if (!result?.success) {
-      const errorMsg = result?.error || "Unknown error during allocation";
-      console.error(`[${requestId}] RPC returned failure:`, errorMsg);
-
-      // Check for availability errors
-      if (errorMsg.includes('No tickets available') || errorMsg.includes('Insufficient availability')) {
+      if (rpcError) {
+        console.error(`[${requestId}] RPC error:`, rpcError);
         return errorResponse(
-          errorMsg,
-          409,
+          "Failed to allocate tickets",
+          500,
           corsHeaders,
-          {
-            available_count: result?.available_count || 0,
-            requested_count: result?.requested_count || count
-          }
+          { retryable: true, errorDetail: rpcError.message }
         );
       }
 
-      // Check for competition not found
-      if (errorMsg.includes('Competition not found') || errorMsg.includes('not active')) {
-        return errorResponse(errorMsg, 404, corsHeaders);
+      const result = typeof rpcResult === 'string' ? JSON.parse(rpcResult) : rpcResult;
+
+      if (!result?.success) {
+        const errorMsg = result?.error || "Unknown error during allocation";
+        console.error(`[${requestId}] RPC returned failure:`, errorMsg);
+
+        if (errorMsg.includes('No tickets available') || errorMsg.includes('Insufficient availability')) {
+          return errorResponse(errorMsg, 409, corsHeaders, {
+            available_count: result?.available_count || 0,
+            requested_count: result?.requested_count || count
+          });
+        }
+
+        if (errorMsg.includes('Competition not found') || errorMsg.includes('not active')) {
+          return errorResponse(errorMsg, 404, corsHeaders);
+        }
+
+        return errorResponse(errorMsg, 500, corsHeaders, { retryable: result?.retryable ?? true });
       }
 
-      return errorResponse(errorMsg, 500, corsHeaders, { retryable: result?.retryable ?? true });
+      return successResponse({
+        reservationId: result.reservation_id,
+        ticketNumbers: result.ticket_numbers,
+        ticketCount: result.ticket_count,
+        totalAmount: result.total_amount,
+        expiresAt: result.expires_at,
+        algorithm: 'server-side-atomic-random',
+        message: `Successfully reserved ${result.ticket_count} lucky dip tickets. Complete payment within ${holdMins} minutes.`
+      }, corsHeaders);
     }
 
     // =========================================================================
-    // Success - return reservation details
+    // BULK ALLOCATION: For large requests (>100 tickets)
+    // Uses batching with retries and calls get_competition_unavailable_tickets
     // =========================================================================
-    console.log(`[${requestId}] Reservation successful:`, {
-      reservationId: result.reservation_id,
-      ticketCount: result.ticket_count,
-      availableAfter: result.available_count_after
-    });
+    console.log(`[${requestId}] Using bulk allocation for ${count} tickets`);
+
+    // Step 1: Fetch all unavailable tickets upfront
+    let excludedTickets: number[] = [];
+    try {
+      const { data: unavailableData, error: unavailableError } = await supabase.rpc(
+        'get_competition_unavailable_tickets',
+        { p_competition_id: competitionId }
+      );
+
+      if (!unavailableError && unavailableData && Array.isArray(unavailableData)) {
+        excludedTickets = unavailableData
+          .filter((row: any) => row.ticket_number != null)
+          .map((row: any) => row.ticket_number);
+        console.log(`[${requestId}] Found ${excludedTickets.length} unavailable tickets`);
+      }
+    } catch (err) {
+      console.warn(`[${requestId}] Could not fetch unavailable tickets:`, err);
+    }
+
+    // Step 2: Calculate batches
+    const numBatches = Math.ceil(count / MAX_BATCH_SIZE);
+    const batches: number[] = [];
+    let remaining = count;
+    for (let i = 0; i < numBatches; i++) {
+      const batchSize = Math.min(remaining, MAX_BATCH_SIZE);
+      batches.push(batchSize);
+      remaining -= batchSize;
+    }
+
+    console.log(`[${requestId}] Split into ${numBatches} batches:`, batches);
+
+    // Step 3: Execute batches with retries
+    const allTicketNumbers: number[] = [];
+    const allReservationIds: string[] = [];
+    let totalRetries = 0;
+    let lastExpiresAt: string | null = null;
+
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batchSize = batches[batchIndex];
+      let batchSuccess = false;
+      let lastBatchError = '';
+
+      for (let attempt = 0; attempt < MAX_RETRIES && !batchSuccess; attempt++) {
+        if (attempt > 0) {
+          totalRetries++;
+          const delay = Math.min(BASE_RETRY_DELAY_MS * Math.pow(2, attempt - 1), 5000);
+          const jitter = delay * 0.3 * (Math.random() * 2 - 1);
+          await sleep(Math.max(0, delay + jitter));
+          console.log(`[${requestId}] Batch ${batchIndex + 1} retry ${attempt}...`);
+        }
+
+        try {
+          // Combine pre-existing unavailable + newly allocated from previous batches
+          const currentExcluded = [...excludedTickets, ...allTicketNumbers];
+
+          const { data, error } = await supabase.rpc('allocate_lucky_dip_tickets_batch', {
+            p_user_id: canonicalUserId,
+            p_competition_id: competitionId,
+            p_count: batchSize,
+            p_ticket_price: validTicketPrice,
+            p_hold_minutes: holdMins,
+            p_session_id: sessionId || null,
+            p_excluded_tickets: currentExcluded.length > 0 ? currentExcluded : null
+          });
+
+          if (error) {
+            lastBatchError = error.message;
+            console.warn(`[${requestId}] Batch ${batchIndex + 1} attempt ${attempt + 1} error:`, error.message);
+            continue;
+          }
+
+          const result = typeof data === 'string' ? JSON.parse(data) : data;
+
+          if (!result?.success) {
+            lastBatchError = result?.error || 'Unknown error';
+            const isRetryable = result?.retryable === true ||
+              lastBatchError.includes('locked') ||
+              lastBatchError.includes('temporarily');
+
+            if (!isRetryable) break;
+            continue;
+          }
+
+          // Batch succeeded
+          batchSuccess = true;
+          if (result.ticket_numbers) {
+            allTicketNumbers.push(...result.ticket_numbers);
+          }
+          if (result.reservation_id) {
+            allReservationIds.push(result.reservation_id);
+          }
+          if (result.expires_at) {
+            lastExpiresAt = result.expires_at;
+          }
+
+          console.log(`[${requestId}] Batch ${batchIndex + 1} succeeded: ${result.ticket_count} tickets`);
+
+        } catch (err) {
+          lastBatchError = err instanceof Error ? err.message : 'Unknown error';
+          console.error(`[${requestId}] Batch ${batchIndex + 1} attempt ${attempt + 1} exception:`, lastBatchError);
+        }
+      }
+
+      // If batch failed after all retries
+      if (!batchSuccess) {
+        console.error(`[${requestId}] Batch ${batchIndex + 1} failed after ${MAX_RETRIES} attempts`);
+
+        // Return partial success if we have some tickets
+        if (allTicketNumbers.length > 0) {
+          return successResponse({
+            reservationIds: allReservationIds,
+            reservationId: allReservationIds[0],
+            ticketNumbers: allTicketNumbers,
+            ticketCount: allTicketNumbers.length,
+            totalAmount: allTicketNumbers.length * validTicketPrice,
+            expiresAt: lastExpiresAt,
+            algorithm: 'server-side-batch-random',
+            partial: true,
+            requestedCount: count,
+            batchCount: batchIndex,
+            retryAttempts: totalRetries,
+            error: `Partial allocation: ${allTicketNumbers.length}/${count} tickets. Batch ${batchIndex + 1} failed: ${lastBatchError}`,
+            message: `Partially reserved ${allTicketNumbers.length}/${count} tickets. Some batches failed.`
+          }, corsHeaders);
+        }
+
+        // Check for availability errors
+        if (lastBatchError.includes('No tickets available') || lastBatchError.includes('Insufficient availability')) {
+          return errorResponse(lastBatchError, 409, corsHeaders, {
+            available_count: 0,
+            requested_count: count
+          });
+        }
+
+        if (lastBatchError.includes('Competition not found') || lastBatchError.includes('not active')) {
+          return errorResponse(lastBatchError, 404, corsHeaders);
+        }
+
+        return errorResponse(
+          lastBatchError || 'Failed to allocate tickets',
+          500,
+          corsHeaders,
+          { retryable: true }
+        );
+      }
+    }
+
+    // All batches succeeded
+    console.log(`[${requestId}] Bulk reservation successful: ${allTicketNumbers.length} tickets across ${numBatches} batches`);
 
     return successResponse({
-      reservationId: result.reservation_id,
-      ticketNumbers: result.ticket_numbers,
-      ticketCount: result.ticket_count,
-      totalAmount: result.total_amount,
-      expiresAt: result.expires_at,
-      algorithm: 'server-side-atomic-random',
-      message: `Successfully reserved ${result.ticket_count} lucky dip tickets. Complete payment within ${holdMins} minutes.`
+      reservationIds: allReservationIds,
+      reservationId: allReservationIds[0],
+      ticketNumbers: allTicketNumbers,
+      ticketCount: allTicketNumbers.length,
+      totalAmount: allTicketNumbers.length * validTicketPrice,
+      expiresAt: lastExpiresAt,
+      algorithm: 'server-side-batch-random',
+      batchCount: numBatches,
+      retryAttempts: totalRetries,
+      message: `Successfully reserved ${allTicketNumbers.length} lucky dip tickets across ${numBatches} batches. Complete payment within ${holdMins} minutes.`
     }, corsHeaders);
 
   } catch (error) {
