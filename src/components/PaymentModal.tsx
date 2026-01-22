@@ -1058,7 +1058,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         if (errorMessage.includes('401') || errorMessage.includes('unauthorized') || errorMessage.includes('invalid key')) {
           console.error('OnchainKit RPC authentication failed - CDP API key may be invalid');
         }
-        setPaymentStep('error');
+        // Use setPaymentError to provide proper error context and guidance
+        setPaymentError(
+          { message: errorMessage },
+          errorMessage || 'Payment could not be completed. Please try again.'
+        );
       }
     } catch (err) {
       console.error('[PaymentModal] Unhandled error in OnchainKit status handler:', err);
@@ -1208,7 +1212,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         }
       } else if (status.statusName === 'error') {
         console.error('Other Crypto payment error:', status.statusData);
-        setPaymentStep('error');
+        const errorMessage = String(status.statusData?.error || status.statusData?.message || '');
+        // Use setPaymentError to provide proper error context and guidance
+        setPaymentError(
+          { message: errorMessage },
+          errorMessage || 'Payment could not be completed. Please try again.'
+        );
       }
     } catch (err) {
       console.error('[PaymentModal] Unhandled error in Other Crypto status handler:', err);
@@ -1469,7 +1478,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           {/* Initial payment selection */}
           {showInitialPayment && paymentStep === 'initial' && ticketCount > 0 && (
             <div className="space-y-5">
-              {/* Premium Order Summary Card */}
+              {/* Premium Order Summary Card with integrated timer */}
               <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 p-5">
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#DDE404] via-[#0052FF] to-[#EF008F]"></div>
                 <div className="flex items-center justify-between mb-4">
@@ -1487,9 +1496,39 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                     <p className="text-[#DDE404] sequel-95 text-2xl">${amount.toFixed(2)}</p>
                   </div>
                 </div>
+                {/* Reservation timer integrated into summary card */}
+                {reservationId && reservationTimeRemaining !== null && (
+                  <div className={`flex items-center gap-2 rounded-lg px-3 py-2 ${
+                    reservationExpired
+                      ? 'bg-red-500/10 border border-red-500/30'
+                      : reservationTimeRemaining < 120
+                        ? 'bg-amber-500/10 border border-amber-500/30'
+                        : 'bg-white/5 border border-white/10'
+                  }`}>
+                    <Clock size={16} className={
+                      reservationExpired
+                        ? 'text-red-400'
+                        : reservationTimeRemaining < 120
+                          ? 'text-amber-400'
+                          : 'text-white/60'
+                    } />
+                    {reservationExpired ? (
+                      <p className="text-red-400 sequel-45 text-xs">
+                        Reservation expired - please select tickets again
+                      </p>
+                    ) : (
+                      <p className={`sequel-45 text-xs ${
+                        reservationTimeRemaining < 120 ? 'text-amber-400' : 'text-white/60'
+                      }`}>
+                        Reserved for {formatTimeRemaining(reservationTimeRemaining)}
+                        {reservationTimeRemaining < 120 && ' - complete soon!'}
+                      </p>
+                    )}
+                  </div>
+                )}
                 {/* Maximum inventory notice */}
                 {maxAvailableTickets !== undefined && ticketCount >= maxAvailableTickets && maxAvailableTickets > 0 && (
-                  <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg px-3 py-2">
+                  <div className={`flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg px-3 py-2 ${reservationId && reservationTimeRemaining !== null ? 'mt-2' : ''}`}>
                     <AlertTriangle size={14} className="text-yellow-400" />
                     <p className="text-yellow-400 sequel-45 text-xs">
                       Maximum available tickets selected ({maxAvailableTickets})
@@ -1497,47 +1536,6 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                   </div>
                 )}
               </div>
-
-              {/* ISSUE 3C FIX: Reservation Expiration Timer */}
-              {/* Shows countdown when reservation is active, warning when low, error when expired */}
-              {reservationId && reservationTimeRemaining !== null && (
-                <div className={`rounded-lg px-4 py-3 flex items-center gap-3 ${
-                  reservationExpired
-                    ? 'bg-red-500/10 border border-red-500/40'
-                    : reservationTimeRemaining < 120 // Less than 2 minutes
-                      ? 'bg-amber-500/10 border border-amber-500/40'
-                      : 'bg-blue-500/10 border border-blue-500/40'
-                }`}>
-                  <Clock size={20} className={
-                    reservationExpired
-                      ? 'text-red-400'
-                      : reservationTimeRemaining < 120
-                        ? 'text-amber-400'
-                        : 'text-blue-400'
-                  } />
-                  <div className="flex-1">
-                    {reservationExpired ? (
-                      <>
-                        <p className="text-red-400 sequel-75 text-sm">Reservation Expired</p>
-                        <p className="text-red-400/70 sequel-45 text-xs mt-0.5">
-                          Your tickets are no longer reserved. Please select tickets again.
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <p className={`sequel-75 text-sm ${reservationTimeRemaining < 120 ? 'text-amber-400' : 'text-blue-400'}`}>
-                          Tickets Reserved: {formatTimeRemaining(reservationTimeRemaining)}
-                        </p>
-                        <p className={`sequel-45 text-xs mt-0.5 ${reservationTimeRemaining < 120 ? 'text-amber-400/70' : 'text-blue-400/70'}`}>
-                          {reservationTimeRemaining < 120
-                            ? 'Complete payment soon to secure your tickets!'
-                            : 'Complete payment to confirm your entries'}
-                        </p>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
 
               {/* Inline Error Message - replaces browser alert() dialogs */}
               {errorMessage && (
