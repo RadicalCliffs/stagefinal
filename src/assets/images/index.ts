@@ -94,6 +94,9 @@ import trustpilotDesktop from './trustpilot-desktop.png'
 import trustpilotMobile from './trustpilot-mobile.png'
 import trustpilotIsolation from './Isolation_Mode.png'
 import howItWorksMobile from './how-it-works-mobile.png'
+import aboutMobile41 from './about-mobile-4-1.png'
+import aboutMobile42 from './about-mobile-4-2.png'
+import aboutMobile43 from './about-mobile-4-3.png'
 
 export {
   bitNews,
@@ -191,5 +194,8 @@ export {
   btcGiveaway,
   rolexWatch,
   lamboUrus,
-  howItWorksMobile
+  howItWorksMobile,
+  aboutMobile41,
+  aboutMobile42,
+  aboutMobile43
 };

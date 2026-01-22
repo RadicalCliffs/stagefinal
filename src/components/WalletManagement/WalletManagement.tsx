@@ -457,8 +457,8 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
               }`}
             >
               <div className="flex items-start justify-between">
-                <div className="flex items-start gap-3">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                <div className="flex items-start gap-3 min-w-0 flex-1">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
                     wallet.isEmbeddedWallet || (wallet.isBaseAccount && !wallet.isExternalWallet)
                       ? 'bg-[#DDE404]/20'
                       : wallet.isExternalWallet || wallet.walletClient === 'external'
@@ -469,14 +469,14 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-white sequel-75 text-sm">{getWalletTypeLabel(wallet)}</p>
+                      <p className="text-white sequel-75 text-sm truncate">{getWalletTypeLabel(wallet)}</p>
                       {(wallet.isEmbeddedWallet || (wallet.isBaseAccount && !wallet.isExternalWallet)) && (
-                        <span className="bg-[#DDE404] text-black sequel-75 text-[10px] px-2 py-0.5 rounded">
+                        <span className="bg-[#DDE404] text-black sequel-75 text-[10px] px-2 py-0.5 rounded flex-shrink-0">
                           PRIMARY
                         </span>
                       )}
                       {(wallet.isExternalWallet || wallet.walletClient === 'external') && (
-                        <span className="bg-purple-500 text-white sequel-75 text-[10px] px-2 py-0.5 rounded">
+                        <span className="bg-purple-500 text-white sequel-75 text-[10px] px-2 py-0.5 rounded flex-shrink-0">
                           EXTERNAL
                         </span>
                       )}
@@ -490,7 +490,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 flex-shrink-0">
                   <button
                     onClick={() => handleCopyAddress(wallet.address)}
                     className="p-2 hover:bg-white/10 rounded-lg transition-colors"

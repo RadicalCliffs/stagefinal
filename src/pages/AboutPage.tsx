@@ -2,6 +2,7 @@ import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Pagination, A11y } from 'swiper/modules';
 import 'swiper/swiper-bundle.css';
 import { SwiperNavButtons } from '../components/SwiperCustomNav';
+import { aboutMobile41, aboutMobile42, aboutMobile43 } from '../assets/images';
 
 const SUPABASE_STORAGE_URL = 'https://cyxjzycxnfqctxocolwr.supabase.co/storage/v1/object/public/Web%20Assets/All%20Website%20Images';
 
@@ -21,9 +22,9 @@ const AboutPage = () => {
   ];
 
   const mobileCarousel = [
-    `${SUPABASE_STORAGE_URL}/About%20-%20Mobile%204.1.png`,
-    `${SUPABASE_STORAGE_URL}/About%20-%20Mobile%204.2.png`,
-    `${SUPABASE_STORAGE_URL}/About%20-%20Mobile%204.3.png`,
+    aboutMobile41,
+    aboutMobile42,
+    aboutMobile43,
   ];
 
   return (
