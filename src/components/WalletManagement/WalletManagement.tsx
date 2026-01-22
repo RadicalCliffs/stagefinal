@@ -16,7 +16,8 @@ import {
   Download,
   Send,
   Settings,
-  Plus
+  Plus,
+  Link
 } from 'lucide-react';
 import { truncateString } from '../../utils/util';
 import { useWalletTokens } from '../../hooks/useWalletTokens';
@@ -466,22 +467,22 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
                   }`}>
                     {getWalletIcon(wallet)}
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-white sequel-75 text-sm">{getWalletTypeLabel(wallet)}</p>
                       {(wallet.isEmbeddedWallet || (wallet.isBaseAccount && !wallet.isExternalWallet)) && (
-                        <span className="bg-[#DDE404] text-black sequel-75 text-[10px] px-2 py-0.5 rounded ml-1">
+                        <span className="bg-[#DDE404] text-black sequel-75 text-[10px] px-2 py-0.5 rounded">
                           PRIMARY
                         </span>
                       )}
                       {(wallet.isExternalWallet || wallet.walletClient === 'external') && (
-                        <span className="bg-purple-500 text-white sequel-75 text-[10px] px-2 py-0.5 rounded ml-1">
+                        <span className="bg-purple-500 text-white sequel-75 text-[10px] px-2 py-0.5 rounded">
                           EXTERNAL
                         </span>
                       )}
                     </div>
-                    <p className="text-white/50 sequel-45 text-xs mt-1.5 font-mono">
-                      {truncateString(wallet.address, 24)}
+                    <p className="text-white/50 sequel-45 text-xs mt-1.5 font-mono truncate">
+                      {truncateString(wallet.address, 20)}
                     </p>
                     <p className="text-white/30 sequel-45 text-xs mt-0.5">
                       Base Network
@@ -517,22 +518,22 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
           {linkedExternalWallet && (
             <div className="rounded-lg p-4 bg-purple-500/10 border border-purple-500/30 transition-colors">
               <div className="flex items-start justify-between">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-purple-500/20">
+                <div className="flex items-start gap-3 min-w-0 flex-1">
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-purple-500/20 flex-shrink-0">
                     <Link size={20} className="text-purple-400" />
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-white sequel-75 text-sm">Linked External Wallet</p>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-white sequel-75 text-sm">External Wallet</p>
                       <span className="bg-purple-500 text-white sequel-75 text-[10px] px-2 py-0.5 rounded">
                         EXTERNAL
                       </span>
                     </div>
-                    <p className="text-white/50 sequel-45 text-xs mt-1 font-mono">
-                      {truncateString(linkedExternalWallet, 24)}
+                    <p className="text-white/50 sequel-45 text-xs mt-1 font-mono truncate">
+                      {truncateString(linkedExternalWallet, 20)}
                     </p>
                     <p className="text-purple-300/60 sequel-45 text-xs mt-0.5">
-                      For display only • Top-ups credit your ledger balance
+                      For display only
                     </p>
                   </div>
                 </div>
