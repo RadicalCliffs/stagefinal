@@ -730,21 +730,15 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                   ((paymentMethod === 'crypto' || paymentMethod === 'commerce') && !TOP_UP_CHECKOUT_URLS[amount])
                 }
                 className={`w-full py-4 px-6 sequel-75 uppercase rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg hover:scale-[1.01] active:scale-[0.99] text-sm ${
-                  paymentMethod === 'fund' ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-500 text-white shadow-blue-500/20 hover:shadow-blue-500/30' :
-                  paymentMethod === 'crypto' ? 'bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-500 text-white shadow-orange-500/20 hover:shadow-orange-500/30' :
-                  paymentMethod === 'commerce' ? 'bg-gradient-to-r from-violet-500 to-violet-600 hover:from-violet-600 hover:to-violet-500 text-white shadow-violet-500/20 hover:shadow-violet-500/30' :
-                  'bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30'
+                  paymentMethod === 'fund' ? 'bg-gradient-to-r from-[#0052FF] to-[#00D4FF] hover:from-[#0066FF] hover:to-[#00E5FF] text-white shadow-[#0052FF]/20 hover:shadow-[#00D4FF]/30' :
+                  paymentMethod === 'crypto' ? 'bg-gradient-to-r from-[#0052FF] to-[#00D4FF] hover:from-[#0066FF] hover:to-[#00E5FF] text-white shadow-[#0052FF]/20 hover:shadow-[#00D4FF]/30' :
+                  paymentMethod === 'commerce' ? 'bg-gradient-to-r from-[#0052FF] to-[#00D4FF] hover:from-[#0066FF] hover:to-[#00E5FF] text-white shadow-[#0052FF]/20 hover:shadow-[#00D4FF]/30' :
+                  'bg-gradient-to-r from-[#0052FF] to-[#00D4FF] hover:from-[#0066FF] hover:to-[#00E5FF] text-white shadow-[#0052FF]/20 hover:shadow-[#00D4FF]/30'
                 }`}
               >
                 {paymentMethod === 'offramp'
                   ? 'Cash Out'
-                  : paymentMethod === 'instant'
-                  ? `Top Up $${amount}`
-                  : paymentMethod === 'fund'
-                  ? `Fund $${amount}`
-                  : paymentMethod === 'commerce'
-                  ? `Pay $${amount}`
-                  : `Pay $${amount}`}
+                  : `Top Up $${amount}`}
               </button>
             </div>
           )}
@@ -822,9 +816,9 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                     refreshUserData();
                     onSuccess?.();
                   }}
-                  className="w-full py-4 px-6 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-500 text-white sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 hover:scale-[1.01] active:scale-[0.99]"
+                  className="w-full py-4 px-6 bg-gradient-to-r from-[#0052FF] to-[#00D4FF] hover:from-[#0066FF] hover:to-[#00E5FF] text-white sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#0052FF]/20 hover:shadow-[#00D4FF]/30 hover:scale-[1.01] active:scale-[0.99]"
                 >
-                  I've Completed Funding
+                  Top Up Complete
                 </button>
                 <p className="text-gray-400 text-xs sequel-45 text-center mt-2">
                   Click once your funding is complete
@@ -898,10 +892,10 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                   href={checkoutUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 py-4 px-10 bg-gradient-to-r from-[#0052FF] to-[#0066FF] hover:from-[#0066FF] hover:to-[#0052FF] text-white sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#0052FF]/30 hover:shadow-[#0052FF]/40 hover:scale-[1.02] active:scale-[0.98]"
+                  className="inline-flex items-center gap-2 py-4 px-10 bg-gradient-to-r from-[#0052FF] to-[#00D4FF] hover:from-[#0066FF] hover:to-[#00E5FF] text-white sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#0052FF]/30 hover:shadow-[#00D4FF]/40 hover:scale-[1.02] active:scale-[0.98]"
                 >
                   <ExternalLink size={18} />
-                  Pay with Coinbase
+                  Top Up via Coinbase
                 </a>
               </div>
 

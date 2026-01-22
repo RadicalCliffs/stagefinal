@@ -272,28 +272,60 @@ async function handleCreateTransaction(
     ? network
     : "base";
 
-  const { data: transaction, error: txError } = await serviceClient
+  // Build the transaction data
+  const transactionData: Record<string, unknown> = {
+    user_id: privyUserId,
+    wallet_address,
+    competition_id,
+    ticket_count,
+    amount,
+    currency: "USDC",
+    network: finalNetwork,
+    payment_provider: finalPaymentProvider,
+    status: "pending",
+    payment_status: "pending",
+    type: "entry", // This route is for entry purchases (competition_id is required)
+    created_at: new Date().toISOString(),
+  };
+
+  let transaction: { id: string } | null = null;
+  let txError: Error | { message: string } | null = null;
+
+  // Try to insert with network column first
+  const result1 = await serviceClient
     .from("user_transactions")
-    .insert({
-      user_id: privyUserId,
-      wallet_address,
-      competition_id,
-      ticket_count,
-      amount,
-      currency: "USDC",
-      network: finalNetwork,
-      payment_provider: finalPaymentProvider,
-      status: "pending",
-      payment_status: "pending",
-      type: "entry", // This route is for entry purchases (competition_id is required)
-      created_at: new Date().toISOString(),
-    })
+    .insert(transactionData)
     .select("id")
     .single();
 
-  if (txError) {
+  if (result1.error) {
+    // Check if the error is specifically about the network column not existing
+    const errorMsg = result1.error.message || "";
+    if (errorMsg.includes("network") && (errorMsg.includes("schema cache") || errorMsg.includes("column"))) {
+      console.warn("[secure-write] 'network' column issue detected, retrying without network field");
+      // Remove network from the data and retry
+      const { network: _, ...transactionDataWithoutNetwork } = transactionData;
+      const result2 = await serviceClient
+        .from("user_transactions")
+        .insert(transactionDataWithoutNetwork)
+        .select("id")
+        .single();
+
+      if (result2.error) {
+        txError = result2.error;
+      } else {
+        transaction = result2.data;
+      }
+    } else {
+      txError = result1.error;
+    }
+  } else {
+    transaction = result1.data;
+  }
+
+  if (txError || !transaction) {
     console.error("Error creating transaction:", txError);
-    return errorResponse(`Failed to create transaction: ${txError.message}`, 500);
+    return errorResponse(`Failed to create transaction: ${txError?.message || 'Unknown error'}`, 500);
   }
 
   // Link the reservation if provided

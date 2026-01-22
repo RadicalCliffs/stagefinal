@@ -182,17 +182,46 @@ Deno.serve(async (req) => {
         transactionData.ticket_count = 0;
       }
 
-      const { data: transaction, error: txError } = await serviceClient
+      let transaction: { id: string } | null = null;
+      let txError: Error | { message: string } | null = null;
+
+      // Try to insert with network column first
+      const result1 = await serviceClient
         .from("user_transactions")
         .insert(transactionData)
         .select("id")
         .single();
 
-      if (txError) {
+      if (result1.error) {
+        // Check if the error is specifically about the network column not existing
+        const errorMsg = result1.error.message || "";
+        if (errorMsg.includes("network") && (errorMsg.includes("schema cache") || errorMsg.includes("column"))) {
+          console.warn("[secure-write] 'network' column issue detected, retrying without network field");
+          // Remove network from the data and retry
+          const { network: _, ...transactionDataWithoutNetwork } = transactionData;
+          const result2 = await serviceClient
+            .from("user_transactions")
+            .insert(transactionDataWithoutNetwork)
+            .select("id")
+            .single();
+
+          if (result2.error) {
+            txError = result2.error;
+          } else {
+            transaction = result2.data;
+          }
+        } else {
+          txError = result1.error;
+        }
+      } else {
+        transaction = result1.data;
+      }
+
+      if (txError || !transaction) {
         console.error("Error creating transaction:", txError);
-        return new Response(JSON.stringify({ 
-          error: txError.message, 
-          ok: false 
+        return new Response(JSON.stringify({
+          error: txError?.message || 'Unknown error',
+          ok: false
         }), {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
