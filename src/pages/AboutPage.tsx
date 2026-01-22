@@ -32,13 +32,13 @@ const AboutPage = () => {
       <div className="relative">
 
         <div className="hidden md:block">
-          <div className="max-w-7xl mx-auto space-y-[4.6rem]">
+          <div className="max-w-5xl mx-auto space-y-[4.6rem] px-4">
             {desktopFrames.map((frame, index) => (
-              <div key={index} className="w-full py-[2.3rem]">
+              <div key={index} className="w-full py-[2.3rem] flex justify-center">
                 <img
                   src={frame}
                   alt={`About section ${index + 1}`}
-                  className="w-full h-auto object-contain"
+                  className="w-full max-w-4xl h-auto object-contain"
                   loading={index === 0 ? "eager" : "lazy"}
                   style={{ imageRendering: 'auto' }}
                 />
@@ -48,34 +48,34 @@ const AboutPage = () => {
         </div>
 
         <div className="md:hidden">
-          <div className="space-y-[3.45rem]">
+          <div className="space-y-[3.45rem] flex flex-col items-center">
             {mobileFrames.map((frame, index) => (
-              <div key={index} className="w-full py-[1.725rem]">
+              <div key={index} className="w-full py-[1.725rem] flex justify-center px-4">
                 <img
                   src={frame}
                   alt={`About section ${index + 1}`}
-                  className="w-full h-auto object-contain"
+                  className="w-full max-w-[320px] h-auto object-contain"
                   loading={index === 0 ? "eager" : "lazy"}
                   style={{ imageRendering: 'auto' }}
                 />
               </div>
             ))}
 
-            <div className="w-full py-[3.68rem] bg-gradient-to-br from-pink-600 via-purple-700 to-[#1A1A1A]">
+            <div className="w-full py-[3.68rem] bg-gradient-to-br from-pink-600 via-purple-700 to-[#1A1A1A] overflow-hidden">
               <Swiper
                 modules={[Navigation, Pagination, A11y]}
                 spaceBetween={20}
                 slidesPerView={1}
                 loop
-                className="pb-12 px-4"
+                className="px-4 overflow-hidden"
               >
                 {mobileCarousel.map((image, index) => (
                   <SwiperSlide key={index}>
-                    <div className="flex items-center justify-center">
+                    <div className="flex items-center justify-center pb-12">
                       <img
                         src={image}
                         alt={`SafeSmash screen ${index + 1}`}
-                        className="w-full max-w-[400px] rounded-lg object-contain"
+                        className="w-full max-w-[280px] rounded-lg object-contain"
                         style={{ imageRendering: 'auto' }}
                       />
                     </div>
