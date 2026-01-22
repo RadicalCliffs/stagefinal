@@ -66,11 +66,11 @@ const UserMiniProfile = () => {
 
   if (isLoading) {
     return (
-      <div className='flex items-center gap-3 sm:gap-4 animate-pulse'>
-        <div className='w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-lg bg-[#3A3A3A] flex-shrink-0' />
+      <div className='flex items-center gap-4 sm:gap-5 animate-pulse'>
+        <div className='w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-lg bg-[#3A3A3A] flex-shrink-0' />
         <div className='flex-1 min-w-0'>
-          <div className='h-4 bg-[#3A3A3A] rounded w-24 sm:w-32 mb-2' />
-          <div className='h-3 bg-[#3A3A3A] rounded w-32 sm:w-48' />
+          <div className='h-5 bg-[#3A3A3A] rounded w-28 sm:w-36 mb-2' />
+          <div className='h-4 bg-[#3A3A3A] rounded w-36 sm:w-52' />
         </div>
       </div>
     );
@@ -99,22 +99,22 @@ const UserMiniProfile = () => {
 
   return (
     <>
-      <div className='flex items-center gap-3 sm:gap-4'>
+      <div className='flex items-center gap-4 sm:gap-5'>
           <div className='relative group flex-shrink-0'>
             <img
               src={avatarUrl}
               alt="user-avatar"
-              className='w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-lg cursor-pointer transition-all hover:ring-2 hover:ring-[#DDE404] object-cover'
+              className='w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-lg cursor-pointer transition-all hover:ring-2 hover:ring-[#DDE404] object-cover'
               crossOrigin="anonymous"
               referrerPolicy="no-referrer"
               onClick={() => setShowAvatarModal(true)}
             />
             <div className='absolute inset-0 bg-black/50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer' onClick={() => setShowAvatarModal(true)}>
-              <Edit size={18} className='text-[#DDE404] sm:w-6 sm:h-6' />
+              <Edit size={20} className='text-[#DDE404] sm:w-6 sm:h-6' />
             </div>
           </div>
           <div className='flex-1 min-w-0'>
-              <p className='text-white sequel-75 text-sm sm:text-base md:text-lg truncate mb-1'>
+              <p className='text-white sequel-75 text-base sm:text-lg md:text-xl truncate mb-1'>
                 {displayName}
               </p>
               {/* Prize ID (canonical user identifier) - Always show for all users */}

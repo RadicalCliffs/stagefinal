@@ -1,17 +1,10 @@
 import { useNavigate } from "react-router";
 import Tabs from "../UIPills";
 import UserMiniProfile from "./UserMiniProfile";
-import { useState, lazy, Suspense } from "react";
-import { useAuthUser } from "../../contexts/AuthContext";
-
-// Lazy load TopUpWalletModal - only loaded when user clicks "Top Up Balance"
-const TopUpWalletModal = lazy(() => import("../TopUpWalletModal"));
 
 
 const DashboardTabs = () => {
     const navigate = useNavigate()
-    const [showTopUpModal, setShowTopUpModal] = useState(false);
-    const { refreshUserData } = useAuthUser();
 
     const tabList = [
         { id: 'entries', label: 'Entries' },
@@ -24,30 +17,15 @@ const DashboardTabs = () => {
 
     const handleTabChange = (id: string) => navigate(`/dashboard/${id}`)
 
-    const handleTopUpSuccess = () => {
-        refreshUserData();
-        setShowTopUpModal(false);
-    };
-
     return (
         <>
             <div className='max-w-7xl mx-auto custom-box-shadow'>
                 <div id='live-competition-tabs' className='xl:bg-[#3B3B3B] bg-[#202020] rounded-lg overflow-hidden'>
-                    {/* Top section with profile and top-up button - improved mobile layout */}
-                    <div className='flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 p-3 sm:p-4 md:p-5'>
+                    {/* Top section with profile - full width for larger avatar */}
+                    <div className='p-3 sm:p-4 md:p-5'>
                         {/* User Profile */}
-                        <div className="flex-1 min-w-0 w-full sm:w-auto">
+                        <div className="w-full">
                             <UserMiniProfile />
-                        </div>
-
-                        {/* Top Up Button - full width on mobile, auto width on desktop */}
-                        <div className="flex-shrink-0 w-full sm:w-auto mt-2 sm:mt-0">
-                            <button
-                                onClick={() => setShowTopUpModal(true)}
-                                className="uppercase text-xs sm:text-sm hover:bg-white/90 sequel-75 bg-white text-[#181818] border border-white rounded-sm py-2.5 sm:py-3 px-4 sm:px-6 whitespace-nowrap w-full sm:w-auto transition-colors active:scale-[0.98]"
-                            >
-                                Top Up Balance
-                            </button>
                         </div>
                     </div>
 
@@ -64,16 +42,6 @@ const DashboardTabs = () => {
                     </div>
                 </div>
             </div>
-
-            {showTopUpModal && (
-                <Suspense fallback={null}>
-                    <TopUpWalletModal
-                        isOpen={showTopUpModal}
-                        onClose={() => setShowTopUpModal(false)}
-                        onSuccess={handleTopUpSuccess}
-                    />
-                </Suspense>
-            )}
         </>
     )
 }

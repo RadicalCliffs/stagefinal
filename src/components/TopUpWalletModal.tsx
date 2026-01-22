@@ -541,119 +541,82 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
           )}
 
           {step === 'method' && (
-            <div className="space-y-6">
+            <div className="space-y-4">
               <div>
-                <p className="text-white sequel-45 mb-4 text-sm">{textOverrides?.methodSelectionTitle || 'Select payment method:'}</p>
-                <div className="grid grid-cols-1 gap-3">
+                <p className="text-white sequel-45 mb-3 text-sm">{textOverrides?.methodSelectionTitle || 'Select payment method:'}</p>
+                <div className="grid grid-cols-1 gap-2">
                   {/* Option 1: Top up with another wallet (Instant wallet transfer) */}
                   {hasWalletBalance && (
                     <button
                       onClick={() => handleMethodSelect('instant')}
-                      className={`p-4 rounded-lg transition-all text-left w-full overflow-hidden ${
+                      className={`flex items-center justify-between gap-3 p-3 rounded-xl transition-all w-full ${
                         paymentMethod === 'instant'
                           ? 'bg-green-500/20 border-2 border-green-500'
                           : 'bg-[#3A3A3A] border-2 border-green-500/30 hover:border-green-500/60'
                       }`}
                     >
-                      <div className="flex items-start gap-3">
-                        <div className={`p-2 rounded-lg flex-shrink-0 ${paymentMethod === 'instant' ? 'bg-green-500' : 'bg-gradient-to-br from-green-500 to-emerald-600'}`}>
-                          <Wallet size={20} className="text-white" />
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${paymentMethod === 'instant' ? 'bg-green-500' : 'bg-green-500/20'}`}>
+                          <Wallet size={20} className={paymentMethod === 'instant' ? 'text-white' : 'text-green-400'} />
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className={`sequel-75 text-sm mb-1 ${paymentMethod === 'instant' ? 'text-green-400' : 'text-white'}`}>
-                            {textOverrides?.instantTopUpLabel || 'Top up with another wallet'}
-                          </h3>
-                          <p className="text-gray-400 text-xs sequel-45 leading-tight">
-                            {textOverrides?.instantTopUpDesc || 'Transfer USDC from your connected wallet to your balance.'}
+                        <div className="text-left">
+                          <p className={`sequel-75 text-sm ${paymentMethod === 'instant' ? 'text-green-400' : 'text-white'}`}>
+                            {textOverrides?.instantTopUpLabel || 'From Wallet'}
                           </p>
-                          <div className="flex items-center gap-1.5 mt-2">
-                            <Wallet size={12} className="text-green-400 flex-shrink-0" />
-                            <span className="text-green-400 text-xs sequel-45 truncate">
-                              Available: ${walletUsdcBalance.toFixed(2)} USDC
-                            </span>
-                          </div>
-                          <p className="text-green-500 text-xs sequel-45 mt-1">
-                            ✓ Instant • No fees
+                          <p className="text-green-400 sequel-45 text-xs">
+                            ${walletUsdcBalance.toFixed(2)} available • Instant
                           </p>
                         </div>
-                        <ChevronRight size={18} className="text-green-400 opacity-60 flex-shrink-0 mt-1" />
                       </div>
+                      <ChevronRight size={18} className="text-green-400 flex-shrink-0" />
                     </button>
                   )}
 
-                  {/* Option 2: Top up with Coinbase (Commerce flow with hardcoded URLs) */}
-                  <button
-                    onClick={() => handleMethodSelect('commerce')}
-                    className={`p-4 rounded-lg transition-all text-left w-full overflow-hidden ${
-                      paymentMethod === 'commerce'
-                        ? 'bg-[#DDE404]/20 border-2 border-[#DDE404]'
-                        : 'bg-[#3A3A3A] border-2 border-[#DDE404]/30 hover:border-[#DDE404]/60'
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className={`p-2 rounded-lg flex-shrink-0 ${paymentMethod === 'commerce' ? 'bg-[#DDE404]' : 'bg-gradient-to-br from-[#DDE404] to-[#9ACD32]'}`}>
-                        <Coins size={20} className="text-black" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <h3 className={`sequel-75 text-sm ${paymentMethod === 'commerce' ? 'text-[#DDE404]' : 'text-white'}`}>
-                            {textOverrides?.cryptoTopUpLabel || 'Top up with Coinbase'}
-                          </h3>
-                          <span className="bg-[#DDE404] text-black text-[10px] sequel-75 px-1.5 py-0.5 rounded whitespace-nowrap">
-                            RECOMMENDED
-                          </span>
-                        </div>
-                        <p className="text-gray-400 text-xs sequel-45 leading-tight">
-                          {textOverrides?.cryptoTopUpDesc || 'Bitcoin, Ethereum, Solana, Dogecoin & 60+ cryptocurrencies via Coinbase Commerce.'}
-                        </p>
-                        <div className="flex items-center gap-1.5 mt-2">
-                          <span className="text-orange-400 text-xs">₿</span>
-                          <span className="text-blue-400 text-xs">Ξ</span>
-                          <span className="text-purple-400 text-xs">◎</span>
-                          <span className="text-gray-400 text-xs">+ more</span>
-                        </div>
-                        <p className="text-green-500 text-xs sequel-45 mt-1">
-                          ✓ Lowest fees • Fast • Secure
-                        </p>
-                      </div>
-                      <ChevronRight size={18} className="text-[#DDE404] opacity-60 flex-shrink-0 mt-1" />
+                  {/* Option 2: Top up with Coinbase (Commerce flow) */}
+                  <div className="relative">
+                    <div className="absolute -top-1.5 -right-1.5 bg-[#DDE404] text-black text-[9px] font-bold px-1.5 py-0.5 rounded-full z-10">
+                      RECOMMENDED
                     </div>
-                  </button>
+                    <button
+                      onClick={() => handleMethodSelect('commerce')}
+                      className={`flex items-center justify-between gap-3 p-3 rounded-xl transition-all w-full ${
+                        paymentMethod === 'commerce'
+                          ? 'bg-[#DDE404]/20 border-2 border-[#DDE404]'
+                          : 'bg-[#3A3A3A] border-2 border-[#DDE404]/30 hover:border-[#DDE404]/60'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${paymentMethod === 'commerce' ? 'bg-[#DDE404]' : 'bg-[#DDE404]/20'}`}>
+                          <Coins size={20} className={paymentMethod === 'commerce' ? 'text-black' : 'text-[#DDE404]'} />
+                        </div>
+                        <div className="text-left">
+                          <p className={`sequel-75 text-sm ${paymentMethod === 'commerce' ? 'text-[#DDE404]' : 'text-white'}`}>
+                            {textOverrides?.cryptoTopUpLabel || 'Coinbase'}
+                          </p>
+                          <p className="text-[#DDE404]/70 sequel-45 text-xs">
+                            BTC, ETH, SOL & 60+ cryptos
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight size={18} className="text-[#DDE404] flex-shrink-0" />
+                    </button>
+                  </div>
 
-                  {/* Option 3: Pay with Card (InstaXchange) - Coming Soon */}
+                  {/* Option 3: Pay with Card - Coming Soon */}
                   <button
                     disabled={true}
-                    className="p-4 rounded-lg transition-all text-left w-full overflow-hidden bg-[#3A3A3A] border-2 border-gray-600/30 opacity-50 cursor-not-allowed"
+                    className="flex items-center justify-between gap-3 p-3 rounded-xl w-full bg-[#3A3A3A] border-2 border-gray-600/30 opacity-50 cursor-not-allowed"
                   >
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 rounded-lg bg-gray-600 flex-shrink-0">
-                        <CreditCard size={20} className="text-gray-400" />
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-gray-600/30 flex items-center justify-center flex-shrink-0">
+                        <CreditCard size={20} className="text-gray-500" />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <h3 className="sequel-75 text-sm text-gray-400">
-                            Pay with Card
-                          </h3>
-                          <span className="bg-gray-600/80 text-gray-300 text-[10px] sequel-75 px-1.5 py-0.5 rounded whitespace-nowrap">
-                            COMING SOON
-                          </span>
-                        </div>
-                        <p className="text-gray-500 text-xs sequel-45 leading-tight">
-                          Credit or debit card payment via InstaXchange secure payment processor.
-                        </p>
-                        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                          <span className="text-white/30 text-xs">Visa</span>
-                          <span className="text-white/20">•</span>
-                          <span className="text-white/30 text-xs">Mastercard</span>
-                          <span className="text-white/20">•</span>
-                          <span className="text-white/30 text-xs">Apple Pay</span>
-                        </div>
-                        <p className="text-gray-500 text-xs sequel-45 mt-1">
-                          Instant credit - Available soon
-                        </p>
+                      <div className="text-left">
+                        <p className="sequel-75 text-sm text-gray-400">Card Payment</p>
+                        <p className="text-gray-500 sequel-45 text-xs">Coming soon</p>
                       </div>
-                      <ChevronRight size={18} className="text-gray-600 opacity-30 flex-shrink-0 mt-1" />
                     </div>
+                    <ChevronRight size={18} className="text-gray-600 flex-shrink-0" />
                   </button>
                 </div>
               </div>
@@ -661,7 +624,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
               <button
                 onClick={handleMethodContinue}
                 disabled={!paymentMethod}
-                className="w-full py-4 px-6 bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.01] active:scale-[0.99] text-base"
+                className="w-full py-3 px-6 bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.01] active:scale-[0.99] text-sm"
               >
                 Continue
               </button>

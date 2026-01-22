@@ -1483,60 +1483,79 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
               {/* === PAYMENT OPTIONS === */}
 
-              {/* Balance Payment - Quick and Instant */}
+              {/* Eye-catching Top Up Bonus Banner */}
+              <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-[#EF008F] via-[#FF1493] to-[#EF008F] p-4 border-2 border-[#FF69B4] shadow-lg shadow-[#EF008F]/30 animate-pulse-slow">
+                <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMTAiIGN5PSIxMCIgcj0iMSIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjEpIi8+PC9zdmc+')] opacity-30"></div>
+                <div className="relative flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+                    <Sparkles className="text-white" size={24} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white sequel-95 text-sm sm:text-base uppercase">50% Bonus on Top Up!</p>
+                    <p className="text-white/90 sequel-45 text-xs mt-0.5">
+                      Top up your balance and get 50% extra — uncapped, no strings attached! Only 1.5x turnover required before cashout.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Balance Payment - Compact horizontal layout */}
               {(() => {
                 const canUseBalance = authenticated && userBalance >= amount;
                 return canUseBalance && (
-                <div className="relative">
-                  <div className="border-2 border-violet-500/50 rounded-xl p-5 bg-gradient-to-br from-violet-900/20 to-purple-900/10 hover:border-violet-400/70 transition-all">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <DollarSign className="text-violet-400" size={20} />
-                        <p className="text-white sequel-75 text-sm">Pay with Balance</p>
-                      </div>
-                      <div className="px-3 py-1 rounded-full bg-violet-500/20">
-                        <p className="sequel-75 text-sm text-[#DDE404]">
-                          {loadingBalance ? 'Loading...' : `$${userBalance.toFixed(2)}`}
-                        </p>
-                      </div>
+                <button
+                  onClick={handleBalancePayment}
+                  disabled={balanceLoading || loadingBalance}
+                  className="w-full flex items-center justify-between gap-3 p-4 bg-gradient-to-r from-violet-900/30 to-purple-900/20 border-2 border-violet-500/50 rounded-xl hover:border-violet-400/70 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 hover:scale-[1.01] active:scale-[0.99]"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-violet-500/20 flex items-center justify-center flex-shrink-0">
+                      <DollarSign className="text-violet-400" size={20} />
                     </div>
-                    <button
-                      onClick={handleBalancePayment}
-                      disabled={balanceLoading || loadingBalance}
-                      className="w-full flex items-center justify-center gap-3 py-4 px-6 bg-gradient-to-r from-violet-600 to-purple-600 text-white sequel-75 uppercase rounded-xl hover:from-violet-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg shadow-violet-600/20 hover:shadow-violet-600/30 hover:scale-[1.01] active:scale-[0.99]"
-                    >
-                      <DollarSign size={18} />
-                      {balanceLoading ? 'Processing...' : `Pay $${amount.toFixed(2)} Instantly`}
-                    </button>
+                    <div className="text-left">
+                      <p className="text-white sequel-75 text-sm">Pay with Balance</p>
+                      <p className="text-violet-400 sequel-45 text-xs">
+                        {loadingBalance ? 'Loading...' : `Available: $${userBalance.toFixed(2)}`}
+                      </p>
+                    </div>
                   </div>
-                </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-white sequel-75 text-sm">
+                      {balanceLoading ? 'Processing...' : `$${amount.toFixed(2)}`}
+                    </span>
+                    <ChevronRight size={18} className="text-violet-400" />
+                  </div>
+                </button>
               )})()}
 
-              {/* Primary Payment Method - USDC on Base */}
+              {/* Primary Payment Method - Compact horizontal layout */}
               {authenticated && (
                 <div className="relative">
-                  <div className="border-2 border-[#0052FF] rounded-xl p-6 bg-gradient-to-br from-[#0052FF]/15 to-blue-900/10 hover:border-[#0052FF]/80 transition-all">
-                    <div className="absolute top-0 right-0 bg-[#0052FF] text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg flex items-center gap-1">
-                      <Sparkles size={12} />
-                      RECOMMENDED
-                    </div>
-                    <div className="text-center mb-4">
-                      <Wallet className="text-[#0052FF] mx-auto mb-2" size={32} />
-                      <p className="text-white sequel-75 text-lg mb-1">Pay with Wallet</p>
-                      <p className="text-white/60 sequel-45 text-xs">USDC on Base • Card • Crypto</p>
-                    </div>
-                    <button
-                      onClick={handleOnchainKitPayment}
-                      disabled={onchainKitLoading}
-                      className="w-full flex items-center justify-center gap-3 py-4 px-6 bg-gradient-to-r from-[#0052FF] to-blue-500 text-white sequel-75 uppercase rounded-xl hover:from-blue-500 hover:to-[#0052FF] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg shadow-[#0052FF]/20 hover:shadow-[#0052FF]/30 hover:scale-[1.01] active:scale-[0.99] text-base"
-                    >
-                      {onchainKitLoading ? 'Connecting...' : `Pay $${amount.toFixed(2)}`}
-                      <ChevronRight size={18} />
-                    </button>
-                    <p className="text-[#0052FF]/60 text-xs sequel-45 text-center mt-3">
-                      Supports Coinbase Wallet, MetaMask, WalletConnect, Card & 60+ cryptocurrencies
-                    </p>
+                  <div className="absolute -top-2 -right-2 bg-[#0052FF] text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 z-10">
+                    <Sparkles size={10} />
+                    RECOMMENDED
                   </div>
+                  <button
+                    onClick={handleOnchainKitPayment}
+                    disabled={onchainKitLoading}
+                    className="w-full flex items-center justify-between gap-3 p-4 bg-gradient-to-r from-[#0052FF]/20 to-blue-900/10 border-2 border-[#0052FF] rounded-xl hover:border-[#0052FF]/80 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 hover:scale-[1.01] active:scale-[0.99]"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-[#0052FF]/20 flex items-center justify-center flex-shrink-0">
+                        <Wallet className="text-[#0052FF]" size={20} />
+                      </div>
+                      <div className="text-left">
+                        <p className="text-white sequel-75 text-sm">Pay with Wallet</p>
+                        <p className="text-[#0052FF]/70 sequel-45 text-xs">USDC • Card • 60+ Cryptos</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-white sequel-75 text-sm">
+                        {onchainKitLoading ? 'Connecting...' : `$${amount.toFixed(2)}`}
+                      </span>
+                      <ChevronRight size={18} className="text-[#0052FF]" />
+                    </div>
+                  </button>
                 </div>
               )}
 
