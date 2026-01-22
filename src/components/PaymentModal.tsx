@@ -1612,7 +1612,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                   <button
                     onClick={handleOnchainKitPayment}
                     disabled={onchainKitLoading}
-                    className="w-full flex items-center justify-between gap-3 p-4 bg-gradient-to-r from-[#0052FF]/20 to-blue-900/10 border-2 border-[#0052FF] rounded-xl hover:border-[#0052FF]/80 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 hover:scale-[1.01] active:scale-[0.99]"
+                    className="w-full flex items-center justify-between gap-3 p-4 bg-gradient-to-r from-[#0052FF]/20 to-[#00D4FF]/10 border-2 border-[#0052FF] rounded-xl hover:border-[#00D4FF]/80 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 hover:scale-[1.01] active:scale-[0.99]"
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-lg bg-[#0052FF]/20 flex items-center justify-center flex-shrink-0">
@@ -1636,29 +1636,29 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
               {/* Base Account Payment - One-tap USDC payment */}
               {authenticated && (
                 <div className="relative">
-                  <div className="border-2 border-blue-500/50 rounded-xl p-5 bg-gradient-to-br from-blue-900/20 to-cyan-900/10 hover:border-blue-400/70 transition-all">
+                  <div className="border-2 border-[#0052FF]/50 rounded-xl p-5 bg-gradient-to-br from-[#0052FF]/20 to-[#00D4FF]/10 hover:border-[#00D4FF]/70 transition-all">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
-                        <svg className="w-5 h-5 text-blue-400" viewBox="0 0 111 111" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <svg className="w-5 h-5 text-[#0052FF]" viewBox="0 0 111 111" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <path d="M54.921 110.034C85.359 110.034 110.034 85.402 110.034 55.017C110.034 24.6319 85.359 0 54.921 0C26.0432 0 2.35281 22.1714 0 50.3923H72.8467V59.6416H3.9565e-07C2.35281 87.8625 26.0432 110.034 54.921 110.034Z" fill="currentColor"/>
                         </svg>
                         <p className="text-white sequel-75 text-sm">Pay with Base</p>
                       </div>
-                      <div className="px-3 py-1 rounded-full bg-blue-500/20">
-                        <p className="sequel-75 text-xs text-blue-300">One-Tap</p>
+                      <div className="px-3 py-1 rounded-full bg-[#0052FF]/20">
+                        <p className="sequel-75 text-xs text-[#0052FF]">One-Tap</p>
                       </div>
                     </div>
                     <button
                       onClick={handleBaseAccountPayment}
                       disabled={baseAccountLoading}
-                      className="w-full flex items-center justify-center gap-3 py-4 px-6 bg-gradient-to-r from-blue-600 to-cyan-600 text-white sequel-75 uppercase rounded-xl hover:from-blue-500 hover:to-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg shadow-blue-600/20 hover:shadow-blue-600/30 hover:scale-[1.01] active:scale-[0.99]"
+                      className="w-full flex items-center justify-center gap-3 py-4 px-6 bg-gradient-to-r from-[#0052FF] to-[#00D4FF] hover:from-[#0066FF] hover:to-[#00E5FF] text-white sequel-75 uppercase rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg shadow-[#0052FF]/30 hover:shadow-[#00D4FF]/40 hover:scale-[1.01] active:scale-[0.99]"
                     >
                       <svg className="w-5 h-5" viewBox="0 0 111 111" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M54.921 110.034C85.359 110.034 110.034 85.402 110.034 55.017C110.034 24.6319 85.359 0 54.921 0C26.0432 0 2.35281 22.1714 0 50.3923H72.8467V59.6416H3.9565e-07C2.35281 87.8625 26.0432 110.034 54.921 110.034Z" fill="currentColor"/>
                       </svg>
                       {baseAccountLoading ? 'Processing...' : `Pay $${amount.toFixed(2)}`}
                     </button>
-                    <p className="text-blue-400/60 text-xs sequel-45 text-center mt-3">
+                    <p className="text-[#0052FF]/60 text-xs sequel-45 text-center mt-3">
                       Seamless USDC payment on Base network • No wallet connection needed
                     </p>
                   </div>
