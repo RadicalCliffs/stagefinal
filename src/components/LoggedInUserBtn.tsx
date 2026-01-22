@@ -324,18 +324,18 @@ const LoggedInUserBtn = ({ fullWidth = false }: LoggedInUserBtnProps) => {
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
                             isPrimary ? 'bg-[#DDE404]' : 'bg-[#404040]'
                           }`}>
                             <WalletCards size={16} className={isPrimary ? 'text-[#1A1A1A]' : 'text-white'} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="sequel-75 text-white text-xs">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <p className="sequel-75 text-white text-xs truncate">
                                 {getWalletLabel(walletAccount)}
                               </p>
                               {isPrimary && (
-                                <span className="bg-[#DDE404] text-[#1A1A1A] sequel-75 text-[10px] px-1.5 py-0.5 rounded ml-1">
+                                <span className="bg-[#DDE404] text-[#1A1A1A] sequel-75 text-[10px] px-1.5 py-0.5 rounded flex-shrink-0">
                                   PRIMARY
                                 </span>
                               )}
@@ -345,7 +345,7 @@ const LoggedInUserBtn = ({ fullWidth = false }: LoggedInUserBtnProps) => {
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 flex-shrink-0">
                           <button
                             onClick={(e) => handleCopyAddress(walletAccount.address || '', e)}
                             className="p-1.5 hover:bg-white/10 rounded-md transition-colors"
