@@ -8,6 +8,7 @@ import { CircleX, Check, Wallet, DollarSign, Clock, AlertTriangle, RefreshCw, Cr
 import { useAuthUser } from "../contexts/AuthContext";
 import type { UserInfo } from "./UserInfoModal";
 import { BasePaymentService } from "../lib/base-payment";
+import { BaseAccountPaymentService } from "../lib/base-account-payment";
 import { purchaseTicketsWithBalance, getUserBalance } from "../lib/ticketPurchaseService";
 import { toCanonicalUserId } from "../lib/canonicalUserId";
 import { isSuccessStatus, isFailureStatus } from "../lib/payment-status";
@@ -180,8 +181,8 @@ interface PaymentModalProps {
   textOverrides?: PaymentModalTextOverrides;
 }
 
-type PaymentStep = 'initial' | 'checkout' | 'base-processing' | 'balance-processing' | 'onchainkit-processing' | 'crypto-selection' | 'othercrypto-processing' | 'oneclick-processing' | 'commerce-checkout' | 'success' | 'error';
-type PaymentMethod = 'coinbase' | 'base' | 'balance' | 'onchainkit' | 'othercrypto' | 'oneclick' | 'card' | 'commerce';
+type PaymentStep = 'initial' | 'checkout' | 'base-processing' | 'base-account-processing' | 'balance-processing' | 'onchainkit-processing' | 'crypto-selection' | 'othercrypto-processing' | 'oneclick-processing' | 'commerce-checkout' | 'success' | 'error';
+type PaymentMethod = 'coinbase' | 'base' | 'base-account' | 'balance' | 'onchainkit' | 'othercrypto' | 'oneclick' | 'card' | 'commerce';
 
 const PaymentModal: React.FC<PaymentModalProps> = ({
   isOpen,
@@ -280,6 +281,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   
   const [loading, setLoading] = useState(false);
   const [baseLoading, setBaseLoading] = useState(false);
+  const [baseAccountLoading, setBaseAccountLoading] = useState(false);
+  const [baseAccountTransactionId, setBaseAccountTransactionId] = useState<string>('');
   const [oneClickLoading, setOneClickLoading] = useState(false);
   const [showInitialPayment, setShowInitialPayment] = useState(false);
   const [paymentStep, setPaymentStep] = useState<PaymentStep>('initial');
@@ -479,7 +482,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       setHasInitialized(true);
       // Load user balance when modal opens
       loadUserBalance();
-    } else if (!isOpen && paymentStep !== 'base-processing' && paymentStep !== 'balance-processing' && paymentStep !== 'onchainkit-processing' && paymentStep !== 'othercrypto-processing') {
+    } else if (!isOpen && paymentStep !== 'base-processing' && paymentStep !== 'base-account-processing' && paymentStep !== 'balance-processing' && paymentStep !== 'onchainkit-processing' && paymentStep !== 'othercrypto-processing') {
       // Only reset initialization flag when modal closes AND no payment is in progress
       // This prevents state reset if modal re-renders during payment processing
       setHasInitialized(false);
@@ -598,6 +601,71 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       setPaymentError(error, "Payment failed. Please try again or contact support.");
     } finally {
       setBalanceLoading(false);
+    }
+  };
+
+  // Handle Base Account Payment
+  const handleBaseAccountPayment = async () => {
+    setErrorMessage(null);
+    if (!baseUser?.id) {
+      setErrorMessage("Please log in to continue with your purchase.");
+      return;
+    }
+
+    if (reservationExpired) {
+      setErrorMessage("Your ticket reservation has expired. Please close this dialog and select your tickets again.");
+      return;
+    }
+
+    const totalAmount = ticketCount * ticketPrice;
+
+    if (!totalAmount || !Number.isFinite(totalAmount) || totalAmount <= 0) {
+      console.error('Base Account payment validation failed:', { ticketCount, ticketPrice, totalAmount });
+      setErrorMessage("Invalid payment amount. Please select tickets first.");
+      return;
+    }
+
+    const walletAddress = getPrimaryWalletAddress();
+
+    setBaseAccountLoading(true);
+    setPaymentMethod('base-account');
+    setPaymentStep('base-account-processing');
+    setShowInitialPayment(false);
+    setPurchasedTickets([...selectedTickets]);
+    setPaymentAttempted(true);
+
+    try {
+      console.log('[PaymentModal] Starting Base Account payment flow');
+
+      const result = await BaseAccountPaymentService.purchaseTickets({
+        userId: baseUser?.id,
+        competitionId,
+        ticketCount,
+        ticketPrice,
+        selectedTickets,
+        walletAddress: walletAddress || undefined,
+        reservationId,
+      });
+
+      console.log('[PaymentModal] Base Account payment result:', result);
+
+      if (result.success) {
+        setShowOptimisticSuccess(true);
+        setBaseAccountTransactionId(result.transactionId);
+        setPaymentStep('success');
+        await refreshUserData();
+        if (onPaymentSuccess) {
+          onPaymentSuccess();
+        }
+        setShowOptimisticSuccess(false);
+      } else {
+        setPaymentError(result.transactionHash || null, result.error || "Base Account payment failed. Please try again.");
+      }
+    } catch (error) {
+      console.error('Base Account payment error:', error);
+      setPaymentError(null, error instanceof Error ? error.message : "Base Account payment failed. Please try again.");
+    } finally {
+      setBaseAccountLoading(false);
     }
   };
 
@@ -1306,7 +1374,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     }
   };
 
-  const modalWidth = paymentStep === 'checkout' || paymentStep === 'base-processing' || paymentStep === 'onchainkit-processing' || paymentStep === 'crypto-selection' || paymentStep === 'othercrypto-processing' || paymentStep === 'commerce-checkout' ? 'max-w-2xl' : (hasPaymentParams ? 'max-w-xl' : 'max-w-2xl');
+  const modalWidth = paymentStep === 'checkout' || paymentStep === 'base-processing' || paymentStep === 'base-account-processing' || paymentStep === 'onchainkit-processing' || paymentStep === 'crypto-selection' || paymentStep === 'othercrypto-processing' || paymentStep === 'commerce-checkout' ? 'max-w-2xl' : (hasPaymentParams ? 'max-w-xl' : 'max-w-2xl');
 
   const handleReturn = () => {
     if (hasPaymentParams) {
@@ -1382,6 +1450,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           <h1 className="sequel-95 uppercase text-white text-lg sm:text-xl md:text-2xl mb-3 sm:mb-4 text-center">
             {paymentStep === 'checkout' ? 'Complete Crypto Payment' :
              paymentStep === 'base-processing' ? 'Processing Base Payment' :
+             paymentStep === 'base-account-processing' ? 'Processing Base Payment' :
              paymentStep === 'balance-processing' ? 'Processing Balance Payment' :
              paymentStep === 'onchainkit-processing' ? 'Complete Wallet Payment' :
              paymentStep === 'crypto-selection' ? 'Select Cryptocurrency' :
@@ -1559,6 +1628,38 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                 </div>
               )}
 
+              {/* Base Account Payment - One-tap USDC payment */}
+              {authenticated && (
+                <div className="relative">
+                  <div className="border-2 border-blue-500/50 rounded-xl p-5 bg-gradient-to-br from-blue-900/20 to-cyan-900/10 hover:border-blue-400/70 transition-all">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <svg className="w-5 h-5 text-blue-400" viewBox="0 0 111 111" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M54.921 110.034C85.359 110.034 110.034 85.402 110.034 55.017C110.034 24.6319 85.359 0 54.921 0C26.0432 0 2.35281 22.1714 0 50.3923H72.8467V59.6416H3.9565e-07C2.35281 87.8625 26.0432 110.034 54.921 110.034Z" fill="currentColor"/>
+                        </svg>
+                        <p className="text-white sequel-75 text-sm">Pay with Base</p>
+                      </div>
+                      <div className="px-3 py-1 rounded-full bg-blue-500/20">
+                        <p className="sequel-75 text-xs text-blue-300">One-Tap</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleBaseAccountPayment}
+                      disabled={baseAccountLoading}
+                      className="w-full flex items-center justify-center gap-3 py-4 px-6 bg-gradient-to-r from-blue-600 to-cyan-600 text-white sequel-75 uppercase rounded-xl hover:from-blue-500 hover:to-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg shadow-blue-600/20 hover:shadow-blue-600/30 hover:scale-[1.01] active:scale-[0.99]"
+                    >
+                      <svg className="w-5 h-5" viewBox="0 0 111 111" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M54.921 110.034C85.359 110.034 110.034 85.402 110.034 55.017C110.034 24.6319 85.359 0 54.921 0C26.0432 0 2.35281 22.1714 0 50.3923H72.8467V59.6416H3.9565e-07C2.35281 87.8625 26.0432 110.034 54.921 110.034Z" fill="currentColor"/>
+                      </svg>
+                      {baseAccountLoading ? 'Processing...' : `Pay $${amount.toFixed(2)}`}
+                    </button>
+                    <p className="text-blue-400/60 text-xs sequel-45 text-center mt-3">
+                      Seamless USDC payment on Base network • No wallet connection needed
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Cancel button */}
               <button
                 onClick={onClose}
@@ -1574,7 +1675,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           {/* Error state: Modal opened with no tickets selected */}
           {/* Only show when genuinely no tickets selected AND not during/after a payment attempt */}
           {/* Also check paymentAttempted and purchasedTickets to prevent showing after successful payment resets ticketCount */}
-          {showInitialPayment && paymentStep === 'initial' && ticketCount === 0 && !baseLoading && !balanceLoading && !loading && !paymentAttempted && purchasedTickets.length === 0 && (
+          {showInitialPayment && paymentStep === 'initial' && ticketCount === 0 && !baseLoading && !baseAccountLoading && !balanceLoading && !loading && !paymentAttempted && purchasedTickets.length === 0 && (
             <div className="py-8 text-center">
               <div className="w-16 h-16 bg-[#EF008F] rounded-full flex items-center justify-center mx-auto mb-4">
                 <CircleX size={32} className="text-white" />
@@ -1616,6 +1717,24 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
               </p>
               <p className="text-gray-500 text-xs sequel-45">
                 Please wait while we confirm your transaction on Base...
+              </p>
+            </div>
+          )}
+
+          {/* Base Account Processing */}
+          {paymentStep === 'base-account-processing' && (
+            <div className="py-8 text-center">
+              <div className="w-16 h-16 border-4 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <h3 className="text-white sequel-75 text-xl mb-2">Processing Base Payment</h3>
+              <p className="text-gray-400 sequel-45 mb-4">
+                {ticketCount} {ticketCount > 1 ? 'entries' : 'entry'} • ${amount.toFixed(2)} USDC
+              </p>
+              <div className="flex items-center justify-center gap-2 text-blue-400 text-xs sequel-45 mb-3">
+                <div className="animate-pulse w-2 h-2 bg-blue-500 rounded-full"></div>
+                <span>Complete payment in Base popup</span>
+              </div>
+              <p className="text-gray-500 text-xs sequel-45">
+                Seamless one-tap USDC payment on Base network
               </p>
             </div>
           )}
