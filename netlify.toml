@@ -3,16 +3,197 @@
 directory = "netlify/functions"
 node_bundler = "esbuild"
 
+# CRITICAL: Explicit function routing rules MUST come before the SPA fallback
+# These ensure API endpoints are routed to Netlify Functions before the catch-all
+# The functions use in-code path config (export const config = { path: ... })
+# but explicit redirects here ensure they're prioritized correctly
+
+# Payment API - Routes to create-charge-proxy.mts
+# This is a critical payment endpoint that MUST be server-side for security
+[[redirects]]
+from = "/api/create-charge"
+to = "/.netlify/functions/create-charge-proxy"
+status = 200
+
+# User balance API - Routes to user-balance.mts
+[[redirects]]
+from = "/api/user-balance"
+to = "/.netlify/functions/user-balance"
+status = 200
+
+[[redirects]]
+from = "/api/user-balance/*"
+to = "/.netlify/functions/user-balance"
+status = 200
+
+# Instant top-up API - Routes to instant-topup.mts
+[[redirects]]
+from = "/api/instant-topup"
+to = "/.netlify/functions/instant-topup"
+status = 200
+
+# Transaction status API - Routes to transaction-status.mts
+[[redirects]]
+from = "/api/transaction-status/*"
+to = "/.netlify/functions/transaction-status"
+status = 200
+
+# Confirm pending tickets - Routes to confirm-pending-tickets-proxy.mts
+[[redirects]]
+from = "/api/confirm-pending-tickets"
+to = "/.netlify/functions/confirm-pending-tickets-proxy"
+status = 200
+
+# CDP Transfer API - Routes to cdp-transfer.mts
+[[redirects]]
+from = "/api/cdp/*"
+to = "/.netlify/functions/cdp-transfer"
+status = 200
+
+# CDP Analytics Webhook - Routes to cdp-analytics-webhook.mts
+[[redirects]]
+from = "/api/cdp-analytics/webhook"
+to = "/.netlify/functions/cdp-analytics-webhook"
+status = 200
+
+# CDP Analytics Subscriptions - Routes to cdp-analytics-subscriptions.mts
+[[redirects]]
+from = "/api/cdp-analytics/subscriptions"
+to = "/.netlify/functions/cdp-analytics-subscriptions"
+status = 200
+
+[[redirects]]
+from = "/api/cdp-analytics/subscriptions/*"
+to = "/.netlify/functions/cdp-analytics-subscriptions"
+status = 200
+
+# Coinbase Onramp API - Routes to coinbase-onramp.mts
+[[redirects]]
+from = "/api/coinbase-onramp/*"
+to = "/.netlify/functions/coinbase-onramp"
+status = 200
+
+# OnchainKit Config API - Routes to onchainkit-config.mts
+# Note: The function uses /api/onchainkit/config as path
+[[redirects]]
+from = "/api/onchainkit/config"
+to = "/.netlify/functions/onchainkit-config"
+status = 200
+
+# Onramp Session Token - Routes to onramp-session-token.mts
+[[redirects]]
+from = "/api/onramp-session-token"
+to = "/.netlify/functions/onramp-session-token"
+status = 200
+
+# Notifications API - Routes to notification-service.mts
+[[redirects]]
+from = "/api/notifications"
+to = "/.netlify/functions/notification-service"
+status = 200
+
+[[redirects]]
+from = "/api/notifications/*"
+to = "/.netlify/functions/notification-service"
+status = 200
+
+# Secure Write API - Routes to secure-write.mts
+[[redirects]]
+from = "/api/secure-write/*"
+to = "/.netlify/functions/secure-write"
+status = 200
+
+# Create User API - Routes to create-user.mts
+[[redirects]]
+from = "/api/create-user"
+to = "/.netlify/functions/create-user"
+status = 200
+
+# Competition Status API - Routes to competition-status.mts
+[[redirects]]
+from = "/api/competition-status"
+to = "/.netlify/functions/competition-status"
+status = 200
+
+[[redirects]]
+from = "/api/competition-status/*"
+to = "/.netlify/functions/competition-status"
+status = 200
+
+# Email APIs
+[[redirects]]
+from = "/api/send-otp-email"
+to = "/.netlify/functions/send-otp-email"
+status = 200
+
+[[redirects]]
+from = "/api/verify-otp"
+to = "/.netlify/functions/verify-otp"
+status = 200
+
+[[redirects]]
+from = "/api/send-test-email"
+to = "/.netlify/functions/send-test-email"
+status = 200
+
+[[redirects]]
+from = "/api/send-username-reminder"
+to = "/.netlify/functions/send-username-reminder"
+status = 200
+
+[[redirects]]
+from = "/api/send-wallet-email"
+to = "/.netlify/functions/send-wallet-email"
+status = 200
+
+# Backend/UI PR creation APIs
+[[redirects]]
+from = "/api/create-backend-pr"
+to = "/.netlify/functions/create-backend-pr"
+status = 200
+
+[[redirects]]
+from = "/api/create-ui-pr"
+to = "/.netlify/functions/create-ui-pr"
+status = 200
+
+[[redirects]]
+from = "/api/get-backend-info"
+to = "/.netlify/functions/get-backend-info"
+status = 200
+
+# SendGrid Email Service - Routes to sendgrid-email-service.mts
+[[redirects]]
+from = "/api/send-email"
+to = "/.netlify/functions/sendgrid-email-service"
+status = 200
+
+# Confirm Pending Tickets Health Check - Routes to confirm-pending-tickets-health.mts
+[[redirects]]
+from = "/api/confirm-pending-tickets/health"
+to = "/.netlify/functions/confirm-pending-tickets-health"
+status = 200
+
+# Update Auth Modal Styles - Routes to update-auth-modal-styles.mts
+[[redirects]]
+from = "/api/update-auth-modal-styles"
+to = "/.netlify/functions/update-auth-modal-styles"
+status = 200
+
+# Cleanup Duplicate Emails - Routes to cleanup-duplicate-emails.mts
+[[redirects]]
+from = "/api/cleanup-duplicate-emails"
+to = "/.netlify/functions/cleanup-duplicate-emails"
+status = 200
+
+# Instant Win Sync - Routes to instant-win-sync.mts
+[[redirects]]
+from = "/api/instant-win-sync/*"
+to = "/.netlify/functions/instant-win-sync"
+status = 200
+
 # SPA fallback - redirect all other routes to index.html
-# force = false is CRITICAL - it ensures functions with custom path config take precedence
-# Functions in netlify/functions/ with config.path exports are automatically registered at those paths:
-# - secure-write.mts: /api/secure-write/*
-# - create-charge-proxy.mts: /api/create-charge
-# - cdp-transfer.mts: /api/cdp/*
-# - coinbase-onramp.mts: /api/coinbase-onramp/*
-# - cdp-analytics-webhook.mts: /api/cdp-analytics/webhook (receives CDP on-chain activity webhooks)
-# - cdp-analytics-subscriptions.mts: /api/cdp-analytics/subscriptions/* (manages webhook subscriptions)
-# - notification-service.mts: /api/notifications/* (user notifications CRUD + admin push)
+# force = false ensures explicit redirects above take precedence
 [[redirects]]
 from = "/*"
 to = "/index.html"
