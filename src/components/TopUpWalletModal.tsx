@@ -543,7 +543,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
           {step === 'method' && (
             <div className="space-y-4">
               <div>
-                <p className="text-white sequel-45 mb-3 text-sm">{textOverrides?.methodSelectionTitle || 'Select payment method:'}</p>
+                <p className="text-white sequel-45 mb-3 text-sm">{textOverrides?.methodSelectionTitle || 'Choose method:'}</p>
                 <div className="grid grid-cols-1 gap-2">
                   {/* Option 1: Top up with another wallet (Instant wallet transfer) */}
                   {hasWalletBalance && (
@@ -561,10 +561,10 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                         </div>
                         <div className="text-left">
                           <p className={`sequel-75 text-sm ${paymentMethod === 'instant' ? 'text-green-400' : 'text-white'}`}>
-                            {textOverrides?.instantTopUpLabel || 'From Wallet'}
+                            {textOverrides?.instantTopUpLabel || 'Wallet'}
                           </p>
                           <p className="text-green-400 sequel-45 text-xs">
-                            ${walletUsdcBalance.toFixed(2)} available • Instant
+                            ${walletUsdcBalance.toFixed(2)} • Instant
                           </p>
                         </div>
                       </div>
@@ -575,7 +575,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                   {/* Option 2: Top up with Coinbase (Commerce flow) */}
                   <div className="relative">
                     <div className="absolute -top-1.5 -right-1.5 bg-[#DDE404] text-black text-[9px] font-bold px-1.5 py-0.5 rounded-full z-10">
-                      RECOMMENDED
+                      TOP
                     </div>
                     <button
                       onClick={() => handleMethodSelect('commerce')}
@@ -591,10 +591,10 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                         </div>
                         <div className="text-left">
                           <p className={`sequel-75 text-sm ${paymentMethod === 'commerce' ? 'text-[#DDE404]' : 'text-white'}`}>
-                            {textOverrides?.cryptoTopUpLabel || 'Coinbase'}
+                            {textOverrides?.cryptoTopUpLabel || 'Crypto'}
                           </p>
                           <p className="text-[#DDE404]/70 sequel-45 text-xs">
-                            BTC, ETH, SOL & 60+ cryptos
+                            60+ coins
                           </p>
                         </div>
                       </div>
@@ -612,8 +612,8 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                         <CreditCard size={20} className="text-gray-500" />
                       </div>
                       <div className="text-left">
-                        <p className="sequel-75 text-sm text-gray-400">Card Payment</p>
-                        <p className="text-gray-500 sequel-45 text-xs">Coming soon</p>
+                        <p className="sequel-75 text-sm text-gray-400">Card</p>
+                        <p className="text-gray-500 sequel-45 text-xs">Soon</p>
                       </div>
                     </div>
                     <ChevronRight size={18} className="text-gray-600 flex-shrink-0" />
@@ -626,7 +626,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                 disabled={!paymentMethod}
                 className="w-full py-3 px-6 bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.01] active:scale-[0.99] text-sm"
               >
-                Continue
+                Next
               </button>
             </div>
           )}
@@ -638,21 +638,18 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                   onClick={() => setStep('method')}
                   className="text-gray-400 text-sm sequel-45 mb-4 hover:text-white transition-colors flex items-center gap-1"
                 >
-                  ← Back to payment methods
+                  ← Back
                 </button>
 
                 {paymentMethod === 'offramp' ? (
                   <div className="text-center py-4">
                     <p className="text-white sequel-45 mb-4">
-                      You will be redirected to Coinbase to complete your cash out.
-                    </p>
-                    <p className="text-gray-400 text-xs sequel-45">
-                      You can select the amount and destination in the Coinbase widget.
+                      Redirecting to Coinbase...
                     </p>
                   </div>
                 ) : paymentMethod === 'instant' ? (
                   <>
-                    <p className="text-white sequel-45 mb-4 text-sm">Select amount to top up from your wallet:</p>
+                    <p className="text-white sequel-45 mb-4 text-sm">Select amount:</p>
                     <div className="grid grid-cols-4 gap-3 mb-4">
                       {PRESET_AMOUNTS.filter(a => a <= walletUsdcBalance).map((presetAmount) => (
                         <button
@@ -670,15 +667,12 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                     </div>
                     <div className="flex items-center gap-2 text-[#DDE404] text-sm sequel-45">
                       <Wallet size={16} />
-                      <span>Wallet Balance: ${walletUsdcBalance.toFixed(2)} USDC</span>
+                      <span>${walletUsdcBalance.toFixed(2)} available</span>
                     </div>
-                    <p className="text-gray-400 text-xs sequel-45 mt-2">
-                      Funds will be transferred instantly from your wallet to your balance.
-                    </p>
                   </>
                 ) : paymentMethod === 'fund' ? (
                   <>
-                    <p className="text-white sequel-45 mb-4 text-sm">Select amount to fund:</p>
+                    <p className="text-white sequel-45 mb-4 text-sm">Select amount:</p>
                     <div className="grid grid-cols-4 gap-3 mb-4">
                       {PRESET_AMOUNTS.map((presetAmount) => (
                         <button
@@ -696,13 +690,13 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                     </div>
                     <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
                       <p className="text-blue-400 text-xs sequel-45">
-                        Quick funding via Coinbase. Perfect for existing Coinbase users.
+                        Quick Coinbase funding
                       </p>
                     </div>
                   </>
                 ) : (
                   <>
-                    <p className="text-white sequel-45 mb-4 text-sm">Select amount to add:</p>
+                    <p className="text-white sequel-45 mb-4 text-sm">Select amount:</p>
                     <div className="grid grid-cols-4 gap-3 mb-4">
                       {(paymentMethod === 'commerce' ? COMMERCE_PRESET_AMOUNTS : PRESET_AMOUNTS).map((presetAmount) => (
                         <button
@@ -718,11 +712,6 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                         </button>
                       ))}
                     </div>
-                    <p className="text-gray-400 text-xs sequel-45 mt-2">
-                      {paymentMethod === 'commerce'
-                        ? 'Pay via Coinbase Commerce hosted checkout'
-                        : 'Pay with Bitcoin, Ethereum & 60+ cryptocurrencies'}
-                    </p>
                   </>
                 )}
               </div>
@@ -740,7 +729,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                   (paymentMethod === 'instant' && amount > walletUsdcBalance) ||
                   ((paymentMethod === 'crypto' || paymentMethod === 'commerce') && !TOP_UP_CHECKOUT_URLS[amount])
                 }
-                className={`w-full py-4 px-6 sequel-75 uppercase rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg hover:scale-[1.01] active:scale-[0.99] text-base ${
+                className={`w-full py-4 px-6 sequel-75 uppercase rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg hover:scale-[1.01] active:scale-[0.99] text-sm ${
                   paymentMethod === 'fund' ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-500 text-white shadow-blue-500/20 hover:shadow-blue-500/30' :
                   paymentMethod === 'crypto' ? 'bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-500 text-white shadow-orange-500/20 hover:shadow-orange-500/30' :
                   paymentMethod === 'commerce' ? 'bg-gradient-to-r from-violet-500 to-violet-600 hover:from-violet-600 hover:to-violet-500 text-white shadow-violet-500/20 hover:shadow-violet-500/30' :
@@ -748,14 +737,14 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                 }`}
               >
                 {paymentMethod === 'offramp'
-                  ? 'Continue to Cash Out'
+                  ? 'Cash Out'
                   : paymentMethod === 'instant'
-                  ? `Top Up Instantly - $${amount}`
+                  ? `Top Up $${amount}`
                   : paymentMethod === 'fund'
-                  ? `Fund $${amount} via Coinbase`
+                  ? `Fund $${amount}`
                   : paymentMethod === 'commerce'
-                  ? `Checkout - $${amount}`
-                  : `Pay with Crypto - $${amount}`}
+                  ? `Pay $${amount}`
+                  : `Pay $${amount}`}
               </button>
             </div>
           )}
