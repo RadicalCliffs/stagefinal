@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useRef, useMemo, lazy, Suspense } from "react";
 import { useNavigate } from "react-router";
 import { supabase } from "../lib/supabase";
 import { footerLogo, applePay, visaLogo, masterCardLogo } from "../assets/images";
@@ -21,6 +21,9 @@ import type { LifecycleStatus } from '@coinbase/onchainkit/checkout';
 import { useBaseSubAccount } from "../hooks/useBaseSubAccount";
 // Wagmi hook for getting the wallet client (provider) for transactions
 import { useWalletClient } from 'wagmi';
+
+// Lazy load TopUpWalletModal - only loaded when user clicks the banner
+const TopUpWalletModal = lazy(() => import('./TopUpWalletModal'));
 
 // Cryptocurrency options for the "Pay with Other Crypto" selection step
 const CRYPTO_OPTIONS = [
@@ -321,6 +324,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
   // ISSUE 9B FIX: Optimistic update state - shows immediate feedback after payment
   const [showOptimisticSuccess, setShowOptimisticSuccess] = useState(false);
+  // State for TopUpWalletModal
+  const [showTopUpModal, setShowTopUpModal] = useState(false);
 
   // WALLET DIAGNOSTIC: Log wallet information for debugging
   useEffect(() => {
@@ -1552,21 +1557,23 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
               {/* === PAYMENT OPTIONS === */}
 
-              {/* Eye-catching Top Up Bonus Banner */}
-              <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-[#EF008F] via-[#FF1493] to-[#EF008F] p-4 border-2 border-[#FF69B4] shadow-lg shadow-[#EF008F]/30 animate-pulse-slow">
+              {/* Eye-catching Top Up Bonus Banner - Clickable to open TopUpWalletModal */}
+              <button
+                onClick={() => setShowTopUpModal(true)}
+                className="w-full relative overflow-hidden rounded-xl bg-gradient-to-r from-[#EF008F] via-[#FF1493] to-[#EF008F] p-4 border-2 border-[#FF69B4] shadow-lg shadow-[#EF008F]/30 hover:shadow-[#EF008F]/50 transition-all duration-300 hover:scale-[1.01] active:scale-[0.99] cursor-pointer text-left"
+              >
                 <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMTAiIGN5PSIxMCIgcj0iMSIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjEpIi8+PC9zdmc+')] opacity-30"></div>
                 <div className="relative flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
-                    <Sparkles className="text-white" size={24} />
+                  <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+                    <Sparkles className="text-white" size={20} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-white sequel-95 text-sm sm:text-base uppercase">50% Bonus on Top Up!</p>
-                    <p className="text-white/90 sequel-45 text-xs mt-0.5">
-                      Top up your balance and get 50% extra — uncapped, no strings attached! Only 1.5x turnover required before cashout.
-                    </p>
+                    <p className="text-white sequel-95 text-xs sm:text-sm uppercase">50% Bonus!</p>
+                    <p className="text-white/90 sequel-45 text-[10px] sm:text-xs">Tap to top up</p>
                   </div>
+                  <ChevronRight size={18} className="text-white/80 flex-shrink-0" />
                 </div>
-              </div>
+              </button>
 
               {/* Balance Payment - Compact horizontal layout */}
               {(() => {
@@ -2123,6 +2130,28 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           )}
         </div>
       </div>
+
+      {/* TopUpWalletModal - Opens when user clicks the bonus banner */}
+      {showTopUpModal && (
+        <Suspense fallback={null}>
+          <TopUpWalletModal
+            isOpen={showTopUpModal}
+            onClose={() => setShowTopUpModal(false)}
+            onSuccess={() => {
+              setShowTopUpModal(false);
+              refreshUserData();
+              // Refresh balance after top-up
+              if (baseUser?.id) {
+                setLoadingBalance(true);
+                getUserBalance(toCanonicalUserId(baseUser.id))
+                  .then(balance => setUserBalance(balance))
+                  .catch(err => console.warn('Failed to refresh balance:', err))
+                  .finally(() => setLoadingBalance(false));
+              }
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };
