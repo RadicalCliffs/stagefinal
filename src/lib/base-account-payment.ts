@@ -355,7 +355,7 @@ export class BaseAccountPaymentService {
           transactionId,
           status: 'failed',
           amount: totalAmount,
-          ticketCount: 0,
+          ticketCount: request.ticketCount,
           error: paymentResult.error || 'Payment failed',
         };
       }
@@ -416,7 +416,7 @@ export class BaseAccountPaymentService {
           transactionHash: paymentResult.transactionHash,
           status: 'completed',
           amount: totalAmount,
-          ticketCount: 0,
+          ticketCount: request.ticketCount,
           error: 'Payment completed successfully, but ticket allocation failed. Your payment has been received. Please contact support with your transaction ID to get your tickets allocated.',
           paymentSucceeded: true,
         };
@@ -452,7 +452,7 @@ export class BaseAccountPaymentService {
         transactionId,
         status: 'failed',
         amount: 0,
-        ticketCount: 0,
+        ticketCount: request.ticketCount,
         error: error instanceof Error ? error.message : 'Purchase failed',
       };
     }
