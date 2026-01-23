@@ -327,9 +327,9 @@ export const database = {
           ticket_price: 1,
           draw_date: data.end_date,
           end_date: data.end_date,
-          status: data.competitionended === 0 ? 'active' : 'finished',
+          status: (data.competitionended === 0 || data.competitionended === false || data.competitionended === null) ? 'active' : 'finished',
           is_instant_win: data.instant || false,
-          is_featured: data.featured === 1,
+          is_featured: (data.featured === 1 || data.featured === true),
           tickets_sold: ticketsSold,
           created_at: data.crdate,
           updated_at: data.crdate,
@@ -347,7 +347,7 @@ export const database = {
       const { data: winners, error } = await supabase
         .from('competition_winners')
         .select('competitionprize, Winner, crDate, competitionname, imageurl, competitionid, txhash')
-        .not('Winner', 'is', null)
+        .not('Winner', 'is', null as any)
         .order('crDate', { ascending: false, nullsLast: true })
         .limit(100);
 
@@ -406,7 +406,7 @@ export const database = {
         ? await supabase
             .from('competitions')
             .select('id, end_date')
-            .in('id', competitionIds)
+            .in('id', competitionIds as string[])
         : { data: [] };
 
       // Create competition lookup map for end_dates
@@ -500,7 +500,7 @@ export const database = {
     const { data: winners, error } = await supabase
       .from('competition_winners')
       .select('competitionprize, Winner, crDate, competitionname, imageurl, competitionid, txhash')
-      .not('Winner', 'is', null)
+      .not('Winner', 'is', null as any)
       .order('crDate', { ascending: false, nullsLast: true })
       .limit(100);
 
@@ -554,7 +554,7 @@ export const database = {
       ? await supabase
           .from('competitions')
           .select('id, end_date')
-          .in('id', competitionIds)
+          .in('id', competitionIds as string[])
       : { data: [] };
 
     // Create competition lookup map for end_dates
@@ -707,7 +707,7 @@ export const database = {
           id: index + 1,
           title: comp?.competitionname || 'Unknown Competition',
           description: comp?.competitioninformation || '',
-          image: getImageUrl(comp?.imageurl),
+          image: getImageUrl(comp?.imageurl || ''),
           status: (userIdsEqual(comp?.winner_address, userId) ? 'win' : 'loss') as 'win' | 'loss',
         };
       })
@@ -742,7 +742,7 @@ export const database = {
       return acc;
     }, {});
 
-    return Object.entries(ordersByTx || {}).map(([txHash, order]: [string, any], index: number) => ({
+    return (Object.entries(ordersByTx || {}).map(([txHash, order]: [string, any], index: number) => ({
       id: index + 1,
       ticketsBought: order.tickets.length,
       network: order.tickets[0]?.chain || 'Ethereum',
@@ -755,7 +755,7 @@ export const database = {
         minute: '2-digit',
       }),
       amount: `$${order.amount.toFixed(2)}`,
-    }));
+    })) as unknown) as PurchaseOrder[];
   },
 
   // async getUserEntries(userId: string): Promise<EntryOrder[]> {
@@ -982,17 +982,17 @@ export const database = {
       ? await supabase
           .from('competitions')
           .select('id, title, image_url, prize_value, end_date')
-          .in('id', competitionIds)
+          .in('id', competitionIds as string[])
       : { data: [] };
 
     // Create competition lookup map for O(1) access
-    const competitionMap = new Map<string, { competitionname: string; uid: string; imageurl: string | null; competitionprize: string; end_date: string | null }>();
+    const competitionMap = new Map<string, { competitionname: string; uid: string; imageurl: string | null; competitionprize: string | null; end_date: string | null }>();
     for (const comp of competitionsData || []) {
       competitionMap.set(comp.id, {
-        competitionname: comp.title,
+        competitionname: comp.title || '',
         uid: comp.id,
         imageurl: comp.image_url,
-        competitionprize: comp.prize_value,
+        competitionprize: String(comp.prize_value || ''),
         end_date: comp.end_date
       });
     }
@@ -1084,7 +1084,7 @@ export const database = {
     const { data: winnerData } = await supabase
       .from('competition_winners')
       .select('competitionprize, Winner, crDate, competitionname, imageurl')
-      .not('Winner', 'is', null)
+      .not('Winner', 'is', null as any)
       .order('crDate', { ascending: false, nullsLast: true })
       .limit(50);
 
@@ -2353,17 +2353,17 @@ export const database = {
         };
       }
 
-      if (data && typeof data === 'object' && data.success) {
+      if (data && typeof data === 'object' && (data as any).success) {
         return {
-          available_count: data.available_count || 0,
-          total_tickets: data.total_tickets || 0,
-          sold_count: data.sold_count || 0,
-          pending_count: data.pending_count || 0
+          available_count: (data as any).available_count || 0,
+          total_tickets: (data as any).total_tickets || 0,
+          sold_count: (data as any).sold_count || 0,
+          pending_count: (data as any).pending_count || 0
         };
       }
 
       // RPC returned error
-      console.warn('get_available_ticket_count_v2 returned error:', data?.error);
+      console.warn('get_available_ticket_count_v2 returned error:', (data as any)?.error);
       return null;
     } catch (error) {
       handleDatabaseError(error, 'getAvailableTicketCount');
@@ -2435,15 +2435,16 @@ export const database = {
       }
 
       if (data && typeof data === 'object') {
+        const rpcData = data as any;
         return {
-          success: data.success === true,
-          reservation_id: data.reservation_id,
-          ticket_numbers: data.ticket_numbers,
-          ticket_count: data.ticket_count,
-          total_amount: data.total_amount,
-          expires_at: data.expires_at,
-          available_count: data.available_count || data.available_count_after,
-          error: data.error
+          success: rpcData.success === true,
+          reservation_id: rpcData.reservation_id,
+          ticket_numbers: rpcData.ticket_numbers,
+          ticket_count: rpcData.ticket_count,
+          total_amount: rpcData.total_amount,
+          expires_at: rpcData.expires_at,
+          available_count: rpcData.available_count || rpcData.available_count_after,
+          error: rpcData.error
         };
       }
 
@@ -2714,18 +2715,19 @@ export const database = {
 
       // Parse the JSON response if needed
       if (data && typeof data === 'object') {
+        const rpcData = data as any;
         // Check for error responses from the RPC function
         // The RPC returns { error: "message" } when competition is not found or invalid
-        if (data.error) {
-          console.warn('RPC get_competition_ticket_availability_text returned error:', data.error);
+        if (rpcData.error) {
+          console.warn('RPC get_competition_ticket_availability_text returned error:', rpcData.error);
           return null;
         }
         return {
-          competition_id: data.competition_id || competitionId,
-          total_tickets: data.total_tickets || 0,
-          available_tickets: Array.isArray(data.available_tickets) ? data.available_tickets : [],
-          sold_count: data.sold_count || 0,
-          available_count: data.available_count || 0
+          competition_id: rpcData.competition_id || competitionId,
+          total_tickets: rpcData.total_tickets || 0,
+          available_tickets: Array.isArray(rpcData.available_tickets) ? rpcData.available_tickets : [],
+          sold_count: rpcData.sold_count || 0,
+          available_count: rpcData.available_count || 0
         };
       }
 
@@ -2759,7 +2761,12 @@ export const database = {
         return null;
       }
 
-      return data;
+      return (data || {
+        user_id: userId,
+        competition_id: competitionId,
+        tickets: [],
+        ticket_count: 0
+      });
     } catch (error) {
       handleDatabaseError(error, 'getUserTicketsForCompetition');
       return null;
