@@ -15,8 +15,14 @@
  * Documentation: https://docs.base.org/base-account/reference/core/sdk-api
  */
 
-import { createBaseAccountSDK, type BaseAccountSDK } from '@base-org/account';
+import { createBaseAccountSDK } from '@base-org/account';
 import { base, baseSepolia } from 'viem/chains';
+
+/**
+ * Type for the Base Account SDK instance
+ * Since the SDK doesn't export this type, we infer it from the return value
+ */
+type BaseAccountSDK = ReturnType<typeof createBaseAccountSDK>;
 
 /**
  * Get the active chain ID based on environment configuration
@@ -97,7 +103,7 @@ function getPaymasterUrls(): Record<number, string> | undefined {
  * It defines the app metadata, supported chains, and sub-account behavior.
  */
 const sdkConfig = {
-  // App metadata displayed in wallet UI
+  // App metadata displayed in wallet UI (all required by SDK)
   appName: getAppName(),
   appLogoUrl: getAppLogoUrl(),
   
@@ -109,9 +115,9 @@ const sdkConfig = {
   // - defaultAccount: 'universal' uses the parent account by default
   // - funding: 'spend-permissions' enables spend permissions for sub-accounts
   subAccounts: {
-    creation: 'manual', // Don't auto-create sub-accounts, let user trigger it
-    defaultAccount: 'universal', // Use parent account by default
-    funding: 'spend-permissions', // Enable spend permissions for one-click payments
+    creation: 'manual' as const,        // Don't auto-create sub-accounts, let user trigger it
+    defaultAccount: 'universal' as const, // Use parent account by default
+    funding: 'spend-permissions' as const, // Enable spend permissions for one-click payments
   },
   
   // Optional: Paymaster URLs for gas sponsorship
@@ -125,7 +131,7 @@ const sdkConfig = {
     // Attribution for Smart Wallet usage tracking
     attribution: {
       auto: true, // Auto-generate attribution based on app origin
-    },
+    } as const,
   },
 };
 

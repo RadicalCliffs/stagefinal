@@ -23,8 +23,14 @@
 
 import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import type { ReactNode } from 'react';
-import type { BaseAccountSDK } from '@base-org/account';
+import { createBaseAccountSDK } from '@base-org/account';
 import { getBaseAccountSDK, getSDKProvider, hasActiveSession, getCryptoKeyAccount } from '../lib/base-account-sdk';
+
+/**
+ * Type for the Base Account SDK instance
+ * Inferred from the return type of createBaseAccountSDK
+ */
+type BaseAccountSDK = ReturnType<typeof createBaseAccountSDK>;
 
 interface BaseAccountSDKContextType {
   /** The Base Account SDK instance */
