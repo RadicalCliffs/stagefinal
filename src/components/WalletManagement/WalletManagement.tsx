@@ -388,10 +388,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
         {/* First-time bonus indicator - only show if bonus feature is active and user hasn't used bonus yet */}
         {!hasUsedBonus && (
           <div className="bg-[#DDE404]/10 border border-[#DDE404]/20 rounded-lg px-4 py-3">
-            <p className="text-[#DDE404] sequel-75 text-sm">50% Top Up Bonus!</p>
-            <p className="text-white/60 sequel-45 text-xs mt-1">
-              Your first deposit gets an additional 50% bonus balance, uncapped! Note: Bonus is unwithdrawable until 1.5x the balance has been played with.
-            </p>
+            <p className="text-[#DDE404] sequel-75 text-sm">50% First Deposit Bonus</p>
           </div>
         )}
       </div>
@@ -424,8 +421,10 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
         </div>
       )}
 
-      {/* Base Account SDK Status Section */}
-      <BaseAccountStatus className="mt-6" />
+      {/* Base Account SDK Status Section - only show if user has a Base Account (not external wallet users) */}
+      {(baseAccount || embeddedWallet) && (
+        <BaseAccountStatus className="mt-6" />
+      )}
 
       {/* Connected Wallets Section */}
       <div className="bg-[#1E1E1E] rounded-xl p-6">
