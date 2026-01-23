@@ -142,13 +142,13 @@ const EntryDetail = () => {
         description={entry.description}
         competitionImage={entry.image}
         competitionId={entry.competition_id}
-        endDate={entry.end_date}
-        ticketNumbers={entry.ticket_numbers}
-        amountSpent={entry.amount_spent}
-        purchaseDate={entry.purchase_date}
-        transactionHash={entry.transaction_hash}
-        prizeValue={entry.prize_value}
-        numberOfTickets={entry.number_of_tickets}
+        endDate={entry.end_date || undefined}
+        ticketNumbers={entry.ticket_numbers || undefined}
+        amountSpent={entry.amount_spent || undefined}
+        purchaseDate={entry.purchase_date || undefined}
+        transactionHash={entry.transaction_hash || undefined}
+        prizeValue={entry.prize_value || undefined}
+        numberOfTickets={entry.number_of_tickets || undefined}
         isInstantWin={entry.is_instant_win}
       />
       <EntriesTickets

@@ -260,6 +260,7 @@ const CompetitionsPage = () => {
                 price={parseFloat(String(comp.ticket_price || comp.entry_fee || '0'))}
                 timeRemaining="00:00:00:00"
                 ticketsSold={`${Math.round(progressPercent)}`}
+                entriesSold={`${Math.round(progressPercent)}% Sold`}
                 progressPercent={progressPercent === 0 ? 10 : progressPercent}
                 onEnter={() => navigate(`/competitions/${comp.id}`)}
                 className="!border-[#EF008F]"

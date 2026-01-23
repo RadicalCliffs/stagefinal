@@ -40,11 +40,11 @@ interface AggregatedEntry {
   total_tickets: number;
   all_ticket_numbers: string;
   total_amount_spent: number;
-  first_purchase_date: string;
-  last_purchase_date: string;
+  first_purchase_date?: string;
+  last_purchase_date?: string;
   transaction_hashes: string[];
-  prize_value: string;
-  end_date: string;
+  prize_value?: string;
+  end_date?: string;
   individual_entries: EntryData[];
   is_pending: boolean;
   expires_at?: string;
@@ -158,7 +158,7 @@ const CompetitionEntryDetails = () => {
       0
     );
     const totalAmount = uniqueEntries.reduce(
-      (sum, e) => sum + (parseFloat(e.amount_spent) || 0),
+      (sum, e) => sum + (parseFloat(e.amount_spent || '0') || 0),
       0
     );
 
@@ -204,11 +204,11 @@ const CompetitionEntryDetails = () => {
       first_purchase_date: firstPurchaseDate,
       last_purchase_date: lastPurchaseDate,
       transaction_hashes: uniqueHashes,
-      prize_value: firstEntry.prize_value,
-      end_date: firstEntry.end_date,
+      prize_value: firstEntry.prize_value || undefined,
+      end_date: firstEntry.end_date || undefined,
       individual_entries: uniqueEntries,
       is_pending: isPending,
-      expires_at: expirations[0],
+      expires_at: expirations[0] || undefined,
       is_instant_win: firstEntry.is_instant_win || false,
     };
   }, [entries]);
