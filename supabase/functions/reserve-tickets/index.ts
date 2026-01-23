@@ -176,8 +176,8 @@ Deno.serve(async (req: Request) => {
     } = body;
 
     // Accept flexible user identifiers (wallet address or Privy ID)
-    // Priority: userId > userIdentifier (camelCase) > user_identifier (snake_case) > privy_user_id > user_id
-    const userIdentifier = userId || body.userIdentifier || body.user_identifier || body.privy_user_id || body.user_id;
+    // Priority: userId > userIdentifier (camelCase) > user_identifier (snake_case) > canonical_user_id > user_id
+    const userIdentifier = userId || body.userIdentifier || body.user_identifier || body.canonical_user_id || body.user_id;
 
     // Accept both camelCase and snake_case parameter names for backwards compatibility
     // Some clients may send competition_id/tickets instead of competitionId/selectedTickets
