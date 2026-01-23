@@ -242,7 +242,9 @@ export function SpendPermissionManager({ compact = false, className = '' }: Spen
                   <div
                     className="h-full bg-gradient-to-r from-[#DDE404] to-[#C5CC03] transition-all duration-300"
                     style={{
-                      width: `${Math.min(100, Number(currentPeriodSpend.spent * BigInt(100) / currentPeriodSpend.allowance))}%`,
+                      // Use safe BigInt arithmetic to calculate percentage
+                      // Multiply by 100 first, then divide to maintain precision
+                      width: `${Math.min(100, Number((currentPeriodSpend.spent * BigInt(10000) / currentPeriodSpend.allowance) / BigInt(100)))}%`,
                     }}
                   />
                 </div>

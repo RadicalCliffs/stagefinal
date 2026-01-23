@@ -152,8 +152,10 @@ export function useBaseSubAccount(): UseBaseSubAccountResult {
       let existingSubAccounts: any[] = [];
       
       try {
-        // Try SDK method first (if available)
-        if (sdk.subAccount && typeof sdk.subAccount.list === 'function') {
+        // Type guard: Check if SDK has subAccount.list method
+        if (sdk && 'subAccount' in sdk && sdk.subAccount && 
+            typeof sdk.subAccount === 'object' && 'list' in sdk.subAccount &&
+            typeof sdk.subAccount.list === 'function') {
           existingSubAccounts = await sdk.subAccount.list();
         } else {
           // Fall back to provider request
@@ -181,7 +183,10 @@ export function useBaseSubAccount(): UseBaseSubAccountResult {
       let newSubAccount: SubAccount;
       
       try {
-        if (sdk.subAccount && typeof sdk.subAccount.create === 'function') {
+        // Type guard: Check if SDK has subAccount.create method
+        if (sdk && 'subAccount' in sdk && sdk.subAccount && 
+            typeof sdk.subAccount === 'object' && 'create' in sdk.subAccount &&
+            typeof sdk.subAccount.create === 'function') {
           // Use SDK method
           newSubAccount = await sdk.subAccount.create({
             keys: [{

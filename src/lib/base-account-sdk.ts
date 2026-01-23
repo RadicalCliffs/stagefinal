@@ -189,10 +189,10 @@ export async function getCryptoKeyAccount() {
   const sdk = getBaseAccountSDK();
   
   try {
-    // Note: This method may not exist in all SDK versions
-    // It's from the SDK utilities for key management
-    if (typeof (sdk as any).getCryptoKeyAccount === 'function') {
-      return await (sdk as any).getCryptoKeyAccount();
+    // Type guard to check if getCryptoKeyAccount exists on SDK
+    // This method may not be available in all SDK versions
+    if ('getCryptoKeyAccount' in sdk && typeof sdk.getCryptoKeyAccount === 'function') {
+      return await sdk.getCryptoKeyAccount();
     }
     
     console.warn('[BaseAccountSDK] getCryptoKeyAccount not available in this SDK version');
