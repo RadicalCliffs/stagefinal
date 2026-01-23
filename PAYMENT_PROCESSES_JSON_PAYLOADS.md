@@ -26,13 +26,13 @@ This document provides the **exact JSON payloads** for all payment-related proce
 
 ```json
 {
-  "userId": "string (optional)",
-  "userIdentifier": "string (optional)",
-  "canonical_user_id": "string (optional)",
-  "walletAddress": "string (optional, 0x...)",
-  "wallet_address": "string (optional)",
-  "competitionId": "string (UUID)",
-  "competition_id": "string (UUID, alternative)",
+  "userId": "text (optional)",
+  "userIdentifier": "text (optional)",
+  "canonical_user_id": "text (optional)",
+  "walletAddress": "text (optional, 0x...)",
+  "wallet_address": "text (optional)",
+  "competitionId": "text (UUID)",
+  "competition_id": "text (UUID, alternative)",
   "numberOfTickets": "number",
   "number_of_tickets": "number (alternative)",
   "ticketCount": "number (alternative)",
@@ -191,13 +191,13 @@ This document provides the **exact JSON payloads** for all payment-related proce
 
 ```json
 {
-  "userId": "string",
-  "userIdentifier": "string (alternative)",
-  "user_identifier": "string (alternative)",
-  "canonical_user_id": "string (alternative)",
-  "user_id": "string (alternative)",
-  "competitionId": "string (UUID)",
-  "competition_id": "string (alternative)",
+  "userId": "text",
+  "userIdentifier": "text (alternative)",
+  "user_identifier": "text (alternative)",
+  "canonical_user_id": "text (alternative)",
+  "user_id": "text (alternative)",
+  "competitionId": "text (UUID)",
+  "competition_id": "text (alternative)",
   "selectedTickets": [1, 5, 10, 23, 45],
   "ticket_numbers": "[number] (alternative)",
   "ticketIds": "[number] (alternative)",
@@ -261,11 +261,11 @@ This document provides the **exact JSON payloads** for all payment-related proce
 ```json
 {
   "reservationId": "string (UUID, optional)",
-  "userId": "string (required if no reservationId)",
+  "userId": "text (required if no reservationId)",
   "competitionId": "string (UUID, optional)",
   "transactionHash": "string (optional, for idempotency)",
   "paymentProvider": "balance | coinbase_commerce | onchainkit_checkout",
-  "walletAddress": "string (optional, 0x...)",
+  "walletAddress": "text (optional, 0x...)",
   "network": "string (optional, e.g., 'base')",
   "sessionId": "string (optional, transaction session ID)",
   "selectedTickets": "[number] (optional)",
@@ -347,7 +347,7 @@ This document provides the **exact JSON payloads** for all payment-related proce
 
 ```json
 {
-  "userId": "string",
+  "userId": "text",
   "competitionId": "string (UUID, optional)",
   "entryPrice": "number (optional)",
   "entryCount": "number (optional)",
@@ -631,8 +631,8 @@ This document provides the **exact JSON payloads** for all payment-related proce
     "value": "1.01"
   },
   "paymentMethod": "CARD | GUEST_CHECKOUT_APPLE_PAY",
-  "walletAddress": "string (0x...)",
-  "destinationAddress": "string (0x...)",
+  "walletAddress": "text (0x...)",
+  "destinationAddress": "text (0x...)",
   "purchaseNetwork": "base | ethereum",
   "destinationNetwork": "string",
   "txHash": "string (optional, 0x...)",

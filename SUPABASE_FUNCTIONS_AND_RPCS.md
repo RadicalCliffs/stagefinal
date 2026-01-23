@@ -36,7 +36,7 @@ supabase.functions.invoke('get-user-profile', {
 ```
 
 **Parameters**:
-- `privy_user_id` (string, required): User's canonical Privy ID
+- `privy_user_id` (text, required): User's canonical Privy ID
 
 **Response**:
 ```typescript
@@ -76,7 +76,7 @@ supabase.functions.invoke('purchase-tickets-with-bonus', {
 ```
 
 **Parameters**:
-- `userId` (string, required): Canonical format user identifier
+- `userId` (text, required): Canonical format user identifier
 - `idempotencyKey` (string, required): UUID for deduplication
 - `competitionId` (string, required): Competition identifier
 - `numberOfTickets` (number, required): Quantity to purchase
@@ -123,7 +123,7 @@ supabase.functions.invoke('reserve-tickets', {
 ```
 
 **Parameters**:
-- `userId` (string, required): User identifier
+- `userId` (text, required): User identifier
 - `competitionId` (string, required): Competition ID
 - `selectedTickets` (number[], required): Array of ticket numbers
 
@@ -205,7 +205,7 @@ RPC Functions are PostgreSQL functions invoked via `supabase.rpc()`. They are de
 **Invocation**:
 ```typescript
 supabase.rpc('get_user_balance', {
-  p_canonical_user_id: string
+  p_canonical_user_id: 'prize:pid:0x...'  // text (SQL TEXT type)
 })
 ```
 
@@ -247,7 +247,7 @@ supabase.rpc('get_user_wallet_balance', {
 **Invocation**:
 ```typescript
 supabase.rpc('get_user_balance_with_pending', {
-  p_canonical_user_id: string
+  p_canonical_user_id: 'prize:pid:0x...'  // text (SQL TEXT type)
 })
 ```
 
