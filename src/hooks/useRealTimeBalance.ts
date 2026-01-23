@@ -95,9 +95,9 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
         // Also fetch pending balance and user metadata from sub_account_balances
         const { data: subAccountData } = await supabase
           .from('sub_account_balances')
-          .select('id, user_id, pending_balance, canonical_user_id, privy_user_id')
+          .select('id, user_id, pending_balance, privy_user_id')
           .eq('currency', 'USD')
-          .or(`canonical_user_id.eq.${canonicalUserId},user_id.eq.${userId},privy_user_id.eq.${userId}`)
+          .or(`user_id.eq.${canonicalUserId},privy_user_id.eq.${userId}`)
           .limit(1);
 
         if (subAccountData && subAccountData.length > 0) {
@@ -140,9 +140,9 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
       // Use eq for canonical_user_id (TEXT type in sub_account_balances)
       const { data: subAccountData, error: subAccountError } = await supabase
         .from('sub_account_balances')
-        .select('id, user_id, available_balance, pending_balance, canonical_user_id, privy_user_id')
+        .select('id, user_id, available_balance, pending_balance, privy_user_id')
         .eq('currency', 'USD')
-        .or(`canonical_user_id.eq.${canonicalUserId},user_id.eq.${userId},privy_user_id.eq.${userId}`)
+        .or(`user_id.eq.${canonicalUserId},privy_user_id.eq.${userId}`)
         .limit(1);
 
       if (subAccountData && subAccountData.length > 0 && !subAccountError) {

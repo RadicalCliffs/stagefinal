@@ -244,7 +244,7 @@ export function useInstantWinTickets({
       // This creates a unified view combining both sources
       const { data: claimedData, error: fetchError } = await supabase
         .from('Prize_Instantprizes')
-        .select('winningTicket, winningWalletAddress, prize, wonAt, dataSource')
+        .select('winningTicket, winningWalletAddress, prize, wonAt')
         .eq('competitionId', competitionUid);
 
       if (fetchError) {
@@ -265,8 +265,8 @@ export function useInstantWinTickets({
               prizeTier: item.prize || 'Unknown',
               isClaimed: !!item.winningWalletAddress,
               winnerAddress: item.winningWalletAddress || undefined,
-              // ISSUE #2 FIX: Track data source
-              dataSource: (item.dataSource as WinDataSource) || 'database',
+              // ISSUE #2 FIX: Track data source (default to database since we're fetching from DB)
+              dataSource: 'database',
               detectedAt: item.wonAt || undefined,
             };
 
