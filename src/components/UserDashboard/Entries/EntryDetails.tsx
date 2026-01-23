@@ -14,18 +14,18 @@ interface EntryData {
   title: string;
   description: string;
   image: string;
-  status: "live" | "drawn";
+  status: "live" | "drawn" | "pending";
   is_winner: boolean;
-  ticket_numbers: string;
-  number_of_tickets: number;
-  amount_spent: string;
-  purchase_date: string;
-  wallet_address: string;
-  transaction_hash: string;
+  ticket_numbers?: string | null;
+  number_of_tickets?: number | null;
+  amount_spent?: string | null;
+  purchase_date?: string | null;
+  wallet_address?: string | null;
+  transaction_hash?: string | null;
   is_instant_win: boolean;
-  prize_value: string;
+  prize_value?: string | null;
   competition_status: string;
-  end_date: string;
+  end_date?: string | null;
 }
 
 const EntryDetail = () => {
@@ -56,7 +56,9 @@ const EntryDetail = () => {
       try {
         // Fetch all user entries and find the specific one
         const entries = await database.getUserEntries(baseUser.id);
-        const foundEntry = entries?.find((e: EntryData) => e.id === id);
+        const foundEntry = (entries || []).find((e: any): e is EntryData => 
+          e !== null && typeof e === 'object' && 'id' in e && 'entry_type' in e && 'expires_at' in e && e.id === id
+        ) as EntryData | undefined;
 
         if (foundEntry) {
           setEntry(foundEntry);
@@ -142,23 +144,23 @@ const EntryDetail = () => {
         description={entry.description}
         competitionImage={entry.image}
         competitionId={entry.competition_id}
-        endDate={entry.end_date}
-        ticketNumbers={entry.ticket_numbers}
-        amountSpent={entry.amount_spent}
-        purchaseDate={entry.purchase_date}
-        transactionHash={entry.transaction_hash}
-        prizeValue={entry.prize_value}
-        numberOfTickets={entry.number_of_tickets}
+        endDate={entry.end_date || undefined}
+        ticketNumbers={entry.ticket_numbers || undefined}
+        amountSpent={entry.amount_spent || undefined}
+        purchaseDate={entry.purchase_date || undefined}
+        transactionHash={entry.transaction_hash || undefined}
+        prizeValue={entry.prize_value || undefined}
+        numberOfTickets={entry.number_of_tickets || undefined}
         isInstantWin={entry.is_instant_win}
       />
       <EntriesTickets
-        ticketNumbers={entry.ticket_numbers}
-        numberOfTickets={entry.number_of_tickets}
+        ticketNumbers={entry.ticket_numbers ?? undefined}
+        numberOfTickets={entry.number_of_tickets ?? undefined}
       />
       <EntriesWinnerSection
         fields={fields}
         activeTab={activeTab}
-        status={status}
+        status={status === "pending" ? "live" : status}
         isWinner={isWinner}
       />
     </div>

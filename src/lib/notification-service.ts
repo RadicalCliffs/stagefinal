@@ -514,9 +514,9 @@ export const notificationService = {
       } else if (transactions && Array.isArray(transactions)) {
         // Create notifications for successful transactions
         for (const tx of transactions.slice(0, 20)) { // Limit to last 20 transactions
-          const amount = Number(tx.amount) || 0;
-          const ticketCount = Number(tx.ticket_count) || 1;
-          const txType = tx.type || 'purchase';
+          const amount = Number((tx as any).amount) || 0;
+          const ticketCount = Number((tx as any).ticket_count) || 1;
+          const txType = (tx as any).type || 'purchase';
 
           let notifType: 'payment' | 'topup' = 'payment';
           let title = '';
@@ -529,13 +529,13 @@ export const notificationService = {
           } else {
             notifType = 'payment';
             title = '✅ Payment Successful';
-            message = tx.competition_title
-              ? `You purchased ${ticketCount} ticket${ticketCount > 1 ? 's' : ''} for "${tx.competition_title}" ($${amount.toFixed(2)})`
+            message = (tx as any).competition_title
+              ? `You purchased ${ticketCount} ticket${ticketCount > 1 ? 's' : ''} for "${(tx as any).competition_title}" ($${amount.toFixed(2)})`
               : `Your payment of $${amount.toFixed(2)} for ${ticketCount} ticket${ticketCount > 1 ? 's' : ''} was successful`;
           }
 
           // Check if similar notification already exists
-          const key = `${notifType}:${tx.competition_id || ''}:${message.slice(0, 50)}`;
+          const key = `${notifType}:${(tx as any).competition_id || ''}:${message.slice(0, 50)}`;
           if (!existingSet.has(key)) {
             try {
               const response = await fetch('/api/notifications/', {
@@ -548,7 +548,7 @@ export const notificationService = {
                   type: notifType,
                   title,
                   message,
-                  competition_id: tx.competition_id || null,
+                  competition_id: (tx as any).competition_id || null,
                   read: true, // Mark backfilled notifications as read
                 }),
               });
@@ -580,12 +580,12 @@ export const notificationService = {
           // The notification service will create notifications for new entries going forward
           console.warn('[NotificationService] get_user_tickets RPC not available, skipping backfill');
           console.log('[NotificationService] Backfill complete: created 0, errors 0 (RPC not available)');
-          return;
+          return { created: 0, errors: 0 };
         }
       } catch (err) {
         console.warn('[NotificationService] Could not fetch entries for backfill:', err);
         console.log('[NotificationService] Backfill complete: created 0, errors 0');
-        return;
+        return { created: 0, errors: 0 };
       }
 
       if (entries && Array.isArray(entries)) {

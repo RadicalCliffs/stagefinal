@@ -396,7 +396,7 @@ export const userDataService = {
       }
 
       // Use RPC function to bypass RLS
-      const { data, error } = await supabase.rpc('update_user_profile_by_identifier', {
+      const { data, error } = await (supabase.rpc as any)('update_user_profile_by_identifier', {
         user_identifier: canonicalId,
         new_username: profile.username ?? null,
         new_email: profile.email ?? null,
@@ -449,9 +449,9 @@ export const userDataService = {
 
       // For backwards compatibility: if data is returned but has no success field,
       // check if it looks like a valid response (has rows_affected or similar)
-      if (typeof data === 'object' && ('rows_affected' in data || 'updated' in data)) {
-        const rowsAffected = data.rows_affected ?? data.updated ?? 0;
-        if (rowsAffected > 0) {
+      if (typeof data === 'object' && data !== null && ('rows_affected' in data || 'updated' in data)) {
+        const rowsAffected = (data as any).rows_affected ?? (data as any).updated ?? 0;
+        if (typeof rowsAffected === 'number' && rowsAffected > 0) {
           console.log('[userDataService] Profile update completed (legacy format):', data);
           return true;
         }

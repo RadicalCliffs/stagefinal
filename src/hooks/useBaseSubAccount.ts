@@ -136,7 +136,7 @@ export function useBaseSubAccount(): UseBaseSubAccountResult {
       // The chain must be in the Privy supportedChains array in main.tsx
       const chainId = import.meta.env.VITE_BASE_MAINNET === 'true' ? 8453 : 84532;
       try {
-        await baseAccount.switchChain(chainId);
+        await baseAccount.switchChain?.(chainId);
       } catch (switchErr) {
         // If chain switch fails (e.g., chain not supported), log but continue
         // The wallet may already be on the correct chain or support will be limited
@@ -144,7 +144,7 @@ export function useBaseSubAccount(): UseBaseSubAccountResult {
       }
 
       // Use SDK provider instead of getting from wallet directly
-      const provider = sdkProvider || await baseAccount.getEthereumProvider();
+      const provider = sdkProvider || await baseAccount.getEthereumProvider?.();
       const domain = window.location.origin;
 
       // Check for existing Sub Account using SDK methods if available
@@ -189,11 +189,12 @@ export function useBaseSubAccount(): UseBaseSubAccountResult {
             typeof sdk.subAccount.create === 'function') {
           // Use SDK method
           newSubAccount = await sdk.subAccount.create({
+            type: 'account',
             keys: [{
               type: 'address',
               publicKey: embeddedWallet.address as Hex,
             }],
-          });
+          } as any) as any;  // Type assertion to handle SDK type differences
         } else {
           // Fall back to provider request
           newSubAccount = await provider.request({
@@ -238,7 +239,10 @@ export function useBaseSubAccount(): UseBaseSubAccountResult {
     }
 
     try {
-      const provider = await baseAccount.getEthereumProvider();
+      const provider = await baseAccount.getEthereumProvider?.();
+      if (!provider) {
+        throw new Error('Ethereum provider not available');
+      }
       const { toHex } = await import('viem');
 
       // Sign with Sub Account address (not parent Base Account)
@@ -271,7 +275,10 @@ export function useBaseSubAccount(): UseBaseSubAccountResult {
     }
 
     try {
-      const provider = await baseAccount.getEthereumProvider();
+      const provider = await baseAccount.getEthereumProvider?.();
+      if (!provider) {
+        throw new Error('Ethereum provider not available');
+      }
 
       // Send transaction from Sub Account address (not parent Base Account)
       const txHash = await provider.request({

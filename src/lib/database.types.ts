@@ -405,12 +405,230 @@ export interface Database {
       [_ : string]: never
     }
     Functions: {
+      add_pending_balance: {
+        Args: {
+          user_identifier: string
+          amount: number
+        }
+        Returns: Json
+      }
+      allocate_lucky_dip_tickets: {
+        Args: {
+          p_competition_id: string
+          p_user_id: string
+          p_ticket_count: number
+        }
+        Returns: Json
+      }
+      allocate_lucky_dip_tickets_batch: {
+        Args: {
+          p_competition_id: string
+          p_user_id: string
+          p_ticket_count: number
+        }
+        Returns: Json
+      }
+      attach_identity_after_auth: {
+        Args: {
+          p_user_id: string
+          p_email: string
+          p_username: string
+        }
+        Returns: Json
+      }
+      check_and_mark_competition_sold_out: {
+        Args: {
+          p_competition_id: string
+        }
+        Returns: Json
+      }
       credit_user_balance: {
         Args: {
           user_id: string
           amount: number
         }
         Returns: void
+      }
+      finalize_order: {
+        Args: {
+          p_reservation_id: string
+          p_user_id: string
+          p_competition_id: string
+          p_unit_price: number
+        }
+        Returns: Json
+      }
+      get_available_ticket_count_v2: {
+        Args: {
+          p_competition_id: string
+        }
+        Returns: number
+      }
+      get_competition_entries: {
+        Args: {
+          p_competition_id: string
+          p_limit?: number
+          p_offset?: number
+        }
+        Returns: Json
+      }
+      get_competition_entries_bypass_rls: {
+        Args: {
+          p_competition_id: string
+          p_limit?: number
+          p_offset?: number
+        }
+        Returns: Json
+      }
+      get_competition_ticket_availability_text: {
+        Args: {
+          p_competition_id: string
+        }
+        Returns: string
+      }
+      get_competition_unavailable_tickets: {
+        Args: {
+          p_competition_id: string
+        }
+        Returns: number[]
+      }
+      get_comprehensive_user_dashboard_entries: {
+        Args: {
+          p_user_identifier: string
+        }
+        Returns: Json
+      }
+      get_linked_external_wallet: {
+        Args: {
+          user_identifier: string
+        }
+        Returns: Json
+      }
+      get_recent_entries_count: {
+        Args: {
+          p_competition_id: string
+          p_minutes: number
+        }
+        Returns: number
+      }
+      get_unavailable_tickets: {
+        Args: {
+          p_competition_id: string
+        }
+        Returns: number[]
+      }
+      get_user_active_tickets: {
+        Args: {
+          p_user_identifier: string
+          p_competition_id: string
+        }
+        Returns: Json
+      }
+      get_user_balance: {
+        Args: {
+          user_identifier: string
+        }
+        Returns: Json
+      }
+      get_user_tickets: {
+        Args: {
+          p_user_identifier: string
+          p_competition_id: string
+        }
+        Returns: Json
+      }
+      get_user_tickets_for_competition: {
+        Args: {
+          competition_id: string
+          user_id: string
+        }
+        Returns: Json
+      }
+      get_user_transactions: {
+        Args: {
+          p_user_identifier: string
+        }
+        Returns: Json
+      }
+      get_user_wallet_balance: {
+        Args: {
+          user_identifier: string
+        }
+        Returns: Json
+      }
+      migrate_user_balance: {
+        Args: {
+          p_user_identifier: string
+        }
+        Returns: Json
+      }
+      release_reservation: {
+        Args: {
+          p_reservation_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      reserve_tickets: {
+        Args: {
+          p_competition_id: string
+          p_ticket_numbers: number[]
+          p_user_id: string
+          p_hold_minutes: number
+        }
+        Returns: Json
+      }
+      reserve_tickets_atomically: {
+        Args: {
+          p_competition_id: string
+          p_ticket_count: number
+          p_user_id: string
+          p_hold_minutes?: number
+        }
+        Returns: Json
+      }
+      sync_competition_status_if_ended: {
+        Args: {
+          p_competition_id: string
+        }
+        Returns: Json
+      }
+      unlink_external_wallet: {
+        Args: {
+          user_identifier: string
+        }
+        Returns: Json
+      }
+      update_user_avatar: {
+        Args: {
+          p_user_identifier: string
+          p_avatar_url: string
+        }
+        Returns: Json
+      }
+      update_user_profile_by_identifier: {
+        Args: {
+          p_user_identifier: string
+          p_username?: string
+          p_email?: string
+          p_country?: string
+          p_telephone_number?: string
+          p_telegram_handle?: string
+        }
+        Returns: Json
+      }
+      upsert_canonical_user: {
+        Args: {
+          p_uid: string
+          p_canonical_user_id: string
+          p_email?: string | null
+          p_username?: string | null
+          p_wallet_address?: string | null
+          p_base_wallet_address?: string | null
+          p_eth_wallet_address?: string | null
+          p_privy_user_id?: string | null
+        }
+        Returns: Json
       }
       [key: string]: any
     }

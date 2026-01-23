@@ -31,7 +31,7 @@ export async function isAdmin(walletAddress: string): Promise<boolean> {
       return false;
     }
 
-    return data?.is_admin === true;
+    return (data as any)?.is_admin === true;
   } catch (err) {
     console.error('[AdminAuth] Exception checking admin status:', err);
     return false;
@@ -56,11 +56,11 @@ export async function getAdminUser(walletAddress: string): Promise<AdminUser | n
       return null;
     }
 
-    if (!data?.is_admin) {
+    if (!(data as any)?.is_admin) {
       return null;
     }
 
-    return data as AdminUser;
+    return data as unknown as AdminUser;
   } catch (err) {
     console.error('[AdminAuth] Exception fetching admin user:', err);
     return null;

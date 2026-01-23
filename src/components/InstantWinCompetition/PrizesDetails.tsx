@@ -1,8 +1,8 @@
-import type { Ticket } from "../../models/models";
+import type { EntryTicket } from "../../models/models";
 import PrizeTicketGrid from "./PrizeTicketsGrid";
 
 interface PrizesDetailsProps {
-  tickets?: Ticket[];
+  tickets?: EntryTicket[];
 }
 
 const PrizesDetails: React.FC<PrizesDetailsProps> = ({ tickets = [] }) => {

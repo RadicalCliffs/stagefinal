@@ -94,13 +94,13 @@ const CompetitionsPage = () => {
                   title={comp.title}
                   price={parseFloat(String(comp.ticket_price || comp.entry_fee || '0'))}
                   timeRemaining={calculateTimeRemaining(
-                    comp.end_date ?? Date.now()
+                    String(comp.end_date ?? Date.now())
                   )}
-                  endDate={comp.end_date}
+                  endDate={comp.end_date ?? undefined}
                   entriesSold={`${Math.round(progressPercent)}`}
                   progressPercent={progressPercent === 0 ? 10 : progressPercent}
                   onEnter={() => navigate(`/competitions/${comp.id}`)}
-                  isInstantWin={comp.is_instant_win}
+                  isInstantWin={comp.is_instant_win || undefined}
                   onchainCompetitionId={comp.onchain_competition_id}
                   isSoldOut={(comp.total_tickets || 0) > 0 && (comp.tickets_sold || 0) >= (comp.total_tickets || 0)}
                 />
@@ -146,9 +146,9 @@ const CompetitionsPage = () => {
                   title={comp.title}
                   price={parseFloat(String(comp.ticket_price || comp.entry_fee || '0'))}
                   timeRemaining={calculateTimeRemaining(
-                    comp.created_at ?? Date.now()
+                    String(comp.created_at ?? Date.now())
                   )}
-                  endDate={comp.end_date}
+                  endDate={comp.end_date ?? undefined}
                   entriesSold={`${Math.round(progressPercent)}`}
                   progressPercent={progressPercent === 0 ? 10 : progressPercent}
                   onEnter={() => navigate(`/competitions/${comp.id}`)}
@@ -204,15 +204,15 @@ const CompetitionsPage = () => {
                   title={comp.title}
                   price={parseFloat(String(comp.ticket_price || comp.entry_fee || '0'))}
                   timeRemaining={calculateTimeRemaining(
-                    comp.created_at ?? Date.now()
+                    String(comp.created_at ?? Date.now())
                   )}
-                  endDate={comp.end_date}
+                  endDate={comp.end_date ?? undefined}
                   entriesSold={`${Math.round(progressPercent)}`}
                   progressPercent={progressPercent === 0 ? 10 : progressPercent}
                   onEnter={() => navigate(`/competitions/${comp.id}`)}
                   className="!border-[#DDE404]"
                   isLastChanceCompetition
-                  isInstantWin={comp.is_instant_win}
+                  isInstantWin={comp.is_instant_win || undefined}
                   onchainCompetitionId={comp.onchain_competition_id}
                   isSoldOut={(comp.total_tickets || 0) > 0 && (comp.tickets_sold || 0) >= (comp.total_tickets || 0)}
                 />
@@ -260,11 +260,12 @@ const CompetitionsPage = () => {
                 price={parseFloat(String(comp.ticket_price || comp.entry_fee || '0'))}
                 timeRemaining="00:00:00:00"
                 ticketsSold={`${Math.round(progressPercent)}`}
+                entriesSold={`${Math.round(progressPercent)}% Sold`}
                 progressPercent={progressPercent === 0 ? 10 : progressPercent}
                 onEnter={() => navigate(`/competitions/${comp.id}`)}
                 className="!border-[#EF008F]"
                 isCompetitionFinished={true}
-                isInstantWin={comp.is_instant_win}
+                isInstantWin={comp.is_instant_win || undefined}
                 onchainCompetitionId={comp.onchain_competition_id}
               />
             );

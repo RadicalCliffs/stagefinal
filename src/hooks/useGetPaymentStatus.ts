@@ -379,4 +379,4 @@ export function usePaymentStatus(onOpen: () => void) {
 export const useNowPaymentStatus = usePaymentStatus;
 
 // ISSUE #3 FIX: Export utility functions for use elsewhere
-export { normalizePaymentStatus, isTerminalStatus, type PaymentStatusCanonical };
+export { normalizePaymentStatus, isTerminalStatus };

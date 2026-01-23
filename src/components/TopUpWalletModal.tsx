@@ -329,7 +329,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
           from: walletAddress,
           to: USDC_ADDRESS,
           data: data,
-        }],
+        }] as any,
       });
 
       console.log('[TopUpWalletModal] Transaction submitted:', txHash);
@@ -785,12 +785,10 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                 <div className="flex justify-center">
                   <FundButton
                     fundingUrl={getOnrampBuyUrl({
-                      projectId: getCDPProjectId(),
-                      addresses: { [walletAddress]: ['base'] },
                       assets: ['USDC'],
                       presetFiatAmount: amount,
                       fiatCurrency: 'USD',
-                    })}
+                    } as any)}
                     className="w-full max-w-xs"
                   />
                 </div>

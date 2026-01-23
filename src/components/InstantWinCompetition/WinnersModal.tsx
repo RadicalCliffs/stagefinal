@@ -66,7 +66,7 @@ const WinnersModal: React.FC<WinnersModalProps> = ({
         if (!error && data) {
           const winnerEntries: WinnerEntry[] = data.map(item => ({
             ticketNumber: item.winningTicket || 0,
-            prize: item.prize || PRIZE_LABELS[item.priority] || 'Prize',
+            prize: item.prize || (item.priority != null ? PRIZE_LABELS[item.priority] : undefined) || 'Prize',
             priority: item.priority || 99,
             isClaimed: !!item.winningWalletAddress,
             winnerAddress: item.winningWalletAddress || undefined,

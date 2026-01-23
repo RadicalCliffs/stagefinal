@@ -1,7 +1,7 @@
 import CompetitionCountdown from './CompetitionCountdown';
 
 interface CountdownProps {
-  endDate?: string;
+  endDate?: string | null;
   /** When true, the countdown stops immediately (e.g., competition is sold out or ended) */
   isEnded?: boolean;
 }

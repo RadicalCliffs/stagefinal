@@ -29,12 +29,12 @@ const IndividualCompetition = ({ competition, competitionPageTextOverrides }: In
         />
       </div>
 
-      {competition.total_tickets > 0 ?
+      {(competition.total_tickets ?? 0) > 0 ?
         <div className='bg-[#1E1E1E] py-10 xl:px-0 px-4 relative'>
           <Heading text="Select Your Entries" classes="text-white sequel-95 mb-10" />
           <TicketSelector
             competitionId={competition.id}
-            totalTickets={competition.total_tickets}
+            totalTickets={competition.total_tickets ?? 0}
             ticketPrice={competition.ticket_price || 1}
             ticketsSold={competition.tickets_sold || 0}
           />

@@ -172,7 +172,7 @@ export class CoinbaseCommerceService {
       `prize:pid:${userId}`;
 
     // Insert into pending_topups table - webhook will confirm and move to available_balance
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('pending_topups')
       .insert({
         user_id: userId,
@@ -183,7 +183,7 @@ export class CoinbaseCommerceService {
         payment_provider: 'coinbase_commerce',
         expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 min expiry
         created_at: new Date().toISOString(),
-      });
+      } as any);
 
     if (error) {
       // If table doesn't exist yet, that's OK - webhook will still credit
@@ -197,9 +197,8 @@ export class CoinbaseCommerceService {
 
     // Also add to pending_balance in sub_account_balances for immediate visibility
     const { error: balanceError } = await supabase.rpc('add_pending_balance', {
-      p_canonical_user_id: canonicalUserId,
-      p_amount: amount,
-      p_currency: 'USD'
+      user_identifier: canonicalUserId,
+      amount: amount
     });
 
     if (balanceError) {

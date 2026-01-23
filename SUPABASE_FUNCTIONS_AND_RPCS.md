@@ -205,7 +205,7 @@ RPC Functions are PostgreSQL functions invoked via `supabase.rpc()`. They are de
 **Invocation**:
 ```typescript
 supabase.rpc('get_user_balance', {
-  p_canonical_user_id: string
+  p_canonical_user_id: 'prize:pid:0x...'  // text (SQL TEXT type)
 })
 ```
 
@@ -247,7 +247,7 @@ supabase.rpc('get_user_wallet_balance', {
 **Invocation**:
 ```typescript
 supabase.rpc('get_user_balance_with_pending', {
-  p_canonical_user_id: string
+  p_canonical_user_id: 'prize:pid:0x...'  // text (SQL TEXT type)
 })
 ```
 

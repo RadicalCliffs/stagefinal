@@ -24,7 +24,7 @@ import { useWalletTokens } from '../../hooks/useWalletTokens';
 import { useRealTimeBalance } from '../../hooks/useRealTimeBalance';
 import { supabase } from '../../lib/supabase';
 import { database } from '../../lib/database';
-import { toPrizePid, isWalletAddress } from '../../utils/userId';
+import { toPrizePid, isWalletAddress, userIdsEqual } from '../../utils/userId';
 import BaseAccountStatus from '../BaseAccountStatus';
 
 // Lazy load TopUpWalletModal - only loaded when user clicks "Top Up"
@@ -110,8 +110,9 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
         }
 
         // RPC returns { success: boolean, linked_wallet: string | null }
-        if (data?.success && data?.linked_wallet) {
-          setLinkedExternalWallet(data.linked_wallet);
+        const result = data as any;
+        if (result?.success && result?.linked_wallet) {
+          setLinkedExternalWallet(result.linked_wallet);
         }
       } catch (err) {
         console.error('Error fetching linked wallet:', err);
@@ -270,11 +271,12 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
       }
 
       // RPC returns { success: boolean, message?: string, error?: string }
-      if (data?.success) {
+      const result = data as any;
+      if (result?.success) {
         setLinkedExternalWallet(null);
         setLinkSuccess('External wallet unlinked successfully.');
       } else {
-        setLinkError(data?.error || 'Failed to unlink wallet. Please try again.');
+        setLinkError(result?.error || 'Failed to unlink wallet. Please try again.');
       }
     } catch (err) {
       console.error('Error unlinking wallet:', err);

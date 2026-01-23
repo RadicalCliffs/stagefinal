@@ -19,6 +19,9 @@ interface LinkedWallet {
   isEmbeddedWallet?: boolean;
   // External wallet indicator - true when connected via injected wallet (MetaMask, etc.)
   isExternalWallet?: boolean;
+  // Methods for wallet interactions
+  getEthereumProvider?: () => any;
+  switchChain?: (chainId: number) => Promise<void>;
 }
 
 // User data from Base/CDP auth - replaces Privy user object
@@ -97,7 +100,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const lastAuthCompleteEmailRef = useRef<string | null>(null);
 
   // Extract email from currentUser (memoized to prevent unnecessary recalculations)
-  const userEmail = currentUser?.email || (currentUser as any)?.emails?.[0]?.value || (currentUser as any)?.emails?.[0]?.address;
+  const userEmail = (currentUser as any)?.email || (currentUser as any)?.emails?.[0]?.value || (currentUser as any)?.emails?.[0]?.address;
 
   // Determine the effective wallet address
   // CDP (email sign-in) takes priority over wagmi (external wallet connection)
@@ -433,7 +436,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Use wallet address as the primary identifier for Base auth
         await fetchUserData(
           effectiveWalletAddress,
-          userProfile.wallet_address
+          userProfile.wallet_address || undefined
         );
       }
     } catch (error) {
@@ -534,7 +537,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           };
 
           if (recordMatchesUser(record)) {
-            void fetchUserData(profile?.uid || profile?.id || '', profile?.wallet_address);
+            void fetchUserData(profile?.uid || profile?.id || '', profile?.wallet_address || undefined);
           }
         }
       )
@@ -586,7 +589,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (profile?.uid || profile?.id || profile?.wallet_address) {
         fetchUserData(
           profile?.uid || profile?.id || '',
-          profile?.wallet_address,
+          profile?.wallet_address || undefined,
           { skipBalance: true } // CRITICAL: Skip balance to avoid overwriting with stale data
         );
       }

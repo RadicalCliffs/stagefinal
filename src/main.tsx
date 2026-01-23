@@ -248,7 +248,7 @@ const cdpConfig: CDPConfig = {
   appLogoUrl: '',
   // Support both email and passkey authentication for easy sign-in
   // Passkey allows users to authenticate using biometrics/security keys
-  authMethods: ['email', 'passkey'],
+  authMethods: ['email', 'passkey' as any],
   showCoinbaseFooter: false,
 };
 
@@ -336,15 +336,13 @@ function OnchainKitProviderWrapper({ children }: { children: React.ReactNode }) 
           // The injected connector (from wagmi config) will detect ANY wallet in browser/phone
           // This includes MetaMask, Rainbow, Phantom, or any wallet the user has connected
           supportedWallets: {
-            // Keep MetaMask disabled to prioritize Base, but injected will catch it
-            metamask: false,
             // Keep Phantom disabled to prioritize Base, but injected will catch it
             phantom: false,
             // Keep other wallets disabled
             rabby: false,
             trust: false,
             frame: false,
-          },
+          } as any,
         },
       }}
     >

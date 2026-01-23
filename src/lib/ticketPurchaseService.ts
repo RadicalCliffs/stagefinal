@@ -180,9 +180,6 @@ export async function purchaseTicketsWithBalance({
             notificationService.notifyEntry(userId, competitionTitle, ticketNumbers, competitionId).catch(err => {
               console.warn('[purchaseTicketsWithBalance] Failed to send entry notification:', err);
             });
-          })
-          .catch(err => {
-            console.warn('[purchaseTicketsWithBalance] Failed to fetch competition for notification:', err);
           });
       } catch (notifyErr) {
         console.warn('[purchaseTicketsWithBalance] Notification error (non-blocking):', notifyErr);
@@ -385,11 +382,11 @@ export async function getUserBalance(userId: string) {
       .or(`canonical_user_id.eq.${canonicalUserId},user_id.eq.${normalizedUserId},privy_user_id.eq.${normalizedUserId}`)
       .limit(1);
 
-    if (subAccountData && subAccountData.length > 0 && !subAccountError && Number(subAccountData[0].available_balance) > 0) {
+    if (subAccountData && subAccountData.length > 0 && !subAccountError && Number((subAccountData[0] as any).available_balance) > 0) {
       return {
         success: true,
         data: {
-          usdc_balance: Number(subAccountData[0].available_balance) || 0
+          usdc_balance: Number((subAccountData[0] as any).available_balance) || 0
         }
       };
     }
@@ -600,7 +597,7 @@ export async function payWithBalance({
       const errorMsg = data.error || 'Payment failed';
       return {
         success: false,
-        error: getUserFriendlyErrorMessage(null, errorMsg)
+        error: getUserFriendlyErrorMessage(undefined, errorMsg)
       };
     }
 

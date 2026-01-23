@@ -197,7 +197,7 @@ export class BasePaymentService {
     }
 
     return {
-      transactionId: result.transactionId,
+      transactionId: result.transactionId ?? '',
       totalAmount: result.totalAmount || totalAmount,
     };
   }
@@ -681,7 +681,7 @@ export class BasePaymentService {
 
       return {
         status: normalizedStatus,
-        transactionHash: data?.tx_id,
+        transactionHash: data?.tx_id ?? undefined,
       };
     } catch (error) {
       console.error('Error getting transaction status:', error);

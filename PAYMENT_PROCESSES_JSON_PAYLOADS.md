@@ -28,7 +28,7 @@ This document provides the **exact JSON payloads** for all payment-related proce
 {
   "userId": "string (optional)",
   "userIdentifier": "string (optional)",
-  "canonical_user_id": "string (optional)",
+  "canonical_user_id": "text (optional)",
   "walletAddress": "string (optional, 0x...)",
   "wallet_address": "string (optional)",
   "competitionId": "string (UUID)",
@@ -194,7 +194,7 @@ This document provides the **exact JSON payloads** for all payment-related proce
   "userId": "string",
   "userIdentifier": "string (alternative)",
   "user_identifier": "string (alternative)",
-  "canonical_user_id": "string (alternative)",
+  "canonical_user_id": "text (alternative)",
   "user_id": "string (alternative)",
   "competitionId": "string (UUID)",
   "competition_id": "string (alternative)",

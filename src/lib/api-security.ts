@@ -215,7 +215,7 @@ export async function validateCompetitionAccess(
         if (!user) {
           return { authorized: false, error: 'User not found' };
         }
-        if (!user.is_admin && competition.created_by !== userId) {
+        if (!(user as any).is_admin && competition.created_by !== userId) {
           return {
             authorized: false,
             error: 'Admin access required',

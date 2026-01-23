@@ -22,6 +22,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
+import type { Hash } from 'viem';
 import { useAuthUser } from '../../contexts/AuthContext';
 import {
   getCompetitionDetails,
@@ -30,6 +31,7 @@ import {
   type CompetitionDetails,
   type PurchaseResult
 } from '../../lib/luckyDip';
+import type { TicketsPurchasedEvent } from '../../lib/competitionEvents';
 import { supabase } from '../../lib/supabase';
 import { reserveTicketsWithRedundancy } from '../../lib/reserve-tickets-redundant';
 import { parseReservationErrorAsync, getUserFriendlyErrorMessage, SupabaseFunctionError } from '../../lib/error-handler';
@@ -179,19 +181,22 @@ export default function TicketPicker({
 
   // Subscribe to ticket purchase events
   useCompetitionEvents({
-    onTicketsPurchased: (event) => {
+    onTicketsPurchased: (event: TicketsPurchasedEvent) => {
       // Add newly purchased tickets to sold set
       const newSold = new Set(soldTickets);
-      event.ticketNumbers.forEach(num => {
-        newSold.add(Number(num));
-      });
+      // Generate ticket numbers from fromTicket to fromTicket + count
+      const fromTicket = Number(event.fromTicket);
+      const count = Number(event.count);
+      for (let i = 0; i < count; i++) {
+        newSold.add(fromTicket + i);
+      }
       setSoldTickets(newSold);
 
       // Remove from selection if was selected
       const newSelected = new Set(selectedTickets);
-      event.ticketNumbers.forEach(num => {
-        newSelected.delete(Number(num));
-      });
+      for (let i = 0; i < count; i++) {
+        newSelected.delete(fromTicket + i);
+      }
       setSelectedTickets(newSelected);
 
       // Refresh competition details
@@ -634,13 +639,16 @@ export default function TicketPicker({
               // Show success
               setSuccess({
                 tickets: purchasedTickets,
-                txHash: reservationId || 'confirmed'
+                txHash: (reservationId || 'confirmed') as Hash
               });
               // Call parent callback if provided
               if (onSuccess) {
                 onSuccess({
                   ticketNumbers: purchasedTickets,
-                  txHash: reservationId || 'confirmed'
+                  txHash: (reservationId || 'confirmed') as Hash,
+                  totalPaid: '0',
+                  buyerAddress: '0x0',
+                  instantWins: []
                 });
               }
             }}

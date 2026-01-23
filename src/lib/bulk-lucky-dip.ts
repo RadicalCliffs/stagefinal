@@ -140,7 +140,7 @@ export async function getCompetitionUnavailableTickets(
     }
 
     if (data && Array.isArray(data)) {
-      data.forEach((row: UnavailableTicket) => {
+      (data as any as UnavailableTicket[]).forEach((row) => {
         if (row.ticket_number) {
           unavailableSet.add(row.ticket_number);
         }
@@ -176,7 +176,7 @@ async function allocateBatchWithRetry(
       const { data, error } = await supabase.rpc('allocate_lucky_dip_tickets_batch', {
         p_user_id: userId,
         p_competition_id: competitionId,
-        p_count: count,
+        p_ticket_count: count,
         p_ticket_price: ticketPrice,
         p_hold_minutes: holdMinutes,
         p_session_id: sessionId,
@@ -204,8 +204,8 @@ async function allocateBatchWithRetry(
 
         // Check if this is a retryable error
         const isRetryable = result?.retryable === true ||
-          lastError.includes('locked') ||
-          lastError.includes('temporarily');
+          (lastError && lastError.includes('locked')) ||
+          (lastError && lastError.includes('temporarily'));
 
         if (isRetryable && attempt < MAX_RETRY_ATTEMPTS - 1) {
           retryCount++;

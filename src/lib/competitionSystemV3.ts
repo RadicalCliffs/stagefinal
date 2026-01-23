@@ -43,17 +43,20 @@ export const activeChain = isBaseMainnet ? base : baseSepolia;
 const activeRpcUrl = isBaseMainnet ? 'https://mainnet.base.org' : 'https://sepolia.base.org';
 
 // Competition types enum - the new VRF contract is simpler (no instant win type)
-export enum CompetitionType {
-  REGULAR = 0,
-  INSTANT_WIN = 1 // Legacy - kept for backward compatibility but not used in new contract
-}
+const CompetitionType = {
+  REGULAR: 0,
+  INSTANT_WIN: 1 // Legacy - kept for backward compatibility but not used in new contract
+} as const;
+
+export { CompetitionType };
+export type CompetitionTypeValue = typeof CompetitionType[keyof typeof CompetitionType];
 
 // Re-export the ABI for backward compatibility
 export const COMPETITION_SYSTEM_ABI = COMPETITION_VRF_ABI;
 
 // TypeScript interfaces for return values
 export interface CompetitionDetails {
-  compType: CompetitionType;
+  compType: CompetitionTypeValue;
   totalTickets: number;
   ticketsSold: number;
   pricePerTicket: string;
@@ -107,7 +110,7 @@ export function getPublicClient(): PublicClient {
   return createPublicClient({
     chain: activeChain,
     transport: http(activeRpcUrl)
-  });
+  }) as any;
 }
 
 /**
@@ -242,10 +245,10 @@ export async function buyLuckyDipTickets(
 
       if (decodedLog.eventName === 'TicketsPurchased') {
         // New contract emits fromTicket and count, not an array of ticket numbers
-        const args = decodedLog.args as { fromTicket?: bigint; count?: number };
+        const args = decodedLog.args as any;
         if (args.fromTicket !== undefined && args.count !== undefined) {
           const from = Number(args.fromTicket);
-          for (let i = 0; i < args.count; i++) {
+          for (let i = 0; i < Number(args.count); i++) {
             ticketNumbers.push(from + i);
           }
         }

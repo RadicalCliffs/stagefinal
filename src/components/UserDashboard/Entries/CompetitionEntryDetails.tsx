@@ -14,20 +14,20 @@ interface EntryData {
   title: string;
   description: string;
   image: string;
-  status: "live" | "drawn" | "pending";
+  status: "live" | "drawn" | "pending";  // Added pending
   entry_type: string;
   is_winner: boolean;
-  ticket_numbers: string;
-  number_of_tickets: number;
-  amount_spent: string;
-  purchase_date: string;
-  wallet_address: string;
-  transaction_hash: string;
+  ticket_numbers?: string | null;
+  number_of_tickets?: number | null;
+  amount_spent?: string | null;
+  purchase_date?: string | null;
+  wallet_address?: string | null;
+  transaction_hash?: string | null;
   is_instant_win: boolean;
-  prize_value: string;
+  prize_value?: string | null;
   competition_status: string;
-  end_date: string;
-  expires_at?: string;
+  end_date?: string | null;
+  expires_at?: string | null;
 }
 
 interface AggregatedEntry {
@@ -40,11 +40,11 @@ interface AggregatedEntry {
   total_tickets: number;
   all_ticket_numbers: string;
   total_amount_spent: number;
-  first_purchase_date: string;
-  last_purchase_date: string;
+  first_purchase_date?: string;
+  last_purchase_date?: string;
   transaction_hashes: string[];
-  prize_value: string;
-  end_date: string;
+  prize_value?: string;
+  end_date?: string;
   individual_entries: EntryData[];
   is_pending: boolean;
   expires_at?: string;
@@ -79,9 +79,9 @@ const CompetitionEntryDetails = () => {
       try {
         // Fetch all user entries and filter for this competition
         const allEntries = await database.getUserEntries(baseUser.id);
-        const competitionEntries = allEntries?.filter(
-          (e: EntryData) => e.competition_id === competitionId
-        );
+        const competitionEntries = (allEntries || []).filter(
+          (e: any): e is EntryData => e !== null && typeof e === 'object' && 'competition_id' in e && 'expires_at' in e && e.competition_id === competitionId
+        ) as EntryData[];
 
         if (competitionEntries && competitionEntries.length > 0) {
           setEntries(competitionEntries);
@@ -158,7 +158,7 @@ const CompetitionEntryDetails = () => {
       0
     );
     const totalAmount = uniqueEntries.reduce(
-      (sum, e) => sum + (parseFloat(e.amount_spent) || 0),
+      (sum, e) => sum + (parseFloat(e.amount_spent || '0') || 0),
       0
     );
 
@@ -168,8 +168,8 @@ const CompetitionEntryDetails = () => {
     // Find first and last purchase dates from all entries (including duplicates for date range)
     const sortedByDate = [...entries].sort(
       (a, b) =>
-        new Date(a.purchase_date).getTime() -
-        new Date(b.purchase_date).getTime()
+        new Date(a.purchase_date || 0).getTime() -
+        new Date(b.purchase_date || 0).getTime()
     );
     const firstPurchaseDate = sortedByDate[0]?.purchase_date;
     const lastPurchaseDate = sortedByDate[sortedByDate.length - 1]?.purchase_date;
@@ -177,7 +177,7 @@ const CompetitionEntryDetails = () => {
     // Collect unique transaction hashes from all entries
     const transactionHashes = entries
       .map((e) => e.transaction_hash)
-      .filter((hash) => hash && hash !== "no-hash");
+      .filter((hash): hash is string => hash !== null && hash !== undefined && hash !== "no-hash");
     const uniqueHashes = [...new Set(transactionHashes)];
 
     // Check if pending
@@ -201,14 +201,14 @@ const CompetitionEntryDetails = () => {
       total_tickets: totalTickets,
       all_ticket_numbers: uniqueTickets.join(", "),
       total_amount_spent: totalAmount,
-      first_purchase_date: firstPurchaseDate,
-      last_purchase_date: lastPurchaseDate,
-      transaction_hashes: uniqueHashes,
-      prize_value: firstEntry.prize_value,
-      end_date: firstEntry.end_date,
+      first_purchase_date: firstPurchaseDate ?? undefined,
+      last_purchase_date: lastPurchaseDate ?? undefined,
+      transaction_hashes: uniqueHashes.filter((h): h is string => h != null),
+      prize_value: firstEntry.prize_value ?? undefined,
+      end_date: firstEntry.end_date ?? undefined,
       individual_entries: uniqueEntries,
       is_pending: isPending,
-      expires_at: expirations[0],
+      expires_at: expirations[0] || undefined,
       is_instant_win: firstEntry.is_instant_win || false,
     };
   }, [entries]);
@@ -327,8 +327,8 @@ const CompetitionEntryDetails = () => {
             {aggregatedEntry.individual_entries
               .sort(
                 (a, b) =>
-                  new Date(b.purchase_date).getTime() -
-                  new Date(a.purchase_date).getTime()
+                  new Date(b.purchase_date || 0).getTime() -
+                  new Date(a.purchase_date || 0).getTime()
               )
               .map((entry, index) => (
                 <div
@@ -337,7 +337,7 @@ const CompetitionEntryDetails = () => {
                 >
                   <div className="flex-1 min-w-0">
                     <div className="text-white sequel-45 text-sm">
-                      {new Date(entry.purchase_date).toLocaleDateString(
+                      {new Date(entry.purchase_date || 0).toLocaleDateString(
                         "en-US",
                         {
                           month: "short",
@@ -374,7 +374,7 @@ const CompetitionEntryDetails = () => {
       <EntriesWinnerSection
         fields={fields}
         activeTab={activeTab}
-        status={status}
+        status={status === "pending" ? "live" : status}
         isWinner={isWinner}
       />
     </div>

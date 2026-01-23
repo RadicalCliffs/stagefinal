@@ -207,7 +207,7 @@ const ProfileUpdateSuccessModal: React.FC<ProfileUpdateSuccessModalProps> = ({
 
                       {/* Time badge */}
                       <div className="absolute top-2 left-2 bg-black/80 text-white text-xs px-2 py-1 rounded sequel-45">
-                        {getTimeRemaining(comp.end_date)}
+                        {getTimeRemaining(comp.end_date || undefined)}
                       </div>
 
                       {/* Instant win badge */}

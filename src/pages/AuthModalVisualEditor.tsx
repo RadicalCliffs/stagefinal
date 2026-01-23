@@ -227,6 +227,10 @@ const PREVIEW_PROPS = {
       name: 'Preview User',
       country: 'US',
       wallet_address: '0x1234567890123456789012345678901234567890',
+      firstName: 'Preview',
+      lastName: 'User',
+      address: '123 Preview Street',
+      phoneNumber: '+1234567890',
     },
   },
   TopUpWalletModal: {
@@ -2388,7 +2392,7 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
             <div className="flex items-center gap-2">
               <label className="text-white font-medium">{color.label}</label>
               {color.locked && (
-                <Lock size={14} className="text-yellow-400" title="Functional - locked from editing" />
+                <Lock size={14} className="text-yellow-400" aria-label="Functional - locked from editing" />
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -2447,7 +2451,7 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
           <div className="flex items-center gap-2 mb-3">
             <label className="text-white font-medium">{font.label}</label>
             {font.locked && (
-              <Lock size={14} className="text-yellow-400" title="Functional - locked from editing" />
+              <Lock size={14} className="text-yellow-400" aria-label="Functional - locked from editing" />
             )}
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -2530,7 +2534,7 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
           <div className="flex items-center gap-2 mb-2">
             <label className="text-white font-medium">{text.label}</label>
             {text.locked && (
-              <Lock size={14} className="text-yellow-400" title="Functional - locked from editing" />
+              <Lock size={14} className="text-yellow-400" aria-label="Functional - locked from editing" />
             )}
           </div>
           {text.multiline ? (
@@ -2597,7 +2601,7 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
               <div className="flex items-center gap-2 mb-3">
                 <label className="text-white font-medium">{image.label}</label>
                 {image.locked && (
-                  <Lock size={14} className="text-yellow-400" title="Functional - locked from editing" />
+                  <Lock size={14} className="text-yellow-400" aria-label="Functional - locked from editing" />
                 )}
                 {image.type && (
                   <span className="text-xs px-2 py-0.5 rounded bg-blue-500/20 text-blue-400">
@@ -2936,14 +2940,14 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     {!button.locked && (
-                      <GripVertical size={16} className="text-white/40 cursor-move" title="Drag to reorder" />
+                      <GripVertical size={16} className="text-white/40 cursor-move" aria-label="Drag to reorder" />
                     )}
                     <label className="text-white font-medium">{button.label}</label>
                     {button.locked && (
-                      <Lock size={14} className="text-yellow-400" title="Functional - locked from editing" />
+                      <Lock size={14} className="text-yellow-400" aria-label="Functional - locked from editing" />
                     )}
                     {button.hasDependencies && (
-                      <AlertCircle size={14} className="text-orange-400" title="Has dependencies" />
+                      <AlertCircle size={14} className="text-orange-400" aria-label="Has dependencies" />
                     )}
                     {button.hidden && (
                       <span className="text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-400">
@@ -3096,7 +3100,7 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
                 <div className="flex items-center gap-2 mb-2">
                   <h4 className="text-white font-semibold">{section.label}</h4>
                   {section.locked && (
-                    <Lock size={14} className="text-yellow-400" title="Core section - cannot be hidden" />
+                    <Lock size={14} className="text-yellow-400" aria-label="Core section - cannot be hidden" />
                   )}
                   {section.hidden && (
                     <span className="text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-400">
@@ -4511,7 +4515,7 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
                 <div className="flex items-center gap-2 mb-1">
                   <h4 className="text-white font-semibold">{step.label}</h4>
                   {step.locked && (
-                    <Lock size={14} className="text-yellow-400" title="Core step - cannot be reordered" />
+                    <Lock size={14} className="text-yellow-400" aria-label="Core step - cannot be reordered" />
                   )}
                   {!step.locked && (
                     <span className="text-white/40 text-xs cursor-move">⋮⋮ Drag to reorder</span>

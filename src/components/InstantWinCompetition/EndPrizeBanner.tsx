@@ -15,9 +15,11 @@ const EndPrizeBanner = () => {
             if (!id) return;
             const comp = await database.getCompetitionById(id);
             if (comp && comp.is_instant_win) {
-                setEndDate(comp.draw_date);
+                setEndDate(comp.draw_date ?? undefined);
                 // Check if competition has ended (sold out, completed, or not accepting entries)
-                const isSoldOut = (comp.total_tickets || 0) > 0 && (comp.tickets_sold || 0) >= (comp.total_tickets || 0);
+                const totalTickets = Number(comp.total_tickets ?? 0);
+                const ticketsSold = Number(comp.tickets_sold ?? 0);
+                const isSoldOut = totalTickets > 0 && ticketsSold >= totalTickets;
                 const isNotAcceptingEntries = !canEnterCompetition(comp.status);
                 setIsEnded(isSoldOut || isNotAcceptingEntries);
             }

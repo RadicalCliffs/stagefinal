@@ -151,23 +151,26 @@ const styles = {
 };
 
 // Log level enum
-export enum LogLevel {
-  DEBUG = 0,
-  INFO = 1,
-  WARN = 2,
-  ERROR = 3,
-}
+const LogLevel = {
+  DEBUG: 0,
+  INFO: 1,
+  WARN: 2,
+  ERROR: 3,
+} as const;
+
+export { LogLevel };
+export type LogLevelValue = typeof LogLevel[keyof typeof LogLevel];
 
 // Current log level (can be adjusted)
-let currentLogLevel = LogLevel.DEBUG;
+let currentLogLevel: LogLevelValue = LogLevel.DEBUG;
 
-export function setLogLevel(level: LogLevel): void {
+export function setLogLevel(level: LogLevelValue): void {
   currentLogLevel = level;
 }
 
 // Core logging function with module prefix
 function log(
-  level: LogLevel,
+  level: LogLevelValue,
   module: string,
   message: string,
   data?: unknown,
