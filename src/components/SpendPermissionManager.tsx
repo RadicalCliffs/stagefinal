@@ -13,7 +13,7 @@
  */
 
 import { useState } from 'react';
-import { useSpendPermission } from '../../hooks/useSpendPermission';
+import { useSpendPermission } from '../hooks/useSpendPermission';
 import { Shield, Check, X, AlertCircle, Clock, DollarSign, RefreshCw, Trash2 } from 'lucide-react';
 
 interface SpendPermissionManagerProps {

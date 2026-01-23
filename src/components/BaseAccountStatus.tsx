@@ -14,9 +14,9 @@
  */
 
 import { useState } from 'react';
-import { useBaseAccountSDK } from '../../contexts/BaseAccountSDKContext';
+import { useBaseAccountSDK } from '../contexts/BaseAccountSDKContext';
 import { Copy, Check, RefreshCw, LogOut, Shield } from 'lucide-react';
-import { truncateString } from '../../utils/util';
+import { truncateString } from '../utils/util';
 
 interface BaseAccountStatusProps {
   /** Whether to show full controls or just status */
