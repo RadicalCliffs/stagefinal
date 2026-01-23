@@ -117,11 +117,11 @@ export class CompetitionLifecycleService {
       // Get all competitions that have passed their end date and are NOT in terminal states
       // This catches: active, drawing, and draft competitions that should have been processed
       const { data: expiredCompetitions, error } = await withRetry(
-        () => supabase
+        async () => await supabase
           .from('competitions')
           .select('*')
           .in('status', ['active', 'drawing', 'draft'])
-          .not('end_date', 'is', null)
+          .not('end_date', 'is', null as any)
           .lt('end_date', new Date().toISOString()),
         'fetch expired competitions'
       );
@@ -163,7 +163,7 @@ export class CompetitionLifecycleService {
 
       // Get all active competitions with defined total_tickets
       const { data: activeCompetitions, error } = await withRetry(
-        () => supabase
+        async () => await supabase
           .from('competitions')
           .select('*')
           .eq('status', 'active')
@@ -187,7 +187,7 @@ export class CompetitionLifecycleService {
         try {
           // Count sold tickets for this competition
           const { data: entries } = await withRetry(
-            () => supabase
+            async () => await supabase
               .from('v_joincompetition_active')
               .select('ticketnumbers')
               .eq('competitionid', competition.id),
@@ -302,7 +302,7 @@ export class CompetitionLifecycleService {
    */
   private static async getCompetitionEntries(competitionId: string): Promise<CompetitionEntry[]> {
     const { data, error } = await withRetry(
-      () => supabase
+      async () => await supabase
         .from('v_joincompetition_active')
         .select('*')
         .eq('competitionid', competitionId),
@@ -328,7 +328,7 @@ export class CompetitionLifecycleService {
     try {
       // Check if winner already exists
       const { data: existingWinner } = await withRetry(
-        () => supabase
+        async () => await supabase
           .from('winners')
           .select('*')
           .eq('competition_id', competition.id)
@@ -346,7 +346,7 @@ export class CompetitionLifecycleService {
 
       // Try by uuid id first
       const byUuid = await withRetry(
-        () => supabase
+        async () => await supabase
           .from('canonical_users')
           .select('id, username, country, wallet_address, canonical_user_id')
           .eq('id', entry.userid)
@@ -354,19 +354,19 @@ export class CompetitionLifecycleService {
         'fetch user details by UUID'
       );
       
-      if (byUuid?.data) {
+      if (byUuid && 'data' in byUuid && byUuid.data) {
         user = byUuid.data;
       } else {
         // Fallback to canonical_user_id
         const byCanonical = await withRetry(
-          () => supabase
+          async () => await supabase
             .from('canonical_users')
             .select('id, username, country, wallet_address, canonical_user_id')
             .eq('canonical_user_id', entry.userid)
             .maybeSingle(),
           'fetch user details by canonical_user_id'
         );
-        user = byCanonical?.data ?? null;
+        user = (byCanonical && 'data' in byCanonical) ? byCanonical.data : null;
       }
 
       // Create winner record
@@ -384,7 +384,7 @@ export class CompetitionLifecycleService {
       };
 
       const { error } = await withRetry(
-        () => supabase.from('winners').insert(winnerData),
+        async () => await supabase.from('winners').insert(winnerData),
         'create winner record'
       );
 
@@ -405,7 +405,7 @@ export class CompetitionLifecycleService {
    */
   private static async markCompetitionAsDrawn(competition: any): Promise<void> {
     const { error } = await withRetry(
-      () => supabase
+      async () => await supabase
         .from('competitions')
         .update({
           status: 'completed',
@@ -460,11 +460,11 @@ export class CompetitionLifecycleService {
   }> {
     try {
       const { data: expiredCompetitions } = await withRetry(
-        () => supabase
+        async () => await supabase
           .from('competitions')
           .select('*')
           .eq('status', 'active')
-          .not('end_date', 'is', null)
+          .not('end_date', 'is', null as any)
           .lt('end_date', new Date().toISOString()),
         'fetch expired competitions for manual process'
       );
