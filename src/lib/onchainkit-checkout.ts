@@ -88,13 +88,13 @@ async function callCreateCharge(body: Record<string, unknown>): Promise<ChargeRe
     console.error('[OnchainKit] Charge creation failed:', {
       status: response.status,
       error: responseData.error,
-      details: (responseData as Record<string, unknown>).details,
+      details: (responseData as any).details,
       debug: responseData.debug
     });
     throw new Error(errorMessage);
   }
 
-  return responseData;
+  return responseData as any;
 }
 
 export class OnchainKitCheckoutService {
@@ -253,9 +253,9 @@ export class OnchainKitCheckoutService {
         // Fallback to direct update if RPC doesn't exist yet
         console.warn('[linkReservation] RPC not available, using fallback:', rpcError.message);
 
-        await supabase
+        await (supabase as any)
           .from('pending_tickets')
-          .update({ session_id: transactionId })
+          .update({ session_id: transactionId } as any)
           .eq('id', reservationId);
       }
     } catch (error) {

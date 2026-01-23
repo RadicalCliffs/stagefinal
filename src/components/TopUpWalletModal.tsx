@@ -785,11 +785,10 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                 <div className="flex justify-center">
                   <FundButton
                     fundingUrl={getOnrampBuyUrl({
-                      addresses: { [walletAddress]: ['base'] },
                       assets: ['USDC'],
                       presetFiatAmount: amount,
                       fiatCurrency: 'USD',
-                    })}
+                    } as any)}
                     className="w-full max-w-xs"
                   />
                 </div>

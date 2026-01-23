@@ -183,13 +183,18 @@ export class CircuitBreaker {
  * Custom error for circuit breaker failures
  */
 export class CircuitBreakerError extends Error {
+  readonly circuitState: CircuitState;
+  readonly stats: ReturnType<CircuitBreaker['getStats']>;
+  
   constructor(
     message: string,
-    public readonly circuitState: CircuitState,
-    public readonly stats: ReturnType<CircuitBreaker['getStats']>
+    circuitState: CircuitState,
+    stats: ReturnType<CircuitBreaker['getStats']>
   ) {
     super(message);
     this.name = 'CircuitBreakerError';
+    this.circuitState = circuitState;
+    this.stats = stats;
   }
 }
 

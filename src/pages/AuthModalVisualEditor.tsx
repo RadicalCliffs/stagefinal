@@ -227,6 +227,10 @@ const PREVIEW_PROPS = {
       name: 'Preview User',
       country: 'US',
       wallet_address: '0x1234567890123456789012345678901234567890',
+      firstName: 'Preview',
+      lastName: 'User',
+      address: '123 Preview Street',
+      phoneNumber: '+1234567890',
     },
   },
   TopUpWalletModal: {

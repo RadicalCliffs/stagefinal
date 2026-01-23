@@ -497,7 +497,7 @@ export class BaseAccountPaymentService {
 
       return {
         status: normalizedStatus,
-        transactionHash: data?.tx_id,
+        transactionHash: data?.tx_id ?? undefined,
       };
     } catch (error) {
       console.error('Error getting transaction status:', error);

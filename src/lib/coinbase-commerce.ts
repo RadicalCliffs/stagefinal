@@ -172,7 +172,7 @@ export class CoinbaseCommerceService {
       `prize:pid:${userId}`;
 
     // Insert into pending_topups table - webhook will confirm and move to available_balance
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('pending_topups')
       .insert({
         user_id: userId,

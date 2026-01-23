@@ -80,7 +80,7 @@ const CompetitionEntryDetails = () => {
         // Fetch all user entries and filter for this competition
         const allEntries = await database.getUserEntries(baseUser.id);
         const competitionEntries = (allEntries || []).filter(
-          (e): e is EntryData => e !== null && typeof e === 'object' && 'competition_id' in e && e.competition_id === competitionId
+          (e: any): e is EntryData => e !== null && typeof e === 'object' && 'competition_id' in e && 'expires_at' in e && e.competition_id === competitionId
         ) as EntryData[];
 
         if (competitionEntries && competitionEntries.length > 0) {

@@ -189,11 +189,12 @@ export function useBaseSubAccount(): UseBaseSubAccountResult {
             typeof sdk.subAccount.create === 'function') {
           // Use SDK method
           newSubAccount = await sdk.subAccount.create({
+            type: 'account',
             keys: [{
               type: 'address',
               publicKey: embeddedWallet.address as Hex,
             }],
-          }) as any;  // Type assertion to handle SDK type differences
+          } as any) as any;  // Type assertion to handle SDK type differences
         } else {
           // Fall back to provider request
           newSubAccount = await provider.request({

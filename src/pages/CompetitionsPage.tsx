@@ -94,9 +94,9 @@ const CompetitionsPage = () => {
                   title={comp.title}
                   price={parseFloat(String(comp.ticket_price || comp.entry_fee || '0'))}
                   timeRemaining={calculateTimeRemaining(
-                    comp.end_date ?? Date.now()
+                    String(comp.end_date ?? Date.now())
                   )}
-                  endDate={comp.end_date}
+                  endDate={comp.end_date ?? undefined}
                   entriesSold={`${Math.round(progressPercent)}`}
                   progressPercent={progressPercent === 0 ? 10 : progressPercent}
                   onEnter={() => navigate(`/competitions/${comp.id}`)}
@@ -146,9 +146,9 @@ const CompetitionsPage = () => {
                   title={comp.title}
                   price={parseFloat(String(comp.ticket_price || comp.entry_fee || '0'))}
                   timeRemaining={calculateTimeRemaining(
-                    comp.created_at ?? Date.now()
+                    String(comp.created_at ?? Date.now())
                   )}
-                  endDate={comp.end_date}
+                  endDate={comp.end_date ?? undefined}
                   entriesSold={`${Math.round(progressPercent)}`}
                   progressPercent={progressPercent === 0 ? 10 : progressPercent}
                   onEnter={() => navigate(`/competitions/${comp.id}`)}
@@ -204,9 +204,9 @@ const CompetitionsPage = () => {
                   title={comp.title}
                   price={parseFloat(String(comp.ticket_price || comp.entry_fee || '0'))}
                   timeRemaining={calculateTimeRemaining(
-                    comp.created_at ?? Date.now()
+                    String(comp.created_at ?? Date.now())
                   )}
-                  endDate={comp.end_date}
+                  endDate={comp.end_date ?? undefined}
                   entriesSold={`${Math.round(progressPercent)}`}
                   progressPercent={progressPercent === 0 ? 10 : progressPercent}
                   onEnter={() => navigate(`/competitions/${comp.id}`)}

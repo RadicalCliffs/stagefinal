@@ -151,7 +151,7 @@ export function useRealTimeCompetition(options: UseRealTimeCompetitionOptions): 
 
         // Call callback if status changed
         if (data.status !== prevStatusRef.current && prevStatusRef.current && onStatusChange) {
-          onStatusChange(data.status);
+          onStatusChange(data.status ?? '');
         }
         prevStatusRef.current = data.status || '';
 

@@ -150,7 +150,7 @@ export const ExportWalletKey: React.FC<ExportWalletKeyProps> = ({ onClose }) => 
             className="mb-6 [&>div]:w-full [&>button]:w-full [&>button]:bg-[#DDE404] [&>button]:hover:bg-[#DDE404]/90 [&>button]:text-black [&>button]:sequel-75 [&>button]:py-3 [&>button]:rounded-lg [&>button]:transition-colors"
           />
 
-          {status === 'copied' && (
+          {status && String(status) === 'copied' && (
             <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-4 flex items-start gap-2">
               <Check size={18} className="text-green-400 flex-shrink-0 mt-0.5" />
               <div>

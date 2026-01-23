@@ -345,16 +345,16 @@ export function useTicketAvailability(options: {
 
       // Check for error responses from the RPC function
       // The RPC returns { error: "message" } when competition is not found or invalid
-      if (data?.error) {
-        throw new Error(data.error);
+      if (data && typeof data === 'object' && 'error' in data) {
+        throw new Error((data as any).error);
       }
 
       if (data && isMountedRef.current) {
         const stats: TicketStats = {
-          total_tickets: data.total_tickets || 0,
-          sold_count: data.sold_count || 0,
+          total_tickets: (data as any).total_tickets || 0,
+          sold_count: (data as any).sold_count || 0,
           pending_count: 0, // RPC doesn't return pending, calculate from available
-          available_count: data.available_count || 0,
+          available_count: (data as any).available_count || (data as any).total_tickets - (data as any).sold_count || 0,
         };
         // Estimate pending from the difference
         stats.pending_count = Math.max(0, stats.total_tickets - stats.sold_count - stats.available_count);

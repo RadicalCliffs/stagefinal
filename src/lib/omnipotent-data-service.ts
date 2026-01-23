@@ -320,7 +320,7 @@ class OmnipotentDataService {
       if (error) throw error;
 
       // Filter out entries with missing required data before transformation
-      const validEntries = (data || []).filter(entry => {
+      const validEntries = (Array.isArray(data) ? data : []).filter((entry: any) => {
         // Skip entries with no competition_id - these are phantom entries
         if (!entry.competition_id || entry.competition_id === '' || entry.competition_id === 'null') {
           databaseLogger.warn('[OmnipotentData] Filtering out entry with missing competition_id', { entryId: entry.id });
@@ -329,7 +329,7 @@ class OmnipotentDataService {
         return true;
       });
 
-      const entries = validEntries.map(entry => this.transformEntry(entry, identity));
+      const entries = validEntries.map((entry: any) => this.transformEntry(entry, identity));
 
       dataCache.set(cacheKey, entries, options.cacheDuration || 30000);
       return entries;

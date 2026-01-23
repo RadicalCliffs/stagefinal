@@ -327,9 +327,9 @@ export const database = {
           ticket_price: 1,
           draw_date: data.end_date,
           end_date: data.end_date,
-          status: (data.competitionended === 0 || data.competitionended === false || data.competitionended === null) ? 'active' : 'finished',
+          status: (!data.competitionended || (data.competitionended as any) === 0 || data.competitionended === null) ? 'active' : 'finished',
           is_instant_win: data.instant || false,
-          is_featured: (data.featured === 1 || data.featured === true),
+          is_featured: ((data.featured as any) === 1 || data.featured === true),
           tickets_sold: ticketsSold,
           created_at: data.crdate,
           updated_at: data.crdate,
@@ -348,7 +348,7 @@ export const database = {
         .from('competition_winners')
         .select('competitionprize, Winner, crDate, competitionname, imageurl, competitionid, txhash')
         .not('Winner', 'is', null as any)
-        .order('crDate', { ascending: false, nullsLast: true })
+        .order('crDate', { ascending: false, nullsFirst: false } as any)
         .limit(100);
 
       if (error) {
@@ -501,7 +501,7 @@ export const database = {
       .from('competition_winners')
       .select('competitionprize, Winner, crDate, competitionname, imageurl, competitionid, txhash')
       .not('Winner', 'is', null as any)
-      .order('crDate', { ascending: false, nullsLast: true })
+      .order('crDate', { ascending: false, nullsFirst: false } as any)
       .limit(100);
 
     if (error) {
@@ -1085,7 +1085,7 @@ export const database = {
       .from('competition_winners')
       .select('competitionprize, Winner, crDate, competitionname, imageurl')
       .not('Winner', 'is', null as any)
-      .order('crDate', { ascending: false, nullsLast: true })
+      .order('crDate', { ascending: false, nullsFirst: false } as any)
       .limit(50);
 
     // Helper to check if a wallet address looks like test/fake data
@@ -2761,12 +2761,7 @@ export const database = {
         return null;
       }
 
-      return (data || {
-        user_id: userId,
-        competition_id: competitionId,
-        tickets: [],
-        ticket_count: 0
-      });
+      return (data || []) as any;
     } catch (error) {
       handleDatabaseError(error, 'getUserTicketsForCompetition');
       return null;

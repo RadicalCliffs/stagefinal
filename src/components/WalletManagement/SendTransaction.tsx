@@ -125,13 +125,14 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
       // recipientAddress is already validated by isAddress()
       const result = await sendEvmTransaction({
         evmAccount: evmAddress!,
-        network: networkInfo.cdpNetwork,
+        network: networkInfo.cdpNetwork as any,
         transaction: {
           to: recipientAddress as `0x${string}`,
           value: valueInWei,
           maxFeePerGas,
           maxPriorityFeePerGas,
-        },
+          chainId: networkInfo.chain.id,
+        } as any,
       });
 
       setTxHash(result.transactionHash || null);
