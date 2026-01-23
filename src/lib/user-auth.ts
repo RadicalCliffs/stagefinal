@@ -4,6 +4,9 @@ import { toPrizePid, isWalletAddress, normalizeWalletAddress } from '../utils/us
 import { toCanonicalUserId } from './canonicalUserId';
 import { generatePrivyStyleId } from './identity';
 
+// Re-export toPrizePid for other modules
+export { toPrizePid } from '../utils/userId';
+
 export interface UserProfile {
   id: string;
   uid?: string | null;

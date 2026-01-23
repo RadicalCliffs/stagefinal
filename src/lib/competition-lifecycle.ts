@@ -314,7 +314,7 @@ export class CompetitionLifecycleService {
       return [];
     }
 
-    return (data || []) as CompetitionEntry[];
+    return (data || []) as unknown as CompetitionEntry[];
   }
 
   /**
