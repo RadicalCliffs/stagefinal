@@ -1,5 +1,6 @@
 import { useCallback, useState, useEffect } from 'react';
 import { useAuthUser } from '../contexts/AuthContext';
+import { useBaseAccountSDKOptional } from '../contexts/BaseAccountSDKContext';
 import type { Hex, Address } from 'viem';
 import { keccak256, encodeAbiParameters, parseAbiParameters, toHex, concat, pad } from 'viem';
 
@@ -10,8 +11,8 @@ import { keccak256, encodeAbiParameters, parseAbiParameters, toHex, concat, pad 
  * a pre-approved amount of USDC from the user's wallet without requiring
  * a signature for each transaction.
  *
- * ARCHITECTURE NOTE - CDP Embedded Wallets:
- * =========================================
+ * ARCHITECTURE NOTE - CDP Embedded Wallets + Base Account SDK:
+ * ============================================================
  * This hook works with CDP embedded wallets (created via @coinbase/cdp-react).
  * User USDC is stored in their embedded wallet, NOT in server wallets.
  *
@@ -25,12 +26,14 @@ import { keccak256, encodeAbiParameters, parseAbiParameters, toHex, concat, pad 
  * - Can be revoked by the user at any time
  * - Enable gasless, passkey-free payments
  * - Support atomic batch transactions via wallet_sendCalls
+ * - Now integrated with Base Account SDK for enhanced provider support
  *
  * Best Practices (per Coinbase documentation):
  * - Uses EIP-712 typed data signing for secure permission grants
  * - Generates deterministic permissionHash for tracking
  * - Supports wallet_sendCalls for batched/atomic transactions
  * - Stores signature locally for subsequent payments
+ * - Prefers SDK provider when available for consistency
  *
  * Flow:
  * 1. User grants spend permission (one-time signature)
@@ -206,6 +209,7 @@ function generatePermissionHash(
  */
 export function useSpendPermission(): UseSpendPermissionResult {
   const { linkedWallets, baseAccount } = useAuthUser();
+  const sdkContext = useBaseAccountSDKOptional();
   const [activePermission, setActivePermission] = useState<SpendPermission | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -376,21 +380,27 @@ export function useSpendPermission(): UseSpendPermissionResult {
       };
 
       // Get the wallet provider and request signature
-      // For Base Account, we need to get the provider differently
+      // Prefer SDK provider for consistency, fall back to wallet-specific providers
       let provider: any = null;
 
-      // Try to get provider from various sources (in order of preference)
-      if (baseAccount && typeof baseAccount.getEthereumProvider === 'function') {
-        // Use Base Account's provider if available
+      // 1. Try SDK provider first (preferred for consistency)
+      if (sdkContext?.provider) {
+        console.log('[useSpendPermission] Using SDK provider');
+        provider = sdkContext.provider;
+      }
+      // 2. Try Base Account provider
+      else if (baseAccount && typeof baseAccount.getEthereumProvider === 'function') {
         try {
+          console.log('[useSpendPermission] Using Base Account provider');
           provider = await baseAccount.getEthereumProvider();
         } catch (providerErr) {
           console.warn('[useSpendPermission] Failed to get Base Account provider:', providerErr);
         }
       }
 
-      // Fallback to injected provider (e.g., MetaMask, Coinbase Wallet)
+      // 3. Fallback to injected provider (e.g., MetaMask, Coinbase Wallet)
       if (!provider && (window as any).ethereum) {
+        console.log('[useSpendPermission] Using injected window.ethereum provider');
         provider = (window as any).ethereum;
       }
 

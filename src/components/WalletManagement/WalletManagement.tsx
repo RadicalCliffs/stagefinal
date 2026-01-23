@@ -25,6 +25,7 @@ import { useRealTimeBalance } from '../../hooks/useRealTimeBalance';
 import { supabase } from '../../lib/supabase';
 import { database } from '../../lib/database';
 import { toPrizePid, isWalletAddress } from '../../utils/userId';
+import BaseAccountStatus from '../BaseAccountStatus';
 
 // Lazy load TopUpWalletModal - only loaded when user clicks "Top Up"
 const TopUpWalletModal = lazy(() => import('../TopUpWalletModal'));
@@ -422,6 +423,9 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
           </div>
         </div>
       )}
+
+      {/* Base Account SDK Status Section */}
+      <BaseAccountStatus className="mt-6" />
 
       {/* Connected Wallets Section */}
       <div className="bg-[#1E1E1E] rounded-xl p-6">
