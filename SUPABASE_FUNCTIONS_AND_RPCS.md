@@ -138,7 +138,7 @@ supabase.functions.invoke('reserve-tickets', {
 
 **Location**: `supabase/functions/reserve-tickets/index.ts`  
 **Frontend Usage**: `src/lib/reserve-tickets-redundant.ts:67`  
-**Note**: This appears to be redundant with the `reserve_tickets` RPC function
+**Status**: ⚠️ **DEPRECATED/REDUNDANT** - Use the `reserve_tickets` RPC function instead for new code. This edge function is maintained for backward compatibility only.
 
 ---
 
@@ -1934,14 +1934,9 @@ supabase.rpc('check_joincompetition_entry_exists', {
 
 ### `onchainkit_checkout`
 
-**Purpose**: Process OnchainKit checkout (if implemented as RPC)
+**Purpose**: Process OnchainKit checkout
 
-**Invocation**:
-```typescript
-supabase.rpc('onchainkit_checkout', {
-  /* checkout parameters */
-})
-```
+**Status**: ⚠️ **Implementation Status Unknown** - This function is referenced in frontend code but may be implemented as an edge function rather than an RPC, or may not yet be fully implemented. Check `src/lib/onchainkit-checkout.ts` and Supabase deployment for current implementation.
 
 **Frontend Usage**: `src/lib/onchainkit-checkout.ts`
 
@@ -1951,7 +1946,12 @@ supabase.rpc('onchainkit_checkout', {
 
 1. **Canonical User IDs**: Most functions expect user IDs in canonical format (e.g., `PID_...`). Use the `to_prize_pid()` RPC or helper functions to convert IDs.
 
-2. **Competition IDs**: Competition IDs can be either UUID or text UID format. Some functions have separate versions to handle different types (e.g., `get_competition_ticket_availability` vs `get_competition_ticket_availability_text`).
+2. **Competition IDs**: Competition IDs can be either UUID or text UID format. 
+   - **When to use which version**:
+     - Use `*_text` versions when the competition ID comes from user input or may be in legacy UID format
+     - Use UUID versions when you have a guaranteed UUID type
+     - Modern code should prefer the `*_text` versions as they handle both formats
+     - Example: `get_competition_ticket_availability` (UUID only) vs `get_competition_ticket_availability_text` (handles both)
 
 3. **RLS Bypass Functions**: Functions ending with `_bypass_rls` are for administrative use and bypass Row Level Security policies.
 
@@ -1974,7 +1974,7 @@ supabase.rpc('onchainkit_checkout', {
 
 ## Summary Statistics
 
-- **Total Edge Functions**: 9 documented (many more exist in the functions folder)
+- **Total Edge Functions**: 9 actively used by frontend (documented here). Additional edge functions exist in `supabase/functions/` for VRF operations, admin tools, webhooks, and internal processes - these are not directly called by the frontend and are documented within their respective function directories.
 - **Total RPC Functions**: 94 documented
 - **Categories**: 
   - User Balance & Profile: 12 functions
