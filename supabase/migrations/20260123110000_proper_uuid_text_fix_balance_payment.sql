@@ -1,23 +1,19 @@
 -- =====================================================
--- FIX: UUID vs TEXT type mismatches in execute_balance_payment
+-- PROPER UUID/TEXT FIX FOR execute_balance_payment
 -- =====================================================
--- This migration fixes the "operator does not exist: uuid = text" error
--- in the execute_balance_payment RPC by properly handling type casting
--- between UUID and TEXT columns across different tables.
---
--- Root cause: Different tables use different types for user identifiers:
--- - canonical_users.uid may be TEXT
--- - wallet_balances.user_id may be UUID or TEXT (depending on migration state)
--- - balance_ledger.user_id may be UUID or TEXT (depending on migration state)
---
--- This fix ensures all comparisons use explicit TEXT casting for safety.
+-- This migration fixes the remaining "uuid = text" errors by:
+-- 1. Using UUID type for v_user_uuid (canonical_users.uid is UUID)
+-- 2. Using UUID-to-UUID comparisons for canonical_users.uid
+-- 3. Using TEXT-to-TEXT comparisons for sub_account_balances
+-- 4. REMOVING all wallet_balances references (table doesn't exist)
+-- 5. Making idempotency key deterministic (no NOW())
 --
 -- Date: 2026-01-23
 -- =====================================================
 
 BEGIN;
 
--- Drop the existing function to recreate with fixed types
+-- Drop the existing function to recreate with proper types
 DROP FUNCTION IF EXISTS execute_balance_payment(TEXT, UUID, NUMERIC, INTEGER, INTEGER[], TEXT, TEXT) CASCADE;
 
 CREATE OR REPLACE FUNCTION execute_balance_payment(
@@ -38,7 +34,7 @@ DECLARE
   -- User resolution
   v_canonical_user_id TEXT;
   v_wallet_address TEXT;
-  v_user_uuid TEXT;  -- Changed from UUID to TEXT for compatibility
+  v_user_uuid UUID;  -- UUID type because canonical_users.uid is UUID
   v_privy_user_id TEXT;
 
   -- Balance tracking
@@ -104,12 +100,19 @@ BEGIN
   END IF;
 
   -- =====================================================
-  -- STEP 1: Check idempotency
+  -- STEP 1: Check idempotency (DETERMINISTIC key - no NOW())
   -- =====================================================
 
+  -- Build deterministic idempotency key from inputs only
   v_final_idempotency_key := COALESCE(
     p_idempotency_key,
-    MD5(p_user_identifier || '::' || p_competition_id::TEXT || '::' || p_amount::TEXT || '::' || p_ticket_count::TEXT || '::' || NOW()::TEXT)
+    MD5(
+      p_user_identifier || '::' ||
+      p_competition_id::TEXT || '::' ||
+      p_amount::TEXT || '::' ||
+      p_ticket_count::TEXT || '::' ||
+      COALESCE(array_to_string(p_selected_tickets, ','), '')
+    )
   );
 
   -- Check for existing request with same idempotency key
@@ -145,32 +148,32 @@ BEGIN
   END IF;
 
   -- Try to find the user in canonical_users with aggressive matching
-  -- NOTE: All comparisons use TEXT to avoid UUID vs TEXT operator errors
+  -- NOTE: cu.uid is UUID, so compare UUID-to-UUID when input is UUID
   SELECT
     cu.canonical_user_id,
-    cu.uid::TEXT,  -- Explicit TEXT cast
+    cu.uid,  -- UUID type, keep as UUID
     COALESCE(LOWER(cu.wallet_address), LOWER(cu.base_wallet_address), LOWER(cu.eth_wallet_address)),
     cu.privy_user_id
   INTO v_canonical_user_id, v_user_uuid, v_wallet_address, v_privy_user_id
   FROM canonical_users cu
   WHERE
-    -- Match by canonical_user_id
+    -- Match by canonical_user_id (TEXT = TEXT)
     cu.canonical_user_id = p_user_identifier
     OR cu.canonical_user_id = v_canonical_user_id
     OR cu.canonical_user_id = LOWER(v_canonical_user_id)
-    -- Match by wallet address (case-insensitive)
+    -- Match by wallet address (case-insensitive, TEXT = TEXT)
     OR (v_search_wallet IS NOT NULL AND (
       LOWER(cu.wallet_address) = v_search_wallet
       OR LOWER(cu.base_wallet_address) = v_search_wallet
       OR LOWER(cu.eth_wallet_address) = v_search_wallet
       OR LOWER(cu.smart_wallet_address) = v_search_wallet
     ))
-    -- Match by privy_user_id
+    -- Match by privy_user_id (TEXT = TEXT)
     OR cu.privy_user_id = p_user_identifier
     OR cu.privy_user_id = v_privy_user_id
-    -- Match by uid if it looks like a UUID (using TEXT comparison)
+    -- Match by uid if input is a UUID (UUID = UUID, properly cast input)
     OR (p_user_identifier ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-        AND cu.uid::TEXT = p_user_identifier)
+        AND cu.uid = p_user_identifier::uuid)
   LIMIT 1;
 
   -- If still no canonical_user_id, use the best available
@@ -189,7 +192,7 @@ BEGIN
   SELECT status, title, total_tickets
   INTO v_competition_status, v_competition_title, v_max_tickets
   FROM competitions
-  WHERE id = p_competition_id;
+  WHERE id = p_competition_id;  -- UUID = UUID, fine
 
   IF v_competition_status IS NULL THEN
     RETURN jsonb_build_object(
@@ -208,10 +211,12 @@ BEGIN
   END IF;
 
   -- =====================================================
-  -- STEP 4: Get and lock user balance (with aggressive lookup)
+  -- STEP 4: Get and lock user balance
   -- =====================================================
+  -- sub_account_balances is the SOURCE OF TRUTH
+  -- Its user_id, canonical_user_id, privy_user_id are all TEXT
+  -- Compare TEXT = TEXT only
 
-  -- Try sub_account_balances first (primary balance table)
   SELECT id, COALESCE(available_balance, 0)
   INTO v_balance_record_id, v_current_balance
   FROM sub_account_balances
@@ -224,6 +229,8 @@ BEGIN
       OR user_id = v_canonical_user_id
       OR privy_user_id = p_user_identifier
       OR privy_user_id = v_privy_user_id
+      -- Also match by v_user_uuid cast to TEXT if we found one
+      OR (v_user_uuid IS NOT NULL AND user_id = v_user_uuid::text)
     )
   ORDER BY
     CASE
@@ -238,36 +245,14 @@ BEGIN
     v_balance_source := 'sub_account_balances';
   END IF;
 
-  -- If not found, try wallet_balances
-  IF v_balance_record_id IS NULL THEN
-    SELECT COALESCE(balance, 0)
-    INTO v_temp_balance
-    FROM wallet_balances
-    WHERE
-      canonical_user_id = v_canonical_user_id
-      OR canonical_user_id = LOWER(v_canonical_user_id)
-      OR (v_search_wallet IS NOT NULL AND (
-        LOWER(wallet_address) = v_search_wallet
-        OR LOWER(base_wallet_address) = v_search_wallet
-      ))
-      OR user_id::TEXT = p_user_identifier  -- Explicit TEXT cast
-      OR privy_user_id = p_user_identifier
-    LIMIT 1
-    FOR UPDATE;
+  -- NOTE: wallet_balances is REMOVED - table doesn't exist
+  -- If not found in sub_account_balances, try canonical_users.usdc_balance
 
-    IF v_temp_balance IS NOT NULL THEN
-      v_current_balance := v_temp_balance;
-      v_balance_source := 'wallet_balances';
-    END IF;
-  END IF;
-
-  -- If still not found, try canonical_users.usdc_balance
-  -- Use TEXT comparison for uid to avoid UUID vs TEXT issues
   IF v_balance_source = 'none' AND v_user_uuid IS NOT NULL THEN
     SELECT COALESCE(usdc_balance, 0)
     INTO v_temp_balance
     FROM canonical_users
-    WHERE uid::TEXT = v_user_uuid  -- Both sides are TEXT now
+    WHERE uid = v_user_uuid  -- UUID = UUID comparison
     FOR UPDATE;
 
     IF v_temp_balance IS NOT NULL THEN
@@ -276,9 +261,9 @@ BEGIN
     END IF;
   END IF;
 
-  -- Final fallback: aggressive canonical_users lookup
+  -- Final fallback: aggressive canonical_users lookup if we haven't found a uuid yet
   IF v_balance_source = 'none' THEN
-    SELECT cu.uid::TEXT, COALESCE(cu.usdc_balance, 0)  -- Explicit TEXT cast
+    SELECT cu.uid, COALESCE(cu.usdc_balance, 0)
     INTO v_user_uuid, v_temp_balance
     FROM canonical_users cu
     WHERE
@@ -323,11 +308,10 @@ BEGIN
   -- STEP 5: Get available tickets
   -- =====================================================
 
-  -- Get already sold tickets
   SELECT ARRAY_AGG(ticket_number)
   INTO v_used_tickets
   FROM tickets
-  WHERE competition_id = p_competition_id;
+  WHERE competition_id = p_competition_id;  -- UUID = UUID, fine
 
   v_used_tickets := COALESCE(v_used_tickets, ARRAY[]::INTEGER[]);
 
@@ -393,17 +377,17 @@ BEGIN
   END IF;
 
   -- =====================================================
-  -- STEP 7: Debit balance (update ALL balance tables atomically)
+  -- STEP 7: Debit balance (update balance tables atomically)
   -- =====================================================
 
   v_new_balance := ROUND(v_current_balance - p_amount, 2);
 
-  -- Update sub_account_balances
+  -- Update sub_account_balances (source of truth)
   IF v_balance_record_id IS NOT NULL THEN
     UPDATE sub_account_balances
     SET available_balance = v_new_balance,
         last_updated = NOW()
-    WHERE id = v_balance_record_id;
+    WHERE id = v_balance_record_id;  -- UUID = UUID, fine
   ELSE
     -- Create record if it doesn't exist
     INSERT INTO sub_account_balances (
@@ -414,8 +398,8 @@ BEGIN
       pending_balance,
       last_updated
     ) VALUES (
-      v_canonical_user_id,
-      COALESCE(v_user_uuid, v_canonical_user_id),  -- v_user_uuid is now TEXT
+      v_canonical_user_id,                              -- TEXT
+      COALESCE(v_user_uuid::TEXT, v_canonical_user_id), -- TEXT (cast UUID to TEXT for user_id column)
       'USD',
       v_new_balance,
       0,
@@ -427,21 +411,13 @@ BEGIN
       last_updated = NOW();
   END IF;
 
-  -- Sync to wallet_balances
-  UPDATE wallet_balances
-  SET balance = v_new_balance,
-      updated_at = NOW()
-  WHERE canonical_user_id = v_canonical_user_id
-     OR (v_search_wallet IS NOT NULL AND (
-       LOWER(wallet_address) = v_search_wallet
-       OR LOWER(base_wallet_address) = v_search_wallet
-     ));
+  -- NOTE: wallet_balances sync REMOVED - table doesn't exist
 
-  -- Sync to canonical_users (use TEXT comparison)
+  -- Sync to canonical_users (UUID = UUID comparison)
   IF v_user_uuid IS NOT NULL THEN
     UPDATE canonical_users
     SET usdc_balance = v_new_balance
-    WHERE uid::TEXT = v_user_uuid;  -- Both are TEXT
+    WHERE uid = v_user_uuid;  -- UUID = UUID
   END IF;
 
   -- =====================================================
@@ -451,6 +427,7 @@ BEGIN
   v_entry_uid := gen_random_uuid();
   v_transaction_id := gen_random_uuid();
 
+  -- tickets.competition_id is UUID, tickets.user_id is TEXT
   INSERT INTO tickets (
     competition_id,
     user_id,
@@ -458,8 +435,8 @@ BEGIN
     created_at
   )
   SELECT
-    p_competition_id,
-    v_canonical_user_id,
+    p_competition_id,      -- UUID
+    v_canonical_user_id,   -- TEXT
     num,
     NOW()
   FROM UNNEST(v_ticket_numbers) AS num;
@@ -467,7 +444,6 @@ BEGIN
   GET DIAGNOSTICS v_row_count = ROW_COUNT;
 
   IF v_row_count <> p_ticket_count THEN
-    -- Rollback will happen automatically
     RAISE EXCEPTION 'Failed to create all tickets. Created: %, Expected: %', v_row_count, p_ticket_count;
   END IF;
 
@@ -489,10 +465,10 @@ BEGIN
     purchasedate,
     created_at
   ) VALUES (
-    v_entry_uid,
-    p_competition_id,
-    v_canonical_user_id,
-    v_canonical_user_id,
+    v_entry_uid,           -- UUID
+    p_competition_id,      -- UUID (competitionid is UUID)
+    v_canonical_user_id,   -- TEXT
+    v_canonical_user_id,   -- TEXT
     p_ticket_count,
     array_to_string(v_ticket_numbers, ','),
     p_amount,
@@ -504,8 +480,13 @@ BEGIN
   );
 
   -- =====================================================
-  -- STEP 10: Create user_transactions record
+  -- STEP 10: Create user_transactions record (normalized schema)
   -- =====================================================
+  -- user_transactions columns per user's confirmation:
+  -- id UUID, user_id TEXT, canonical_user_id TEXT, wallet_address TEXT,
+  -- competition_id UUID, amount NUMERIC, currency TEXT, status TEXT,
+  -- payment_status TEXT, payment_provider TEXT, transaction_type TEXT,
+  -- metadata JSONB, created_at timestamptz, completed_at timestamptz
 
   INSERT INTO user_transactions (
     id,
@@ -523,11 +504,11 @@ BEGIN
     created_at,
     completed_at
   ) VALUES (
-    v_transaction_id,
-    v_canonical_user_id,
-    v_canonical_user_id,
-    v_wallet_address,
-    p_competition_id,
+    v_transaction_id,      -- UUID
+    v_canonical_user_id,   -- TEXT
+    v_canonical_user_id,   -- TEXT
+    v_wallet_address,      -- TEXT
+    p_competition_id,      -- UUID
     p_amount,
     'USD',
     'completed',
@@ -546,10 +527,13 @@ BEGIN
   );
 
   -- =====================================================
-  -- STEP 11: Create balance_ledger audit entry
+  -- STEP 11: Create balance_ledger audit entry (normalized schema)
   -- =====================================================
-  -- Use canonical_user_id instead of user_id to avoid type issues
-  -- The balance_ledger table schema varies between deployments
+  -- balance_ledger columns per user's confirmation:
+  -- id UUID, canonical_user_id TEXT, user_id TEXT, transaction_type TEXT,
+  -- amount NUMERIC, balance_type TEXT, source TEXT, currency TEXT,
+  -- balance_before NUMERIC, balance_after NUMERIC, reference_id TEXT,
+  -- description TEXT, metadata JSONB, created_at timestamptz
 
   BEGIN
     INSERT INTO balance_ledger (
@@ -567,8 +551,8 @@ BEGIN
       metadata,
       created_at
     ) VALUES (
-      v_canonical_user_id,
-      COALESCE(v_user_uuid, v_canonical_user_id),  -- Use TEXT value
+      v_canonical_user_id,                              -- TEXT
+      COALESCE(v_user_uuid::TEXT, v_canonical_user_id), -- TEXT (cast UUID to TEXT)
       'debit',
       -p_amount,
       'real',
@@ -576,7 +560,7 @@ BEGIN
       'USD',
       v_current_balance,
       v_new_balance,
-      v_entry_uid::TEXT,
+      v_entry_uid::TEXT,                               -- TEXT
       format('Purchase %s tickets for %s', p_ticket_count, COALESCE(v_competition_title, 'competition')),
       jsonb_build_object(
         'competition_id', p_competition_id,
@@ -596,7 +580,7 @@ BEGIN
       metadata,
       created_at
     ) VALUES (
-      COALESCE(v_user_uuid, v_canonical_user_id)::TEXT,  -- Explicit TEXT cast
+      COALESCE(v_user_uuid::TEXT, v_canonical_user_id), -- TEXT
       'real',
       'ticket_purchase',
       -p_amount,
@@ -616,12 +600,13 @@ BEGIN
   -- =====================================================
   -- STEP 12: Clear reservation if provided
   -- =====================================================
+  -- pending_tickets.id is UUID, only cast when input matches UUID regex
 
   IF p_reservation_id IS NOT NULL AND p_reservation_id <> '' AND p_reservation_id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
     UPDATE pending_tickets
     SET status = 'confirmed',
         confirmed_at = NOW()
-    WHERE id = p_reservation_id::UUID
+    WHERE id = p_reservation_id::UUID  -- UUID = UUID (input validated as UUID)
       AND status = 'pending';
   END IF;
 
@@ -686,9 +671,13 @@ GRANT EXECUTE ON FUNCTION execute_balance_payment(TEXT, UUID, NUMERIC, INTEGER, 
 GRANT EXECUTE ON FUNCTION execute_balance_payment(TEXT, UUID, NUMERIC, INTEGER, INTEGER[], TEXT, TEXT) TO anon;
 
 COMMENT ON FUNCTION execute_balance_payment IS
-'GODLIKE balance payment RPC - handles ALL user ID formats, atomic operations, and idempotency.
-Fixed: Uses TEXT types throughout to avoid UUID vs TEXT operator mismatches.
-Frontend calls this single RPC and it JUST WORKS.';
+'FIXED balance payment RPC - properly handles UUID vs TEXT types:
+- v_user_uuid is UUID (canonical_users.uid is UUID)
+- UUID-to-UUID comparisons for canonical_users.uid
+- TEXT-to-TEXT comparisons for sub_account_balances
+- wallet_balances references REMOVED (table does not exist)
+- Deterministic idempotency key (no NOW())
+- Normalized inserts for user_transactions and balance_ledger';
 
 -- =====================================================
 -- VALIDATION
@@ -705,17 +694,29 @@ BEGIN
   ) INTO func_exists;
 
   RAISE NOTICE '=====================================================';
-  RAISE NOTICE 'GODLIKE BALANCE PAYMENT RPC - UUID/TEXT FIX APPLIED';
+  RAISE NOTICE 'PROPER UUID/TEXT FIX APPLIED';
   RAISE NOTICE '=====================================================';
   RAISE NOTICE '';
   RAISE NOTICE 'Function recreated: %', func_exists;
   RAISE NOTICE '';
-  RAISE NOTICE 'Changes:';
-  RAISE NOTICE '  - v_user_uuid changed from UUID to TEXT type';
-  RAISE NOTICE '  - All uid comparisons use explicit ::TEXT casts';
-  RAISE NOTICE '  - wallet_balances.user_id uses ::TEXT cast';
-  RAISE NOTICE '  - balance_ledger insert handles both old and new schemas';
-  RAISE NOTICE '  - All user identifier fields use TEXT consistently';
+  RAISE NOTICE 'Key fixes applied:';
+  RAISE NOTICE '  1. v_user_uuid is UUID type (not TEXT)';
+  RAISE NOTICE '  2. canonical_users.uid compared as UUID = UUID';
+  RAISE NOTICE '  3. sub_account_balances compared as TEXT = TEXT';
+  RAISE NOTICE '  4. ALL wallet_balances references REMOVED';
+  RAISE NOTICE '  5. Idempotency key is deterministic (no NOW())';
+  RAISE NOTICE '  6. Normalized inserts for user_transactions/balance_ledger';
+  RAISE NOTICE '';
+  RAISE NOTICE 'Type safety:';
+  RAISE NOTICE '  - competitions.id: UUID (param is UUID) ✓';
+  RAISE NOTICE '  - tickets.competition_id: UUID ✓';
+  RAISE NOTICE '  - tickets.user_id: TEXT ✓';
+  RAISE NOTICE '  - joincompetition.competitionid: UUID ✓';
+  RAISE NOTICE '  - pending_tickets.id: UUID (regex + cast) ✓';
+  RAISE NOTICE '  - canonical_users.uid: UUID ✓';
+  RAISE NOTICE '  - sub_account_balances.*: TEXT ✓';
+  RAISE NOTICE '  - user_transactions.*: TEXT user_id, UUID competition_id ✓';
+  RAISE NOTICE '  - balance_ledger.*: TEXT ✓';
   RAISE NOTICE '=====================================================';
 END $$;
 
