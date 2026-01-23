@@ -3,10 +3,10 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { toPrizePid, normalizeWalletAddress, isWalletAddress } from "../_shared/userId.ts";
 
 // Inlined CORS configuration (bundler doesn't support shared module imports)
-const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://stage.theprize.io';
+const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://substage.theprize.io';
 const ALLOWED_ORIGINS = [
   SITE_URL,
-  'https://stage.theprize.io',
+  'https://substage.theprize.io',
   'https://theprize.io',
   'https://theprizeio.netlify.app',
   'https://www.theprize.io',
