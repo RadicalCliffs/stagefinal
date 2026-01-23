@@ -477,9 +477,9 @@ Deno.serve(async (req: Request) => {
         console.log(`[purchase-tickets-with-bonus] Resolved walletAddress to userId: ${userId.substring(0, 20)}...`);
       } else {
         // No user found for this wallet - could be a new user
-        // Generate a canonical ID from the wallet address
-        userId = walletAddress;
-        console.log(`[purchase-tickets-with-bonus] No existing user for wallet, using wallet as userId`);
+        // Generate a canonical ID from the wallet address using toPrizePid
+        userId = toPrizePid(walletAddress);
+        console.log(`[purchase-tickets-with-bonus] No existing user for wallet, generated canonical ID from wallet`);
       }
     }
 

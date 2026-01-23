@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
+import { toPrizePid } from "../_shared/userId.ts";
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -62,10 +63,10 @@ Deno.serve(async (req) => {
     const normalizedWallet = walletAddress ? walletAddress.toLowerCase().trim() : null;
 
     // Generate canonical_user_id from wallet if provided
-    // Format: prize:pid:<lowercase_wallet_address> (matches client-side toPrizePid())
+    // Use toPrizePid() for consistent format (matches client-side and other functions)
     let canonicalUserId = null;
     if (normalizedWallet) {
-      canonicalUserId = `prize:pid:${normalizedWallet}`;
+      canonicalUserId = toPrizePid(normalizedWallet);
     }
 
     console.log('[upsert-user] Request data:', {
