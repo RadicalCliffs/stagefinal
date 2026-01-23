@@ -1477,23 +1477,23 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
           {/* Initial payment selection */}
           {showInitialPayment && paymentStep === 'initial' && ticketCount > 0 && (
-            <div className="space-y-5">
+            <div className="space-y-4">
               {/* Premium Order Summary Card with integrated timer */}
-              <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/10 p-5">
+              <div className="relative overflow-hidden rounded-xl bg-gray-900 border border-white/10 p-4">
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#DDE404] via-[#0052FF] to-[#EF008F]"></div>
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#DDE404]/20 to-[#DDE404]/5 flex items-center justify-center">
-                      <Sparkles className="text-[#DDE404]" size={20} />
+                    <div className="w-9 h-9 rounded-full bg-[#DDE404]/20 flex items-center justify-center">
+                      <Sparkles className="text-[#DDE404]" size={18} />
                     </div>
                     <div>
                       <p className="text-white/60 sequel-45 text-xs">Your Entries</p>
-                      <p className="text-white sequel-75 text-xl">{ticketCount} <span className="text-sm text-white/60">{ticketCount > 1 ? 'tickets' : 'ticket'}</span></p>
+                      <p className="text-white sequel-75 text-lg">{ticketCount} <span className="text-sm text-white/60">{ticketCount > 1 ? 'tickets' : 'ticket'}</span></p>
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="text-white/60 sequel-45 text-xs">{textOverrides?.totalLabel || 'Total'}</p>
-                    <p className="text-[#DDE404] sequel-95 text-2xl">${amount.toFixed(2)}</p>
+                    <p className="text-[#DDE404] sequel-95 text-xl">${amount.toFixed(2)}</p>
                   </div>
                 </div>
                 {/* Reservation timer integrated into summary card */}
@@ -1553,123 +1553,98 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                 </div>
               )}
 
-              {/* === PAYMENT OPTIONS === */}
+              {/* === PAYMENT OPTIONS - 4 Uniform Buttons === */}
+              <div className="space-y-3">
+                {/* A. Pay With Balance - Only shown if user has sufficient balance */}
+                {(() => {
+                  const canUseBalance = authenticated && userBalance >= amount;
+                  return canUseBalance && (
+                    <button
+                      onClick={handleBalancePayment}
+                      disabled={balanceLoading || loadingBalance}
+                      className="w-full h-[72px] flex items-center justify-between px-4 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+                          <DollarSign className="text-white" size={22} />
+                        </div>
+                        <div className="text-left">
+                          <p className="text-white sequel-75 text-sm uppercase">Pay With Balance</p>
+                          <p className="text-[#DDE404] sequel-45 text-xs">
+                            {loadingBalance ? 'Loading...' : `Available: $${userBalance.toFixed(2)}`}
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight size={20} className="text-white" />
+                    </button>
+                  );
+                })()}
 
-              {/* Eye-catching Top Up Bonus Banner - Clickable to open TopUpWalletModal */}
-              <button
-                onClick={() => setShowTopUpModal(true)}
-                className="w-full relative overflow-hidden rounded-xl bg-gradient-to-r from-[#EF008F] via-[#FF1493] to-[#EF008F] p-4 border-2 border-[#FF69B4] shadow-lg shadow-[#EF008F]/30 hover:shadow-[#EF008F]/50 transition-all duration-300 hover:scale-[1.01] active:scale-[0.99] cursor-pointer text-left"
-              >
-                <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMTAiIGN5PSIxMCIgcj0iMSIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjEpIi8+PC9zdmc+')] opacity-30"></div>
-                <div className="relative flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
-                    <Sparkles className="text-white" size={20} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white sequel-95 text-xs sm:text-sm uppercase">50% Bonus!</p>
-                    <p className="text-white/90 sequel-45 text-[10px] sm:text-xs">Tap to top up</p>
-                  </div>
-                  <ChevronRight size={18} className="text-white/80 flex-shrink-0" />
-                </div>
-              </button>
-
-              {/* Balance Payment - Compact horizontal layout */}
-              {(() => {
-                const canUseBalance = authenticated && userBalance >= amount;
-                return canUseBalance && (
-                <button
-                  onClick={handleBalancePayment}
-                  disabled={balanceLoading || loadingBalance}
-                  className="w-full flex items-center justify-between gap-3 p-4 bg-gradient-to-r from-violet-900/30 to-purple-900/20 border-2 border-violet-500/50 rounded-xl hover:border-violet-400/70 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 hover:scale-[1.01] active:scale-[0.99]"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-violet-500/20 flex items-center justify-center flex-shrink-0">
-                      <DollarSign className="text-violet-400" size={20} />
-                    </div>
-                    <div className="text-left">
-                      <p className="text-white sequel-75 text-sm">Pay with Balance</p>
-                      <p className="text-violet-400 sequel-45 text-xs">
-                        {loadingBalance ? 'Loading...' : `Available: $${userBalance.toFixed(2)}`}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-white sequel-75 text-sm">
-                      {balanceLoading ? 'Processing...' : `$${amount.toFixed(2)}`}
-                    </span>
-                    <ChevronRight size={18} className="text-violet-400" />
-                  </div>
-                </button>
-              )})()}
-
-              {/* Primary Payment Method - Compact horizontal layout */}
-              {authenticated && (
-                <div className="relative">
-                  <div className="absolute -top-2 -right-2 bg-[#0052FF] text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 z-10">
-                    <Sparkles size={10} />
-                    RECOMMENDED
-                  </div>
+                {/* B. Pay With Wallet - Powered by Coinbase Commerce */}
+                {authenticated && (
                   <button
                     onClick={handleOnchainKitPayment}
                     disabled={onchainKitLoading}
-                    className="w-full flex items-center justify-between gap-3 p-4 bg-gradient-to-r from-[#0052FF]/20 to-[#00D4FF]/10 border-2 border-[#0052FF] rounded-xl hover:border-[#00D4FF]/80 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 hover:scale-[1.01] active:scale-[0.99]"
+                    className="w-full h-[72px] flex items-center justify-between px-4 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-[#0052FF]/20 flex items-center justify-center flex-shrink-0">
-                        <Wallet className="text-[#0052FF]" size={20} />
+                      <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+                        <Wallet className="text-white" size={22} />
                       </div>
                       <div className="text-left">
-                        <p className="text-white sequel-75 text-sm">Pay with Wallet</p>
-                        <p className="text-[#0052FF]/70 sequel-45 text-xs">USDC • Card • 60+ Cryptos</p>
+                        <p className="text-white sequel-75 text-sm uppercase">Pay With Wallet</p>
+                        <p className="text-white/80 sequel-45 text-xs">Powered by Coinbase Commerce</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-white sequel-75 text-sm">
-                        {onchainKitLoading ? 'Connecting...' : `$${amount.toFixed(2)}`}
-                      </span>
-                      <ChevronRight size={18} className="text-[#0052FF]" />
-                    </div>
+                    <ChevronRight size={20} className="text-white" />
                   </button>
-                </div>
-              )}
+                )}
 
-              {/* Base Account Payment - One-tap USDC payment */}
-              {authenticated && (
-                <div className="relative">
-                  <div className="border-2 border-[#0052FF]/50 rounded-xl p-5 bg-gradient-to-br from-[#0052FF]/20 to-[#00D4FF]/10 hover:border-[#00D4FF]/70 transition-all">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <svg className="w-5 h-5 text-[#0052FF]" viewBox="0 0 111 111" fill="none" xmlns="http://www.w3.org/2000/svg">
+                {/* C. Pay With Your Base Account */}
+                {authenticated && (
+                  <button
+                    onClick={handleBaseAccountPayment}
+                    disabled={baseAccountLoading}
+                    className="w-full h-[72px] flex items-center justify-between px-4 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+                        <svg className="w-6 h-6 text-white" viewBox="0 0 111 111" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <path d="M54.921 110.034C85.359 110.034 110.034 85.402 110.034 55.017C110.034 24.6319 85.359 0 54.921 0C26.0432 0 2.35281 22.1714 0 50.3923H72.8467V59.6416H3.9565e-07C2.35281 87.8625 26.0432 110.034 54.921 110.034Z" fill="currentColor"/>
                         </svg>
-                        <p className="text-white sequel-75 text-sm">Pay with Base</p>
                       </div>
-                      <div className="px-3 py-1 rounded-full bg-[#0052FF]/20">
-                        <p className="sequel-75 text-xs text-[#0052FF]">One-Tap</p>
+                      <div className="text-left">
+                        <p className="text-white sequel-75 text-sm uppercase">Pay With Your Base Account</p>
+                        <p className="text-white/80 sequel-45 text-xs">Fast USDC payments on Base</p>
                       </div>
                     </div>
-                    <button
-                      onClick={handleBaseAccountPayment}
-                      disabled={baseAccountLoading}
-                      className="w-full flex items-center justify-center gap-3 py-4 px-6 bg-gradient-to-r from-[#0052FF] to-[#00D4FF] hover:from-[#0066FF] hover:to-[#00E5FF] text-white sequel-75 uppercase rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg shadow-[#0052FF]/30 hover:shadow-[#00D4FF]/40 hover:scale-[1.01] active:scale-[0.99]"
-                    >
-                      <svg className="w-5 h-5" viewBox="0 0 111 111" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M54.921 110.034C85.359 110.034 110.034 85.402 110.034 55.017C110.034 24.6319 85.359 0 54.921 0C26.0432 0 2.35281 22.1714 0 50.3923H72.8467V59.6416H3.9565e-07C2.35281 87.8625 26.0432 110.034 54.921 110.034Z" fill="currentColor"/>
-                      </svg>
-                      {baseAccountLoading ? 'Processing...' : `Pay $${amount.toFixed(2)}`}
-                    </button>
-                    <p className="text-[#0052FF]/60 text-xs sequel-45 text-center mt-3">
-                      Seamless USDC payment on Base network • No wallet connection needed
-                    </p>
+                    <ChevronRight size={20} className="text-white" />
+                  </button>
+                )}
+
+                {/* D. Pay With Card - Coming Soon */}
+                <button
+                  disabled
+                  className="w-full h-[72px] flex items-center justify-between px-4 bg-gray-600 rounded-xl cursor-not-allowed"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
+                      <CreditCard className="text-gray-400" size={22} />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-gray-300 sequel-75 text-sm uppercase">Pay With Card</p>
+                      <p className="text-gray-400 sequel-45 text-xs">Powered by instaxchange</p>
+                    </div>
                   </div>
-                </div>
-              )}
+                  <span className="text-[#DDE404] sequel-45 text-xs uppercase">Coming Soon</span>
+                </button>
+              </div>
 
               {/* Cancel button */}
               <button
                 onClick={onClose}
                 type="button"
-                className="w-full bg-transparent border border-white/20 uppercase text-sm text-white/60 sequel-45 hover:bg-white/5 hover:text-white hover:border-white/40 px-6 py-3 cursor-pointer rounded-xl transition-all duration-200"
+                className="w-full bg-transparent border border-white/20 uppercase text-sm text-white/60 sequel-45 hover:bg-white/5 hover:text-white hover:border-white/40 px-6 py-3 cursor-pointer rounded-xl transition-all duration-200 mt-3"
               >
                 Cancel
               </button>
