@@ -815,7 +815,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         walletAddress,
         reservationId,
         walletProvider: walletProvider, // Pass available wallet provider
-        userEmail: profile?.email,
+        userEmail: profile?.email || undefined,
       });
 
       if (result.success) {
@@ -915,7 +915,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         walletAddress,
         reservationId,
         walletProvider: walletClient, // Pass wagmi wallet client as the provider
-        userEmail: profile?.email,
+        userEmail: profile?.email || undefined,
       });
 
       if (result.success) {

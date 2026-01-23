@@ -100,7 +100,7 @@ const CompetitionsPage = () => {
                   entriesSold={`${Math.round(progressPercent)}`}
                   progressPercent={progressPercent === 0 ? 10 : progressPercent}
                   onEnter={() => navigate(`/competitions/${comp.id}`)}
-                  isInstantWin={comp.is_instant_win}
+                  isInstantWin={comp.is_instant_win || undefined}
                   onchainCompetitionId={comp.onchain_competition_id}
                   isSoldOut={(comp.total_tickets || 0) > 0 && (comp.tickets_sold || 0) >= (comp.total_tickets || 0)}
                 />
@@ -212,7 +212,7 @@ const CompetitionsPage = () => {
                   onEnter={() => navigate(`/competitions/${comp.id}`)}
                   className="!border-[#DDE404]"
                   isLastChanceCompetition
-                  isInstantWin={comp.is_instant_win}
+                  isInstantWin={comp.is_instant_win || undefined}
                   onchainCompetitionId={comp.onchain_competition_id}
                   isSoldOut={(comp.total_tickets || 0) > 0 && (comp.tickets_sold || 0) >= (comp.total_tickets || 0)}
                 />
@@ -264,7 +264,7 @@ const CompetitionsPage = () => {
                 onEnter={() => navigate(`/competitions/${comp.id}`)}
                 className="!border-[#EF008F]"
                 isCompetitionFinished={true}
-                isInstantWin={comp.is_instant_win}
+                isInstantWin={comp.is_instant_win || undefined}
                 onchainCompetitionId={comp.onchain_competition_id}
               />
             );

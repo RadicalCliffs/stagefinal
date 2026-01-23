@@ -436,7 +436,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Use wallet address as the primary identifier for Base auth
         await fetchUserData(
           effectiveWalletAddress,
-          userProfile.wallet_address
+          userProfile.wallet_address || undefined
         );
       }
     } catch (error) {
@@ -537,7 +537,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           };
 
           if (recordMatchesUser(record)) {
-            void fetchUserData(profile?.uid || profile?.id || '', profile?.wallet_address);
+            void fetchUserData(profile?.uid || profile?.id || '', profile?.wallet_address || undefined);
           }
         }
       )
@@ -589,7 +589,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (profile?.uid || profile?.id || profile?.wallet_address) {
         fetchUserData(
           profile?.uid || profile?.id || '',
-          profile?.wallet_address,
+          profile?.wallet_address || undefined,
           { skipBalance: true } // CRITICAL: Skip balance to avoid overwriting with stale data
         );
       }

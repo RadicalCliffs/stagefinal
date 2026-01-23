@@ -124,12 +124,12 @@ const LiveCompetitionSection = () => {
               image={comp.image_url || bitcoinV2}
               title={comp.title}
               price={parseFloat(String(comp.ticket_price || comp.entry_fee || '0'))}
-              endDate={comp.end_date || comp.draw_date}
+              endDate={comp.end_date || comp.draw_date || undefined}
               timeRemaining={calculateTimeRemaining(comp.end_date || comp.draw_date || new Date().toISOString())}
               entriesSold={`${Math.round(progressPercent)}`}
               progressPercent={progressPercent === 0 ? 10 : progressPercent}
               onEnter={() => navigate(`/competitions/${comp.id}`)}
-              isInstantWin={comp.is_instant_win}
+              isInstantWin={comp.is_instant_win || undefined}
               onchainCompetitionId={comp.onchain_competition_id}
             />
           );
