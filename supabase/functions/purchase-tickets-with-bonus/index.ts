@@ -443,7 +443,7 @@ Deno.serve(async (req: Request) => {
 
     if (numberOfTickets <= 0) {
       return new Response(
-        JSON.stringify({ success: false, error: "Number of tickets must be greater than 0" }),
+        JSON.stringify({ success: false, error: "Number of tickets must be greater than 0", errorCode: "invalid_ticket_count" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -451,7 +451,7 @@ Deno.serve(async (req: Request) => {
     // Validate ticket price range ($0.10 - $100)
     if (ticketPrice < 0.1 || ticketPrice > 100) {
       return new Response(
-        JSON.stringify({ success: false, error: "Ticket price must be between $0.10 and $100" }),
+        JSON.stringify({ success: false, error: "Ticket price must be between $0.10 and $100", errorCode: "invalid_ticket_price" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -670,7 +670,7 @@ Deno.serve(async (req: Request) => {
 
     if (!userBalanceRecord || !pucRows) {
       return new Response(
-        JSON.stringify({ success: false, error: "User balance data not found" }),
+        JSON.stringify({ success: false, error: "User balance data not found", errorCode: "user_not_found" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -709,7 +709,7 @@ Deno.serve(async (req: Request) => {
 
     if (compErr || !comp) {
       return new Response(
-        JSON.stringify({ success: false, error: "Competition not found" }),
+        JSON.stringify({ success: false, error: "Competition not found", errorCode: "competition_not_found" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -717,7 +717,7 @@ Deno.serve(async (req: Request) => {
     // Check if competition is active
     if (comp.status !== "active") {
       return new Response(
-        JSON.stringify({ success: false, error: "Competition is not active" }),
+        JSON.stringify({ success: false, error: "Competition is not active", errorCode: "competition_inactive" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -1312,7 +1312,7 @@ Deno.serve(async (req: Request) => {
         
         if (!ticketsMatch) {
           console.error(`[purchase-tickets-with-bonus] Ticket assignment mismatch! Reserved: [${sortedReserved.join(', ')}], Assigned: [${sortedAssigned.join(', ')}]`);
-          throw new Error("Failed to assign reserved tickets. Some tickets may have been taken by another transaction.");
+          throw new Error("Internal error: Failed to assign reserved tickets. Please try again or contact support.");
         }
         
         console.log(`[purchase-tickets-with-bonus] Successfully assigned all reserved tickets: [${assignedNumbers.join(', ')}]`);
@@ -1646,7 +1646,7 @@ Deno.serve(async (req: Request) => {
     console.error("Ticket purchase error:", error);
 
     return new Response(
-      JSON.stringify({ success: false, error: (error as Error).message || "Failed to purchase tickets" }),
+      JSON.stringify({ success: false, error: (error as Error).message || "Failed to purchase tickets", errorCode: "internal_error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
