@@ -36,7 +36,7 @@ supabase.functions.invoke('get-user-profile', {
 ```
 
 **Parameters**:
-- `privy_user_id` (text, required): User's canonical Privy ID
+- `privy_user_id` (string, required): User's canonical Privy ID
 
 **Response**:
 ```typescript
@@ -76,7 +76,7 @@ supabase.functions.invoke('purchase-tickets-with-bonus', {
 ```
 
 **Parameters**:
-- `userId` (text, required): Canonical format user identifier
+- `userId` (string, required): Canonical format user identifier
 - `idempotencyKey` (string, required): UUID for deduplication
 - `competitionId` (string, required): Competition identifier
 - `numberOfTickets` (number, required): Quantity to purchase
@@ -123,7 +123,7 @@ supabase.functions.invoke('reserve-tickets', {
 ```
 
 **Parameters**:
-- `userId` (text, required): User identifier
+- `userId` (string, required): User identifier
 - `competitionId` (string, required): Competition ID
 - `selectedTickets` (number[], required): Array of ticket numbers
 
