@@ -11,6 +11,7 @@ import { createBrowserRouter, RouterProvider, Navigate } from 'react-router';
 import Loader from './components/Loader.tsx';
 import AppLoader from './components/AppLoader.tsx';
 import { AuthProvider } from './contexts/AuthContext.tsx';
+import { BaseAccountSDKProvider } from './contexts/BaseAccountSDKContext.tsx';
 // Competition lifecycle checking has been moved to a server-side scheduled function
 // to eliminate client-side network issues (ERR_CONNECTION_CLOSED errors)
 // See: netlify/functions/competition-lifecycle-checker.mts
@@ -355,6 +356,7 @@ function OnchainKitProviderWrapper({ children }: { children: React.ReactNode }) 
 // Render the app with Base/CDP as the primary auth
 // NOTE: Competition lifecycle checking has been moved server-side to a scheduled function
 // NOTE: OnchainKit API key is now fetched from server via OnchainKitProviderWrapper
+// NOTE: Base Account SDK is initialized via BaseAccountSDKProvider for centralized SDK management
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AppLoader>
@@ -363,12 +365,14 @@ createRoot(document.getElementById('root')!).render(
           <QueryClientProvider client={queryClient}>
             <CDPReactProvider config={cdpConfig} theme={cdpTheme}>
               <OnchainKitProviderWrapper>
-                <AuthProvider>
-                  <EnsureBaseChain />
-                  <Suspense fallback={<Loader />}>
-                    <RouterProvider router={router} />
-                  </Suspense>
-                </AuthProvider>
+                <BaseAccountSDKProvider>
+                  <AuthProvider>
+                    <EnsureBaseChain />
+                    <Suspense fallback={<Loader />}>
+                      <RouterProvider router={router} />
+                    </Suspense>
+                  </AuthProvider>
+                </BaseAccountSDKProvider>
               </OnchainKitProviderWrapper>
             </CDPReactProvider>
           </QueryClientProvider>

@@ -6,14 +6,21 @@
  * which provides a seamless payment experience without requiring wallet connection.
  * 
  * Features:
- * - One-tap USDC payments via Base Account
+ * - One-tap USDC payments via Base Account SDK
  * - Payment status tracking
  * - Integration with existing transaction system
+ * - Uses centralized SDK instance for consistency
+ * 
+ * Architecture:
+ * - Uses the singleton SDK instance from base-account-sdk.ts
+ * - SDK provides EIP-1193 provider for wallet interactions
+ * - Supports both direct payments and SDK-managed sessions
  * 
  * Documentation: https://docs.base.org/base-account/guides/accept-payments
  */
 
 import { pay, getPaymentStatus, type PaymentOptions, type PaymentResult, type PaymentStatus } from '@base-org/account/payment/browser';
+import { getBaseAccountSDK, getSDKProvider } from './base-account-sdk';
 import { supabase } from './supabase';
 import { isSuccessStatus, isFailureStatus } from './payment-status';
 import { normalizeWalletAddress, toPrizePid } from '../utils/userId';

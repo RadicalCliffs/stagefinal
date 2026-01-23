@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useAuthUser } from '../contexts/AuthContext';
+import { useBaseAccountSDK } from '../contexts/BaseAccountSDKContext';
 import type { Hex, Address } from 'viem';
 import { useSpendPermission, type SpendPermission, type SpendPermissionConfig } from './useSpendPermission';
 
@@ -10,13 +11,15 @@ import { useSpendPermission, type SpendPermission, type SpendPermissionConfig } 
  * Sub Accounts are derived from the parent Base Account and can be controlled
  * by an embedded wallet, avoiding explicit passkey prompts on every transaction.
  *
- * This implements the Base + CDP Sub Account integration pattern.
+ * This implements the Base + CDP Sub Account integration pattern using the
+ * centralized Base Account SDK instance.
  *
  * Features:
  * - Automatic Sub Account creation for users with Base Accounts
  * - Embedded wallet control for passkey-free signing
  * - Spend Permissions for true one-click payments
  * - Combined Sub Account + Spend Permission for maximum UX
+ * - Uses SDK methods from base-account-sdk.ts for consistency
  */
 
 interface SubAccount {
@@ -71,6 +74,7 @@ interface UseBaseSubAccountResult {
 
 export function useBaseSubAccount(): UseBaseSubAccountResult {
   const { linkedWallets } = useAuthUser();
+  const { sdk, provider: sdkProvider, isReady: sdkReady } = useBaseAccountSDK();
   const [subAccount, setSubAccount] = useState<SubAccount | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -110,10 +114,17 @@ export function useBaseSubAccount(): UseBaseSubAccountResult {
   /**
    * Get or create a Sub Account for the current user
    * The Sub Account is derived from the Base Account and controlled by the embedded wallet
+   * 
+   * Uses the centralized SDK instance to ensure consistency across the application.
    */
   const getOrCreateSubAccount = useCallback(async (): Promise<SubAccount | null> => {
     if (!baseAccount || !embeddedWallet) {
       setError('Base Account and embedded wallet required for Sub Accounts');
+      return null;
+    }
+
+    if (!sdkReady || !sdk) {
+      setError('Base Account SDK not ready');
       return null;
     }
 
@@ -132,17 +143,32 @@ export function useBaseSubAccount(): UseBaseSubAccountResult {
         console.warn('Chain switch failed, continuing with current chain:', switchErr);
       }
 
-      const provider = await baseAccount.getEthereumProvider();
+      // Use SDK provider instead of getting from wallet directly
+      const provider = sdkProvider || await baseAccount.getEthereumProvider();
       const domain = window.location.origin;
 
-      // Check for existing Sub Account
-      const { subAccounts: existingSubAccounts } = await provider.request({
-        method: 'wallet_getSubAccounts',
-        params: [{
-          account: baseAccount.address as Hex,
-          domain,
-        }],
-      });
+      // Check for existing Sub Account using SDK methods if available
+      // Otherwise fall back to provider requests
+      let existingSubAccounts: any[] = [];
+      
+      try {
+        // Try SDK method first (if available)
+        if (sdk.subAccount && typeof sdk.subAccount.list === 'function') {
+          existingSubAccounts = await sdk.subAccount.list();
+        } else {
+          // Fall back to provider request
+          const response = await provider.request({
+            method: 'wallet_getSubAccounts',
+            params: [{
+              account: baseAccount.address as Hex,
+              domain,
+            }],
+          });
+          existingSubAccounts = response?.subAccounts || [];
+        }
+      } catch (err) {
+        console.warn('[useBaseSubAccount] Error checking existing sub-accounts:', err);
+      }
 
       if (existingSubAccounts && existingSubAccounts.length > 0) {
         const existing = existingSubAccounts[0];
@@ -151,19 +177,38 @@ export function useBaseSubAccount(): UseBaseSubAccountResult {
       }
 
       // Create new Sub Account with embedded wallet as the owner
-      const newSubAccount = await provider.request({
-        method: 'wallet_addSubAccount',
-        params: [{
-          version: '1',
-          account: {
-            type: 'create',
+      // Try SDK method first, fall back to provider request
+      let newSubAccount: SubAccount;
+      
+      try {
+        if (sdk.subAccount && typeof sdk.subAccount.create === 'function') {
+          // Use SDK method
+          newSubAccount = await sdk.subAccount.create({
             keys: [{
               type: 'address',
               publicKey: embeddedWallet.address as Hex,
             }],
-          },
-        }],
-      });
+          });
+        } else {
+          // Fall back to provider request
+          newSubAccount = await provider.request({
+            method: 'wallet_addSubAccount',
+            params: [{
+              version: '1',
+              account: {
+                type: 'create',
+                keys: [{
+                  type: 'address',
+                  publicKey: embeddedWallet.address as Hex,
+                }],
+              },
+            }],
+          });
+        }
+      } catch (createErr) {
+        console.error('[useBaseSubAccount] Error creating sub-account:', createErr);
+        throw createErr;
+      }
 
       setSubAccount(newSubAccount);
       return newSubAccount;
@@ -175,7 +220,7 @@ export function useBaseSubAccount(): UseBaseSubAccountResult {
     } finally {
       setIsLoading(false);
     }
-  }, [baseAccount, embeddedWallet]);
+  }, [baseAccount, embeddedWallet, sdk, sdkProvider, sdkReady]);
 
   /**
    * Sign a message using the Sub Account
