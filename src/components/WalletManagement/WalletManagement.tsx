@@ -387,8 +387,8 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
 
         {/* First-time bonus indicator - only show if bonus feature is active and user hasn't used bonus yet */}
         {!hasUsedBonus && (
-          <div className="bg-[#DDE404]/10 border border-[#DDE404]/20 rounded-lg px-4 py-3">
-            <p className="text-[#DDE404] sequel-75 text-sm">50% First Deposit Bonus</p>
+          <div className="bg-[#DDE404] border border-[#DDE404] rounded-lg px-4 py-3">
+            <p className="text-black sequel-75 text-sm">50% First Deposit Bonus</p>
           </div>
         )}
       </div>
@@ -413,8 +413,8 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
               <span className="text-base">Export Private Key</span>
             </button>
           </div>
-          <div className="mt-4 bg-blue-500/10 border border-blue-500/20 rounded-lg px-4 py-3">
-            <p className="text-blue-300/70 sequel-45 text-xs">
+          <div className="mt-4 bg-blue-500 border border-blue-500 rounded-lg px-4 py-3">
+            <p className="text-white sequel-45 text-xs">
               Use your embedded wallet to send ETH to other addresses or export your private key to use in other wallet apps like MetaMask.
             </p>
           </div>
@@ -789,12 +789,12 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
       </div>
 
       {/* Base Network Info */}
-      <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg px-4 py-3">
+      <div className="bg-blue-500 border border-blue-500 rounded-lg px-4 py-3">
         <div className="flex items-start gap-3">
-          <Shield size={20} className="text-blue-400 mt-0.5 flex-shrink-0" />
+          <Shield size={20} className="text-white mt-0.5 flex-shrink-0" />
           <div>
-            <p className="text-blue-400 sequel-75 text-sm">Base Network Powered by Coinbase</p>
-            <p className="text-blue-300/70 sequel-45 text-xs mt-1">
+            <p className="text-white sequel-75 text-sm">Base Network Powered by Coinbase</p>
+            <p className="text-white/90 sequel-45 text-xs mt-1">
               All transactions are processed on Base, an Ethereum L2 network with low fees and fast confirmations.
               Your Base Account is automatically created and secured by Coinbase.
             </p>

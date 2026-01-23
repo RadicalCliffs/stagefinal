@@ -9,7 +9,7 @@ import { useAuthUser } from "../contexts/AuthContext";
 import type { UserInfo } from "./UserInfoModal";
 import { BasePaymentService } from "../lib/base-payment";
 import { BaseAccountPaymentService } from "../lib/base-account-payment";
-import { purchaseTicketsWithBalance, getUserBalance } from "../lib/ticketPurchaseService";
+import { purchaseTicketsWithBalance, getUserBalance, executeBalancePaymentRPC } from "../lib/ticketPurchaseService";
 import { toCanonicalUserId } from "../lib/canonicalUserId";
 import { isSuccessStatus, isFailureStatus } from "../lib/payment-status";
 import { getPaymentErrorInfo, type PaymentErrorInfo } from "../lib/error-handler";
@@ -553,7 +553,50 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     setPurchasedTickets([...selectedTickets]);
 
     try {
-      // Purchase tickets using balance - pass reservationId for atomic ticket allocation
+      // PRIMARY: Try the GODLIKE RPC first - most reliable, bypasses Edge Functions
+      console.log('[PaymentModal] Attempting balance payment via execute_balance_payment RPC');
+      const rpcResult = await executeBalancePaymentRPC({
+        userId: toCanonicalUserId(baseUser.id),
+        competitionId,
+        amount,
+        ticketCount,
+        selectedTickets,
+        reservationId
+      });
+
+      if (rpcResult.success) {
+        // RPC succeeded!
+        console.log('[PaymentModal] Balance payment succeeded via RPC:', rpcResult);
+        setShowOptimisticSuccess(true);
+        setBalanceTransactionId(rpcResult.ticketsCreated?.toString() || rpcResult.transactionId || 'success');
+        setPaymentStep('success');
+
+        if (rpcResult.balanceAfterPurchase !== undefined && rpcResult.balanceAfterPurchase !== null) {
+          setUserBalance(rpcResult.balanceAfterPurchase);
+          console.log('[PaymentModal] Balance updated from RPC response:', rpcResult.balanceAfterPurchase);
+        }
+
+        await refreshUserData();
+        loadUserBalance().catch(err => console.error('[PaymentModal] Background balance refresh failed:', err));
+
+        if (rpcResult.balanceAfterPurchase !== undefined && rpcResult.balanceAfterPurchase !== null) {
+          window.dispatchEvent(new CustomEvent('balance-updated', {
+            detail: { newBalance: rpcResult.balanceAfterPurchase }
+          }));
+        }
+
+        if (onPaymentSuccess) {
+          onPaymentSuccess();
+        }
+        setShowOptimisticSuccess(false);
+        setBalanceLoading(false);
+        return;
+      }
+
+      // RPC failed - log and try fallback to Edge Function
+      console.warn('[PaymentModal] RPC failed, trying Edge Function fallback:', rpcResult.error);
+
+      // FALLBACK: Try the Edge Function as backup
       const result = await purchaseTicketsWithBalance({
         userId: toCanonicalUserId(baseUser.id),
         competitionId,
