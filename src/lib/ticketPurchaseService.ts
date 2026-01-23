@@ -634,3 +634,196 @@ export async function payWithBalance({
     };
   }
 }
+
+/**
+ * Execute balance payment using the GODLIKE RPC
+ * This calls the unified execute_balance_payment RPC directly,
+ * bypassing Edge Functions entirely for maximum reliability.
+ *
+ * Features:
+ * - Handles ALL user ID formats (wallet, prize:pid:, did:privy:, UUID)
+ * - Atomic transaction (all-or-nothing)
+ * - Idempotent (same request = same result)
+ * - Updates ALL balance tables in sync
+ * - Creates entries in tickets, joincompetition, user_transactions
+ *
+ * @param params - Payment parameters
+ * @returns Payment result with detailed success/error info
+ */
+export async function executeBalancePaymentRPC({
+  userId,
+  competitionId,
+  amount,
+  ticketCount,
+  selectedTickets,
+  idempotencyKey,
+  reservationId
+}: {
+  userId: string;
+  competitionId: string;
+  amount: number;
+  ticketCount: number;
+  selectedTickets?: number[];
+  idempotencyKey?: string;
+  reservationId?: string | null;
+}) {
+  // Validate required fields
+  if (!userId || typeof userId !== 'string' || userId.trim() === '') {
+    console.error('[executeBalancePaymentRPC] Invalid userId provided:', userId);
+    return {
+      success: false,
+      error: 'User identifier is missing. Please log in again and try once more.',
+      error_code: 'INVALID_USER'
+    };
+  }
+
+  if (!competitionId || typeof competitionId !== 'string' || competitionId.trim() === '') {
+    console.error('[executeBalancePaymentRPC] Invalid competitionId provided:', competitionId);
+    return {
+      success: false,
+      error: 'Competition ID is missing.',
+      error_code: 'INVALID_COMPETITION'
+    };
+  }
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    console.error('[executeBalancePaymentRPC] Invalid amount provided:', amount);
+    return {
+      success: false,
+      error: 'Invalid payment amount.',
+      error_code: 'INVALID_AMOUNT'
+    };
+  }
+
+  if (!Number.isFinite(ticketCount) || ticketCount <= 0) {
+    console.error('[executeBalancePaymentRPC] Invalid ticketCount provided:', ticketCount);
+    return {
+      success: false,
+      error: 'Invalid number of tickets.',
+      error_code: 'INVALID_TICKET_COUNT'
+    };
+  }
+
+  // Generate idempotency key if not provided
+  const finalIdempotencyKey = idempotencyKey ||
+    `${userId}-${competitionId}-${amount}-${ticketCount}-${Date.now()}`;
+
+  try {
+    console.log('[executeBalancePaymentRPC] Calling execute_balance_payment RPC with:', {
+      userId: userId.substring(0, 20) + '...',
+      competitionId,
+      amount,
+      ticketCount,
+      selectedTicketsCount: selectedTickets?.length || 0
+    });
+
+    // Call the GODLIKE RPC directly
+    const { data, error } = await withRetry(
+      async () => {
+        return await supabase.rpc('execute_balance_payment', {
+          p_user_identifier: userId,
+          p_competition_id: competitionId,
+          p_amount: amount,
+          p_ticket_count: ticketCount,
+          p_selected_tickets: selectedTickets && selectedTickets.length > 0 ? selectedTickets : null,
+          p_idempotency_key: finalIdempotencyKey,
+          p_reservation_id: reservationId || null
+        });
+      },
+      {
+        maxRetries: 3,
+        delayMs: 1500,
+        context: 'execute_balance_payment_rpc',
+        shouldRetry: (error) => {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          // Retry on network errors but not on validation errors
+          return errorMessage.includes('Network') ||
+                 errorMessage.includes('Failed to send') ||
+                 errorMessage.includes('FunctionsFetchError') ||
+                 errorMessage.includes('network') ||
+                 isNetworkError(error);
+        }
+      }
+    );
+
+    if (error) {
+      console.error('[executeBalancePaymentRPC] RPC error:', error);
+      return {
+        success: false,
+        error: getUserFriendlyErrorMessage(null, error.message || 'Payment failed'),
+        error_code: 'RPC_ERROR',
+        error_detail: error.message
+      };
+    }
+
+    // The RPC returns a JSONB object
+    if (!data) {
+      return {
+        success: false,
+        error: 'No response from payment service',
+        error_code: 'EMPTY_RESPONSE'
+      };
+    }
+
+    // Check if the RPC returned an error
+    if (data.success === false) {
+      console.error('[executeBalancePaymentRPC] RPC returned error:', data);
+      return {
+        success: false,
+        error: getUserFriendlyErrorMessage(null, data.error || 'Payment failed'),
+        error_code: data.error_code || 'PAYMENT_FAILED',
+        ...data
+      };
+    }
+
+    // Success!
+    console.log('[executeBalancePaymentRPC] Payment successful:', {
+      entryUid: data.entry_uid,
+      ticketsCreated: data.tickets_created,
+      newBalance: data.new_balance
+    });
+
+    // Dispatch balance-updated event
+    if (typeof window !== 'undefined' && data.new_balance !== undefined) {
+      window.dispatchEvent(new CustomEvent('balance-updated', {
+        detail: {
+          newBalance: data.new_balance,
+          previousBalance: data.previous_balance,
+          purchaseAmount: data.amount_debited,
+          ticketsCreated: data.tickets_created,
+          competitionId
+        }
+      }));
+    }
+
+    // Check if competition is now sold out (non-blocking)
+    checkCompetitionSoldOut(competitionId).catch((err: Error) => {
+      console.log('[executeBalancePaymentRPC] Sold-out check (non-blocking):', err);
+    });
+
+    return {
+      success: true,
+      ticketsCreated: data.tickets_created,
+      ticketNumbers: data.ticket_numbers,
+      totalCost: data.amount_debited,
+      balanceAfterPurchase: data.new_balance,
+      previousBalance: data.previous_balance,
+      entryId: data.entry_uid,
+      transactionId: data.transaction_id,
+      competitionTitle: data.competition_title,
+      idempotent: data.idempotent || false,
+      message: `Successfully purchased ${data.tickets_created} tickets`
+    };
+
+  } catch (err) {
+    console.error('[executeBalancePaymentRPC] Unexpected error:', err);
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+
+    return {
+      success: false,
+      error: getUserFriendlyErrorMessage(null, errorMessage),
+      error_code: 'UNEXPECTED_ERROR',
+      error_detail: errorMessage
+    };
+  }
+}
