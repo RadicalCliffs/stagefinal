@@ -532,10 +532,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
             <div className="mb-6 bg-[#DDE404]/15 border border-[#DDE404]/40 rounded-lg p-4 flex items-start gap-3">
               <Gift size={24} className="text-[#DDE404] flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-[#DDE404] sequel-75 text-sm mb-1">50% Top Up Bonus!</p>
-                <p className="text-white/70 sequel-45 text-xs">
-                  Your first deposit gets an additional 50% bonus balance, uncapped! Note: Bonus is unwithdrawable until 1.5x the balance has been played with.
-                </p>
+                <p className="text-[#DDE404] sequel-75 text-sm">50% First Deposit Bonus</p>
               </div>
             </div>
           )}
