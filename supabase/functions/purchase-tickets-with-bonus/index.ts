@@ -694,6 +694,7 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({
           success: false,
           error: `Insufficient balance. Need ${totalCost.toFixed(2)} USDC, have ${userBalance.toFixed(2)} USDC`,
+          errorCode: "insufficient_balance"
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -721,14 +722,16 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // STEP 4a: Check for existing reservation (if reservationId provided or user has one)
+    // STEP 4a: Check for existing reservation (if reservationId provided)
     // This ensures balance payments respect the reservation system
+    // REQUIREMENT: Strict reservation validation - only use if valid UUID, owned by user, matching competition, pending, not expired
     let reservedTicketNumbers: number[] | null = null;
     let reservationRecord: any = null;
 
-    // Only query by reservationId if it's a valid UUID (not a placeholder like 'pending')
+    // ONLY query by reservationId if it's a valid UUID (not a placeholder like 'pending')
+    // DO NOT fallback to 'latest' reservation to prevent unauthorized use of other reservations
     if (reservationId && isValidUUID(reservationId)) {
-      // Try canonical ID match first
+      // STRICT: Try canonical ID match with all required conditions
       let { data: reservation, error: resError } = await supabase
         .from("pending_tickets")
         .select("*")
@@ -766,91 +769,71 @@ Deno.serve(async (req: Request) => {
         reservation = altReservation;
       }
 
-      if (!resError && reservation) {
-        // Check if reservation is still valid (not expired)
-        if (reservation.expires_at && new Date(reservation.expires_at) < new Date()) {
-          // Mark as expired
-          await supabase
-            .from("pending_tickets")
-            .update({ status: "expired", updated_at: new Date().toISOString() })
-            .eq("id", reservationId);
-
-          return new Response(
-            JSON.stringify({
-              success: false,
-              error: "Your ticket reservation has expired. Please select tickets again.",
-              expiredAt: reservation.expires_at
-            }),
-            { status: 410, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-
-        reservationRecord = reservation;
-        reservedTicketNumbers = (reservation.ticket_numbers || [])
-          .map((n: any) => Number(n))
-          .filter((n: number) => Number.isFinite(n));
-
-        console.log(`Using reservation ${reservationId} with ${reservedTicketNumbers.length} tickets`);
+      // STRICT VALIDATION: If reservation ID was provided but not found, or doesn't match requirements, return error
+      if (resError) {
+        console.error(`[purchase-tickets-with-bonus] Error querying reservation:`, resError);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "Error validating reservation",
+            errorCode: "reservation_error"
+          }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
-    }
 
-    // If no valid reservationId or no reservation found, try to find most recent pending reservation for this user/competition
-    // This handles cases where reservationId is a placeholder like 'pending' or null
-    if (!reservedTicketNumbers && (!reservationId || !isValidUUID(reservationId))) {
-      console.log(`No valid reservationId provided (got: '${reservationId || 'null'}'), searching for latest reservation for user: ${canonicalUserId.substring(0, 20)}...`);
+      if (!reservation) {
+        // Reservation ID provided but not found or doesn't match user/competition
+        console.log(`[purchase-tickets-with-bonus] Reservation ${reservationId} not found or doesn't match user/competition`);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "Reservation not found or does not belong to you",
+            errorCode: "reservation_mismatch"
+          }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
-      // First try with canonical userId
-      let { data: latestReservation } = await supabase
-        .from("pending_tickets")
-        .select("*")
-        .eq("user_id", canonicalUserId)
-        .eq("competition_id", competitionId)
-        .eq("status", "pending")
-        .gt("expires_at", new Date().toISOString())
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      // If not found with canonical, try with normalized userId (fallback for legacy data)
-      if (!latestReservation && !isPrizePid(userId)) {
-        console.log(`[purchase-tickets-with-bonus] Canonical fallback lookup failed, trying legacy`);
-        const { data: legacyReservation } = await supabase
+      // Check if reservation is still valid (not expired)
+      if (reservation.expires_at && new Date(reservation.expires_at) < new Date()) {
+        // Mark as expired
+        await supabase
           .from("pending_tickets")
-          .select("*")
-          .eq("user_id", normalizedUserId)
-          .eq("competition_id", competitionId)
-          .eq("status", "pending")
-          .gt("expires_at", new Date().toISOString())
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        latestReservation = legacyReservation;
+          .update({ status: "expired", updated_at: new Date().toISOString() })
+          .eq("id", reservationId);
+
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "Your ticket reservation has expired. Please select tickets again.",
+            errorCode: "reservation_expired",
+            expiredAt: reservation.expires_at
+          }),
+          { status: 410, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
 
-      // If still not found, try case-insensitive match for wallet addresses
-      if (!latestReservation && isUserIdWallet) {
-        console.log(`[purchase-tickets-with-bonus] Exact fallback lookup failed, trying case-insensitive`);
-        const { data: altReservation } = await supabase
-          .from("pending_tickets")
-          .select("*")
-          .ilike("user_id", normalizedUserId)
-          .eq("competition_id", competitionId)
-          .eq("status", "pending")
-          .gt("expires_at", new Date().toISOString())
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        latestReservation = altReservation;
+      // Valid reservation found - use it as the single source of truth
+      reservationRecord = reservation;
+      reservedTicketNumbers = (reservation.ticket_numbers || [])
+        .map((n: any) => Number(n))
+        .filter((n: number) => Number.isFinite(n));
+
+      // REQUIREMENT: Validate that reservation ticket count matches requested numberOfTickets
+      if (reservedTicketNumbers.length !== numberOfTickets) {
+        console.log(`[purchase-tickets-with-bonus] Reservation ticket count mismatch: requested ${numberOfTickets}, reservation has ${reservedTicketNumbers.length}`);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: `Ticket count mismatch. Reservation has ${reservedTicketNumbers.length} tickets but you requested ${numberOfTickets}`,
+            errorCode: "reservation_ticket_count_mismatch"
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
 
-      if (latestReservation) {
-        reservationRecord = latestReservation;
-        reservedTicketNumbers = (latestReservation.ticket_numbers || [])
-          .map((n: any) => Number(n))
-          .filter((n: number) => Number.isFinite(n));
-
-        console.log(`Found existing reservation ${latestReservation.id} with ${reservedTicketNumbers.length} tickets`);
-      }
+      console.log(`Using reservation ${reservationId} with ${reservedTicketNumbers.length} tickets: [${reservedTicketNumbers.join(', ')}]`);
     }
 
     // Get currently unavailable tickets (sold + pending reservations from OTHER users)
@@ -933,24 +916,36 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Use reserved tickets if we have them, otherwise use selectedTickets from request
-    const userSelectedTickets = reservedTicketNumbers && reservedTicketNumbers.length > 0
-      ? reservedTicketNumbers
-      : (Array.isArray(selectedTickets) && selectedTickets.length > 0
+    // REQUIREMENT: When using a reservation, use ONLY the reservation's tickets as the authoritative source
+    // Do NOT validate against global unavailable sets - the reservation IS the source of truth
+    // Otherwise, use client-supplied selectedTickets
+    let userSelectedTickets: number[] = [];
+    
+    if (reservationRecord && reservedTicketNumbers && reservedTicketNumbers.length > 0) {
+      // RESERVATION MODE: Use reservation tickets as the ONLY source of truth
+      // Do NOT revalidate against global unavailable sets - the reservation already holds these tickets
+      userSelectedTickets = reservedTicketNumbers;
+      console.log(`[purchase-tickets-with-bonus] Using reservation tickets (bypassing global availability check): [${userSelectedTickets.join(', ')}]`);
+    } else {
+      // NO RESERVATION: Use client-supplied selectedTickets and validate against global unavailable
+      userSelectedTickets = Array.isArray(selectedTickets) && selectedTickets.length > 0
         ? selectedTickets.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n) && n > 0)
-        : []);
-
-    if (userSelectedTickets.length > 0) {
-      const unavailableSelected = userSelectedTickets.filter((t: number) => unavailableTickets.has(t));
-      if (unavailableSelected.length > 0) {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: `Some selected tickets are no longer available: ${unavailableSelected.join(", ")}`,
-            unavailableTickets: unavailableSelected
-          }),
-          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        : [];
+      
+      // Only validate against unavailable tickets when NOT using a reservation
+      if (userSelectedTickets.length > 0) {
+        const unavailableSelected = userSelectedTickets.filter((t: number) => unavailableTickets.has(t));
+        if (unavailableSelected.length > 0) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: `Some selected tickets are no longer available: ${unavailableSelected.join(", ")}`,
+              errorCode: "tickets_unavailable",
+              unavailableTickets: unavailableSelected
+            }),
+            { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
       }
     }
 
@@ -1282,9 +1277,9 @@ Deno.serve(async (req: Request) => {
     }
 
     try {
-      // STEP 7: Assign canonical tickets (honors user-selected tickets if provided)
-      // Pass selectedTickets as preferredTicketNumbers so the user's choices are respected
-      // (userSelectedTickets already validated and populated in STEP 4)
+      // STEP 7: Assign canonical tickets
+      // REQUIREMENT: When using reservation, pass ONLY reservation tickets and use exact count
+      // (userSelectedTickets is already set to reservation tickets OR client-supplied tickets above)
       // Use canonical user ID for ticket storage
       const ticketUserId = pucRows.canonical_user_id || canonicalUserId;
 
@@ -1295,15 +1290,33 @@ Deno.serve(async (req: Request) => {
         throw new Error("User identifier could not be determined. Please try logging out and back in.");
       }
 
+      // REQUIREMENT: When using reservation, ensure we assign EXACTLY the reservation's tickets
       const assigned = await assignTickets({
         supabase,
         userIdentifier: ticketUserId, // Use canonical ID for consistent storage
         competitionId,
         orderId: null,
-        ticketCount: totalTickets,
-        preferredTicketNumbers: userSelectedTickets,
+        ticketCount: totalTickets, // Use totalTickets (which equals numberOfTickets in this context)
+        preferredTicketNumbers: userSelectedTickets, // Either reservation tickets OR client-supplied tickets
       });
       const assignedNumbers = assigned.ticketNumbers;
+
+      // REQUIREMENT: When using reservation, verify assigned tickets exactly match reservation tickets
+      if (reservationRecord && reservedTicketNumbers && reservedTicketNumbers.length > 0) {
+        // Sort both arrays for comparison
+        const sortedReserved = [...reservedTicketNumbers].sort((a, b) => a - b);
+        const sortedAssigned = [...assignedNumbers].sort((a, b) => a - b);
+        
+        const ticketsMatch = sortedReserved.length === sortedAssigned.length &&
+          sortedReserved.every((val, idx) => val === sortedAssigned[idx]);
+        
+        if (!ticketsMatch) {
+          console.error(`[purchase-tickets-with-bonus] Ticket assignment mismatch! Reserved: [${sortedReserved.join(', ')}], Assigned: [${sortedAssigned.join(', ')}]`);
+          throw new Error("Failed to assign reserved tickets. Some tickets may have been taken by another transaction.");
+        }
+        
+        console.log(`[purchase-tickets-with-bonus] Successfully assigned all reserved tickets: [${assignedNumbers.join(', ')}]`);
+      }
 
       // STEP 8: Set purchase_price for all tickets (no bonus tickets anymore)
       // Update tickets using the user_id column with canonical ID
