@@ -558,20 +558,20 @@ export async function fetchPendingTicketsWithIdentity(identifier: string): Promi
     let error: any = null;
 
     const { data: standardData, error: standardError } = await supabase.rpc(
-      'get_user_pending_tickets',
+      'get_user_pending_tickets' as any,
       { user_identifier: identity.primaryId }
     );
 
     if (!standardError && standardData) {
-      data = standardData;
+      data = standardData as any;
     } else {
       // Fallback to bypass_rls version if standard fails
       console.warn('[fetchPendingTicketsWithIdentity] Standard RPC not available, trying bypass_rls');
       const { data: bypassData, error: bypassError } = await supabase.rpc(
-        'get_user_pending_tickets_bypass_rls',
+        'get_user_pending_tickets_bypass_rls' as any,
         { user_identifier: identity.primaryId }
       );
-      data = bypassData;
+      data = bypassData as any;
       error = bypassError;
     }
 

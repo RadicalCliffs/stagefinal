@@ -15,6 +15,7 @@
  */
 
 import { StagingRNG } from './rng-utils';
+import { toPrizePid } from './user-auth';
 
 /**
  * Helper to create an instant win prize directly using Supabase
@@ -219,7 +220,7 @@ export const instantWinHelper = {
         .eq('UID', prize.UID);
 
       const { notificationService } = await import('./notification-service');
-      await notificationService.notifyWinner(toPrizePid(userId), competitionId, prize.prize);
+      await notificationService.notifyWinner(toPrizePid(userId), competitionId || '', prize.prize);
 
       return true;
     } catch (error) {

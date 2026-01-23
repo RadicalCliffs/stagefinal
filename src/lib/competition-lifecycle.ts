@@ -203,7 +203,7 @@ export class CompetitionLifecycleService {
           });
 
           // Check if sold out
-          if (totalSoldTickets >= competition.total_tickets) {
+          if (totalSoldTickets >= (competition.total_tickets || 0)) {
             safeLog(`[Competition Lifecycle] Competition ${competition.id} (${competition.title}) is SOLD OUT: ${totalSoldTickets}/${competition.total_tickets}`);
             await this.drawCompetition(competition);
             soldOutCount++;
@@ -314,7 +314,7 @@ export class CompetitionLifecycleService {
       return [];
     }
 
-    return data || [];
+    return (data || []) as CompetitionEntry[];
   }
 
   /**

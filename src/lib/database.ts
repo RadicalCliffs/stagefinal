@@ -2986,7 +2986,7 @@ export const database = {
     try {
       // Use RPC function to bypass RLS which fails with Privy auth (auth.uid() is null)
       const { data, error: rpcError } = await supabase.rpc(
-        'confirm_pending_ticket_reservation',
+        'confirm_pending_ticket_reservation' as any,
         { p_reservation_id: reservationId }
       );
 
