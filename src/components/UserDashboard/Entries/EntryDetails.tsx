@@ -152,13 +152,13 @@ const EntryDetail = () => {
         isInstantWin={entry.is_instant_win}
       />
       <EntriesTickets
-        ticketNumbers={entry.ticket_numbers}
-        numberOfTickets={entry.number_of_tickets}
+        ticketNumbers={entry.ticket_numbers ?? undefined}
+        numberOfTickets={entry.number_of_tickets ?? undefined}
       />
       <EntriesWinnerSection
         fields={fields}
         activeTab={activeTab}
-        status={status}
+        status={status === "pending" ? "live" : status}
         isWinner={isWinner}
       />
     </div>

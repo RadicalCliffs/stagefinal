@@ -130,7 +130,7 @@ export function BaseAccountStatus({ compact = false, className = '' }: BaseAccou
           <div className="text-xs text-gray-400 uppercase tracking-wide">Account Address</div>
           <div className="flex items-center gap-2 p-2 bg-gray-900/50 rounded-lg">
             <code className="flex-1 text-sm font-mono text-gray-300 overflow-hidden text-ellipsis">
-              {truncateString(account.address, 12, 10)}
+              {truncateString(account.address, 6)}
             </code>
             <button
               onClick={handleCopyAddress}
@@ -153,7 +153,7 @@ export function BaseAccountStatus({ compact = false, className = '' }: BaseAccou
           <div className="text-xs text-gray-400 uppercase tracking-wide">Public Key</div>
           <div className="p-2 bg-gray-900/50 rounded-lg">
             <code className="text-xs font-mono text-gray-400 break-all">
-              {truncateString(account.publicKey, 16, 16)}
+              {truncateString(account.publicKey, 8)}
             </code>
           </div>
         </div>

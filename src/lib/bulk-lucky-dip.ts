@@ -176,7 +176,7 @@ async function allocateBatchWithRetry(
       const { data, error } = await supabase.rpc('allocate_lucky_dip_tickets_batch', {
         p_user_id: userId,
         p_competition_id: competitionId,
-        p_count: count,
+        p_ticket_count: count,
         p_ticket_price: ticketPrice,
         p_hold_minutes: holdMinutes,
         p_session_id: sessionId,

@@ -364,8 +364,6 @@ async function linkWalletToExistingUser(
       }
     }
 
-      console.log('[BaseWallet] Successfully linked wallet to user:', existingUser.id);
-      return { success: true, userId: existingUser.id };
       } catch (innerError) {
         // Handle any errors from the inner async operations
         console.error('[BaseWallet] Error in linkWalletToExistingUser inner promise:', innerError);
@@ -421,9 +419,11 @@ async function saveUserWithProfile(email: string, walletAddress: string, profile
       .maybeSingle();
 
     let saveSuccess = false;
+    let userId: string | null = null;
 
     if (existingUser) {
       // Update existing user
+      userId = existingUser.id;
       const { error } = await supabase
         .from('canonical_users')
         .update({
@@ -446,7 +446,7 @@ async function saveUserWithProfile(email: string, walletAddress: string, profile
       saveSuccess = !error;
     } else {
       // Create new user if not found
-      const { error } = await supabase
+      const { data: newUser, error } = await supabase
         .from('canonical_users')
         .insert({
           canonical_user_id: canonicalUserId,
@@ -467,12 +467,15 @@ async function saveUserWithProfile(email: string, walletAddress: string, profile
           wallet_linked: true,
           auth_provider: 'cdp',
           created_at: new Date().toISOString(),
-        });
+        })
+        .select('id')
+        .single();
 
       if (error && error.code !== '23505') {
         console.error('[BaseWallet] Error creating user:', error);
         return false;
       }
+      userId = newUser?.id || null;
       saveSuccess = true;
     }
 
@@ -509,9 +512,9 @@ async function saveUserWithProfile(email: string, walletAddress: string, profile
         console.log('[BaseWallet] Calling upsert_canonical_user RPC after profile completion');
 
         const { error: upsertError } = await supabase.rpc('upsert_canonical_user', {
-          p_uid: existingUser?.id || null,
+          p_uid: userId || canonicalUserId,  // Use userId if available, fallback to canonicalUserId
           p_canonical_user_id: canonicalUserId,
-          p_email: normalizedEmail || null,
+          p_email: normalizedEmail,
           p_username: profile.username.toLowerCase(),
           p_wallet_address: walletAddress.toLowerCase(),
           p_base_wallet_address: walletAddress.toLowerCase(),

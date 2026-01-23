@@ -331,7 +331,8 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                 { event: '*', schema: 'public', table: 'pending_tickets', filter: `competition_id=eq.${competitionId}` },
                 payload => {
                     // Reset stale reservations if they were confirmed/cancelled elsewhere
-                    if (payload.new?.status && payload.new.status !== 'pending') {
+                    const newRecord = payload.new as any;
+                    if (newRecord?.status && newRecord.status !== 'pending') {
                         setReservationId(null);
                         setReservationSuccess(null);
                     }
@@ -554,7 +555,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                         {loadingError}
                     </p>
                     <button
-                        onClick={fetchAvailableTickets}
+                        onClick={() => fetchAvailableTickets(true)}
                         className="bg-[#DDE404] hover:bg-[#DDE404]/90 text-black sequel-75 uppercase px-8 py-3 rounded-lg transition-colors"
                     >
                         Try Again
@@ -668,7 +669,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                         </div>
                         <div className="flex items-center gap-3 w-full sm:w-auto">
                             <button
-                                onClick={fetchAvailableTickets}
+                                onClick={() => fetchAvailableTickets(false)}
                                 className="bg-[#404040] hover:bg-[#555] text-white p-2.5 rounded-lg transition-colors"
                                 disabled={loading}
                                 title="Refresh available tickets"

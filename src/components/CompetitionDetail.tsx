@@ -43,7 +43,7 @@ const CompetitionDetail = () => {
         return;
       }
 
-      setCompetition(comp);
+      setCompetition(comp as Competition);
       setLoading(false);
     };
     fetchCompetition();

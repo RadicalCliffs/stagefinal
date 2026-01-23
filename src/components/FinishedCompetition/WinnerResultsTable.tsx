@@ -33,7 +33,7 @@ const WinnerResultsTable = ({ competitionId }: WinnerResultsTableProps) => {
         // Fetch winners from the winners table
         const { data: winnersData, error: winnersError } = await supabase
           .from('winners')
-          .select('ticket_number, wallet_address, username, created_at')
+          .select('ticket_number, wallet_address, username')
           .eq('competition_id', competitionId);
 
         if (winnersError) {

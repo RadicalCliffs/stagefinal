@@ -53,7 +53,7 @@ export interface WinnerHashCardProps {
 }
 
 export interface Entry {
-  entryNumber: string | number;
+  entryNumber?: string | number;  // Optional for compatibility
   ticketNumber?: number;  // Added for compatibility with entry displays
   date: string;
   walletAddress: string;

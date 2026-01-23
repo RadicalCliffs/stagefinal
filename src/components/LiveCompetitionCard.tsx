@@ -56,7 +56,7 @@ const LiveCompetitionCard: React.FC<CompetitionCardProps> = ({
       {/* Progress bar - fills from left to right as entries are sold */}
       <div className="progress overflow-hidden rounded-full md:h-[10px] h-[8px] w-11/12 mx-auto mb-4 bg-[#1A1A1A]">
         <div
-          style={{ width: `${Math.max(progressPercent, 10)}%` }}
+          style={{ width: `${Math.max(progressPercent ?? 10, 10)}%` }}
           className="progress-bar progress-bar-success progress-bar-striped active h-full"
         ></div>
       </div>

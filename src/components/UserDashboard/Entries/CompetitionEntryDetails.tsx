@@ -14,7 +14,7 @@ interface EntryData {
   title: string;
   description: string;
   image: string;
-  status: "live" | "drawn" | "pending";
+  status: "live" | "drawn" | "pending";  // Added pending
   entry_type: string;
   is_winner: boolean;
   ticket_numbers?: string | null;
@@ -201,11 +201,11 @@ const CompetitionEntryDetails = () => {
       total_tickets: totalTickets,
       all_ticket_numbers: uniqueTickets.join(", "),
       total_amount_spent: totalAmount,
-      first_purchase_date: firstPurchaseDate,
-      last_purchase_date: lastPurchaseDate,
-      transaction_hashes: uniqueHashes,
-      prize_value: firstEntry.prize_value || undefined,
-      end_date: firstEntry.end_date || undefined,
+      first_purchase_date: firstPurchaseDate ?? undefined,
+      last_purchase_date: lastPurchaseDate ?? undefined,
+      transaction_hashes: uniqueHashes.filter((h): h is string => h != null),
+      prize_value: firstEntry.prize_value ?? undefined,
+      end_date: firstEntry.end_date ?? undefined,
       individual_entries: uniqueEntries,
       is_pending: isPending,
       expires_at: expirations[0] || undefined,
@@ -374,7 +374,7 @@ const CompetitionEntryDetails = () => {
       <EntriesWinnerSection
         fields={fields}
         activeTab={activeTab}
-        status={status}
+        status={status === "pending" ? "live" : status}
         isWinner={isWinner}
       />
     </div>

@@ -1083,7 +1083,7 @@ export const database = {
     // Include winner_username from the updated competition_winners view
     const { data: winnerData } = await supabase
       .from('competition_winners')
-      .select('competitionprize, Winner, winner_username, crDate, competitionname, imageurl')
+      .select('competitionprize, Winner, crDate, competitionname, imageurl')
       .not('Winner', 'is', null)
       .order('crDate', { ascending: false, nullsLast: true })
       .limit(50);
@@ -2420,7 +2420,7 @@ export const database = {
       const { data, error } = await supabase.rpc('allocate_lucky_dip_tickets', {
         p_user_id: userId.trim(),
         p_competition_id: competitionId.trim(),
-        p_count: count,
+        p_ticket_count: count,
         p_ticket_price: ticketPrice,
         p_hold_minutes: holdMinutes,
         p_session_id: sessionId || null
@@ -2581,7 +2581,7 @@ export const database = {
             const { data, error } = await supabase.rpc('allocate_lucky_dip_tickets_batch', {
               p_user_id: canonicalUserId,
               p_competition_id: competitionId.trim(),
-              p_count: batchSize,
+              p_ticket_count: batchSize,
               p_ticket_price: ticketPrice,
               p_hold_minutes: holdMinutes,
               p_session_id: sessionId || null,
@@ -2889,10 +2889,9 @@ export const database = {
         const { data: rpcResult, error: rpcError } = await supabase.rpc('reserve_tickets_atomically', {
           p_competition_id: competitionId,
           p_user_id: userId,
-          p_ticket_numbers: ticketNumbers,
-          p_reservation_id: reservationId,
-          p_expires_at: expiresAt,
-        });
+          p_ticket_count: ticketNumbers.length,
+          p_hold_minutes: timeoutMinutes,
+        } as any);
 
         if (!rpcError && rpcResult) {
           const result = typeof rpcResult === 'string' ? JSON.parse(rpcResult) : rpcResult;

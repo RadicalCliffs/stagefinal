@@ -103,10 +103,10 @@ export function useCompetitions() {
         ...expiredActiveComps, // Include all expired "active" competitions (standard and instant win)
       ];
 
-      setLiveCompetitions(liveComps);
-      setInstantWinCompetitions(instantWinComps);
-      setLastChanceCompetitions(lastChanceComps);
-      setDrawnCompetitions(drawnComps);
+      setLiveCompetitions(liveComps as Competition[]);
+      setInstantWinCompetitions(instantWinComps as Competition[]);
+      setLastChanceCompetitions(lastChanceComps as Competition[]);
+      setDrawnCompetitions(drawnComps as Competition[]);
       setLastUpdate(Date.now());
     } catch (err: any) {
       console.error("Error fetching competitions:", err);
@@ -170,10 +170,10 @@ export function useCompetitions() {
       );
 
     // Update all competition arrays optimistically
-    setLiveCompetitions(prev => updateInArray(prev));
-    setInstantWinCompetitions(prev => updateInArray(prev));
-    setLastChanceCompetitions(prev => updateInArray(prev));
-    setDrawnCompetitions(prev => updateInArray(prev));
+    setLiveCompetitions(prev => updateInArray(prev) as Competition[]);
+    setInstantWinCompetitions(prev => updateInArray(prev) as Competition[]);
+    setLastChanceCompetitions(prev => updateInArray(prev) as Competition[]);
+    setDrawnCompetitions(prev => updateInArray(prev) as Competition[]);
 
     // Verify update with server and rollback on failure
     supabase

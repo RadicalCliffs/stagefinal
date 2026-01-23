@@ -100,7 +100,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const lastAuthCompleteEmailRef = useRef<string | null>(null);
 
   // Extract email from currentUser (memoized to prevent unnecessary recalculations)
-  const userEmail = currentUser?.email || (currentUser as any)?.emails?.[0]?.value || (currentUser as any)?.emails?.[0]?.address;
+  const userEmail = (currentUser as any)?.email || (currentUser as any)?.emails?.[0]?.value || (currentUser as any)?.emails?.[0]?.address;
 
   // Determine the effective wallet address
   // CDP (email sign-in) takes priority over wagmi (external wallet connection)
