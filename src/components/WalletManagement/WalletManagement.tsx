@@ -24,7 +24,7 @@ import { useWalletTokens } from '../../hooks/useWalletTokens';
 import { useRealTimeBalance } from '../../hooks/useRealTimeBalance';
 import { supabase } from '../../lib/supabase';
 import { database } from '../../lib/database';
-import { toPrizePid, isWalletAddress } from '../../utils/userId';
+import { toPrizePid, isWalletAddress, userIdsEqual } from '../../utils/userId';
 import BaseAccountStatus from '../BaseAccountStatus';
 
 // Lazy load TopUpWalletModal - only loaded when user clicks "Top Up"

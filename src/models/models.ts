@@ -54,6 +54,7 @@ export interface WinnerHashCardProps {
 
 export interface Entry {
   entryNumber: string | number;
+  ticketNumber?: number;  // Added for compatibility with entry displays
   date: string;
   walletAddress: string;
   username?: string;
@@ -151,6 +152,7 @@ export interface CompetitionCardProps {
   price: string | number;
   timeRemaining: string; // e.g. "07:12:44:23"
   entriesSold: string; // e.g. "70% Entries Sold"
+  ticketsSold?: string; // Alternative to entriesSold for ticket-based competitions
   progressPercent?: number; // 0–100
   onEnter?: () => void;
   className?: string;
@@ -168,29 +170,43 @@ export interface Competition {
   uid?: string; // Legacy UID field used for joincompetition and Prize_Instantprizes
   creator_id: string;
   title: string;
-  description: string ;
-  contract_address: string ;
+  description: string;
+  contract_address: string;
   chain_id: number;
   max_participants: number;
+  max_tickets?: number;  // Added for ticket-based competitions
   entry_fee: string;
   status: 'draft' | 'active' | 'drawing' | 'drawn' | 'completed' | 'cancelled' | 'expired';
-  winner_address: string ;
-  tx_hash: string ;
-  vrf_request_id: string ;
-  created_at: string;
-  drawn_at: string ;
-  end_date?: string;
-  draw_date?: string;
-  is_instant_win?: boolean;
-  competition_type?: string;
-  image_url:string;
-  total_entries:number;
-  entries_sold:number;
-  prize_value:number;
-  entry_price:number;
-  ticket_price?: number;
-  total_tickets?: number;
-  tickets_sold?: number;
+  winner_address?: string | null;
+  tx_hash?: string | null;
+  vrf_request_id?: string | null;
+  created_at?: string | null;
+  drawn_at?: string | null;
+  end_date?: string | null;
+  draw_date?: string | null;
+  start_date?: string | null;
+  is_instant_win?: boolean | null;
+  competition_type?: string | null;
+  image_url: string;
+  total_entries?: number;
+  entries_sold?: number;
+  prize_value?: number | null;
+  entry_price?: number;
+  ticket_price?: number | null;
+  total_tickets?: number | null;
+  tickets_sold?: number | null;
+  progressPercent?: number;  // Calculated field for UI display
+  category?: string | null;
+  prize_type?: string | null;
+  is_featured?: boolean | null;
+  winning_tickets_generated?: boolean | null;
+  font_size_override?: string | null;
+  font_weight_override?: string | null;
+  metadata_title?: string | null;
+  metadata_description?: string | null;
+  metadata_image?: string | null;
+  competitionended?: number | null;
+  crdate?: string | null;
   // VRF On-Chain fields
   onchain_competition_id?: number | null;
   vrf_error?: string | null;

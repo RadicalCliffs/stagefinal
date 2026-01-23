@@ -19,6 +19,9 @@ interface LinkedWallet {
   isEmbeddedWallet?: boolean;
   // External wallet indicator - true when connected via injected wallet (MetaMask, etc.)
   isExternalWallet?: boolean;
+  // Methods for wallet interactions
+  getEthereumProvider?: () => any;
+  switchChain?: (chainId: number) => Promise<void>;
 }
 
 // User data from Base/CDP auth - replaces Privy user object

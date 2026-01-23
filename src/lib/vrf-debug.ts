@@ -80,6 +80,12 @@ export interface VRFOnchainState {
   maxTicketsPerTx: number;
   /** Total collected in wei (prize pool) */
   totalCollectedWei: string;
+  /** Competition type (e.g., "STANDARD", "INSTANT_WIN") */
+  compType?: string;
+  /** Instant win seed for random number generation */
+  instantWinSeed?: string;
+  /** Draw seed for final winner selection */
+  drawSeed?: string;
 }
 
 /**

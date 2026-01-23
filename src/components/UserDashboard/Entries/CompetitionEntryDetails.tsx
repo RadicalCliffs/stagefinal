@@ -17,17 +17,17 @@ interface EntryData {
   status: "live" | "drawn" | "pending";
   entry_type: string;
   is_winner: boolean;
-  ticket_numbers: string;
-  number_of_tickets: number;
-  amount_spent: string;
-  purchase_date: string;
-  wallet_address: string;
-  transaction_hash: string;
+  ticket_numbers?: string | null;
+  number_of_tickets?: number | null;
+  amount_spent?: string | null;
+  purchase_date?: string | null;
+  wallet_address?: string | null;
+  transaction_hash?: string | null;
   is_instant_win: boolean;
-  prize_value: string;
+  prize_value?: string | null;
   competition_status: string;
-  end_date: string;
-  expires_at?: string;
+  end_date?: string | null;
+  expires_at?: string | null;
 }
 
 interface AggregatedEntry {

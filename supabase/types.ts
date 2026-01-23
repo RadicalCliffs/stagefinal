@@ -2279,14 +2279,14 @@ export type Database = {
       }
       update_user_avatar: {
         Args: {
-          p_user_id: string
-          p_avatar_url: string
+          user_identifier: string
+          new_avatar_url: string
         }
         Returns: Json
       }
       get_user_tickets: {
         Args: {
-          p_user_id: string
+          user_identifier: string
         }
         Returns: {
           ticket_number: number
@@ -2296,21 +2296,21 @@ export type Database = {
       }
       get_recent_entries_count: {
         Args: {
-          p_user_id: string
+          user_identifier: string
           p_days?: number
         }
         Returns: number
       }
       update_user_profile_by_identifier: {
         Args: {
-          p_identifier: string
+          user_identifier: string
           p_updates: Json
         }
         Returns: Json
       }
       get_competition_entries: {
         Args: {
-          p_competition_id: string
+          competition_identifier: string
           p_limit?: number
           p_offset?: number
         }
@@ -2338,7 +2338,7 @@ export type Database = {
       }
       get_competition_ticket_availability_text: {
         Args: {
-          p_competition_uid: string
+          competition_id_text: string
         }
         Returns: {
           sold_count: number
@@ -2348,7 +2348,7 @@ export type Database = {
       }
       get_user_transactions: {
         Args: {
-          p_user_id: string
+          user_identifier: string
           p_limit?: number
         }
         Returns: {
@@ -2361,7 +2361,7 @@ export type Database = {
       }
       get_comprehensive_user_dashboard_entries: {
         Args: {
-          p_user_id: string
+          user_identifier: string
         }
         Returns: Json
       }
@@ -2375,6 +2375,94 @@ export type Database = {
           total_tickets: number
           sold_count: number
         }
+      }
+      upsert_canonical_user: {
+        Args: {
+          p_uid: string
+          p_canonical_user_id: string
+          p_email?: string | null
+          p_username?: string | null
+          p_wallet_address?: string | null
+          p_base_wallet_address?: string | null
+          p_eth_wallet_address?: string | null
+          p_privy_user_id?: string | null
+        }
+        Returns: Json
+      }
+      get_linked_external_wallet: {
+        Args: {
+          user_identifier: string
+        }
+        Returns: Json
+      }
+      unlink_external_wallet: {
+        Args: {
+          user_identifier: string
+        }
+        Returns: Json
+      }
+      allocate_lucky_dip_tickets: {
+        Args: {
+          p_competition_id: string
+          p_user_id: string
+          p_ticket_count: number
+        }
+        Returns: Json
+      }
+      allocate_lucky_dip_tickets_batch: {
+        Args: {
+          p_competition_id: string
+          p_user_id: string
+          p_ticket_count: number
+        }
+        Returns: Json
+      }
+      get_competition_unavailable_tickets: {
+        Args: {
+          p_competition_id: string
+        }
+        Returns: number[]
+      }
+      link_pending_reservation_to_session: {
+        Args: {
+          p_reservation_id: string
+          p_session_id: string
+        }
+        Returns: Json
+      }
+      migrate_user_balance: {
+        Args: {
+          p_user_identifier: string
+        }
+        Returns: Json
+      }
+      reserve_tickets_atomically: {
+        Args: {
+          p_competition_id: string
+          p_ticket_count: number
+          p_user_id: string
+          p_hold_minutes?: number
+        }
+        Returns: Json
+      }
+      sync_competition_status_if_ended: {
+        Args: {
+          p_competition_id: string
+        }
+        Returns: Json
+      }
+      check_and_mark_competition_sold_out: {
+        Args: {
+          p_competition_id: string
+        }
+        Returns: Json
+      }
+      add_pending_balance: {
+        Args: {
+          user_identifier: string
+          amount: number
+        }
+        Returns: Json
       }
     }
     Enums: {
