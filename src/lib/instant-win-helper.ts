@@ -52,7 +52,7 @@ async function createInstantWinPrize(prize: {
 
   const { data, error } = await supabase
     .from('Prize_Instantprizes')
-    .insert(prizeData)
+    .insert(prizeData as any)
     .select()
     .maybeSingle();
 
@@ -219,7 +219,7 @@ export const instantWinHelper = {
         .eq('UID', prize.UID);
 
       const { notificationService } = await import('./notification-service');
-      await notificationService.notifyWinner(userId, competitionId, prize.prize);
+      await notificationService.notifyWinner(toPrizePid(userId), competitionId, prize.prize);
 
       return true;
     } catch (error) {
@@ -314,7 +314,7 @@ export const instantWinHelper = {
       const logs = await publicClient.getContractEvents({
         address: CONTRACT_ADDRESS,
         abi: COMPETITION_SYSTEM_ABI,
-        eventName: 'InstantWin',
+        eventName: 'InstantWin' as any,
         args: {
           competitionId: BigInt(competitionId)
         },

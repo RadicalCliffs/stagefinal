@@ -160,7 +160,7 @@ class OmnipotentDataService {
         this.userIdentity = await resolveUserIdentity(userIdentifier);
         databaseLogger.info('[OmnipotentData] User identity resolved', {
           hasIdentity: !!this.userIdentity,
-          wallets: this.userIdentity?.allWalletAddresses.length || 0
+          wallets: this.userIdentity?.walletAddress ? 1 : 0
         });
       } catch (error) {
         databaseLogger.error('[OmnipotentData] Failed to resolve user identity', error);
@@ -402,7 +402,7 @@ class OmnipotentDataService {
       ticket_numbers: ticketNumbers,
       ticket_count: raw.number_of_tickets || ticketNumbers.length,
       amount_spent: Number(raw.amount_spent) || 0,
-      wallet_address: raw.wallet_address || identity.allWalletAddresses[0] || '',
+      wallet_address: raw.wallet_address || identity.walletAddress || '',
       username: this.formatUsername(raw.wallet_address),
       purchase_date: raw.purchase_date || raw.created_at,
       transaction_hash: raw.transaction_hash,
@@ -460,7 +460,7 @@ class OmnipotentDataService {
       // The RPC function get_unavailable_tickets returns distinct ticket numbers that are not available
       // Uses pending_tickets.ticket_numbers (array), filters where expires_at > now() and status IN ('pending','confirming')
       const { data: unavailableTickets, error: rpcError } = await supabase
-        .rpc('get_unavailable_tickets', { p_competition_id: competitionId });
+        .rpc('get_unavailable_tickets', { competition_id: competitionId });
 
       if (rpcError) {
         databaseLogger.warn('[OmnipotentData] RPC get_unavailable_tickets failed, using fallback', { error: rpcError.message });
@@ -581,10 +581,10 @@ class OmnipotentDataService {
         .in('status', ['pending', 'confirming']);
 
       if (pendingData) {
-        pendingData.forEach((row: { ticket_numbers: number[]; user_id: string; expires_at: string }) => {
-          const normalizedRowUserId = (row.user_id || '').toLowerCase();
+        pendingData.forEach((row) => {
+          const normalizedRowUserId = ((row as any).user_id || '').toLowerCase();
           // Exclude the current user's own expired reservations
-          if (normalizedRowUserId === normalizedUserId && row.expires_at && new Date(row.expires_at) < now) {
+          if (normalizedRowUserId === normalizedUserId && (row as any).expires_at && new Date((row as any).expires_at) < now) {
             return;
           }
           // Include other users' pending tickets

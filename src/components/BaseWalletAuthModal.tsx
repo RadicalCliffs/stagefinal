@@ -357,7 +357,7 @@ async function linkWalletToExistingUser(
         }
 
         console.log('[BaseWallet] User created successfully via upsert:', responseData);
-        return { success: true, userId: responseData.user?.id, created: true };
+        return { success: true, userId: responseData.user?.id || '', created: true };
       } catch (err) {
         console.error('[BaseWallet] Error calling upsert-user:', err);
         return { success: false };
@@ -369,7 +369,7 @@ async function linkWalletToExistingUser(
         console.error('[BaseWallet] Error in linkWalletToExistingUser inner promise:', innerError);
         return { success: false };
       }
-    })();
+    })() as Promise<{ success: boolean; userId?: string; created?: boolean }>;
     
     // Store the promise for deduplication
     pendingLinkRequests.set(requestKey, requestPromise);

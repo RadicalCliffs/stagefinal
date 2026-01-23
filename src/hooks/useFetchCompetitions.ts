@@ -42,11 +42,11 @@ export function useCompetitions() {
 
       // Apply visibility cutoff filter to all fetched competitions
       // Only competitions created after COMPETITION_VISIBILITY_CUTOFF will be displayed
-      const activeComps = (allActive ?? []).filter(isAfterVisibilityCutoff);
-      const completedComps = (allCompleted ?? []).filter(isAfterVisibilityCutoff);
-      const drawingComps = (allDrawing ?? []).filter(isAfterVisibilityCutoff);
-      const cancelledComps = (allCancelled ?? []).filter(isAfterVisibilityCutoff);
-      const drawnCompsRaw = (allDrawn ?? []).filter(isAfterVisibilityCutoff);
+      const activeComps = ((allActive ?? []) as any[]).filter((c): c is any => c !== null && isAfterVisibilityCutoff(c));
+      const completedComps = ((allCompleted ?? []) as any[]).filter((c): c is any => c !== null && isAfterVisibilityCutoff(c));
+      const drawingComps = ((allDrawing ?? []) as any[]).filter((c): c is any => c !== null && isAfterVisibilityCutoff(c));
+      const cancelledComps = ((allCancelled ?? []) as any[]).filter((c): c is any => c !== null && isAfterVisibilityCutoff(c));
+      const drawnCompsRaw = ((allDrawn ?? []) as any[]).filter((c): c is any => c !== null && isAfterVisibilityCutoff(c));
 
       const now = new Date();
 

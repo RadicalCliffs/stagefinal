@@ -56,7 +56,9 @@ const EntryDetail = () => {
       try {
         // Fetch all user entries and find the specific one
         const entries = await database.getUserEntries(baseUser.id);
-        const foundEntry = entries?.find((e: EntryData) => e.id === id);
+        const foundEntry = (entries || []).find((e): e is EntryData => 
+          e !== null && typeof e === 'object' && 'id' in e && e.id === id
+        ) as EntryData | undefined;
 
         if (foundEntry) {
           setEntry(foundEntry);

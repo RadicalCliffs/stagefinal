@@ -101,7 +101,7 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
           .limit(1);
 
         if (subAccountData && subAccountData.length > 0) {
-          const record = subAccountData[0];
+          const record = subAccountData[0] as any;
           if (record.user_id) {
             userUidRef.current = record.user_id;
           }
@@ -146,7 +146,7 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
         .limit(1);
 
       if (subAccountData && subAccountData.length > 0 && !subAccountError) {
-        const record = subAccountData[0];
+        const record = subAccountData[0] as any;
         if (record.user_id) {
           userUidRef.current = record.user_id;
         }

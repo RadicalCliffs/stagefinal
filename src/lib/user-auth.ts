@@ -347,8 +347,7 @@ export const userAuth = {
           if (walletAddress) {
             try {
               await supabase.rpc('migrate_user_balance', {
-                p_old_id: walletAddress,
-                p_new_id: toCanonicalUserId(inputUserId)
+                p_user_identifier: toCanonicalUserId(inputUserId)
               });
               console.log('[user-auth] Balance migration completed for wallet:', walletAddress.substring(0, 10) + '...');
             } catch (migrateErr) {

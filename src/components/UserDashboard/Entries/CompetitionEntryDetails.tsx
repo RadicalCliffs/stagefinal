@@ -79,9 +79,9 @@ const CompetitionEntryDetails = () => {
       try {
         // Fetch all user entries and filter for this competition
         const allEntries = await database.getUserEntries(baseUser.id);
-        const competitionEntries = allEntries?.filter(
-          (e: EntryData) => e.competition_id === competitionId
-        );
+        const competitionEntries = (allEntries || []).filter(
+          (e): e is EntryData => e !== null && typeof e === 'object' && 'competition_id' in e && e.competition_id === competitionId
+        ) as EntryData[];
 
         if (competitionEntries && competitionEntries.length > 0) {
           setEntries(competitionEntries);
@@ -168,8 +168,8 @@ const CompetitionEntryDetails = () => {
     // Find first and last purchase dates from all entries (including duplicates for date range)
     const sortedByDate = [...entries].sort(
       (a, b) =>
-        new Date(a.purchase_date).getTime() -
-        new Date(b.purchase_date).getTime()
+        new Date(a.purchase_date || 0).getTime() -
+        new Date(b.purchase_date || 0).getTime()
     );
     const firstPurchaseDate = sortedByDate[0]?.purchase_date;
     const lastPurchaseDate = sortedByDate[sortedByDate.length - 1]?.purchase_date;
@@ -177,7 +177,7 @@ const CompetitionEntryDetails = () => {
     // Collect unique transaction hashes from all entries
     const transactionHashes = entries
       .map((e) => e.transaction_hash)
-      .filter((hash) => hash && hash !== "no-hash");
+      .filter((hash): hash is string => hash !== null && hash !== undefined && hash !== "no-hash");
     const uniqueHashes = [...new Set(transactionHashes)];
 
     // Check if pending
@@ -327,8 +327,8 @@ const CompetitionEntryDetails = () => {
             {aggregatedEntry.individual_entries
               .sort(
                 (a, b) =>
-                  new Date(b.purchase_date).getTime() -
-                  new Date(a.purchase_date).getTime()
+                  new Date(b.purchase_date || 0).getTime() -
+                  new Date(a.purchase_date || 0).getTime()
               )
               .map((entry, index) => (
                 <div
@@ -337,7 +337,7 @@ const CompetitionEntryDetails = () => {
                 >
                   <div className="flex-1 min-w-0">
                     <div className="text-white sequel-45 text-sm">
-                      {new Date(entry.purchase_date).toLocaleDateString(
+                      {new Date(entry.purchase_date || 0).toLocaleDateString(
                         "en-US",
                         {
                           month: "short",
