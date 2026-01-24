@@ -320,6 +320,10 @@ export interface Database {
           /** External wallet linked for display purposes only */
           linked_external_wallet: string | null
           smart_wallet_address: string | null
+          /** JSONB array of all wallets linked to this user */
+          linked_wallets: Json | null
+          /** The wallet address designated as primary for this user */
+          primary_wallet_address: string | null
           phone: string | null
           /** User's phone number (optional) */
           telephone_number: string | null
@@ -350,6 +354,8 @@ export interface Database {
           eth_wallet_address?: string | null
           linked_external_wallet?: string | null
           smart_wallet_address?: string | null
+          linked_wallets?: Json | null
+          primary_wallet_address?: string | null
           phone?: string | null
           telephone_number?: string | null
           google_email?: string | null
@@ -379,6 +385,8 @@ export interface Database {
           eth_wallet_address?: string | null
           linked_external_wallet?: string | null
           smart_wallet_address?: string | null
+          linked_wallets?: Json | null
+          primary_wallet_address?: string | null
           phone?: string | null
           telephone_number?: string | null
           google_email?: string | null
@@ -409,6 +417,43 @@ export interface Database {
         Args: {
           user_identifier: string
           amount: number
+        }
+        Returns: Json
+      }
+      get_user_wallets: {
+        Args: {
+          user_identifier: string
+        }
+        Returns: Json
+      }
+      link_additional_wallet: {
+        Args: {
+          user_identifier: string
+          p_wallet_address: string
+          p_wallet_type?: string
+          p_nickname?: string
+        }
+        Returns: Json
+      }
+      set_primary_wallet: {
+        Args: {
+          user_identifier: string
+          p_wallet_address: string
+        }
+        Returns: Json
+      }
+      unlink_wallet: {
+        Args: {
+          user_identifier: string
+          p_wallet_address: string
+        }
+        Returns: Json
+      }
+      update_wallet_nickname: {
+        Args: {
+          user_identifier: string
+          p_wallet_address: string
+          p_nickname: string
         }
         Returns: Json
       }

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, lazy, Suspense } from 'react';
+import { useState, useMemo, useEffect, lazy, Suspense, useCallback } from 'react';
 import { useAuthUser } from '../../contexts/AuthContext';
 import {
   Wallet,
@@ -17,7 +17,10 @@ import {
   Send,
   Settings,
   Plus,
-  Link
+  Link,
+  Star,
+  Loader2,
+  Edit3
 } from 'lucide-react';
 import { truncateString } from '../../utils/util';
 import { useWalletTokens } from '../../hooks/useWalletTokens';
@@ -81,6 +84,18 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
   // External wallet linking state
   const [linkedExternalWallet, setLinkedExternalWallet] = useState<string | null>(null);
   const [isUnlinking, setIsUnlinking] = useState(false);
+
+  // Multi-wallet state
+  const [allUserWallets, setAllUserWallets] = useState<Array<{
+    address: string;
+    type: string;
+    nickname: string;
+    is_primary: boolean;
+    linked_at: string;
+  }>>([]);
+  const [isSettingPrimary, setIsSettingPrimary] = useState<string | null>(null);
+  const [isEditingNickname, setIsEditingNickname] = useState<string | null>(null);
+  const [editNicknameValue, setEditNicknameValue] = useState('');
 
   // Transaction history state
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
@@ -206,6 +221,137 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
       supabase.removeChannel(channel);
     };
   }, [baseUser?.id]);
+
+  // Fetch all user wallets from the database
+  const fetchUserWallets = useCallback(async () => {
+    if (!baseUser?.id) return;
+
+    try {
+      const { data, error } = await supabase.rpc('get_user_wallets', {
+        user_identifier: baseUser.id
+      });
+
+      if (error) {
+        console.error('[WalletManagement] Error fetching user wallets:', error);
+        return;
+      }
+
+      const result = data as { success: boolean; wallets?: any[]; primary_wallet?: string; error?: string };
+      if (result?.success && result?.wallets) {
+        setAllUserWallets(result.wallets);
+      }
+    } catch (err) {
+      console.error('[WalletManagement] Error fetching user wallets:', err);
+    }
+  }, [baseUser?.id]);
+
+  // Fetch user wallets on mount
+  useEffect(() => {
+    fetchUserWallets();
+  }, [fetchUserWallets]);
+
+  // Handle setting a wallet as primary
+  const handleSetPrimaryWallet = async (walletAddress: string) => {
+    if (!baseUser?.id) return;
+
+    setIsSettingPrimary(walletAddress);
+    setLinkError(null);
+    setLinkSuccess(null);
+
+    try {
+      const { data, error } = await supabase.rpc('set_primary_wallet', {
+        user_identifier: baseUser.id,
+        p_wallet_address: walletAddress
+      });
+
+      if (error) {
+        console.error('[WalletManagement] Error setting primary wallet:', error);
+        setLinkError('Failed to set primary wallet. Please try again.');
+        return;
+      }
+
+      const result = data as { success: boolean; message?: string; error?: string };
+      if (result?.success) {
+        setLinkSuccess('Primary wallet updated successfully!');
+        // Refresh user data and wallets
+        await fetchUserWallets();
+        refreshUserData();
+      } else {
+        setLinkError(result?.error || 'Failed to set primary wallet. Please try again.');
+      }
+    } catch (err) {
+      console.error('[WalletManagement] Error setting primary wallet:', err);
+      setLinkError('Failed to set primary wallet. Please try again.');
+    } finally {
+      setIsSettingPrimary(null);
+    }
+  };
+
+  // Handle updating wallet nickname
+  const handleUpdateNickname = async (walletAddress: string, nickname: string) => {
+    if (!baseUser?.id) return;
+
+    try {
+      const { data, error } = await supabase.rpc('update_wallet_nickname', {
+        user_identifier: baseUser.id,
+        p_wallet_address: walletAddress,
+        p_nickname: nickname
+      });
+
+      if (error) {
+        console.error('[WalletManagement] Error updating nickname:', error);
+        setLinkError('Failed to update nickname. Please try again.');
+        return;
+      }
+
+      const result = data as { success: boolean };
+      if (result?.success) {
+        setLinkSuccess('Nickname updated!');
+        await fetchUserWallets();
+      }
+    } catch (err) {
+      console.error('[WalletManagement] Error updating nickname:', err);
+    } finally {
+      setIsEditingNickname(null);
+      setEditNicknameValue('');
+    }
+  };
+
+  // Handle unlinking a wallet (new multi-wallet version)
+  const handleUnlinkMultiWallet = async (walletAddress: string) => {
+    if (!baseUser?.id) return;
+
+    setIsUnlinking(true);
+    setLinkError(null);
+    setLinkSuccess(null);
+
+    try {
+      const { data, error } = await supabase.rpc('unlink_wallet', {
+        user_identifier: baseUser.id,
+        p_wallet_address: walletAddress
+      });
+
+      if (error) {
+        console.error('[WalletManagement] Error unlinking wallet:', error);
+        setLinkError('Failed to unlink wallet. Please try again.');
+        return;
+      }
+
+      const result = data as { success: boolean; message?: string; error?: string };
+      if (result?.success) {
+        setLinkSuccess('Wallet unlinked successfully.');
+        await fetchUserWallets();
+        refreshUserData();
+      } else {
+        setLinkError(result?.error || 'Failed to unlink wallet. Please try again.');
+      }
+    } catch (err) {
+      console.error('[WalletManagement] Error unlinking wallet:', err);
+      setLinkError('Failed to unlink wallet. Please try again.');
+    } finally {
+      setIsUnlinking(false);
+    }
+  };
 
   // Get the primary wallet address for token fetching
   const primaryWalletAddress = useMemo(() => {
@@ -428,11 +574,13 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
         <BaseAccountStatus className="mt-6" />
       )}
 
-      {/* Connected Wallets Section */}
+      {/* Connected Wallets Section - Enhanced Multi-Wallet Management */}
       <div className="bg-[#1E1E1E] rounded-xl p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-white sequel-75 text-lg">Connected Wallets</h3>
-          <span className="text-white/40 sequel-45 text-sm">{linkedWallets.length + (linkedExternalWallet ? 1 : 0)} connected</span>
+          <h3 className="text-white sequel-75 text-lg">Your Wallets</h3>
+          <span className="text-white/40 sequel-45 text-sm">
+            {allUserWallets.length > 0 ? allUserWallets.length : linkedWallets.length + (linkedExternalWallet ? 1 : 0)} connected
+          </span>
         </div>
 
         {linkError && (
@@ -450,77 +598,226 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
         )}
 
         <div className="space-y-3">
-          {linkedWallets.map((wallet, index) => (
-            <div
-              key={wallet.address || index}
-              className={`rounded-lg p-4 transition-colors ${
-                wallet.isEmbeddedWallet || (wallet.isBaseAccount && !wallet.isExternalWallet)
-                  ? 'bg-[#DDE404]/5 border border-[#DDE404]/20'
-                  : wallet.isExternalWallet || wallet.walletClient === 'external'
-                    ? 'bg-purple-500/10 border border-purple-500/30'
-                    : 'bg-[#2A2A2A] hover:bg-[#3A3A3A]'
-              }`}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-3 min-w-0 flex-1">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                    wallet.isEmbeddedWallet || (wallet.isBaseAccount && !wallet.isExternalWallet)
-                      ? 'bg-[#DDE404]/20'
-                      : wallet.isExternalWallet || wallet.walletClient === 'external'
-                        ? 'bg-purple-500/20'
-                        : 'bg-[#404040]'
-                  }`}>
-                    {getWalletIcon(wallet)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-white sequel-75 text-sm truncate">{getWalletTypeLabel(wallet)}</p>
-                      {(wallet.isEmbeddedWallet || (wallet.isBaseAccount && !wallet.isExternalWallet)) && (
-                        <span className="bg-[#DDE404] text-black sequel-75 text-[10px] px-2 py-0.5 rounded flex-shrink-0">
-                          PRIMARY
-                        </span>
-                      )}
-                      {(wallet.isExternalWallet || wallet.walletClient === 'external') && (
-                        <span className="bg-purple-500 text-white sequel-75 text-[10px] px-2 py-0.5 rounded flex-shrink-0">
-                          EXTERNAL
-                        </span>
+          {/* Multi-wallet display from database */}
+          {allUserWallets.length > 0 ? (
+            allUserWallets.map((wallet, index) => (
+              <div
+                key={wallet.address || index}
+                className={`rounded-lg p-4 transition-colors ${
+                  wallet.is_primary
+                    ? 'bg-[#DDE404]/5 border border-[#DDE404]/20'
+                    : wallet.type === 'external'
+                      ? 'bg-purple-500/10 border border-purple-500/30'
+                      : 'bg-[#2A2A2A] hover:bg-[#3A3A3A]'
+                }`}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                      wallet.is_primary
+                        ? 'bg-[#DDE404]/20'
+                        : wallet.type === 'external'
+                          ? 'bg-purple-500/20'
+                          : 'bg-[#404040]'
+                    }`}>
+                      {wallet.is_primary ? (
+                        <Star size={20} className="text-[#DDE404]" />
+                      ) : wallet.type === 'external' ? (
+                        <Wallet size={20} className="text-purple-400" />
+                      ) : (
+                        <Shield size={20} className="text-blue-400" />
                       )}
                     </div>
-                    <p className="text-white/50 sequel-45 text-xs mt-1.5 font-mono truncate">
-                      {truncateString(wallet.address, 20)}
-                    </p>
-                    <p className="text-white/30 sequel-45 text-xs mt-0.5">
-                      Base Network
-                    </p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* Editable nickname */}
+                        {isEditingNickname === wallet.address ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={editNicknameValue}
+                              onChange={(e) => setEditNicknameValue(e.target.value)}
+                              className="bg-white/10 border border-white/20 rounded px-2 py-1 text-white text-sm w-32"
+                              placeholder="Nickname"
+                              autoFocus
+                            />
+                            <button
+                              onClick={() => handleUpdateNickname(wallet.address, editNicknameValue)}
+                              className="text-green-400 hover:text-green-300"
+                            >
+                              <Check size={14} />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setIsEditingNickname(null);
+                                setEditNicknameValue('');
+                              }}
+                              className="text-red-400 hover:text-red-300"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <p className="text-white sequel-75 text-sm truncate">{wallet.nickname}</p>
+                            <button
+                              onClick={() => {
+                                setIsEditingNickname(wallet.address);
+                                setEditNicknameValue(wallet.nickname);
+                              }}
+                              className="text-white/30 hover:text-white/60"
+                            >
+                              <Edit3 size={12} />
+                            </button>
+                          </>
+                        )}
+                        {wallet.is_primary && (
+                          <span className="bg-[#DDE404] text-black sequel-75 text-[10px] px-2 py-0.5 rounded flex-shrink-0">
+                            PRIMARY
+                          </span>
+                        )}
+                        {wallet.type === 'external' && !wallet.is_primary && (
+                          <span className="bg-purple-500 text-white sequel-75 text-[10px] px-2 py-0.5 rounded flex-shrink-0">
+                            EXTERNAL
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-white/50 sequel-45 text-xs mt-1.5 font-mono truncate">
+                        {truncateString(wallet.address, 20)}
+                      </p>
+                      <p className="text-white/30 sequel-45 text-xs mt-0.5">
+                        Base Network • Linked {new Date(wallet.linked_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {/* Use as Primary button - only show for non-primary wallets */}
+                    {!wallet.is_primary && (
+                      <button
+                        onClick={() => handleSetPrimaryWallet(wallet.address)}
+                        disabled={isSettingPrimary === wallet.address}
+                        className="p-2 hover:bg-[#DDE404]/20 rounded-lg transition-colors group"
+                        title="Use as Primary"
+                      >
+                        {isSettingPrimary === wallet.address ? (
+                          <Loader2 size={16} className="text-[#DDE404] animate-spin" />
+                        ) : (
+                          <Star size={16} className="text-white/40 group-hover:text-[#DDE404]" />
+                        )}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleCopyAddress(wallet.address)}
+                      className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                      title="Copy address"
+                    >
+                      {copiedAddress === wallet.address ? (
+                        <Check size={16} className="text-green-400" />
+                      ) : (
+                        <Copy size={16} className="text-white/40 hover:text-white" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => openBlockExplorer(wallet.address)}
+                      className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                      title="View on BaseScan"
+                    >
+                      <ExternalLink size={16} className="text-white/40 hover:text-white" />
+                    </button>
+                    {/* Unlink button - only for non-primary wallets with multiple wallets */}
+                    {!wallet.is_primary && allUserWallets.length > 1 && (
+                      <button
+                        onClick={() => handleUnlinkMultiWallet(wallet.address)}
+                        disabled={isUnlinking}
+                        className="p-2 hover:bg-red-500/20 rounded-lg transition-colors"
+                        title="Unlink wallet"
+                      >
+                        {isUnlinking ? (
+                          <RefreshCw size={16} className="text-red-400 animate-spin" />
+                        ) : (
+                          <Unlink size={16} className="text-red-400 hover:text-red-300" />
+                        )}
+                      </button>
+                    )}
                   </div>
                 </div>
+              </div>
+            ))
+          ) : (
+            /* Fallback to legacy display */
+            linkedWallets.map((wallet, index) => (
+              <div
+                key={wallet.address || index}
+                className={`rounded-lg p-4 transition-colors ${
+                  wallet.isEmbeddedWallet || (wallet.isBaseAccount && !wallet.isExternalWallet)
+                    ? 'bg-[#DDE404]/5 border border-[#DDE404]/20'
+                    : wallet.isExternalWallet || wallet.walletClient === 'external'
+                      ? 'bg-purple-500/10 border border-purple-500/30'
+                      : 'bg-[#2A2A2A] hover:bg-[#3A3A3A]'
+                }`}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                      wallet.isEmbeddedWallet || (wallet.isBaseAccount && !wallet.isExternalWallet)
+                        ? 'bg-[#DDE404]/20'
+                        : wallet.isExternalWallet || wallet.walletClient === 'external'
+                          ? 'bg-purple-500/20'
+                          : 'bg-[#404040]'
+                    }`}>
+                      {getWalletIcon(wallet)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-white sequel-75 text-sm truncate">{getWalletTypeLabel(wallet)}</p>
+                        {(wallet.isEmbeddedWallet || (wallet.isBaseAccount && !wallet.isExternalWallet)) && (
+                          <span className="bg-[#DDE404] text-black sequel-75 text-[10px] px-2 py-0.5 rounded flex-shrink-0">
+                            PRIMARY
+                          </span>
+                        )}
+                        {(wallet.isExternalWallet || wallet.walletClient === 'external') && (
+                          <span className="bg-purple-500 text-white sequel-75 text-[10px] px-2 py-0.5 rounded flex-shrink-0">
+                            EXTERNAL
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-white/50 sequel-45 text-xs mt-1.5 font-mono truncate">
+                        {truncateString(wallet.address, 20)}
+                      </p>
+                      <p className="text-white/30 sequel-45 text-xs mt-0.5">
+                        Base Network
+                      </p>
+                    </div>
+                  </div>
 
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <button
-                    onClick={() => handleCopyAddress(wallet.address)}
-                    className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                    title="Copy address"
-                  >
-                    {copiedAddress === wallet.address ? (
-                      <Check size={16} className="text-green-400" />
-                    ) : (
-                      <Copy size={16} className="text-white/40 hover:text-white" />
-                    )}
-                  </button>
-                  <button
-                    onClick={() => openBlockExplorer(wallet.address)}
-                    className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                    title="View on BaseScan"
-                  >
-                    <ExternalLink size={16} className="text-white/40 hover:text-white" />
-                  </button>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                      onClick={() => handleCopyAddress(wallet.address)}
+                      className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                      title="Copy address"
+                    >
+                      {copiedAddress === wallet.address ? (
+                        <Check size={16} className="text-green-400" />
+                      ) : (
+                        <Copy size={16} className="text-white/40 hover:text-white" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => openBlockExplorer(wallet.address)}
+                      className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                      title="View on BaseScan"
+                    >
+                      <ExternalLink size={16} className="text-white/40 hover:text-white" />
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
 
-          {/* Linked External Wallet */}
-          {linkedExternalWallet && (
+          {/* Linked External Wallet (legacy support) */}
+          {linkedExternalWallet && allUserWallets.length === 0 && (
             <div className="rounded-lg p-4 bg-purple-500/10 border border-purple-500/30 transition-colors">
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-3 min-w-0 flex-1">
@@ -579,7 +876,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
             </div>
           )}
 
-          {linkedWallets.length === 0 && !linkedExternalWallet && (
+          {linkedWallets.length === 0 && !linkedExternalWallet && allUserWallets.length === 0 && (
             <div className="text-center py-8 bg-[#2A2A2A] rounded-lg">
               <Wallet size={40} className="text-white/20 mx-auto mb-3" />
               <p className="text-white/40 sequel-45 text-sm">No wallets connected</p>
@@ -589,6 +886,16 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
             </div>
           )}
         </div>
+
+        {/* Multi-wallet info */}
+        {allUserWallets.length > 1 && (
+          <div className="mt-4 bg-blue-500/10 border border-blue-500/20 rounded-lg px-4 py-3">
+            <p className="text-blue-300/70 sequel-45 text-xs">
+              <Star size={12} className="inline mr-1 text-[#DDE404]" />
+              Your primary wallet determines your account identity (canonical_user_id). Click the star icon on any wallet to make it your primary. Your balance and entries will transfer automatically.
+            </p>
+          </div>
+        )}
 
         {/* Info about wallet limit */}
         {linkedExternalWallet && (
