@@ -812,29 +812,72 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                 walletAddress: evmAddress,
               });
 
-              const upsertResponse = await fetch(`${supabaseUrl}/functions/v1/upsert-user`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${supabaseAnonKey}`,
-                },
-                body: JSON.stringify({
+              // Improved fetch with timeout and better error handling
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
+              let upsertResponse: Response;
+              try {
+                upsertResponse = await fetch(`${supabaseUrl}/functions/v1/upsert-user`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${supabaseAnonKey}`,
+                  },
+                  body: JSON.stringify({
+                    username: formProfileData.username,
+                    email: userEmail,
+                    firstName: formProfileData.firstName,
+                    lastName: formProfileData.lastName,
+                    country: formProfileData.country,
+                    telegram: formProfileData.telegram,
+                    avatar: formProfileData.avatar,
+                    walletAddress: evmAddress, // CRITICAL: Include wallet address in user creation
+                  }),
+                  signal: controller.signal,
+                });
+              } catch (fetchError) {
+                clearTimeout(timeoutId);
+                // Handle network errors gracefully - still proceed with wallet creation
+                console.warn('[BaseWallet] Network error calling upsert-user, continuing with wallet:', fetchError);
+                // Try to save directly to Supabase as fallback
+                const directResult = await linkWalletToExistingUser(userEmail, evmAddress, {
                   username: formProfileData.username,
-                  email: userEmail,
                   firstName: formProfileData.firstName,
                   lastName: formProfileData.lastName,
                   country: formProfileData.country,
                   telegram: formProfileData.telegram,
                   avatar: formProfileData.avatar,
-                  walletAddress: evmAddress, // CRITICAL: Include wallet address in user creation
-                }),
-              });
+                });
+                if (directResult.success) {
+                  savedToDbRef.current = true;
+                  localStorage.setItem('cdp:wallet_address', evmAddress);
+                  window.dispatchEvent(new CustomEvent('auth-complete', {
+                    detail: { walletAddress: evmAddress, email: userEmail }
+                  }));
+                  setFlowState('logged-in-success');
+                  return;
+                }
+                throw new Error('Connection error. Please check your network and try again.');
+              }
+              clearTimeout(timeoutId);
 
-              const responseData = await upsertResponse.json();
+              let responseData;
+              try {
+                responseData = await upsertResponse.json();
+              } catch (jsonError) {
+                console.warn('[BaseWallet] Failed to parse upsert response, continuing:', jsonError);
+                // Response may not be JSON, but if status is ok, continue
+                if (upsertResponse.ok || upsertResponse.status === 201) {
+                  responseData = { user: { id: '' } }; // Placeholder
+                } else {
+                  throw new Error('Server returned an invalid response. Please try again.');
+                }
+              }
 
-              if (!upsertResponse.ok) {
+              if (!upsertResponse.ok && upsertResponse.status !== 201) {
                 console.error('[BaseWallet] Failed to create user:', responseData);
-                throw new Error(responseData.error || 'Failed to create account. Please try again.');
+                throw new Error(responseData?.error || 'Failed to create account. Please try again.');
               }
 
               console.log('[BaseWallet] User created successfully with wallet linked:', responseData);
@@ -1008,25 +1051,57 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
             const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-            const upsertResponse = await fetch(`${supabaseUrl}/functions/v1/upsert-user`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${supabaseAnonKey}`,
-              },
-              body: JSON.stringify({
+            // Improved fetch with timeout and better error handling
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+            let upsertResponse: Response;
+            try {
+              upsertResponse = await fetch(`${supabaseUrl}/functions/v1/upsert-user`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${supabaseAnonKey}`,
+                },
+                body: JSON.stringify({
+                  username: profileData.username,
+                  email: profileData.email,
+                  firstName: profileData.firstName,
+                  lastName: profileData.lastName,
+                  country: profileData.country,
+                  telegram: profileData.telegram,
+                  avatar: profileData.avatar,
+                  walletAddress: wagmiAddress, // Include wallet address
+                }),
+                signal: controller.signal,
+              });
+            } catch (fetchError) {
+              clearTimeout(timeoutId);
+              // Network error - try direct Supabase as fallback
+              console.warn('[BaseWallet] Network error, trying direct link:', fetchError);
+              const directResult = await linkWalletToExistingUser(profileData.email, wagmiAddress, {
                 username: profileData.username,
-                email: profileData.email,
                 firstName: profileData.firstName,
                 lastName: profileData.lastName,
                 country: profileData.country,
                 telegram: profileData.telegram,
                 avatar: profileData.avatar,
-                walletAddress: wagmiAddress, // Include wallet address
-              }),
-            });
+              });
+              if (directResult.success) {
+                localStorage.removeItem('pendingSignupData');
+                savedToDbRef.current = true;
+                localStorage.setItem('cdp:wallet_address', wagmiAddress);
+                window.dispatchEvent(new CustomEvent('auth-complete', {
+                  detail: { walletAddress: wagmiAddress, email: profileData.email }
+                }));
+                setFlowState('logged-in-success');
+                return;
+              }
+              throw new Error('Connection error. Please check your network.');
+            }
+            clearTimeout(timeoutId);
 
-            if (!upsertResponse.ok) {
+            if (!upsertResponse.ok && upsertResponse.status !== 201) {
               throw new Error('Failed to create account');
             }
 
@@ -1226,14 +1301,34 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             <h2 className="text-white text-2xl font-bold mb-2 text-center">
               {textOverrides?.loginTitle || 'Verify with Base to continue'}
             </h2>
+            <p className="text-white/60 text-sm mb-4 text-center">
+              {textOverrides?.loginSubtitle || 'Choose how you want to sign in'}
+            </p>
+
+            {/* Primary option: Sign in with existing Base Account */}
+            <button
+              onClick={() => setFlowState('wallet-choice')}
+              className="w-full bg-[#0052FF] hover:bg-[#0052FF]/90 text-white font-bold py-4 px-6 rounded-lg flex items-center justify-center gap-3 mb-4 shadow-lg shadow-[#0052FF]/20"
+            >
+              <Shield size={22} className="flex-shrink-0" />
+              <div className="flex flex-col items-start">
+                <span className="text-base">Sign in with Base Account</span>
+                <span className="text-xs text-white/70 font-normal">Access all wallets in your account</span>
+              </div>
+            </button>
+
+            {/* Divider */}
+            <div className="relative w-full py-3">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-white/10"></div>
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span className="bg-[#101010] px-3 text-white/40">or create a new wallet</span>
+              </div>
+            </div>
+
             <p className="text-white/60 text-sm mb-2 text-center">
-              {textOverrides?.loginSubtitle || (
-                <>
-                  Enter your email to verify and create your free Base wallet in one step.
-                  <br />
-                  (You won't have to do this again if you have your wallet saved on phone or desktop*)
-                </>
-              )}
+              Enter your email to verify and create your free Base wallet in one step.
             </p>
 
             {/* Show loading state when waiting for wallet after OTP verification */}
@@ -1304,12 +1399,9 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               </div>
             )}
 
-            <button
-              onClick={() => setFlowState('wallet-choice')}
-              className="mt-4 text-[#0052FF] text-sm hover:text-[#0052FF]/80 text-center"
-            >
-              (realized you've already got a Base wallet? No problems, click here to connect that instead)
-            </button>
+            <p className="mt-4 text-white/40 text-xs text-center">
+              You won't have to do this again if you have your wallet saved on phone or desktop
+            </p>
           </div>
         )}
 
@@ -1482,7 +1574,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                     {/* Use wagmi connect directly instead of OnchainKit ConnectWallet */}
                     {!connectionTimedOut && !isConnecting && (
                       <div className="space-y-3">
-                        {/* Primary: Coinbase/Base Wallet button */}
+                        {/* Primary: Sign in with Base Account - gives access to ALL wallets in account */}
                         <button
                           onClick={() => {
                             const cbConnector = connectors.find(
@@ -1496,43 +1588,60 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                             }
                           }}
                           disabled={isConnecting}
-                          className="w-full bg-[#0052FF] hover:bg-[#0052FF]/90 text-white font-bold py-3.5 px-6 rounded-lg flex items-center justify-center gap-2 disabled:opacity-50"
+                          className="w-full bg-[#0052FF] hover:bg-[#0052FF]/90 text-white font-bold py-4 px-6 rounded-lg flex items-center justify-center gap-3 disabled:opacity-50 shadow-lg shadow-[#0052FF]/20"
                         >
-                          <Wallet size={20} className="flex-shrink-0" />
-                          <span>
-                            {options?.isReturningUser
-                              ? 'Connect with Coinbase/Base Wallet'
-                              : 'Connect Coinbase/Base Wallet'}
-                          </span>
+                          <Shield size={22} className="flex-shrink-0" />
+                          <div className="flex flex-col items-start">
+                            <span className="text-base">
+                              {options?.isReturningUser
+                                ? 'Sign in with Base Account'
+                                : 'Sign in with Base Account'}
+                            </span>
+                            <span className="text-xs text-white/70 font-normal">
+                              Access all wallets in your account
+                            </span>
+                          </div>
                         </button>
 
-                        {/* Secondary: MetaMask button */}
-                        <button
-                          onClick={handleConnectMetaMask}
-                          disabled={isConnecting}
-                          className="w-full bg-[#E8821E] hover:bg-[#E8821E]/90 text-white font-bold py-3 px-6 rounded-lg flex items-center justify-center gap-2 disabled:opacity-50"
-                        >
-                          <Wallet size={20} className="flex-shrink-0" />
-                          <span>Connect with MetaMask</span>
-                        </button>
+                        {/* Divider for other options */}
+                        <div className="relative py-2">
+                          <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t border-white/10"></div>
+                          </div>
+                          <div className="relative flex justify-center text-xs">
+                            <span className="bg-[#101010] px-3 text-white/40">or connect with</span>
+                          </div>
+                        </div>
 
-                        {/* Tertiary: Other wallets (injected) */}
-                        <button
-                          onClick={() => {
-                            const injectedConnector = connectors.find((c) => c.id === 'injected');
-                            if (injectedConnector) {
-                              setEmailError('');
-                              connect({ connector: injectedConnector });
-                            } else {
-                              setEmailError('No browser wallet detected. Please install a wallet extension.');
-                            }
-                          }}
-                          disabled={isConnecting}
-                          className="w-full bg-white/10 hover:bg-white/20 text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center gap-2 text-sm disabled:opacity-50"
-                        >
-                          <Wallet size={18} className="flex-shrink-0" />
-                          <span>Other Browser Wallet</span>
-                        </button>
+                        <div className="grid grid-cols-2 gap-3">
+                          {/* MetaMask button */}
+                          <button
+                            onClick={handleConnectMetaMask}
+                            disabled={isConnecting}
+                            className="bg-[#E8821E] hover:bg-[#E8821E]/90 text-white font-semibold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
+                          >
+                            <Wallet size={18} className="flex-shrink-0" />
+                            <span>MetaMask</span>
+                          </button>
+
+                          {/* Other wallets (injected) */}
+                          <button
+                            onClick={() => {
+                              const injectedConnector = connectors.find((c) => c.id === 'injected');
+                              if (injectedConnector) {
+                                setEmailError('');
+                                connect({ connector: injectedConnector });
+                              } else {
+                                setEmailError('No browser wallet detected. Please install a wallet extension.');
+                              }
+                            }}
+                            disabled={isConnecting}
+                            className="bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+                          >
+                            <Wallet size={18} className="flex-shrink-0" />
+                            <span>Other Wallet</span>
+                          </button>
+                        </div>
                       </div>
                     )}
 

@@ -2161,6 +2161,41 @@ export type Database = {
         Args: { user_identifier: string }
         Returns: number
       }
+      get_user_wallets: {
+        Args: { user_identifier: string }
+        Returns: Json
+      }
+      link_additional_wallet: {
+        Args: {
+          user_identifier: string
+          p_wallet_address: string
+          p_wallet_type?: string
+          p_nickname?: string
+        }
+        Returns: Json
+      }
+      set_primary_wallet: {
+        Args: {
+          user_identifier: string
+          p_wallet_address: string
+        }
+        Returns: Json
+      }
+      unlink_wallet: {
+        Args: {
+          user_identifier: string
+          p_wallet_address: string
+        }
+        Returns: Json
+      }
+      update_wallet_nickname: {
+        Args: {
+          user_identifier: string
+          p_wallet_address: string
+          p_nickname: string
+        }
+        Returns: Json
+      }
       pgp_armor_headers: {
         Args: { "": string }
         Returns: Record<string, unknown>[]
