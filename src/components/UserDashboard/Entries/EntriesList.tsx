@@ -115,7 +115,9 @@ export default function EntriesList() {
     setError(null);
 
     try {
-      const data = await database.getUserEntries(baseUser.id);
+      // Try fetching from competition_entries table first (new unified source)
+      // Falls back to legacy getUserEntries if the new RPC is not available
+      const data = await database.getUserEntriesFromCompetitionEntries(baseUser.id);
       setEntries(data || []);
       initialLoadDoneRef.current = true;
       // Reset consecutive error counter on success
@@ -219,9 +221,36 @@ export default function EntriesList() {
       const isWalletAddress = baseUser.id.startsWith('0x') && baseUser.id.length === 42;
       const normalizedUserId = isWalletAddress ? baseUser.id.toLowerCase() : baseUser.id;
 
-      // Channel for user's competition entries (INSERT/UPDATE/DELETE)
-      // Subscribe without filter and apply case-insensitive matching in callback
-      // Supabase real-time filters are case-sensitive, so we need client-side filtering
+      // Channel for user's competition entries from the new competition_entries table (PRIMARY)
+      // This is the new unified source for all competition entries
+      const competitionEntriesChannel = supabase
+        .channel(`competition-entries-${normalizedUserId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'competition_entries',
+          },
+          (payload) => {
+            // Use the helper function for robust case-insensitive matching
+            const record = payload.new as {
+              canonical_user_id?: string;
+              wallet_address?: string;
+              user_id?: string;
+            };
+
+            if (recordMatchesUser(record, normalizedUserId, baseUser.id)) {
+              console.log('[EntriesList] Competition entry change detected:', payload.eventType);
+              // Use debounced refresh to prevent rapid consecutive API calls
+              debouncedFetchEntries();
+            }
+          }
+        )
+        .subscribe();
+
+      // Channel for user's competition entries (LEGACY - v_joincompetition_active)
+      // Kept for backwards compatibility during migration
       const entriesChannel = supabase
         .channel(`user-entries-${normalizedUserId}`)
         .on(
@@ -301,7 +330,7 @@ export default function EntriesList() {
         console.log('[EntriesList] Balance updated event detected, refreshing entries');
         debouncedFetchEntries();
       };
-      
+
       window.addEventListener('balance-updated', handleBalanceUpdated);
 
       // Cleanup subscriptions and debounce timer on unmount
@@ -310,6 +339,7 @@ export default function EntriesList() {
           clearTimeout(refreshDebounceRef.current);
         }
         window.removeEventListener('balance-updated', handleBalanceUpdated);
+        supabase.removeChannel(competitionEntriesChannel);
         supabase.removeChannel(entriesChannel);
         supabase.removeChannel(pendingTicketsChannel);
         supabase.removeChannel(competitionStatusChannel);

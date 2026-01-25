@@ -3094,6 +3094,97 @@ export const database = {
       handleDatabaseError(error, 'syncStaleCompetitionStatuses');
       return { updated, failed };
     }
+  },
+
+  /**
+   * Fetch user entries from the public.competition_entries table.
+   * This is the primary source for user dashboard entries.
+   * Falls back to getUserEntries if the RPC is not available.
+   */
+  async getUserEntriesFromCompetitionEntries(userId: string) {
+    try {
+      if (!userId || userId.trim() === '') {
+        databaseLogger.warn('getUserEntriesFromCompetitionEntries: No userId provided');
+        return [];
+      }
+
+      // Try the new RPC that reads from competition_entries table
+      const { data, error } = await supabase.rpc('get_user_competition_entries', {
+        p_user_identifier: userId
+      });
+
+      if (error) {
+        databaseLogger.warn('get_user_competition_entries RPC not available, falling back to getUserEntries', error.message);
+        // Fallback to the legacy method
+        return this.getUserEntries(userId);
+      }
+
+      if (!data || !Array.isArray(data)) {
+        databaseLogger.info('getUserEntriesFromCompetitionEntries: No entries found');
+        return [];
+      }
+
+      databaseLogger.success(`getUserEntriesFromCompetitionEntries: Found ${data.length} entries`);
+
+      // Transform to the format expected by the frontend
+      const formattedEntries = data.map((entry: any) => {
+        // Map entry_status to frontend status
+        let status = 'live';
+        if (entry.entry_status === 'confirmed') {
+          if (entry.competition_status === 'completed' || entry.competition_status === 'drawn') {
+            status = 'completed';
+          } else if (entry.competition_status === 'active') {
+            status = 'live';
+          } else {
+            status = entry.competition_status || 'live';
+          }
+        } else if (entry.entry_status === 'pending') {
+          status = 'pending';
+        } else if (entry.entry_status === 'cancelled') {
+          return null; // Filter out cancelled entries
+        }
+
+        // Check if competition has ended based on end_date
+        const now = new Date();
+        const endDate = entry.competition_end_date ? new Date(entry.competition_end_date) : null;
+        const isCompetitionEnded = endDate !== null && endDate < now;
+        if (isCompetitionEnded && status === 'live') {
+          status = 'completed';
+        }
+
+        return {
+          id: entry.id,
+          competition_id: entry.competition_id,
+          title: entry.competition_title || 'Unknown Competition',
+          description: entry.competition_description || '',
+          image: entry.competition_image_url,
+          status: status,
+          entry_type: entry.entry_status === 'pending' ? 'pending' : 'completed',
+          expires_at: null,
+          is_winner: entry.is_winner || false,
+          ticket_numbers: Array.isArray(entry.ticket_numbers)
+            ? entry.ticket_numbers.join(',')
+            : entry.ticket_numbers || '',
+          number_of_tickets: entry.ticket_count || 0,
+          amount_spent: entry.amount_paid || 0,
+          purchase_date: entry.created_at,
+          wallet_address: entry.wallet_address,
+          transaction_hash: entry.transaction_hash,
+          is_instant_win: entry.competition_is_instant_win || false,
+          prize_value: entry.competition_prize_value
+            ? `$${Number(entry.competition_prize_value).toLocaleString()}`
+            : null,
+          competition_status: entry.competition_status || 'active',
+          end_date: entry.competition_end_date,
+        };
+      }).filter((entry: any) => entry !== null);
+
+      return formattedEntries;
+    } catch (error) {
+      handleDatabaseError(error, 'getUserEntriesFromCompetitionEntries');
+      // Fallback to legacy method on error
+      return this.getUserEntries(userId);
+    }
   }
 
 

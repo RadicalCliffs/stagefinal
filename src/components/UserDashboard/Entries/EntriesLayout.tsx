@@ -9,7 +9,6 @@ const OPTIONS:Options[] = [
   { label: 'Live Competitions', key: 'live' },
   { label: 'Finished Competitions', key: 'finished' },
   { label: 'Instant Wins', key: 'instant' },
-  { label: 'Pending Reservations', key: 'pending' },
 ];
 
 export default function EntriesLayout() {
