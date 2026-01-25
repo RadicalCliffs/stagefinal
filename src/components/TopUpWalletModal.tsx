@@ -431,13 +431,14 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
       console.log('[TopUpWalletModal] Starting Base Account top-up flow');
 
       // Create transaction record
+      const canonicalUserId = toCanonicalUserId(baseUser.id);
       const { data: newTx, error: txError } = await supabase
         .from('user_transactions')
         .insert({
-          user_id: toCanonicalUserId(baseUser.id),
+          user_id: canonicalUserId,
+          canonical_user_id: canonicalUserId,
           amount: amount,
           currency: 'USD',
-          payment_method: 'base_account',
           payment_provider: 'base_account',
           status: 'pending',
           type: 'topup',
@@ -446,7 +447,16 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
         .single();
 
       if (txError || !newTx) {
-        throw new Error('Failed to create transaction record');
+        console.error('[TopUpWalletModal] Failed to create transaction record:', {
+          error: txError,
+          errorMessage: txError?.message,
+          errorDetails: txError?.details,
+          errorHint: txError?.hint,
+          errorCode: txError?.code,
+          userId: canonicalUserId,
+          amount,
+        });
+        throw new Error(`Failed to create transaction record: ${txError?.message || 'Unknown error'}`);
       }
 
       const txId = newTx.id;
@@ -768,24 +778,24 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                       onClick={() => handleMethodSelect('commerce')}
                       className={`flex items-center justify-between gap-3 p-3 rounded-xl transition-all w-full ${
                         paymentMethod === 'commerce'
-                          ? 'bg-[#DDE404]/20 border-2 border-[#DDE404]'
-                          : 'bg-[#3A3A3A] border-2 border-[#DDE404]/30 hover:border-[#DDE404]/60'
+                          ? 'bg-[#0052FF]/20 border-2 border-[#0052FF]'
+                          : 'bg-[#3A3A3A] border-2 border-[#0052FF]/30 hover:border-[#0052FF]/60'
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${paymentMethod === 'commerce' ? 'bg-[#DDE404]' : 'bg-[#DDE404]/20'}`}>
-                          <Coins size={20} className={paymentMethod === 'commerce' ? 'text-black' : 'text-[#DDE404]'} />
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${paymentMethod === 'commerce' ? 'bg-[#0052FF]' : 'bg-[#0052FF]/20'}`}>
+                          <Coins size={20} className={paymentMethod === 'commerce' ? 'text-white' : 'text-[#0052FF]'} />
                         </div>
                         <div className="text-left">
-                          <p className={`sequel-75 text-sm ${paymentMethod === 'commerce' ? 'text-[#DDE404]' : 'text-white'}`}>
+                          <p className={`sequel-75 text-sm ${paymentMethod === 'commerce' ? 'text-[#0052FF]' : 'text-white'}`}>
                             {textOverrides?.cryptoTopUpLabel || 'Crypto'}
                           </p>
-                          <p className="text-[#DDE404]/70 sequel-45 text-xs">
+                          <p className="text-[#0052FF]/70 sequel-45 text-xs">
                             60+ coins
                           </p>
                         </div>
                       </div>
-                      <ChevronRight size={18} className="text-[#DDE404] flex-shrink-0" />
+                      <ChevronRight size={18} className="text-[#0052FF] flex-shrink-0" />
                     </button>
                   </div>
 
