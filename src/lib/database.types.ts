@@ -601,6 +601,54 @@ export interface Database {
         }
         Returns: Json
       }
+      get_user_competition_entries: {
+        Args: {
+          p_user_identifier: string
+        }
+        Returns: {
+          id: string
+          competition_id: string
+          user_id: string
+          canonical_user_id: string
+          wallet_address: string
+          ticket_numbers: number[]
+          ticket_count: number
+          amount_paid: number
+          currency: string
+          transaction_hash: string | null
+          payment_provider: string | null
+          entry_status: string
+          is_winner: boolean
+          prize_claimed: boolean
+          created_at: string
+          updated_at: string
+          competition_title: string
+          competition_description: string
+          competition_image_url: string
+          competition_status: string
+          competition_end_date: string | null
+          competition_prize_value: number | null
+          competition_is_instant_win: boolean
+        }[]
+      }
+      get_competition_entries_public: {
+        Args: {
+          p_competition_id: string
+        }
+        Returns: {
+          id: string
+          competition_id: string
+          user_id: string
+          canonical_user_id: string
+          wallet_address: string
+          ticket_numbers: number[]
+          ticket_count: number
+          amount_paid: number
+          entry_status: string
+          is_winner: boolean
+          created_at: string
+        }[]
+      }
       migrate_user_balance: {
         Args: {
           p_user_identifier: string
@@ -646,8 +694,8 @@ export interface Database {
       }
       update_user_avatar: {
         Args: {
-          p_user_identifier: string
-          p_avatar_url: string
+          user_identifier: string
+          new_avatar_url: string
         }
         Returns: Json
       }
