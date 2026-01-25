@@ -218,6 +218,38 @@ export default async (req: Request, context: Context): Promise<Response> => {
       }, response.ok ? 200 : response.status);
     }
 
+    // Normalize successful responses to ensure consistent format for clients
+    // Handle both wrapped (data: {...}) and flat response structures
+    // Handle both camelCase (chargeId) and snake_case (charge_id) field names
+    // Also handle success as string "true" or boolean true
+    const isSuccess = responseData.success === true || responseData.success === 'true' ||
+                      (response.ok && responseData.success !== false && responseData.success !== 'false');
+
+    console.log(`[create-charge-proxy][${requestId}] Checking success condition: success=${responseData.success} (type: ${typeof responseData.success}), response.ok=${response.ok}, isSuccess=${isSuccess}`);
+
+    if (isSuccess) {
+      // Get the raw data - could be in responseData.data or directly in responseData (flat structure)
+      const rawData = (responseData.data || responseData) as Record<string, unknown>;
+
+      console.log(`[create-charge-proxy][${requestId}] Raw data keys: ${Object.keys(rawData).join(', ')}`);
+      console.log(`[create-charge-proxy][${requestId}] Looking for chargeId: rawData.chargeId=${rawData.chargeId}, rawData.charge_id=${rawData.charge_id}`);
+
+      // Normalize field names: support both snake_case and camelCase
+      const normalizedData: Record<string, unknown> = {
+        transactionId: rawData.transactionId || rawData.transaction_id,
+        chargeId: rawData.chargeId || rawData.charge_id,
+        chargeCode: rawData.chargeCode || rawData.charge_code,
+        checkoutUrl: rawData.checkoutUrl || rawData.checkout_url,
+      };
+
+      console.log(`[create-charge-proxy][${requestId}] Normalized success response: chargeId=${normalizedData.chargeId}, transactionId=${normalizedData.transactionId}`);
+
+      return jsonResponse({
+        success: true,
+        data: normalizedData,
+      }, 200);
+    }
+
     // Return the response with proper CORS headers
     return jsonResponse(responseData, response.ok ? 200 : response.status);
   } catch (error) {
