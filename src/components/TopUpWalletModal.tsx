@@ -428,51 +428,63 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
         throw new Error('Payment system configuration error. Please contact support.');
       }
 
-      console.log('[TopUpWalletModal] Starting Base Account top-up flow');
-
-      // Create transaction record
-      const canonicalUserId = toCanonicalUserId(baseUser.id);
-      const { data: newTx, error: txError } = await supabase
-        .from('user_transactions')
-        .insert({
-          user_id: canonicalUserId,
-          canonical_user_id: canonicalUserId,
-          amount: amount,
-          currency: 'USD',
-          payment_provider: 'base_account',
-          status: 'pending',
-          type: 'topup',
-        })
-        .select('id')
-        .single();
-
-      if (txError || !newTx) {
-        console.error('[TopUpWalletModal] Failed to create transaction record:', {
-          error: txError,
-          errorMessage: txError?.message,
-          errorDetails: txError?.details,
-          errorHint: txError?.hint,
-          errorCode: txError?.code,
-          userId: canonicalUserId,
-          amount,
-        });
-        throw new Error(`Failed to create transaction record: ${txError?.message || 'Unknown error'}`);
+      // Validate treasury address format
+      if (!treasuryAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
+        console.error('[TopUpWalletModal] Invalid treasury address format:', treasuryAddress);
+        throw new Error('Payment system configuration error. Please contact support.');
       }
 
-      const txId = newTx.id;
-      setTransactionId(txId);
+      console.log('[TopUpWalletModal] Starting Base Account top-up flow');
 
-      console.log('[TopUpWalletModal] Transaction record created:', txId);
+      // Create transaction record via API to avoid RLS issues
+      // The API uses service role which bypasses RLS
+      const canonicalUserId = toCanonicalUserId(baseUser.id);
+
+      // Get auth token for API call
+      const { data: sessionData } = await supabase.auth.getSession();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (sessionData.session?.access_token) {
+        headers['Authorization'] = `Bearer ${sessionData.session.access_token}`;
+      }
+
+      // Use the create-charge API to create the transaction record
+      // This bypasses RLS by going through the edge function with service role
+      const createResponse = await fetch('/api/create-charge', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          userId: canonicalUserId,
+          totalAmount: amount,
+          type: 'topup',
+          paymentMethod: 'base_account',
+        }),
+      });
+
+      const createResult = await createResponse.json();
+
+      if (!createResponse.ok || !createResult.success) {
+        console.error('[TopUpWalletModal] Failed to create transaction via API:', createResult);
+        throw new Error(createResult.error?.message || createResult.error || 'Failed to initialize payment');
+      }
+
+      const txId = createResult.data?.transactionId || '';
+      if (!txId) {
+        throw new Error('No transaction ID returned from server');
+      }
+
+      setTransactionId(txId);
+      console.log('[TopUpWalletModal] Transaction record created via API:', txId);
 
       // Determine if using testnet
       const isTestnet = import.meta.env.VITE_BASE_MAINNET !== 'true';
 
       // Process payment via Base Account SDK
-      // CRITICAL FIX: amount must be a string, not a number
+      // Use 'to' field as per SDK documentation (not 'recipient')
+      // Amount must be a string with proper decimal formatting
       const paymentOptions: PaymentOptions = {
-        recipient: treasuryAddress,
-        amount: String(amount),
-        isTestnet,
+        to: treasuryAddress as `0x${string}`,
+        amount: amount.toFixed(2),
+        testnet: isTestnet,
       };
 
       console.log('[TopUpWalletModal] Calling Base Account SDK pay():', paymentOptions);
