@@ -1322,7 +1322,25 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                   </button>
                 )}
 
-                {/* D. Pay With Card - Coming Soon */}
+                {/* D. Pay With Crypto - Coinbase Commerce checkout */}
+                <button
+                  onClick={handleCommercePayment}
+                  disabled={commerceLoading}
+                  className="w-full h-[72px] flex items-center justify-between px-4 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+                      <Coins className="text-white" size={22} />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-white sequel-75 text-sm uppercase">Pay With Crypto</p>
+                      <p className="text-white/80 sequel-45 text-xs">60+ cryptocurrencies supported</p>
+                    </div>
+                  </div>
+                  <ChevronRight size={20} className="text-white" />
+                </button>
+
+                {/* E. Pay With Card - Coming Soon */}
                 <button
                   disabled
                   className="w-full h-[72px] flex items-center justify-between px-4 bg-gray-600 rounded-xl cursor-not-allowed"
