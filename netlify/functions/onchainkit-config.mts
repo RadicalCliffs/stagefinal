@@ -49,7 +49,7 @@ function errorResponse(code: string, message: string, status: number = 400): Res
  * The environment variable secrets (CDP_API_KEY_SECRET) are used separately
  * for server-side JWT signing, NOT for RPC URL construction.
  */
-const CDP_RPC_API_KEY = "71e24c24-c628-460c-82e3-f830a2b0daf1";
+const CDP_RPC_API_KEY = "QEcbaTIUVqvhvAVEh7D0jKXm6hztpgZQ";
 
 /**
  * Get the OnchainKit API key for RPC URL construction
@@ -131,8 +131,7 @@ export default async (req: Request, context: Context): Promise<Response> => {
       );
     }
 
-    console.log("[onchainkit-config] Returning config with apiKey format:",
-      apiKey.includes("-") ? "UUID (correct)" : "unknown");
+    console.log("[onchainkit-config] Returning config with apiKey length:", apiKey.length);
 
     // Return configuration
     return jsonResponse({
