@@ -13,6 +13,7 @@ import { FundButton, getOnrampBuyUrl } from '@coinbase/onchainkit/fund';
 import { useRealTimeBalance } from '../hooks/useRealTimeBalance';
 import { useWalletTokens } from '../hooks/useWalletTokens';
 import { useWalletClient } from 'wagmi';
+import { pay, type PaymentOptions, type PaymentResult } from '@base-org/account/payment/browser';
 
 // Text overrides for visual editor live preview
 export interface TopUpWalletModalTextOverrides {
@@ -34,8 +35,8 @@ interface TopUpWalletModalProps {
   textOverrides?: TopUpWalletModalTextOverrides;
 }
 
-type PaymentStep = 'method' | 'amount' | 'loading' | 'checkout' | 'crypto-checkout' | 'commerce-checkout' | 'instant-processing' | 'onramp-processing' | 'fund-button' | 'success' | 'error';
-type PaymentMethod = 'crypto' | 'commerce' | 'offramp' | 'instant' | 'onramp' | 'fund';
+type PaymentStep = 'method' | 'amount' | 'loading' | 'checkout' | 'crypto-checkout' | 'commerce-checkout' | 'instant-processing' | 'onramp-processing' | 'fund-button' | 'base-account-processing' | 'success' | 'error';
+type PaymentMethod = 'crypto' | 'commerce' | 'offramp' | 'instant' | 'onramp' | 'fund' | 'base-account';
 
 // Get preset amounts from Coinbase checkout URLs
 const PRESET_AMOUNTS = Object.keys(TOP_UP_CHECKOUT_URLS).map(Number).filter(a => a >= 3).sort((a, b) => a - b);
@@ -94,6 +95,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
   const [cryptoChargeId, setCryptoChargeId] = useState<string>('');
   const [instantProcessing, setInstantProcessing] = useState<boolean>(false);
   const [onrampUrl, setOnrampUrl] = useState<string>('');
+  const [baseAccountLoading, setBaseAccountLoading] = useState<boolean>(false);
 
   // Get user's primary wallet address for token balance check
   const primaryWallet = linkedWallets.find(w => w.isEmbeddedWallet === true) ||
@@ -277,12 +279,18 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
           return;
         }
         setStep('fund-button');
+      } else if (paymentMethod === 'base-account') {
+        // Base Account payment flow - one-tap USDC payment
+        setStep('base-account-processing');
+        setBaseAccountLoading(true);
+        await handleBaseAccountTopUp();
       }
     } catch (err) {
       console.error('Payment initiation error:', err);
       setError(err instanceof Error ? err.message : 'Failed to initiate payment');
       setStep('error');
       setInstantProcessing(false);
+      setBaseAccountLoading(false);
     }
   };
 
@@ -402,6 +410,161 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
       setStep('error');
     } finally {
       setInstantProcessing(false);
+    }
+  };
+
+  // Handle Base Account top-up - One-tap USDC payment via Base Account SDK
+  const handleBaseAccountTopUp = async () => {
+    if (!baseUser?.id) {
+      setError('Please log in first');
+      setStep('error');
+      setBaseAccountLoading(false);
+      return;
+    }
+
+    try {
+      const treasuryAddress = import.meta.env.VITE_TREASURY_ADDRESS;
+      if (!treasuryAddress) {
+        throw new Error('Payment system configuration error. Please contact support.');
+      }
+
+      console.log('[TopUpWalletModal] Starting Base Account top-up flow');
+
+      // Create transaction record
+      const { data: newTx, error: txError } = await supabase
+        .from('user_transactions')
+        .insert({
+          user_id: toCanonicalUserId(baseUser.id),
+          amount: amount,
+          currency: 'USD',
+          payment_method: 'base_account',
+          payment_provider: 'base_account',
+          status: 'pending',
+          type: 'topup',
+        })
+        .select('id')
+        .single();
+
+      if (txError || !newTx) {
+        throw new Error('Failed to create transaction record');
+      }
+
+      const txId = newTx.id;
+      setTransactionId(txId);
+
+      console.log('[TopUpWalletModal] Transaction record created:', txId);
+
+      // Determine if using testnet
+      const isTestnet = import.meta.env.VITE_BASE_MAINNET !== 'true';
+
+      // Process payment via Base Account SDK
+      const paymentOptions: PaymentOptions = {
+        recipient: treasuryAddress,
+        amount: amount,
+        isTestnet,
+      };
+
+      console.log('[TopUpWalletModal] Calling Base Account SDK pay():', paymentOptions);
+
+      const paymentResult: PaymentResult = await pay(paymentOptions);
+
+      console.log('[TopUpWalletModal] Base Account payment result:', paymentResult);
+
+      if (!paymentResult.success) {
+        throw new Error(paymentResult.error || 'Payment failed');
+      }
+
+      // Update transaction with payment hash
+      await supabase
+        .from('user_transactions')
+        .update({
+          tx_hash: paymentResult.transactionHash,
+          status: 'completed',
+          payment_status: 'confirmed',
+          wallet_credited: true,
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', txId);
+
+      // Credit user's balance using the bonus-aware function
+      const { data: creditResult, error: creditError } = await supabase.rpc(
+        'credit_balance_with_first_deposit_bonus',
+        {
+          p_canonical_user_id: toCanonicalUserId(baseUser.id),
+          p_amount: amount,
+          p_reason: 'base_account_topup',
+          p_reference_id: paymentResult.transactionHash || txId,
+        }
+      );
+
+      if (creditError) {
+        console.error('[TopUpWalletModal] Error crediting balance:', creditError);
+        // Try fallback
+        const { error: fallbackError } = await supabase.rpc(
+          'credit_sub_account_balance',
+          {
+            p_canonical_user_id: toCanonicalUserId(baseUser.id),
+            p_amount: amount,
+            p_currency: 'USD',
+          }
+        );
+
+        if (fallbackError) {
+          throw new Error(`Payment succeeded but failed to credit balance. Please contact support with transaction ID: ${txId}`);
+        }
+      }
+
+      const bonusAmount = creditResult?.bonus_amount || 0;
+      const bonusApplied = creditResult?.bonus_applied || false;
+      const newBalance = creditResult?.new_balance;
+
+      console.log(`[TopUpWalletModal] Credited ${amount} to user balance, bonus=${bonusAmount}, new_balance=${newBalance}`);
+
+      // Update transaction notes with bonus info
+      if (bonusApplied && bonusAmount > 0) {
+        await supabase
+          .from('user_transactions')
+          .update({
+            notes: `Base Account top-up completed with 50% bonus (+$${bonusAmount.toFixed(2)})`,
+          })
+          .eq('id', txId);
+      }
+
+      // Success!
+      setStep('success');
+      await refreshUserData();
+
+      // Dispatch balance update event
+      if (newBalance !== undefined && newBalance !== null) {
+        window.dispatchEvent(new CustomEvent('balance-updated', {
+          detail: { newBalance }
+        }));
+      }
+
+      // Send in-app notification
+      if (baseUser?.id) {
+        notificationService.notifyTopUp(baseUser.id, amount, newBalance).catch(err => {
+          console.warn('[TopUpWalletModal] Failed to send top-up notification:', err);
+        });
+      }
+
+      onSuccess?.();
+    } catch (err) {
+      console.error('[TopUpWalletModal] Base Account top-up error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Payment failed';
+
+      // Provide user-friendly error messages
+      if (errorMessage.includes('rejected') || errorMessage.includes('denied')) {
+        setError('Payment was rejected');
+      } else if (errorMessage.includes('insufficient')) {
+        setError('Insufficient balance in your Base Account');
+      } else {
+        setError(errorMessage);
+      }
+      setStep('error');
+    } finally {
+      setBaseAccountLoading(false);
     }
   };
 
@@ -569,7 +732,34 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                     </button>
                   )}
 
-                  {/* Option 2: Top up with Coinbase (Commerce flow) */}
+                  {/* Option 2: Pay with Base Account - One-tap USDC payment */}
+                  <button
+                    onClick={() => handleMethodSelect('base-account')}
+                    className={`flex items-center justify-between gap-3 p-3 rounded-xl transition-all w-full ${
+                      paymentMethod === 'base-account'
+                        ? 'bg-[#0052FF]/20 border-2 border-[#0052FF]'
+                        : 'bg-[#3A3A3A] border-2 border-[#0052FF]/30 hover:border-[#0052FF]/60'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${paymentMethod === 'base-account' ? 'bg-[#0052FF]' : 'bg-[#0052FF]/20'}`}>
+                        <svg className="w-6 h-6 text-white" viewBox="0 0 111 111" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M54.921 110.034C85.359 110.034 110.034 85.402 110.034 55.017C110.034 24.6319 85.359 0 54.921 0C26.0432 0 2.35281 22.1714 0 50.3923H72.8467V59.6416H3.9565e-07C2.35281 87.8625 26.0432 110.034 54.921 110.034Z" fill="currentColor"/>
+                        </svg>
+                      </div>
+                      <div className="text-left">
+                        <p className={`sequel-75 text-sm ${paymentMethod === 'base-account' ? 'text-[#0052FF]' : 'text-white'}`}>
+                          Base Account
+                        </p>
+                        <p className="text-[#0052FF]/70 sequel-45 text-xs">
+                          Fast USDC payments
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight size={18} className="text-[#0052FF] flex-shrink-0" />
+                  </button>
+
+                  {/* Option 3: Top up with Coinbase (Commerce flow) */}
                   <div className="relative">
                     <div className="absolute -top-1.5 -right-1.5 bg-[#DDE404] text-black text-[9px] font-bold px-1.5 py-0.5 rounded-full z-10">
                       TOP
@@ -599,7 +789,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                     </button>
                   </div>
 
-                  {/* Option 3: Pay with Card - Coming Soon */}
+                  {/* Option 4: Pay with Card - Coming Soon */}
                   <button
                     disabled={true}
                     className="flex items-center justify-between gap-3 p-3 rounded-xl w-full bg-[#3A3A3A] border-2 border-gray-600/30 opacity-50 cursor-not-allowed"
@@ -750,6 +940,21 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                   : paymentMethod === 'instant'
                   ? 'Preparing wallet transaction...'
                   : 'Preparing checkout...'}
+              </p>
+            </div>
+          )}
+
+          {/* Base Account Processing */}
+          {step === 'base-account-processing' && (
+            <div className="py-12 text-center">
+              <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-700 border-t-[#0052FF] mx-auto mb-4"></div>
+              <p className="text-white sequel-45 mb-2">Processing Base Account Payment</p>
+              <p className="text-[#0052FF] sequel-75 text-xl mb-4">${amount} USD</p>
+              <p className="text-gray-400 text-xs sequel-45">
+                Please complete the payment in the Base Account popup...
+              </p>
+              <p className="text-gray-500 text-xs sequel-45 mt-2">
+                Your balance will be credited immediately after confirmation.
               </p>
             </div>
           )}
