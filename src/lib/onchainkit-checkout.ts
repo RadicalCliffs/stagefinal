@@ -172,7 +172,7 @@ export class OnchainKitCheckoutService {
       const chargeId = (result.data?.chargeId as string);
       if (!chargeId || chargeId.trim() === '') {
         console.error('[OnchainKit] No chargeId in response:', result);
-        throw new Error('No chargeId or productId provided by payment service. Please try again or contact support.');
+        throw new Error('Failed to create charge: No chargeId received from payment service. Please try again or contact support.');
       }
 
       // callCreateCharge throws on error, so if we get here, it was successful

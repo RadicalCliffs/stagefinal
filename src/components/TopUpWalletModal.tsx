@@ -13,8 +13,7 @@ import { FundButton, getOnrampBuyUrl } from '@coinbase/onchainkit/fund';
 import { useRealTimeBalance } from '../hooks/useRealTimeBalance';
 import { useWalletTokens } from '../hooks/useWalletTokens';
 import { useWalletClient } from 'wagmi';
-import { pay, getPaymentStatus, type PaymentOptions, type PaymentResult } from '@base-org/account/payment/browser';
-import { getBaseAccountSDK } from '../lib/base-account-sdk';
+import { pay, type PaymentOptions, type PaymentResult } from '@base-org/account/payment/browser';
 
 // Text overrides for visual editor live preview
 export interface TopUpWalletModalTextOverrides {
