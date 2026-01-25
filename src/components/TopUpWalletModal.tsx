@@ -425,7 +425,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
     try {
       const treasuryAddress = import.meta.env.VITE_TREASURY_ADDRESS;
       if (!treasuryAddress) {
-        throw new Error('Treasury address not configured (VITE_TREASURY_ADDRESS)');
+        throw new Error('Payment system configuration error. Please contact support.');
       }
 
       console.log('[TopUpWalletModal] Starting Base Account top-up flow');
@@ -511,7 +511,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
         );
 
         if (fallbackError) {
-          throw new Error('Payment succeeded but failed to credit balance. Please contact support with transaction ID: ' + txId);
+          throw new Error(`Payment succeeded but failed to credit balance. Please contact support with transaction ID: ${txId}`);
         }
       }
 
@@ -526,7 +526,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
         await supabase
           .from('user_transactions')
           .update({
-            notes: `Base Account topup completed with 50% bonus (+$${bonusAmount.toFixed(2)})`,
+            notes: `Base Account top-up completed with 50% bonus (+$${bonusAmount.toFixed(2)})`,
           })
           .eq('id', txId);
       }
