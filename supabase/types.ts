@@ -6,2163 +6,2038 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
-  }
+/**
+ * Competition status values stored in the database.
+ * Note: Frontend displays map these to user-friendly labels (e.g., 'active' -> 'live')
+ */
+export type CompetitionStatus =
+  | 'upcoming'
+  | 'active'
+  | 'drawing'
+  | 'drawn'
+  | 'completed'
+  | 'cancelled'
+  | 'expired'
+  | 'draft'
+  | 'sold_out'
+
+/**
+ * Frontend display status values (mapped from database status)
+ */
+export type DisplayStatus = 'live' | 'drawn' | 'completed' | 'pending' | 'cancelled'
+
+/**
+ * Payment/transaction status values
+ */
+export type PaymentStatus = 'pending' | 'waiting' | 'confirmed' | 'completed' | 'failed' | 'refunded' | 'cancelled'
+
+/**
+ * Pending ticket reservation status
+ */
+export type ReservationStatus = 'pending' | 'confirmed' | 'expired' | 'cancelled'
+
+export interface Database {
   public: {
     Tables: {
-      admin_sessions: {
+      Prize_Instantprizes: {
         Row: {
-          admin_id: string | null
-          created_at: string | null
-          expires_at: string
-          id: string
-          ip_address: string | null
-          token: string
-          user_agent: string | null
-        }
-        Insert: {
-          admin_id?: string | null
-          created_at?: string | null
-          expires_at: string
-          id?: string
-          ip_address?: string | null
-          token: string
-          user_agent?: string | null
-        }
-        Update: {
-          admin_id?: string | null
-          created_at?: string | null
-          expires_at?: string
-          id?: string
-          ip_address?: string | null
-          token?: string
-          user_agent?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "admin_sessions_admin_id_fkey"
-            columns: ["admin_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      admin_users: {
-        Row: {
-          created_at: string | null
-          email: string
-          id: string
-          is_active: boolean | null
-          password_hash: string
-          role: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          email: string
-          id?: string
-          is_active?: boolean | null
-          password_hash: string
-          role?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          email?: string
-          id?: string
-          is_active?: boolean | null
-          password_hash?: string
-          role?: string | null
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      competitions: {
-        Row: {
-          category: string | null
-          chain_id: number | null
-          competition_type: string | null
-          competitionended: number | null
-          competitioninformation: string | null
-          competitionname: string | null
-          competitionprize: string | null
-          competitionticketsize: number | null
-          contract_address: string | null
-          crdate: string | null
-          created_at: string | null
-          created_by: string | null
-          creator_id: string | null
-          description: string | null
-          draw_date: string | null
-          drawn_at: string | null
-          end_date: string | null
-          entry_fee: string | null
-          featured: boolean | null
-          font_size_override: string | null
-          font_weight_override: string | null
-          havetickets: boolean | null
-          id: string
-          image_url: string | null
-          imageurl: string | null
-          instant: boolean | null
-          is_featured: boolean | null
-          is_instant_win: boolean | null
-          max_participants: number | null
-          metadata_description: string | null
-          metadata_image: string | null
-          metadata_title: string | null
-          onchain_competition_id: number | null
-          outcomes_vrf_seed: string | null
-          prize_type: string | null
+          UID: string
+          competitionId: string
+          prize: string
           prize_value: number | null
-          randomness_verified_at: string | null
-          start_date: string | null
-          status: string | null
-          ticket_price: number | null
-          tickets_sold: number | null
-          title: string | null
-          total_tickets: number | null
-          tx_hash: string | null
-          uid: string | null
-          vrf_draw_completed_at: string | null
-          vrf_draw_requested_at: string | null
-          vrf_error: string | null
-          vrf_pregenerated_tx_hash: string | null
-          vrf_request_id: string | null
-          vrf_verified: boolean | null
-          winner_address: string | null
-        }
-        Insert: {
-          category?: string | null
-          chain_id?: number | null
-          competition_type?: string | null
-          competitionended?: number | null
-          competitioninformation?: string | null
-          competitionname?: string | null
-          competitionprize?: string | null
-          competitionticketsize?: number | null
-          contract_address?: string | null
-          crdate?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          creator_id?: string | null
-          description?: string | null
-          draw_date?: string | null
-          drawn_at?: string | null
-          end_date?: string | null
-          entry_fee?: string | null
-          featured?: boolean | null
-          font_size_override?: string | null
-          font_weight_override?: string | null
-          havetickets?: boolean | null
-          id?: string
-          image_url?: string | null
-          imageurl?: string | null
-          instant?: boolean | null
-          is_featured?: boolean | null
-          is_instant_win?: boolean | null
-          max_participants?: number | null
-          metadata_description?: string | null
-          metadata_image?: string | null
-          metadata_title?: string | null
-          onchain_competition_id?: number | null
-          outcomes_vrf_seed?: string | null
-          prize_type?: string | null
-          prize_value?: number | null
-          randomness_verified_at?: string | null
-          start_date?: string | null
-          status?: string | null
-          ticket_price?: number | null
-          tickets_sold?: number | null
-          title?: string | null
-          total_tickets?: number | null
-          tx_hash?: string | null
-          uid?: string | null
-          vrf_draw_completed_at?: string | null
-          vrf_draw_requested_at?: string | null
-          vrf_error?: string | null
-          vrf_pregenerated_tx_hash?: string | null
-          vrf_request_id?: string | null
-          vrf_verified?: boolean | null
-          winner_address?: string | null
-        }
-        Update: {
-          category?: string | null
-          chain_id?: number | null
-          competition_type?: string | null
-          competitionended?: number | null
-          competitioninformation?: string | null
-          competitionname?: string | null
-          competitionprize?: string | null
-          competitionticketsize?: number | null
-          contract_address?: string | null
-          crdate?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          creator_id?: string | null
-          description?: string | null
-          draw_date?: string | null
-          drawn_at?: string | null
-          end_date?: string | null
-          entry_fee?: string | null
-          featured?: boolean | null
-          font_size_override?: string | null
-          font_weight_override?: string | null
-          havetickets?: boolean | null
-          id?: string
-          image_url?: string | null
-          imageurl?: string | null
-          instant?: boolean | null
-          is_featured?: boolean | null
-          is_instant_win?: boolean | null
-          max_participants?: number | null
-          metadata_description?: string | null
-          metadata_image?: string | null
-          metadata_title?: string | null
-          onchain_competition_id?: number | null
-          outcomes_vrf_seed?: string | null
-          prize_type?: string | null
-          prize_value?: number | null
-          randomness_verified_at?: string | null
-          start_date?: string | null
-          status?: string | null
-          ticket_price?: number | null
-          tickets_sold?: number | null
-          title?: string | null
-          total_tickets?: number | null
-          tx_hash?: string | null
-          uid?: string | null
-          vrf_draw_completed_at?: string | null
-          vrf_draw_requested_at?: string | null
-          vrf_error?: string | null
-          vrf_pregenerated_tx_hash?: string | null
-          vrf_request_id?: string | null
-          vrf_verified?: boolean | null
-          winner_address?: string | null
-        }
-        Relationships: []
-      }
-      custody_transactions: {
-        Row: {
-          amount: number
-          blockchain_tx_hash: string | null
-          created_at: string | null
-          currency: string
-          id: string
-          metadata: Json | null
-          nowpayments_id: string | null
-          nowpayments_order_id: string | null
-          nowpayments_payment_id: string | null
-          processed_at: string | null
-          provider: string
-          reference_id: string | null
-          status: string
-          transaction_type: string
-          updated_at: string | null
-          user_id: string | null
-        }
-        Insert: {
-          amount: number
-          blockchain_tx_hash?: string | null
-          created_at?: string | null
-          currency?: string
-          id?: string
-          metadata?: Json | null
-          nowpayments_id?: string | null
-          nowpayments_order_id?: string | null
-          nowpayments_payment_id?: string | null
-          processed_at?: string | null
-          provider?: string
-          reference_id?: string | null
-          status?: string
-          transaction_type: string
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          amount?: number
-          blockchain_tx_hash?: string | null
-          created_at?: string | null
-          currency?: string
-          id?: string
-          metadata?: Json | null
-          nowpayments_id?: string | null
-          nowpayments_order_id?: string | null
-          nowpayments_payment_id?: string | null
-          processed_at?: string | null
-          provider?: string
-          reference_id?: string | null
-          status?: string
-          transaction_type?: string
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "custody_transactions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      custody_wallet_balances: {
-        Row: {
-          balance_after: number
-          balance_before: number
-          change_amount: number
-          created_at: string | null
-          id: string
-          reference_id: string | null
-          transaction_type: string
-          user_id: string | null
-        }
-        Insert: {
-          balance_after: number
-          balance_before: number
-          change_amount: number
-          created_at?: string | null
-          id?: string
-          reference_id?: string | null
-          transaction_type: string
-          user_id?: string | null
-        }
-        Update: {
-          balance_after?: number
-          balance_before?: number
-          change_amount?: number
-          created_at?: string | null
-          id?: string
-          reference_id?: string | null
-          transaction_type?: string
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "custody_wallet_balances_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      faqs: {
-        Row: {
-          answer: string
-          created_at: string | null
-          display_order: number | null
-          id: string
-          is_active: boolean | null
-          question: string
-          updated_at: string | null
-        }
-        Insert: {
-          answer: string
-          created_at?: string | null
-          display_order?: number | null
-          id?: string
-          is_active?: boolean | null
-          question: string
-          updated_at?: string | null
-        }
-        Update: {
-          answer?: string
-          created_at?: string | null
-          display_order?: number | null
-          id?: string
-          is_active?: boolean | null
-          question?: string
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      hero_competitions: {
-        Row: {
-          competition_id: string | null
-          created_at: string | null
-          display_order: number | null
-          id: string
-          is_active: boolean | null
-        }
-        Insert: {
-          competition_id?: string | null
-          created_at?: string | null
-          display_order?: number | null
-          id?: string
-          is_active?: boolean | null
-        }
-        Update: {
-          competition_id?: string | null
-          created_at?: string | null
-          display_order?: number | null
-          id?: string
-          is_active?: boolean | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "hero_competitions_competition_id_fkey"
-            columns: ["competition_id"]
-            isOneToOne: false
-            referencedRelation: "competitions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      internal_transfers: {
-        Row: {
-          amount: number
-          completed_at: string | null
-          created_at: string | null
-          currency: string
-          description: string | null
-          from_user_id: string
-          id: string
-          status: string | null
-          to_user_id: string
-          transfer_id: string
-          updated_at: string | null
-        }
-        Insert: {
-          amount: number
-          completed_at?: string | null
-          created_at?: string | null
-          currency: string
-          description?: string | null
-          from_user_id: string
-          id?: string
-          status?: string | null
-          to_user_id: string
-          transfer_id: string
-          updated_at?: string | null
-        }
-        Update: {
-          amount?: number
-          completed_at?: string | null
-          created_at?: string | null
-          currency?: string
-          description?: string | null
-          from_user_id?: string
-          id?: string
-          status?: string | null
-          to_user_id?: string
-          transfer_id?: string
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      joincompetition: {
-        Row: {
-          amountspent: number | null
-          buytime: string | null
-          canonical_user_id: string | null
-          chain: string | null
-          competitionid: string
-          created_at: string | null
-          id: string
-          numberoftickets: number | null
+          winningTicket: number
+          winningWalletAddress: string | null
+          winningUserId: string | null
           privy_user_id: string | null
-          purchasedate: string | null
-          ticketnumbers: string | null
-          transactionhash: string | null
-          uid: string
-          userid: string | null
-          walletaddress: string | null
+          wonAt: string | null
+          claimed_at: string | null
+          created_at: string | null
+          human_id: string | null
         }
         Insert: {
-          amountspent?: number | null
-          buytime?: string | null
-          canonical_user_id?: string | null
-          chain?: string | null
-          competitionid: string
-          created_at?: string | null
-          id?: string
-          numberoftickets?: number | null
+          UID?: string
+          competitionId: string
+          prize: string
+          prize_value?: number | null
+          winningTicket: number
+          winningWalletAddress?: string | null
+          winningUserId?: string | null
           privy_user_id?: string | null
-          purchasedate?: string | null
-          ticketnumbers?: string | null
-          transactionhash?: string | null
-          uid: string
-          userid?: string | null
-          walletaddress?: string | null
+          wonAt?: string | null
+          claimed_at?: string | null
+          created_at?: string | null
+          human_id?: string | null
         }
         Update: {
-          amountspent?: number | null
-          buytime?: string | null
-          canonical_user_id?: string | null
-          chain?: string | null
-          competitionid?: string
-          created_at?: string | null
-          id?: string
-          numberoftickets?: number | null
+          UID?: string
+          competitionId?: string
+          prize?: string
+          prize_value?: number | null
+          winningTicket?: number
+          winningWalletAddress?: string | null
+          winningUserId?: string | null
           privy_user_id?: string | null
-          purchasedate?: string | null
-          ticketnumbers?: string | null
-          transactionhash?: string | null
-          uid?: string
-          userid?: string | null
-          walletaddress?: string | null
+          wonAt?: string | null
+          claimed_at?: string | null
+          created_at?: string | null
+          human_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "joincompetition_userid_fkey"
-            columns: ["userid"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
       }
-      joined_competitions: {
+      _entries_progress: {
         Row: {
           competition_id: string
-          created_at: string
-          id: string
-          join_date: string
-          number_of_tickets: number
-          user_uid: string | null
-          wallet_address: string | null
+          canonical_user_id: string
+          last_ticket_number: number | null
+          last_processed_at: string
         }
         Insert: {
           competition_id: string
-          created_at?: string
-          id?: string
-          join_date: string
-          number_of_tickets: number
-          user_uid?: string | null
-          wallet_address?: string | null
+          canonical_user_id: string
+          last_ticket_number?: number | null
+          last_processed_at?: string
         }
         Update: {
           competition_id?: string
-          created_at?: string
-          id?: string
-          join_date?: string
-          number_of_tickets?: number
-          user_uid?: string | null
-          wallet_address?: string | null
+          canonical_user_id?: string
+          last_ticket_number?: number | null
+          last_processed_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "joined_competitions_user_uid_fkey"
-            columns: ["user_uid"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
       }
-      nowpayments_sub_accounts: {
+      _payment_settings: {
         Row: {
-          created_at: string | null
+          key: string
+          value_timestamp: string | null
+        }
+        Insert: {
+          key: string
+          value_timestamp?: string | null
+        }
+        Update: {
+          key?: string
+          value_timestamp?: string | null
+        }
+      }
+      admin_sessions: {
+        Row: {
           id: string
+          admin_id: string | null
+          token: string
+          ip_address: string | null
+          user_agent: string | null
+          expires_at: string
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          admin_id?: string | null
+          token: string
+          ip_address?: string | null
+          user_agent?: string | null
+          expires_at: string
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          admin_id?: string | null
+          token?: string
+          ip_address?: string | null
+          user_agent?: string | null
+          expires_at?: string
+          created_at?: string | null
+        }
+      }
+      admin_users: {
+        Row: {
+          id: string
+          email: string
+          password_hash: string
+          role: string | null
           is_active: boolean | null
-          nowpayments_name: string
-          sub_partner_id: string
-          updated_at: string | null
-          user_id: string
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string
-          is_active?: boolean | null
-          nowpayments_name: string
-          sub_partner_id: string
-          updated_at?: string | null
-          user_id: string
-        }
-        Update: {
-          created_at?: string | null
-          id?: string
-          is_active?: boolean | null
-          nowpayments_name?: string
-          sub_partner_id?: string
-          updated_at?: string | null
-          user_id?: string
-        }
-        Relationships: []
-      }
-      order_tickets: {
-        Row: {
           created_at: string | null
-          id: string
-          order_id: string | null
-          ticket_number: string
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string
-          order_id?: string | null
-          ticket_number: string
-        }
-        Update: {
-          created_at?: string | null
-          id?: string
-          order_id?: string | null
-          ticket_number?: string
-        }
-        Relationships: []
-      }
-      orders: {
-        Row: {
-          amount_usd: number | null
-          competition_id: string | null
-          completed_at: string | null
-          created_at: string | null
-          id: string
-          order_type: string | null
-          payment_method: string | null
-          payment_provider: string | null
-          payment_session_id: string | null
-          payment_status: string | null
-          payment_tx_hash: string | null
-          payment_url: string | null
-          ticket_count: number | null
           updated_at: string | null
-          user_id: string | null
         }
         Insert: {
-          amount_usd?: number | null
-          competition_id?: string | null
-          completed_at?: string | null
-          created_at?: string | null
           id?: string
-          order_type?: string | null
-          payment_method?: string | null
-          payment_provider?: string | null
-          payment_session_id?: string | null
-          payment_status?: string | null
-          payment_tx_hash?: string | null
-          payment_url?: string | null
-          ticket_count?: number | null
+          email: string
+          password_hash: string
+          role?: string | null
+          is_active?: boolean | null
+          created_at?: string | null
           updated_at?: string | null
-          user_id?: string | null
         }
         Update: {
-          amount_usd?: number | null
-          competition_id?: string | null
-          completed_at?: string | null
-          created_at?: string | null
           id?: string
-          order_type?: string | null
-          payment_method?: string | null
-          payment_provider?: string | null
-          payment_session_id?: string | null
-          payment_status?: string | null
-          payment_tx_hash?: string | null
-          payment_url?: string | null
-          ticket_count?: number | null
+          email?: string
+          password_hash?: string
+          role?: string | null
+          is_active?: boolean | null
+          created_at?: string | null
           updated_at?: string | null
-          user_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "orders_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
       }
-      participants: {
+      admin_users_audit: {
         Row: {
-          competition_id: string | null
           id: string
-          joined_at: string | null
-          tx_hash: string | null
+          admin_id: string | null
+          action: string | null
+          metadata: Json | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          admin_id?: string | null
+          action?: string | null
+          metadata?: Json | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          admin_id?: string | null
+          action?: string | null
+          metadata?: Json | null
+          created_at?: string | null
+        }
+      }
+      balance_ledger: {
+        Row: {
+          id: string
+          canonical_user_id: string | null
+          transaction_type: string | null
+          amount: number
+          currency: string | null
+          balance_before: number | null
+          balance_after: number | null
+          reference_id: string | null
+          description: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          canonical_user_id?: string | null
+          transaction_type?: string | null
+          amount: number
+          currency?: string | null
+          balance_before?: number | null
+          balance_after?: number | null
+          reference_id?: string | null
+          description?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          canonical_user_id?: string | null
+          transaction_type?: string | null
+          amount?: number
+          currency?: string | null
+          balance_before?: number | null
+          balance_after?: number | null
+          reference_id?: string | null
+          description?: string | null
+          created_at?: string
+        }
+      }
+      bonus_award_audit: {
+        Row: {
+          id: string
+          wallet_address: string | null
+          canonical_user_id: string | null
+          amount: number
+          currency: string
+          awarded_at: string
+          reason: string
+          sub_account_balance_before: number | null
+          sub_account_balance_after: number | null
+          note: string | null
+        }
+        Insert: {
+          id?: string
+          wallet_address?: string | null
+          canonical_user_id?: string | null
+          amount: number
+          currency?: string
+          awarded_at?: string
+          reason: string
+          sub_account_balance_before?: number | null
+          sub_account_balance_after?: number | null
+          note?: string | null
+        }
+        Update: {
+          id?: string
+          wallet_address?: string | null
+          canonical_user_id?: string | null
+          amount?: number
+          currency?: string
+          awarded_at?: string
+          reason?: string
+          sub_account_balance_before?: number | null
+          sub_account_balance_after?: number | null
+          note?: string | null
+        }
+      }
+      canonical_users: {
+        Row: {
+          id: string
+          canonical_user_id: string | null
+          uid: string
+          privy_user_id: string | null
+          email: string | null
+          wallet_address: string | null
+          base_wallet_address: string | null
+          eth_wallet_address: string | null
+          username: string | null
+          avatar_url: string | null
+          usdc_balance: number
+          bonus_balance: number
+          has_used_new_user_bonus: boolean
+          created_at: string
+          updated_at: string
+          smart_wallet_address: string | null
+          country: string | null
+          first_name: string | null
+          last_name: string | null
+          telegram_handle: string | null
+          is_admin: boolean
+          auth_provider: string | null
+          wallet_linked: string | null
+          linked_wallets: Json | null
+          primary_wallet_address: string | null
+        }
+        Insert: {
+          id?: string
+          canonical_user_id?: string | null
+          uid?: string
+          privy_user_id?: string | null
+          email?: string | null
+          wallet_address?: string | null
+          base_wallet_address?: string | null
+          eth_wallet_address?: string | null
+          username?: string | null
+          avatar_url?: string | null
+          usdc_balance?: number
+          bonus_balance?: number
+          has_used_new_user_bonus?: boolean
+          created_at?: string
+          updated_at?: string
+          smart_wallet_address?: string | null
+          country?: string | null
+          first_name?: string | null
+          last_name?: string | null
+          telegram_handle?: string | null
+          is_admin?: boolean
+          auth_provider?: string | null
+          wallet_linked?: string | null
+          linked_wallets?: Json | null
+          primary_wallet_address?: string | null
+        }
+        Update: {
+          id?: string
+          canonical_user_id?: string | null
+          uid?: string
+          privy_user_id?: string | null
+          email?: string | null
+          wallet_address?: string | null
+          base_wallet_address?: string | null
+          eth_wallet_address?: string | null
+          username?: string | null
+          avatar_url?: string | null
+          usdc_balance?: number
+          bonus_balance?: number
+          has_used_new_user_bonus?: boolean
+          created_at?: string
+          updated_at?: string
+          smart_wallet_address?: string | null
+          country?: string | null
+          first_name?: string | null
+          last_name?: string | null
+          telegram_handle?: string | null
+          is_admin?: boolean
+          auth_provider?: string | null
+          wallet_linked?: string | null
+          linked_wallets?: Json | null
+          primary_wallet_address?: string | null
+        }
+      }
+      cdp_event_queue: {
+        Row: {
+          id: string
+          event_name: string
+          payload: Json
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          event_name: string
+          payload: Json
+          status?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          event_name?: string
+          payload?: Json
+          status?: string
+          created_at?: string
+        }
+      }
+      competition_entries: {
+        Row: {
+          id: string
+          canonical_user_id: string
+          competition_id: string
+          wallet_address: string | null
+          tickets_count: number
+          ticket_numbers_csv: string | null
+          amount_spent: number | null
+          payment_methods: string | null
+          latest_purchase_at: string | null
+          is_winner: boolean | null
+          prize_tiers: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          canonical_user_id: string
+          competition_id: string
+          wallet_address?: string | null
+          tickets_count?: number
+          ticket_numbers_csv?: string | null
+          amount_spent?: number | null
+          payment_methods?: string | null
+          latest_purchase_at?: string | null
+          is_winner?: boolean | null
+          prize_tiers?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          canonical_user_id?: string
+          competition_id?: string
+          wallet_address?: string | null
+          tickets_count?: number
+          ticket_numbers_csv?: string | null
+          amount_spent?: number | null
+          payment_methods?: string | null
+          latest_purchase_at?: string | null
+          is_winner?: boolean | null
+          prize_tiers?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      competitions: {
+        Row: {
+          id: string
+          title: string
+          description: string | null
+          image_url: string | null
+          ticket_price: number
+          total_tickets: number
+          sold_tickets: number
+          status: string
+          start_time: string
+          end_time: string | null
+          winner_count: number
+          prize_description: string | null
+          vrfulfillment_address: string | null
+          vrf_subscription_id: number | null
+          created_at: string
+          updated_at: string
+          deleted: boolean
+          max_tickets_per_user_percentage: number | null
+          crdate: string
+          description_text: string | null
+          end_date: string | null
+          is_featured: boolean | null
+          is_instant_win: boolean | null
+          num_winners: number | null
+          prize_type: string | null
+          prize_value: number | null
+          tickets_sold: number | null
+          uid: string | null
+          winning_ticket_count: number | null
+          vrf_request_id: string | null
+          vrf_status: string | null
+          vrf_tx_hash: string | null
+          onchain_competition_id: string | null
+          vrf_random_words: number[] | null
+          vrf_proof: string | null
+          winner_address: string | null
+          start_date: string
+          vrf_draw_requested_at: string | null
+          vrf_draw_completed_at: string | null
+          vrf_randomness: Json | null
+          vrf_error: string | null
+          vrf_completed_at: string | null
+        }
+        Insert: {
+          id?: string
+          title: string
+          description?: string | null
+          image_url?: string | null
+          ticket_price?: number
+          total_tickets?: number
+          sold_tickets?: number
+          status?: string
+          start_time?: string
+          end_time?: string | null
+          winner_count?: number
+          prize_description?: string | null
+          vrfulfillment_address?: string | null
+          vrf_subscription_id?: number | null
+          created_at?: string
+          updated_at?: string
+          deleted?: boolean
+          max_tickets_per_user_percentage?: number | null
+          crdate?: string
+          description_text?: string | null
+          end_date?: string | null
+          is_featured?: boolean | null
+          is_instant_win?: boolean | null
+          num_winners?: number | null
+          prize_type?: string | null
+          prize_value?: number | null
+          tickets_sold?: number | null
+          uid?: string | null
+          winning_ticket_count?: number | null
+          vrf_request_id?: string | null
+          vrf_status?: string | null
+          vrf_tx_hash?: string | null
+          onchain_competition_id?: string | null
+          vrf_random_words?: number[] | null
+          vrf_proof?: string | null
+          winner_address?: string | null
+          start_date?: string
+          vrf_draw_requested_at?: string | null
+          vrf_draw_completed_at?: string | null
+          vrf_randomness?: Json | null
+          vrf_error?: string | null
+          vrf_completed_at?: string | null
+        }
+        Update: {
+          id?: string
+          title?: string
+          description?: string | null
+          image_url?: string | null
+          ticket_price?: number
+          total_tickets?: number
+          sold_tickets?: number
+          status?: string
+          start_time?: string
+          end_time?: string | null
+          winner_count?: number
+          prize_description?: string | null
+          vrfulfillment_address?: string | null
+          vrf_subscription_id?: number | null
+          created_at?: string
+          updated_at?: string
+          deleted?: boolean
+          max_tickets_per_user_percentage?: number | null
+          crdate?: string
+          description_text?: string | null
+          end_date?: string | null
+          is_featured?: boolean | null
+          is_instant_win?: boolean | null
+          num_winners?: number | null
+          prize_type?: string | null
+          prize_value?: number | null
+          tickets_sold?: number | null
+          uid?: string | null
+          winning_ticket_count?: number | null
+          vrf_request_id?: string | null
+          vrf_status?: string | null
+          vrf_tx_hash?: string | null
+          onchain_competition_id?: string | null
+          vrf_random_words?: number[] | null
+          vrf_proof?: string | null
+          winner_address?: string | null
+          start_date?: string
+          vrf_draw_requested_at?: string | null
+          vrf_draw_completed_at?: string | null
+          vrf_randomness?: Json | null
+          vrf_error?: string | null
+          vrf_completed_at?: string | null
+        }
+      }
+      confirmation_incident_log: {
+        Row: {
+          id: string
+          incident_id: string
+          source: string
+          error_type: string | null
+          error_message: string | null
+          error_stack: string | null
+          request_context: Json | null
+          env_context: Json | null
+          function_context: Json | null
+          severity: string | null
+          status_code: number | null
+          created_at: string | null
+          created_by: string | null
           user_id: string | null
+          competition_id: string | null
+          endpoint: string | null
+          occurred_at: string
+        }
+        Insert: {
+          id?: string
+          incident_id: string
+          source: string
+          error_type?: string | null
+          error_message?: string | null
+          error_stack?: string | null
+          request_context?: Json | null
+          env_context?: Json | null
+          function_context?: Json | null
+          severity?: string | null
+          status_code?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          user_id?: string | null
+          competition_id?: string | null
+          endpoint?: string | null
+          occurred_at?: string
+        }
+        Update: {
+          id?: string
+          incident_id?: string
+          source?: string
+          error_type?: string | null
+          error_message?: string | null
+          error_stack?: string | null
+          request_context?: Json | null
+          env_context?: Json | null
+          function_context?: Json | null
+          severity?: string | null
+          status_code?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          user_id?: string | null
+          competition_id?: string | null
+          endpoint?: string | null
+          occurred_at?: string
+        }
+      }
+      custody_transactions: {
+        Row: {
+          id: string
+          user_id: string | null
+          transaction_type: string
+          provider: string
+          currency: string
+          amount: number
+          status: string
+          reference_id: string | null
+          blockchain_tx_hash: string | null
+          nowpayments_id: string | null
+          nowpayments_payment_id: string | null
+          nowpayments_order_id: string | null
+          metadata: Json | null
+          processed_at: string | null
+          created_at: string | null
+          updated_at: string | null
+          canonical_user_id: string | null
+          privy_user_id: string | null
           wallet_address: string | null
         }
         Insert: {
-          competition_id?: string | null
           id?: string
-          joined_at?: string | null
-          tx_hash?: string | null
           user_id?: string | null
+          transaction_type: string
+          provider: string
+          currency: string
+          amount: number
+          status: string
+          reference_id?: string | null
+          blockchain_tx_hash?: string | null
+          nowpayments_id?: string | null
+          nowpayments_payment_id?: string | null
+          nowpayments_order_id?: string | null
+          metadata?: Json | null
+          processed_at?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+          canonical_user_id?: string | null
+          privy_user_id?: string | null
           wallet_address?: string | null
         }
         Update: {
-          competition_id?: string | null
           id?: string
-          joined_at?: string | null
-          tx_hash?: string | null
           user_id?: string | null
+          transaction_type?: string
+          provider?: string
+          currency?: string
+          amount?: number
+          status?: string
+          reference_id?: string | null
+          blockchain_tx_hash?: string | null
+          nowpayments_id?: string | null
+          nowpayments_payment_id?: string | null
+          nowpayments_order_id?: string | null
+          metadata?: Json | null
+          processed_at?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+          canonical_user_id?: string | null
+          privy_user_id?: string | null
           wallet_address?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "participants_competition_id_fkey"
-            columns: ["competition_id"]
-            isOneToOne: false
-            referencedRelation: "competitions"
-            referencedColumns: ["id"]
-          },
-        ]
+      }
+      email_auth_sessions: {
+        Row: {
+          id: string
+          email: string
+          verification_code: string
+          expires_at: string
+          verified_at: string | null
+          attempts: number | null
+          created_at: string | null
+          used_at: string | null
+        }
+        Insert: {
+          id?: string
+          email: string
+          verification_code: string
+          expires_at: string
+          verified_at?: string | null
+          attempts?: number | null
+          created_at?: string | null
+          used_at?: string | null
+        }
+        Update: {
+          id?: string
+          email?: string
+          verification_code?: string
+          expires_at?: string
+          verified_at?: string | null
+          attempts?: number | null
+          created_at?: string | null
+          used_at?: string | null
+        }
+      }
+      enqueue_cdp_event: {
+        Row: {
+          id: number
+          event_type: string
+          payload: Json
+          status: string
+          attempts: number
+          last_error: string | null
+          created_at: string
+          processed_at: string | null
+        }
+        Insert: {
+          id?: number
+          event_type: string
+          payload: Json
+          status?: string
+          attempts?: number
+          last_error?: string | null
+          created_at?: string
+          processed_at?: string | null
+        }
+        Update: {
+          id?: number
+          event_type?: string
+          payload?: Json
+          status?: string
+          attempts?: number
+          last_error?: string | null
+          created_at?: string
+          processed_at?: string | null
+        }
+      }
+      faqs: {
+        Row: {
+          id: string
+          question: string
+          answer: string
+          display_order: number | null
+          is_active: boolean | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          question: string
+          answer: string
+          display_order?: number | null
+          is_active?: boolean | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          question?: string
+          answer?: string
+          display_order?: number | null
+          is_active?: boolean | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+      }
+      hero_competitions: {
+        Row: {
+          id: string
+          competition_id: string | null
+          display_order: number | null
+          is_active: boolean | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          competition_id?: string | null
+          display_order?: number | null
+          is_active?: boolean | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          competition_id?: string | null
+          display_order?: number | null
+          is_active?: boolean | null
+          created_at?: string | null
+        }
+      }
+      internal_transfers: {
+        Row: {
+          id: string
+          transfer_id: string
+          from_user_id: string
+          to_user_id: string
+          amount: number
+          currency: string
+          description: string | null
+          status: string | null
+          completed_at: string | null
+          created_at: string | null
+          updated_at: string | null
+          from_canonical_user_id: string | null
+          from_privy_user_id: string | null
+          from_wallet_address: string | null
+          to_canonical_user_id: string | null
+          to_privy_user_id: string | null
+          to_wallet_address: string | null
+        }
+        Insert: {
+          id?: string
+          transfer_id: string
+          from_user_id: string
+          to_user_id: string
+          amount: number
+          currency: string
+          description?: string | null
+          status?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+          from_canonical_user_id?: string | null
+          from_privy_user_id?: string | null
+          from_wallet_address?: string | null
+          to_canonical_user_id?: string | null
+          to_privy_user_id?: string | null
+          to_wallet_address?: string | null
+        }
+        Update: {
+          id?: string
+          transfer_id?: string
+          from_user_id?: string
+          to_user_id?: string
+          amount?: number
+          currency?: string
+          description?: string | null
+          status?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+          from_canonical_user_id?: string | null
+          from_privy_user_id?: string | null
+          from_wallet_address?: string | null
+          to_canonical_user_id?: string | null
+          to_privy_user_id?: string | null
+          to_wallet_address?: string | null
+        }
+      }
+      joincompetition: {
+        Row: {
+          id: string
+          userid: string
+          walletaddress: string | null
+          competitionid: string
+          ticketnumbers: string
+          purchasedate: string
+          status: string
+          created_at: string
+          uid: string | null
+          chain: string | null
+          transactionhash: string | null
+          numberoftickets: number | null
+          amountspent: number | null
+          canonical_user_id: string | null
+          privy_user_id: string | null
+        }
+        Insert: {
+          id?: string
+          userid: string
+          walletaddress?: string | null
+          competitionid: string
+          ticketnumbers: string
+          purchasedate?: string
+          status?: string
+          created_at?: string
+          uid?: string | null
+          chain?: string | null
+          transactionhash?: string | null
+          numberoftickets?: number | null
+          amountspent?: number | null
+          canonical_user_id?: string | null
+          privy_user_id?: string | null
+        }
+        Update: {
+          id?: string
+          userid?: string
+          walletaddress?: string | null
+          competitionid?: string
+          ticketnumbers?: string
+          purchasedate?: string
+          status?: string
+          created_at?: string
+          uid?: string | null
+          chain?: string | null
+          transactionhash?: string | null
+          numberoftickets?: number | null
+          amountspent?: number | null
+          canonical_user_id?: string | null
+          privy_user_id?: string | null
+        }
+      }
+      joined_competitions: {
+        Row: {
+          id: string
+          user_uid: string | null
+          competition_id: string | null
+          number_of_tickets: number
+          wallet_address: string | null
+          join_date: string
+          created_at: string | null
+          canonical_user_id: string | null
+          privy_user_id: string | null
+        }
+        Insert: {
+          id?: string
+          user_uid?: string | null
+          competition_id?: string | null
+          number_of_tickets: number
+          wallet_address?: string | null
+          join_date: string
+          created_at?: string | null
+          canonical_user_id?: string | null
+          privy_user_id?: string | null
+        }
+        Update: {
+          id?: string
+          user_uid?: string | null
+          competition_id?: string | null
+          number_of_tickets?: number
+          wallet_address?: string | null
+          join_date?: string
+          created_at?: string | null
+          canonical_user_id?: string | null
+          privy_user_id?: string | null
+        }
+      }
+      notifications: {
+        Row: {
+          id: string
+          user_id: string
+          type: string
+          title: string
+          message: string | null
+          data: Json | null
+          read: boolean | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          type: string
+          title: string
+          message?: string | null
+          data?: Json | null
+          read?: boolean | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          type?: string
+          title?: string
+          message?: string | null
+          data?: Json | null
+          read?: boolean | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+      }
+      order_tickets: {
+        Row: {
+          id: string
+          order_id: string | null
+          ticket_number: string
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          order_id?: string | null
+          ticket_number: string
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          order_id?: string | null
+          ticket_number?: string
+          created_at?: string | null
+        }
+      }
+      orders: {
+        Row: {
+          id: string
+          user_id: string
+          competition_id: string | null
+          amount: number
+          currency: string
+          status: string
+          payment_status: string | null
+          payment_provider: string | null
+          payment_intent_id: string | null
+          ticket_count: number
+          created_at: string
+          updated_at: string
+          order_type: string | null
+          amount_usd: number | null
+          payment_method: string | null
+          payment_session_id: string | null
+          payment_url: string | null
+          payment_tx_hash: string | null
+          completed_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          competition_id?: string | null
+          amount: number
+          currency?: string
+          status?: string
+          payment_status?: string | null
+          payment_provider?: string | null
+          payment_intent_id?: string | null
+          ticket_count?: number
+          created_at?: string
+          updated_at?: string
+          order_type?: string | null
+          amount_usd?: number | null
+          payment_method?: string | null
+          payment_session_id?: string | null
+          payment_url?: string | null
+          payment_tx_hash?: string | null
+          completed_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          competition_id?: string | null
+          amount?: number
+          currency?: string
+          status?: string
+          payment_status?: string | null
+          payment_provider?: string | null
+          payment_intent_id?: string | null
+          ticket_count?: number
+          created_at?: string
+          updated_at?: string
+          order_type?: string | null
+          amount_usd?: number | null
+          payment_method?: string | null
+          payment_session_id?: string | null
+          payment_url?: string | null
+          payment_tx_hash?: string | null
+          completed_at?: string | null
+        }
+      }
+      participants: {
+        Row: {
+          id: string
+          competition_id: string | null
+          user_id: string | null
+          wallet_address: string | null
+          tx_hash: string | null
+          joined_at: string | null
+          created_at: string | null
+          canonical_user_id: string | null
+          privy_user_id: string | null
+        }
+        Insert: {
+          id?: string
+          competition_id?: string | null
+          user_id?: string | null
+          wallet_address?: string | null
+          tx_hash?: string | null
+          joined_at?: string | null
+          created_at?: string | null
+          canonical_user_id?: string | null
+          privy_user_id?: string | null
+        }
+        Update: {
+          id?: string
+          competition_id?: string | null
+          user_id?: string | null
+          wallet_address?: string | null
+          tx_hash?: string | null
+          joined_at?: string | null
+          created_at?: string | null
+          canonical_user_id?: string | null
+          privy_user_id?: string | null
+        }
       }
       partners: {
         Row: {
-          created_at: string | null
-          display_order: number | null
           id: string
-          is_active: boolean | null
-          logo_url: string | null
           name: string
+          logo_url: string | null
           website_url: string | null
+          display_order: number | null
+          is_active: boolean | null
+          created_at: string | null
         }
         Insert: {
-          created_at?: string | null
-          display_order?: number | null
           id?: string
-          is_active?: boolean | null
-          logo_url?: string | null
           name: string
+          logo_url?: string | null
           website_url?: string | null
+          display_order?: number | null
+          is_active?: boolean | null
+          created_at?: string | null
         }
         Update: {
-          created_at?: string | null
-          display_order?: number | null
           id?: string
-          is_active?: boolean | null
-          logo_url?: string | null
           name?: string
+          logo_url?: string | null
           website_url?: string | null
+          display_order?: number | null
+          is_active?: boolean | null
+          created_at?: string | null
         }
-        Relationships: []
+      }
+      payment_idempotency: {
+        Row: {
+          id: string
+          idempotency_key: string
+          user_id: string
+          competition_id: string | null
+          amount: number
+          ticket_count: number
+          result: Json
+          created_at: string | null
+          expires_at: string | null
+        }
+        Insert: {
+          id?: string
+          idempotency_key: string
+          user_id: string
+          competition_id?: string | null
+          amount: number
+          ticket_count: number
+          result: Json
+          created_at?: string | null
+          expires_at?: string | null
+        }
+        Update: {
+          id?: string
+          idempotency_key?: string
+          user_id?: string
+          competition_id?: string | null
+          amount?: number
+          ticket_count?: number
+          result?: Json
+          created_at?: string | null
+          expires_at?: string | null
+        }
       }
       payment_webhook_events: {
         Row: {
           id: string
+          provider: string
+          event_type: string
+          event_id: string
+          payload: Json
+          status: string
+          processed_at: string | null
+          created_at: string
           note: string | null
-          payload: Json
-          provider: string
-          received_at: string
-          status: number
+          received_at: string | null
+          request_path: string | null
+          headers: Json | null
+          signature_valid: boolean | null
+          order_id: string | null
+          transaction_id: string | null
+          payer_address: string | null
         }
         Insert: {
           id?: string
-          note?: string | null
-          payload: Json
           provider: string
-          received_at?: string
-          status: number
+          event_type: string
+          event_id: string
+          payload: Json
+          status?: string
+          processed_at?: string | null
+          created_at?: string
+          note?: string | null
+          received_at?: string | null
+          request_path?: string | null
+          headers?: Json | null
+          signature_valid?: boolean | null
+          order_id?: string | null
+          transaction_id?: string | null
+          payer_address?: string | null
         }
         Update: {
           id?: string
-          note?: string | null
-          payload?: Json
           provider?: string
-          received_at?: string
-          status?: number
-        }
-        Relationships: []
-      }
-      platform_statistics: {
-        Row: {
-          active_competitions: number | null
-          completed_competitions: number | null
-          created_at: string | null
-          id: string
-          stat_date: string
-          total_competitions: number | null
-          total_revenue_usd: number | null
-          total_tickets_sold: number | null
-          total_users: number | null
-          updated_at: string | null
-        }
-        Insert: {
-          active_competitions?: number | null
-          completed_competitions?: number | null
-          created_at?: string | null
-          id?: string
-          stat_date: string
-          total_competitions?: number | null
-          total_revenue_usd?: number | null
-          total_tickets_sold?: number | null
-          total_users?: number | null
-          updated_at?: string | null
-        }
-        Update: {
-          active_competitions?: number | null
-          completed_competitions?: number | null
-          created_at?: string | null
-          id?: string
-          stat_date?: string
-          total_competitions?: number | null
-          total_revenue_usd?: number | null
-          total_tickets_sold?: number | null
-          total_users?: number | null
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      canonical_users: {
-        Row: {
-          avatar_url: string | null
-          base_wallet_address: string | null
-          canonical_user_id: string | null
-          competitions_entered: number | null
-          country: string | null
-          created_at: string | null
-          discord_username: string | null
-          email: string | null
-          eth_wallet_address: string | null
-          first_name: string | null
-          google_email: string | null
-          has_used_new_user_bonus: boolean | null
-          id: string
-          last_name: string | null
-          linked_external_wallet: string | null
-          phone: string | null
-          privy_user_id: string | null
-          smart_wallet_address: string | null
-          telegram_handle: string | null
-          telephone_number: string | null
-          total_amount_spent: number | null
-          total_entries: number | null
-          twitter_username: string | null
-          uid: string | null
-          updated_at: string | null
-          usdc_balance: number
-          username: string | null
-          wallet_address: string | null
-        }
-        Insert: {
-          avatar_url?: string | null
-          base_wallet_address?: string | null
-          canonical_user_id?: string | null
-          competitions_entered?: number | null
-          country?: string | null
-          created_at?: string | null
-          discord_username?: string | null
-          email?: string | null
-          eth_wallet_address?: string | null
-          first_name?: string | null
-          google_email?: string | null
-          has_used_new_user_bonus?: boolean | null
-          id?: string
-          last_name?: string | null
-          linked_external_wallet?: string | null
-          phone?: string | null
-          privy_user_id?: string | null
-          smart_wallet_address?: string | null
-          telegram_handle?: string | null
-          telephone_number?: string | null
-          total_amount_spent?: number | null
-          total_entries?: number | null
-          twitter_username?: string | null
-          uid?: string | null
-          updated_at?: string | null
-          usdc_balance?: number
-          username?: string | null
-          wallet_address?: string | null
-        }
-        Update: {
-          avatar_url?: string | null
-          base_wallet_address?: string | null
-          canonical_user_id?: string | null
-          competitions_entered?: number | null
-          country?: string | null
-          created_at?: string | null
-          discord_username?: string | null
-          email?: string | null
-          eth_wallet_address?: string | null
-          first_name?: string | null
-          google_email?: string | null
-          has_used_new_user_bonus?: boolean | null
-          id?: string
-          last_name?: string | null
-          linked_external_wallet?: string | null
-          phone?: string | null
-          privy_user_id?: string | null
-          smart_wallet_address?: string | null
-          telegram_handle?: string | null
-          telephone_number?: string | null
-          total_amount_spent?: number | null
-          total_entries?: number | null
-          twitter_username?: string | null
-          uid?: string | null
-          updated_at?: string | null
-          usdc_balance?: number
-          username?: string | null
-          wallet_address?: string | null
-        }
-        Relationships: []
-      }
-      privy_webhook_events: {
-        Row: {
-          event_id: string | null
-          event_type: string
-          id: string
-          payload: Json
-          received_at: string
-        }
-        Insert: {
-          event_id?: string | null
-          event_type: string
-          id?: string
-          payload: Json
-          received_at?: string
-        }
-        Update: {
-          event_id?: string | null
           event_type?: string
-          id?: string
+          event_id?: string
           payload?: Json
-          received_at?: string
+          status?: string
+          processed_at?: string | null
+          created_at?: string
+          note?: string | null
+          received_at?: string | null
+          request_path?: string | null
+          headers?: Json | null
+          signature_valid?: boolean | null
+          order_id?: string | null
+          transaction_id?: string | null
+          payer_address?: string | null
         }
-        Relationships: []
       }
-      Prize_Instantprizes: {
+      payments_jobs: {
         Row: {
-          avatarUrl: string | null
-          claimed_at: string | null
-          competitionId: string | null
-          description: string | null
-          priority: number | null
-          prize: string | null
-          UID: string
-          url: string | null
-          winningTicket: number
-          winningWalletAddress: string | null
-          wonAt: string | null
+          id: string
+          created_at: string
+          run_after: string
+          status: string
+          attempts: number
+          max_attempts: number
+          job_type: string
+          payload: Json
         }
         Insert: {
-          avatarUrl?: string | null
-          claimed_at?: string | null
-          competitionId?: string | null
-          description?: string | null
-          priority?: number | null
-          prize?: string | null
-          UID: string
-          url?: string | null
-          winningTicket: number
-          winningWalletAddress?: string | null
-          wonAt?: string | null
+          id?: string
+          created_at?: string
+          run_after?: string
+          status?: string
+          attempts?: number
+          max_attempts?: number
+          job_type: string
+          payload: Json
         }
         Update: {
-          avatarUrl?: string | null
-          claimed_at?: string | null
-          competitionId?: string | null
-          description?: string | null
-          priority?: number | null
-          prize?: string | null
-          UID?: string
-          url?: string | null
-          winningTicket?: number
-          winningWalletAddress?: string | null
-          wonAt?: string | null
+          id?: string
+          created_at?: string
+          run_after?: string
+          status?: string
+          attempts?: number
+          max_attempts?: number
+          job_type?: string
+          payload?: Json
         }
-        Relationships: []
       }
-      profiles: {
+      pending_ticket_items: {
         Row: {
-          created_at: string | null
           id: string
-          updated_at: string | null
-          wallet_address: string | null
+          pending_ticket_id: string
+          competition_id: string
+          ticket_number: number
+          status: string
+          expires_at: string
+          created_at: string
         }
         Insert: {
-          created_at?: string | null
-          id: string
-          updated_at?: string | null
-          wallet_address?: string | null
+          id?: string
+          pending_ticket_id: string
+          competition_id: string
+          ticket_number: number
+          status?: string
+          expires_at: string
+          created_at?: string
         }
         Update: {
-          created_at?: string | null
           id?: string
-          updated_at?: string | null
-          wallet_address?: string | null
+          pending_ticket_id?: string
+          competition_id?: string
+          ticket_number?: number
+          status?: string
+          expires_at?: string
+          created_at?: string
         }
-        Relationships: []
-      }
-      raffle_competitions: {
-        Row: {
-          competition_id: string | null
-          completed_at: string | null
-          created_at: string | null
-          description: string | null
-          entry_fee: number | null
-          id: string
-          max_participants: number | null
-          prize_pool: number | null
-          rng_random_number: string | null
-          rng_tx_hash: string | null
-          status: string | null
-          title: string | null
-          updated_at: string | null
-          winner_address: string | null
-          winning_ticket_id: string | null
-        }
-        Insert: {
-          competition_id?: string | null
-          completed_at?: string | null
-          created_at?: string | null
-          description?: string | null
-          entry_fee?: number | null
-          id?: string
-          max_participants?: number | null
-          prize_pool?: number | null
-          rng_random_number?: string | null
-          rng_tx_hash?: string | null
-          status?: string | null
-          title?: string | null
-          updated_at?: string | null
-          winner_address?: string | null
-          winning_ticket_id?: string | null
-        }
-        Update: {
-          competition_id?: string | null
-          completed_at?: string | null
-          created_at?: string | null
-          description?: string | null
-          entry_fee?: number | null
-          id?: string
-          max_participants?: number | null
-          prize_pool?: number | null
-          rng_random_number?: string | null
-          rng_tx_hash?: string | null
-          status?: string | null
-          title?: string | null
-          updated_at?: string | null
-          winner_address?: string | null
-          winning_ticket_id?: string | null
-        }
-        Relationships: []
-      }
-      rng_triggers: {
-        Row: {
-          competition_id: string | null
-          created_at: string | null
-          id: string
-          random_number: string | null
-          updated_at: string | null
-          vrf_request_id: string | null
-          vrf_status: string | null
-          vrf_tx_hash: string | null
-        }
-        Insert: {
-          competition_id?: string | null
-          created_at?: string | null
-          id?: string
-          random_number?: string | null
-          updated_at?: string | null
-          vrf_request_id?: string | null
-          vrf_status?: string | null
-          vrf_tx_hash?: string | null
-        }
-        Update: {
-          competition_id?: string | null
-          created_at?: string | null
-          id?: string
-          random_number?: string | null
-          updated_at?: string | null
-          vrf_request_id?: string | null
-          vrf_status?: string | null
-          vrf_tx_hash?: string | null
-        }
-        Relationships: []
-      }
-      site_metadata: {
-        Row: {
-          category: string
-          created_at: string | null
-          description: string | null
-          id: string
-          is_active: boolean | null
-          key: string
-          updated_at: string | null
-          value: string
-        }
-        Insert: {
-          category: string
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          is_active?: boolean | null
-          key: string
-          updated_at?: string | null
-          value: string
-        }
-        Update: {
-          category?: string
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          is_active?: boolean | null
-          key?: string
-          updated_at?: string | null
-          value?: string
-        }
-        Relationships: []
-      }
-      site_stats: {
-        Row: {
-          created_at: string | null
-          display_order: number | null
-          icon: string | null
-          id: string
-          is_active: boolean | null
-          label: string
-          updated_at: string | null
-          value: string
-        }
-        Insert: {
-          created_at?: string | null
-          display_order?: number | null
-          icon?: string | null
-          id?: string
-          is_active?: boolean | null
-          label: string
-          updated_at?: string | null
-          value: string
-        }
-        Update: {
-          created_at?: string | null
-          display_order?: number | null
-          icon?: string | null
-          id?: string
-          is_active?: boolean | null
-          label?: string
-          updated_at?: string | null
-          value?: string
-        }
-        Relationships: []
-      }
-      sub_account_balances: {
-        Row: {
-          available_balance: number | null
-          currency: string
-          id: string
-          last_updated: string | null
-          pending_balance: number | null
-          user_id: string
-        }
-        Insert: {
-          available_balance?: number | null
-          currency: string
-          id?: string
-          last_updated?: string | null
-          pending_balance?: number | null
-          user_id: string
-        }
-        Update: {
-          available_balance?: number | null
-          currency?: string
-          id?: string
-          last_updated?: string | null
-          pending_balance?: number | null
-          user_id?: string
-        }
-        Relationships: []
-      }
-      testimonials: {
-        Row: {
-          author_avatar: string | null
-          author_name: string
-          content: string
-          created_at: string | null
-          display_order: number | null
-          id: string
-          is_active: boolean | null
-          rating: number | null
-        }
-        Insert: {
-          author_avatar?: string | null
-          author_name: string
-          content: string
-          created_at?: string | null
-          display_order?: number | null
-          id?: string
-          is_active?: boolean | null
-          rating?: number | null
-        }
-        Update: {
-          author_avatar?: string | null
-          author_name?: string
-          content?: string
-          created_at?: string | null
-          display_order?: number | null
-          id?: string
-          is_active?: boolean | null
-          rating?: number | null
-        }
-        Relationships: []
       }
       pending_tickets: {
         Row: {
-          competition_id: string | null
-          created_at: string | null
-          expires_at: string | null
           id: string
+          user_id: string
+          canonical_user_id: string | null
+          wallet_address: string | null
+          competition_id: string
+          status: string
+          hold_minutes: number
+          expires_at: string
           reservation_id: string | null
-          status: string | null
+          created_at: string
+          ticket_count: number | null
+          ticket_price: number | null
+          total_amount: number | null
+          session_id: string | null
+          confirmed_at: string | null
+          updated_at: string | null
+          transaction_hash: string | null
+          payment_provider: string | null
           ticket_numbers: number[] | null
-          user_id: string | null
+          payment_id: string | null
+          idempotency_key: string | null
         }
         Insert: {
-          competition_id?: string | null
-          created_at?: string | null
-          expires_at?: string | null
           id?: string
+          user_id: string
+          canonical_user_id?: string | null
+          wallet_address?: string | null
+          competition_id: string
+          status?: string
+          hold_minutes?: number
+          expires_at: string
           reservation_id?: string | null
-          status?: string | null
+          created_at?: string
+          ticket_count?: number | null
+          ticket_price?: number | null
+          total_amount?: number | null
+          session_id?: string | null
+          confirmed_at?: string | null
+          updated_at?: string | null
+          transaction_hash?: string | null
+          payment_provider?: string | null
           ticket_numbers?: number[] | null
-          user_id?: string | null
+          payment_id?: string | null
+          idempotency_key?: string | null
         }
         Update: {
-          competition_id?: string | null
-          created_at?: string | null
-          expires_at?: string | null
           id?: string
+          user_id?: string
+          canonical_user_id?: string | null
+          wallet_address?: string | null
+          competition_id?: string
+          status?: string
+          hold_minutes?: number
+          expires_at?: string
           reservation_id?: string | null
-          status?: string | null
+          created_at?: string
+          ticket_count?: number | null
+          ticket_price?: number | null
+          total_amount?: number | null
+          session_id?: string | null
+          confirmed_at?: string | null
+          updated_at?: string | null
+          transaction_hash?: string | null
+          payment_provider?: string | null
           ticket_numbers?: number[] | null
-          user_id?: string | null
+          payment_id?: string | null
+          idempotency_key?: string | null
         }
-        Relationships: []
+      }
+      platform_statistics: {
+        Row: {
+          id: string
+          stat_date: string
+          total_users: number | null
+          active_competitions: number | null
+          completed_competitions: number | null
+          total_competitions: number | null
+          total_tickets_sold: number | null
+          total_revenue_usd: number | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          stat_date: string
+          total_users?: number | null
+          active_competitions?: number | null
+          completed_competitions?: number | null
+          total_competitions?: number | null
+          total_tickets_sold?: number | null
+          total_revenue_usd?: number | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          stat_date?: string
+          total_users?: number | null
+          active_competitions?: number | null
+          completed_competitions?: number | null
+          total_competitions?: number | null
+          total_tickets_sold?: number | null
+          total_revenue_usd?: number | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+      }
+      profiles: {
+        Row: {
+          id: string
+          user_id: string
+          username: string | null
+          email: string | null
+          avatar_url: string | null
+          phone: string | null
+          created_at: string
+          updated_at: string
+          canonical_user_id: string | null
+          privy_user_id: string | null
+          wallet_address: string | null
+          country: string | null
+          telegram_handle: string | null
+          telephone_number: string | null
+          prior_signup_payload: Json | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          username?: string | null
+          email?: string | null
+          avatar_url?: string | null
+          phone?: string | null
+          created_at?: string
+          updated_at?: string
+          canonical_user_id?: string | null
+          privy_user_id?: string | null
+          wallet_address?: string | null
+          country?: string | null
+          telegram_handle?: string | null
+          telephone_number?: string | null
+          prior_signup_payload?: Json | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          username?: string | null
+          email?: string | null
+          avatar_url?: string | null
+          phone?: string | null
+          created_at?: string
+          updated_at?: string
+          canonical_user_id?: string | null
+          privy_user_id?: string | null
+          wallet_address?: string | null
+          country?: string | null
+          telegram_handle?: string | null
+          telephone_number?: string | null
+          prior_signup_payload?: Json | null
+        }
+      }
+      purchase_requests: {
+        Row: {
+          request_id: string
+          competition_id: string
+          user_id: string
+          reservation_id: string | null
+          selected_tickets: number[]
+          ticket_count: number
+          created_at: string
+          processed_at: string | null
+          result_ticket_ids: number[] | null
+          total_cost: number | null
+          currency: string | null
+          transaction_id: string | null
+          entry_id: string | null
+          status: string
+          error_message: string | null
+          reservation_ref: string | null
+        }
+        Insert: {
+          request_id: string
+          competition_id: string
+          user_id: string
+          reservation_id?: string | null
+          selected_tickets?: number[]
+          ticket_count: number
+          created_at?: string
+          processed_at?: string | null
+          result_ticket_ids?: number[] | null
+          total_cost?: number | null
+          currency?: string | null
+          transaction_id?: string | null
+          entry_id?: string | null
+          status?: string
+          error_message?: string | null
+          reservation_ref?: string | null
+        }
+        Update: {
+          request_id?: string
+          competition_id?: string
+          user_id?: string
+          reservation_id?: string | null
+          selected_tickets?: number[]
+          ticket_count?: number
+          created_at?: string
+          processed_at?: string | null
+          result_ticket_ids?: number[] | null
+          total_cost?: number | null
+          currency?: string | null
+          transaction_id?: string | null
+          entry_id?: string | null
+          status?: string
+          error_message?: string | null
+          reservation_ref?: string | null
+        }
+      }
+      site_metadata: {
+        Row: {
+          id: string
+          category: string
+          key: string
+          value: string
+          description: string | null
+          is_active: boolean | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          category: string
+          key: string
+          value: string
+          description?: string | null
+          is_active?: boolean | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          category?: string
+          key?: string
+          value?: string
+          description?: string | null
+          is_active?: boolean | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+      }
+      site_stats: {
+        Row: {
+          id: string
+          label: string
+          value: string
+          icon: string | null
+          display_order: number | null
+          is_active: boolean | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          label: string
+          value: string
+          icon?: string | null
+          display_order?: number | null
+          is_active?: boolean | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          label?: string
+          value?: string
+          icon?: string | null
+          display_order?: number | null
+          is_active?: boolean | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+      }
+      sub_account_balances: {
+        Row: {
+          id: string
+          user_id: string | null
+          currency: string
+          available_balance: number
+          pending_balance: number
+          last_updated: string | null
+          canonical_user_id: string
+          privy_user_id: string | null
+          wallet_address: string | null
+          canonical_user_id_norm: string | null
+        }
+        Insert: {
+          id?: string
+          user_id?: string | null
+          currency: string
+          available_balance: number
+          pending_balance: number
+          last_updated?: string | null
+          canonical_user_id: string
+          privy_user_id?: string | null
+          wallet_address?: string | null
+          canonical_user_id_norm?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string | null
+          currency?: string
+          available_balance?: number
+          pending_balance?: number
+          last_updated?: string | null
+          canonical_user_id?: string
+          privy_user_id?: string | null
+          wallet_address?: string | null
+          canonical_user_id_norm?: string | null
+        }
+      }
+      testimonials: {
+        Row: {
+          id: string
+          author_name: string
+          content: string
+          author_avatar: string | null
+          rating: number | null
+          display_order: number | null
+          is_active: boolean | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          author_name: string
+          content: string
+          author_avatar?: string | null
+          rating?: number | null
+          display_order?: number | null
+          is_active?: boolean | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          author_name?: string
+          content?: string
+          author_avatar?: string | null
+          rating?: number | null
+          display_order?: number | null
+          is_active?: boolean | null
+          created_at?: string | null
+        }
       }
       tickets: {
         Row: {
-          canonical_user_id: string | null
-          competition_id: string | null
-          created_at: string | null
           id: string
+          competition_id: string
+          ticket_number: number
+          status: string
+          purchased_by: string | null
+          purchased_at: string | null
+          order_id: string | null
+          created_at: string
+          user_id: string | null
+          purchase_price: number | null
           is_active: boolean | null
           is_winner: boolean | null
-          order_id: string | null
-          purchase_price: number | null
-          purchased_at: string | null
-          ticket_number: number
-          user_id: string | null
+          privy_user_id: string | null
+          prize_tier: string | null
+          pending_ticket_id: string | null
+          payment_amount: number | null
+          payment_tx_hash: string | null
+          purchase_date: string | null
+          canonical_user_id: string | null
+          wallet_address: string | null
+          payment_provider: string | null
+          tx_id: string | null
         }
         Insert: {
-          canonical_user_id?: string | null
-          competition_id?: string | null
-          created_at?: string | null
           id?: string
+          competition_id: string
+          ticket_number: number
+          status?: string
+          purchased_by?: string | null
+          purchased_at?: string | null
+          order_id?: string | null
+          created_at?: string
+          user_id?: string | null
+          purchase_price?: number | null
           is_active?: boolean | null
           is_winner?: boolean | null
-          order_id?: string | null
-          purchase_price?: number | null
-          purchased_at?: string | null
-          ticket_number: number
-          user_id?: string | null
+          privy_user_id?: string | null
+          prize_tier?: string | null
+          pending_ticket_id?: string | null
+          payment_amount?: number | null
+          payment_tx_hash?: string | null
+          purchase_date?: string | null
+          canonical_user_id?: string | null
+          wallet_address?: string | null
+          payment_provider?: string | null
+          tx_id?: string | null
         }
         Update: {
-          canonical_user_id?: string | null
-          competition_id?: string | null
-          created_at?: string | null
           id?: string
-          is_active?: boolean | null
-          is_winner?: boolean | null
-          order_id?: string | null
-          purchase_price?: number | null
-          purchased_at?: string | null
+          competition_id?: string
           ticket_number?: number
+          status?: string
+          purchased_by?: string | null
+          purchased_at?: string | null
+          order_id?: string | null
+          created_at?: string
           user_id?: string | null
+          purchase_price?: number | null
+          is_active?: boolean | null
+          is_winner?: boolean | null
+          privy_user_id?: string | null
+          prize_tier?: string | null
+          pending_ticket_id?: string | null
+          payment_amount?: number | null
+          payment_tx_hash?: string | null
+          purchase_date?: string | null
+          canonical_user_id?: string | null
+          wallet_address?: string | null
+          payment_provider?: string | null
+          tx_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "tickets_competition_id_fkey"
-            columns: ["competition_id"]
-            isOneToOne: false
-            referencedRelation: "competitions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tickets_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-        ]
       }
-      transactions: {
+      tickets_sold: {
         Row: {
-          competition_id: string | null
-          confirmed_at: string | null
-          created_at: string | null
-          id: string
-          status: string | null
-          tx_hash: string | null
-          tx_type: string | null
-          user_id: string | null
+          competition_id: string
+          ticket_number: number
+          purchaser_id: string
+          sold_at: string
         }
         Insert: {
-          competition_id?: string | null
-          confirmed_at?: string | null
-          created_at?: string | null
-          id?: string
-          status?: string | null
-          tx_hash?: string | null
-          tx_type?: string | null
-          user_id?: string | null
+          competition_id: string
+          ticket_number: number
+          purchaser_id: string
+          sold_at?: string
         }
         Update: {
-          competition_id?: string | null
-          confirmed_at?: string | null
-          created_at?: string | null
-          id?: string
-          status?: string | null
-          tx_hash?: string | null
-          tx_type?: string | null
-          user_id?: string | null
+          competition_id?: string
+          ticket_number?: number
+          purchaser_id?: string
+          sold_at?: string
         }
-        Relationships: []
-      }
-      unique_users: {
-        Row: {
-          ARBITRUM: string | null
-          AVALANCHE: string | null
-          BASE: string | null
-          BINANCE: string | null
-          BITCOIN: string | null
-          CAN_MESSAGE: number | null
-          CAN_UNLIMITED_ROOMS: string | null
-          CASHFLOWS_PAID_TIMESTAMP: string | null
-          Code: string | null
-          CREATED_DATE: string | null
-          EMAIL: string | null
-          EMAIL_COMPETITIONS: number | null
-          ETHEREUM: string | null
-          EVENT_ENTER: number | null
-          FANTOM: string | null
-          IMAGE_URL: string | null
-          IS_ACTIVE: number | null
-          IS_PAID: boolean | null
-          LAST_ACTIVE: string | null
-          LAST_LOGIN: string | null
-          OPTIMISM: string | null
-          PHONE: number | null
-          POLYGON: string | null
-          PRIVY_SUBSCRIPTION_ID: string
-          PRIVY_WALLET_ID: string
-          SOLANA: string | null
-          TELEGRAM_USER: string | null
-          UID: string
-          USER_BALANCE: number | null
-          USER_SIGNATURE: string | null
-          USERNAME: string
-          WALLETID: string
-        }
-        Insert: {
-          ARBITRUM?: string | null
-          AVALANCHE?: string | null
-          BASE?: string | null
-          BINANCE?: string | null
-          BITCOIN?: string | null
-          CAN_MESSAGE?: number | null
-          CAN_UNLIMITED_ROOMS?: string | null
-          CASHFLOWS_PAID_TIMESTAMP?: string | null
-          Code?: string | null
-          CREATED_DATE?: string | null
-          EMAIL?: string | null
-          EMAIL_COMPETITIONS?: number | null
-          ETHEREUM?: string | null
-          EVENT_ENTER?: number | null
-          FANTOM?: string | null
-          IMAGE_URL?: string | null
-          IS_ACTIVE?: number | null
-          IS_PAID?: boolean | null
-          LAST_ACTIVE?: string | null
-          LAST_LOGIN?: string | null
-          OPTIMISM?: string | null
-          PHONE?: number | null
-          POLYGON?: string | null
-          PRIVY_SUBSCRIPTION_ID: string
-          PRIVY_WALLET_ID: string
-          SOLANA?: string | null
-          TELEGRAM_USER?: string | null
-          UID: string
-          USER_BALANCE?: number | null
-          USER_SIGNATURE?: string | null
-          USERNAME: string
-          WALLETID: string
-        }
-        Update: {
-          ARBITRUM?: string | null
-          AVALANCHE?: string | null
-          BASE?: string | null
-          BINANCE?: string | null
-          BITCOIN?: string | null
-          CAN_MESSAGE?: number | null
-          CAN_UNLIMITED_ROOMS?: string | null
-          CASHFLOWS_PAID_TIMESTAMP?: string | null
-          Code?: string | null
-          CREATED_DATE?: string | null
-          EMAIL?: string | null
-          EMAIL_COMPETITIONS?: number | null
-          ETHEREUM?: string | null
-          EVENT_ENTER?: number | null
-          FANTOM?: string | null
-          IMAGE_URL?: string | null
-          IS_ACTIVE?: number | null
-          IS_PAID?: boolean | null
-          LAST_ACTIVE?: string | null
-          LAST_LOGIN?: string | null
-          OPTIMISM?: string | null
-          PHONE?: number | null
-          POLYGON?: string | null
-          PRIVY_SUBSCRIPTION_ID?: string
-          PRIVY_WALLET_ID?: string
-          SOLANA?: string | null
-          TELEGRAM_USER?: string | null
-          UID?: string
-          USER_BALANCE?: number | null
-          USER_SIGNATURE?: string | null
-          USERNAME?: string
-          WALLETID?: string
-        }
-        Relationships: []
-      }
-      user_entries: {
-        Row: {
-          action: string
-          amount_usd: string | null
-          competition_id: string | null
-          competition_name: string | null
-          created_at: string | null
-          id: string
-          user_id: string | null
-        }
-        Insert: {
-          action: string
-          amount_usd?: string | null
-          competition_id?: string | null
-          competition_name?: string | null
-          created_at?: string | null
-          id?: string
-          user_id?: string | null
-        }
-        Update: {
-          action?: string
-          amount_usd?: string | null
-          competition_id?: string | null
-          competition_name?: string | null
-          created_at?: string | null
-          id?: string
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_entries_competition_id_fkey"
-            columns: ["competition_id"]
-            isOneToOne: false
-            referencedRelation: "competitions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_entries_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       user_notifications: {
         Row: {
-          created_at: string | null
           id: string
+          user_id: string
+          title: string
           message: string
           notification_type: string | null
           read: boolean | null
-          title: string
+          created_at: string | null
           updated_at: string | null
-          user_id: string
         }
         Insert: {
-          created_at?: string | null
           id?: string
+          user_id: string
+          title: string
           message: string
           notification_type?: string | null
           read?: boolean | null
-          title: string
+          created_at?: string | null
           updated_at?: string | null
-          user_id: string
         }
         Update: {
-          created_at?: string | null
           id?: string
+          user_id?: string
+          title?: string
           message?: string
           notification_type?: string | null
           read?: boolean | null
-          title?: string
-          updated_at?: string | null
-          user_id?: string
-        }
-        Relationships: []
-      }
-      user_payouts: {
-        Row: {
-          address: string
-          amount: number
-          batch_id: string | null
-          completed_at: string | null
-          created_at: string | null
-          currency: string
-          expires_at: string | null
-          fa_verified: boolean | null
-          id: string
-          payout_id: string
-          status: string | null
-          updated_at: string | null
-          user_id: string
-          verification_attempts: number | null
-          verification_code: string | null
-        }
-        Insert: {
-          address: string
-          amount: number
-          batch_id?: string | null
-          completed_at?: string | null
           created_at?: string | null
-          currency: string
-          expires_at?: string | null
-          fa_verified?: boolean | null
-          id?: string
-          payout_id: string
-          status?: string | null
           updated_at?: string | null
-          user_id: string
-          verification_attempts?: number | null
-          verification_code?: string | null
         }
-        Update: {
-          address?: string
-          amount?: number
-          batch_id?: string | null
-          completed_at?: string | null
-          created_at?: string | null
-          currency?: string
-          expires_at?: string | null
-          fa_verified?: boolean | null
-          id?: string
-          payout_id?: string
-          status?: string | null
-          updated_at?: string | null
-          user_id?: string
-          verification_attempts?: number | null
-          verification_code?: string | null
-        }
-        Relationships: []
-      }
-      user_profiles_csv_lines: {
-        Row: {
-          line: string
-          line_number: number
-        }
-        Insert: {
-          line: string
-          line_number?: never
-        }
-        Update: {
-          line?: string
-          line_number?: never
-        }
-        Relationships: []
-      }
-      user_profiles_raw: {
-        Row: {
-          arbitrum: string | null
-          avalanche: string | null
-          base: string | null
-          binance: string | null
-          bitcoin: string | null
-          can_message: boolean | null
-          can_unlimited_rooms: boolean | null
-          cashflows_paid_timestamp: string | null
-          code: string | null
-          created_date: string | null
-          email: string | null
-          email_competitions: string | null
-          ethereum: string | null
-          event_enter: string | null
-          fantom: string | null
-          image_url: string | null
-          is_active: boolean | null
-          is_paid: number | null
-          last_active: string | null
-          last_login: string | null
-          optimism: string | null
-          phone: string | null
-          polygon: string | null
-          privy_subscription_id: string | null
-          privy_wallet_id: string | null
-          solana: string | null
-          telegram_user: string | null
-          uid: string | null
-          user_balance: number | null
-          user_signature: string | null
-          username: string | null
-          walletid: string | null
-        }
-        Insert: {
-          arbitrum?: string | null
-          avalanche?: string | null
-          base?: string | null
-          binance?: string | null
-          bitcoin?: string | null
-          can_message?: boolean | null
-          can_unlimited_rooms?: boolean | null
-          cashflows_paid_timestamp?: string | null
-          code?: string | null
-          created_date?: string | null
-          email?: string | null
-          email_competitions?: string | null
-          ethereum?: string | null
-          event_enter?: string | null
-          fantom?: string | null
-          image_url?: string | null
-          is_active?: boolean | null
-          is_paid?: number | null
-          last_active?: string | null
-          last_login?: string | null
-          optimism?: string | null
-          phone?: string | null
-          polygon?: string | null
-          privy_subscription_id?: string | null
-          privy_wallet_id?: string | null
-          solana?: string | null
-          telegram_user?: string | null
-          uid?: string | null
-          user_balance?: number | null
-          user_signature?: string | null
-          username?: string | null
-          walletid?: string | null
-        }
-        Update: {
-          arbitrum?: string | null
-          avalanche?: string | null
-          base?: string | null
-          binance?: string | null
-          bitcoin?: string | null
-          can_message?: boolean | null
-          can_unlimited_rooms?: boolean | null
-          cashflows_paid_timestamp?: string | null
-          code?: string | null
-          created_date?: string | null
-          email?: string | null
-          email_competitions?: string | null
-          ethereum?: string | null
-          event_enter?: string | null
-          fantom?: string | null
-          image_url?: string | null
-          is_active?: boolean | null
-          is_paid?: number | null
-          last_active?: string | null
-          last_login?: string | null
-          optimism?: string | null
-          phone?: string | null
-          polygon?: string | null
-          privy_subscription_id?: string | null
-          privy_wallet_id?: string | null
-          solana?: string | null
-          telegram_user?: string | null
-          uid?: string | null
-          user_balance?: number | null
-          user_signature?: string | null
-          username?: string | null
-          walletid?: string | null
-        }
-        Relationships: []
-      }
-      user_profiles_staging: {
-        Row: {
-          arbitrum: string | null
-          avalanche: string | null
-          base: string | null
-          binance: string | null
-          bitcoin: string | null
-          can_message: boolean | null
-          can_unlimited_rooms: boolean | null
-          cashflows_paid_timestamp: string | null
-          code: string | null
-          created_date: string | null
-          email: string | null
-          email_competitions: string | null
-          ethereum: string | null
-          event_enter: string | null
-          fantom: string | null
-          image_url: string | null
-          is_active: boolean | null
-          is_paid: number | null
-          last_active: string | null
-          last_login: string | null
-          optimism: string | null
-          phone: string | null
-          polygon: string | null
-          privy_subscription_id: string | null
-          privy_wallet_id: string | null
-          solana: string | null
-          telegram_user: string | null
-          uid: string
-          user_balance: number | null
-          user_signature: string | null
-          username: string | null
-          walletid: string | null
-        }
-        Insert: {
-          arbitrum?: string | null
-          avalanche?: string | null
-          base?: string | null
-          binance?: string | null
-          bitcoin?: string | null
-          can_message?: boolean | null
-          can_unlimited_rooms?: boolean | null
-          cashflows_paid_timestamp?: string | null
-          code?: string | null
-          created_date?: string | null
-          email?: string | null
-          email_competitions?: string | null
-          ethereum?: string | null
-          event_enter?: string | null
-          fantom?: string | null
-          image_url?: string | null
-          is_active?: boolean | null
-          is_paid?: number | null
-          last_active?: string | null
-          last_login?: string | null
-          optimism?: string | null
-          phone?: string | null
-          polygon?: string | null
-          privy_subscription_id?: string | null
-          privy_wallet_id?: string | null
-          solana?: string | null
-          telegram_user?: string | null
-          uid: string
-          user_balance?: number | null
-          user_signature?: string | null
-          username?: string | null
-          walletid?: string | null
-        }
-        Update: {
-          arbitrum?: string | null
-          avalanche?: string | null
-          base?: string | null
-          binance?: string | null
-          bitcoin?: string | null
-          can_message?: boolean | null
-          can_unlimited_rooms?: boolean | null
-          cashflows_paid_timestamp?: string | null
-          code?: string | null
-          created_date?: string | null
-          email?: string | null
-          email_competitions?: string | null
-          ethereum?: string | null
-          event_enter?: string | null
-          fantom?: string | null
-          image_url?: string | null
-          is_active?: boolean | null
-          is_paid?: number | null
-          last_active?: string | null
-          last_login?: string | null
-          optimism?: string | null
-          phone?: string | null
-          polygon?: string | null
-          privy_subscription_id?: string | null
-          privy_wallet_id?: string | null
-          solana?: string | null
-          telegram_user?: string | null
-          uid?: string
-          user_balance?: number | null
-          user_signature?: string | null
-          username?: string | null
-          walletid?: string | null
-        }
-        Relationships: []
       }
       user_transactions: {
         Row: {
-          amount: number | null
-          balance_after: number | null
-          balance_before: number | null
-          canonical_user_id: string | null
-          charge_code: string | null
-          charge_id: string | null
-          checkout_url: string | null
-          competition_id: string | null
-          completed_at: string | null
-          created_at: string | null
-          credit_synced: boolean | null
-          currency: string | null
-          description: string | null
-          fallback_provider: string | null
           id: string
-          metadata: Json | null
-          network: string | null
+          user_id: string
+          canonical_user_id: string | null
+          wallet_address: string | null
+          type: string
+          amount: number
+          currency: string
+          balance_before: number | null
+          balance_after: number | null
+          competition_id: string | null
           order_id: string | null
+          description: string | null
+          status: string
+          created_at: string
+          user_privy_id: string | null
+          metadata: Json | null
+          provider: string | null
+          tx_ref: string | null
           payment_provider: string | null
           payment_status: string | null
-          primary_provider: string | null
-          provider: string | null
-          provider_attempts: number | null
-          provider_error: string | null
-          session_id: string | null
-          status: string | null
           ticket_count: number | null
-          tx_id: string | null
-          tx_ref: string | null
-          type: string | null
-          updated_at: string | null
-          user_id: string | null
-          user_privy_id: string | null
-          wallet_address: string | null
           webhook_ref: string | null
+          charge_id: string | null
+          charge_code: string | null
+          checkout_url: string | null
+          updated_at: string
+          primary_provider: string | null
+          fallback_provider: string | null
+          provider_attempts: number
+          provider_error: string | null
+          posted_to_balance: boolean
+          completed_at: string | null
+          expires_at: string | null
+          method: string | null
+          tx_id: string | null
+          network: string | null
         }
         Insert: {
-          amount?: number | null
-          balance_after?: number | null
-          balance_before?: number | null
-          canonical_user_id?: string | null
-          charge_code?: string | null
-          charge_id?: string | null
-          checkout_url?: string | null
-          competition_id?: string | null
-          completed_at?: string | null
-          created_at?: string | null
-          credit_synced?: boolean | null
-          currency?: string | null
-          description?: string | null
-          fallback_provider?: string | null
           id?: string
-          metadata?: Json | null
-          network?: string | null
+          user_id: string
+          canonical_user_id?: string | null
+          wallet_address?: string | null
+          type: string
+          amount: number
+          currency?: string
+          balance_before?: number | null
+          balance_after?: number | null
+          competition_id?: string | null
           order_id?: string | null
+          description?: string | null
+          status?: string
+          created_at?: string
+          user_privy_id?: string | null
+          metadata?: Json | null
+          provider?: string | null
+          tx_ref?: string | null
           payment_provider?: string | null
           payment_status?: string | null
-          primary_provider?: string | null
-          provider?: string | null
-          provider_attempts?: number | null
-          provider_error?: string | null
-          session_id?: string | null
-          status?: string | null
           ticket_count?: number | null
-          tx_id?: string | null
-          tx_ref?: string | null
-          type?: string | null
-          updated_at?: string | null
-          user_id?: string | null
-          user_privy_id?: string | null
-          wallet_address?: string | null
           webhook_ref?: string | null
+          charge_id?: string | null
+          charge_code?: string | null
+          checkout_url?: string | null
+          updated_at?: string
+          primary_provider?: string | null
+          fallback_provider?: string | null
+          provider_attempts?: number
+          provider_error?: string | null
+          posted_to_balance?: boolean
+          completed_at?: string | null
+          expires_at?: string | null
+          method?: string | null
+          tx_id?: string | null
+          network?: string | null
         }
         Update: {
-          amount?: number | null
-          balance_after?: number | null
-          balance_before?: number | null
-          canonical_user_id?: string | null
-          charge_code?: string | null
-          charge_id?: string | null
-          checkout_url?: string | null
-          competition_id?: string | null
-          completed_at?: string | null
-          created_at?: string | null
-          credit_synced?: boolean | null
-          currency?: string | null
-          description?: string | null
-          fallback_provider?: string | null
           id?: string
-          metadata?: Json | null
-          network?: string | null
+          user_id?: string
+          canonical_user_id?: string | null
+          wallet_address?: string | null
+          type?: string
+          amount?: number
+          currency?: string
+          balance_before?: number | null
+          balance_after?: number | null
+          competition_id?: string | null
           order_id?: string | null
+          description?: string | null
+          status?: string
+          created_at?: string
+          user_privy_id?: string | null
+          metadata?: Json | null
+          provider?: string | null
+          tx_ref?: string | null
           payment_provider?: string | null
           payment_status?: string | null
-          primary_provider?: string | null
-          provider?: string | null
-          provider_attempts?: number | null
-          provider_error?: string | null
-          session_id?: string | null
-          status?: string | null
           ticket_count?: number | null
-          tx_id?: string | null
-          tx_ref?: string | null
-          type?: string | null
-          updated_at?: string | null
-          user_id?: string | null
-          user_privy_id?: string | null
-          wallet_address?: string | null
           webhook_ref?: string | null
+          charge_id?: string | null
+          charge_code?: string | null
+          checkout_url?: string | null
+          updated_at?: string
+          primary_provider?: string | null
+          fallback_provider?: string | null
+          provider_attempts?: number
+          provider_error?: string | null
+          posted_to_balance?: boolean
+          completed_at?: string | null
+          expires_at?: string | null
+          method?: string | null
+          tx_id?: string | null
+          network?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "user_transactions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       users: {
         Row: {
-          avatar_url: string | null
-          casino_payout_total: number | null
-          created_at: string | null
-          custody_wallet_balance: number | null
-          email: string | null
           id: string
-          is_active: boolean | null
-          last_balance_sync: string | null
-          nowpayments_name: string | null
-          nowpayments_sub_partner_id: string | null
-          privy_user_id: string
-          telegram_handle: string | null
-          telephone_number: string | null
-          total_winnings: number | null
-          updated_at: string | null
-          username: string | null
-          wallet_address: string
+          user_id: string
+          wallet_address: string | null
+          email: string | null
+          privy_id: string | null
+          created_at: string
+          updated_at: string
+          canonical_user_id: string | null
         }
         Insert: {
-          avatar_url?: string | null
-          casino_payout_total?: number | null
-          created_at?: string | null
-          custody_wallet_balance?: number | null
-          email?: string | null
           id?: string
-          is_active?: boolean | null
-          last_balance_sync?: string | null
-          nowpayments_name?: string | null
-          nowpayments_sub_partner_id?: string | null
-          privy_user_id: string
-          telegram_handle?: string | null
-          telephone_number?: string | null
-          total_winnings?: number | null
-          updated_at?: string | null
-          username?: string | null
-          wallet_address: string
+          user_id: string
+          wallet_address?: string | null
+          email?: string | null
+          privy_id?: string | null
+          created_at?: string
+          updated_at?: string
+          canonical_user_id?: string | null
         }
         Update: {
-          avatar_url?: string | null
-          casino_payout_total?: number | null
-          created_at?: string | null
-          custody_wallet_balance?: number | null
-          email?: string | null
           id?: string
-          is_active?: boolean | null
-          last_balance_sync?: string | null
-          nowpayments_name?: string | null
-          nowpayments_sub_partner_id?: string | null
-          privy_user_id?: string
-          telegram_handle?: string | null
-          telephone_number?: string | null
-          total_winnings?: number | null
-          updated_at?: string | null
-          username?: string | null
-          wallet_address?: string
+          user_id?: string
+          wallet_address?: string | null
+          email?: string | null
+          privy_id?: string | null
+          created_at?: string
+          updated_at?: string
+          canonical_user_id?: string | null
         }
-        Relationships: []
+      }
+      wallet_balances_table_backup: {
+        Row: {
+          id: string
+          user_id: string
+          canonical_user_id: string
+          wallet_address: string
+          balance: number
+          pending_balance: number
+          last_updated: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          canonical_user_id: string
+          wallet_address: string
+          balance?: number
+          pending_balance?: number
+          last_updated?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          canonical_user_id?: string
+          wallet_address?: string
+          balance?: number
+          pending_balance?: number
+          last_updated?: string
+        }
       }
       winners: {
         Row: {
-          claimed: boolean | null
-          competition_id: string | null
-          country: string | null
-          crdate: string | null
           id: string
+          competition_id: string
+          user_id: string
+          wallet_address: string | null
+          prize_position: number | null
+          prize_amount: number | null
+          vrfulfillment_address: string | null
+          vrf_proof: string | null
+          claimed: boolean
+          claimed_at: string | null
+          created_at: string
+          uid: string | null
+          username: string | null
+          ticket_number: number | null
+          prize: string | null
+          prize_value: number | null
+          country: string | null
+          prize_claimed: boolean | null
+          tx_hash: string | null
           is_instant_win: boolean | null
           is_promoted: boolean | null
           isShow: boolean | null
-          prize: string | null
-          prize_amount: string | null
-          prize_claimed: boolean | null
-          prize_value: number | null
-          ticket_number: number | null
-          tx_hash: string | null
-          uid: string | null
-          user_id: string | null
-          username: string | null
-          vrf_proof: string | null
           vrf_request_id: string | null
-          wallet_address: string | null
           won_at: string | null
+          crdate: string | null
         }
         Insert: {
-          claimed?: boolean | null
-          competition_id?: string | null
-          country?: string | null
-          crdate?: string | null
           id?: string
+          competition_id: string
+          user_id: string
+          wallet_address?: string | null
+          prize_position?: number | null
+          prize_amount?: number | null
+          vrfulfillment_address?: string | null
+          vrf_proof?: string | null
+          claimed?: boolean
+          claimed_at?: string | null
+          created_at?: string
+          uid?: string | null
+          username?: string | null
+          ticket_number?: number | null
+          prize?: string | null
+          prize_value?: number | null
+          country?: string | null
+          prize_claimed?: boolean | null
+          tx_hash?: string | null
           is_instant_win?: boolean | null
           is_promoted?: boolean | null
           isShow?: boolean | null
-          prize?: string | null
-          prize_amount?: string | null
-          prize_claimed?: boolean | null
-          prize_value?: number | null
-          ticket_number?: number | null
-          tx_hash?: string | null
-          uid?: string | null
-          user_id?: string | null
-          username?: string | null
-          vrf_proof?: string | null
           vrf_request_id?: string | null
-          wallet_address?: string | null
           won_at?: string | null
+          crdate?: string | null
         }
         Update: {
-          claimed?: boolean | null
-          competition_id?: string | null
-          country?: string | null
-          crdate?: string | null
           id?: string
+          competition_id?: string
+          user_id?: string
+          wallet_address?: string | null
+          prize_position?: number | null
+          prize_amount?: number | null
+          vrfulfillment_address?: string | null
+          vrf_proof?: string | null
+          claimed?: boolean
+          claimed_at?: string | null
+          created_at?: string
+          uid?: string | null
+          username?: string | null
+          ticket_number?: number | null
+          prize?: string | null
+          prize_value?: number | null
+          country?: string | null
+          prize_claimed?: boolean | null
+          tx_hash?: string | null
           is_instant_win?: boolean | null
           is_promoted?: boolean | null
           isShow?: boolean | null
-          prize?: string | null
-          prize_amount?: string | null
-          prize_claimed?: boolean | null
-          prize_value?: number | null
-          ticket_number?: number | null
-          tx_hash?: string | null
-          uid?: string | null
-          user_id?: string | null
-          username?: string | null
-          vrf_proof?: string | null
           vrf_request_id?: string | null
-          wallet_address?: string | null
           won_at?: string | null
+          crdate?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "winners_competition_id_fkey"
-            columns: ["competition_id"]
-            isOneToOne: false
-            referencedRelation: "competitions"
-            referencedColumns: ["id"]
-          },
-        ]
       }
     }
     Views: {
-      competition_winners: {
-        Row: {
-          competitionid: string | null
-          competitionname: string | null
-          competitionprize: string | null
-          crDate: string | null
-          imageurl: string | null
-          ticket_number: number | null
-          txhash: string | null
-          Winner: string | null
-        }
-        Relationships: []
-      }
-      competition_entries_public: {
-        Row: {
-          competition_id: string | null
-          last_purchase_at: string | null
-          ticket_count: number | null
-          wallet_address: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tickets_competition_id_fkey"
-            columns: ["competition_id"]
-            isOneToOne: false
-            referencedRelation: "competitions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      wallet_balances: {
-        Row: {
-          canonical_user_id: string | null
-          uid: string | null
-          id: string | null
-          wallet_address: string | null
-          base_wallet_address: string | null
-          balance: number
-          has_used_new_user_bonus: boolean | null
-          updated_at: string | null
-        }
-        Relationships: []
-      }
-      v_joincompetition_active: {
-        Row: {
-          id: string | null
-          uid: string | null
-          userid: string | null
-          walletaddress: string | null
-          competitionid: string | null
-          numberoftickets: number | null
-          ticketnumbers: string | null
-          amountspent: string | null
-          purchasedate: string | null
-          buytime: string | null
-          transactionhash: string | null
-          chain: string | null
-          created_at: string | null
-          competition_title: string | null
-          competition_status: string | null
-          competition_draw_date: string | null
-        }
-        Relationships: []
-      }
+      [_ : string]: never
     }
     Functions: {
-      check_external_usdc_balance: {
-        Args: { wallet_address: string }
-        Returns: number
-      }
-      cleanup_old_data: { Args: never; Returns: undefined }
-      cleanup_stale_transactions: { Args: never; Returns: undefined }
-      convert_specific_deposit: {
+      add_pending_balance: {
         Args: {
-          tx_id_param: string
-          usd_value_param: number
-          wallet_addr_param: string
+          user_identifier: string
+          amount: number
         }
-        Returns: string
-      }
-      credit_user_balance: {
-        Args: { amount: number; user_id: string }
-        Returns: number
-      }
-      dearmor: { Args: { "": string }; Returns: string }
-      debit_user_balance: {
-        Args: { amount: number; user_id: string }
-        Returns: number
-      }
-      gen_random_uuid: { Args: never; Returns: string }
-      gen_salt: { Args: { "": string }; Returns: string }
-      get_custody_wallet_summary: {
-        Args: { p_user_id: string }
-        Returns: {
-          current_balance: number
-          last_transaction_at: string
-          pending_transactions: number
-          total_deposits: number
-          total_payouts: number
-          total_withdrawals: number
-        }[]
-      }
-      get_user_active_tickets: {
-        Args: { user_identifier: string }
-        Returns: number
-      }
-      get_user_ticket_count: {
-        Args: { user_identifier: string }
-        Returns: number
-      }
-      get_user_balance: {
-        Args: { p_canonical_user_id: string }
-        Returns: number
-      }
-      get_user_wallet_balance: {
-        Args: { user_identifier: string }
-        Returns: number
+        Returns: Json
       }
       get_user_wallets: {
-        Args: { user_identifier: string }
+        Args: {
+          user_identifier: string
+        }
         Returns: Json
       }
       link_additional_wallet: {
@@ -2196,66 +2071,42 @@ export type Database = {
         }
         Returns: Json
       }
-      pgp_armor_headers: {
-        Args: { "": string }
-        Returns: Record<string, unknown>[]
-      }
-      process_prize_payout: {
+      allocate_lucky_dip_tickets: {
         Args: {
-          p_amount: number
-          p_competition_id?: string
-          p_reference_id?: string
+          p_competition_id: string
           p_user_id: string
+          p_ticket_count: number
         }
-        Returns: {
-          new_balance: number
-          success: boolean
-          transaction_id: string
-        }[]
+        Returns: Json
       }
-      sync_all_external_wallet_balances: {
-        Args: never
-        Returns: {
-          difference: number
-          external_balance: number
-          new_internal_balance: number
-          previous_internal_balance: number
-          privy_user_id: string
-          wallet_address: string
-        }[]
-      }
-      sync_completed_deposits_to_usdc: {
-        Args: { wallet_address_param?: string }
-        Returns: {
-          new_usdc_balance: number
-          total_deposits_converted: number
-          transactions_processed: number
-          wallet_address: string
-        }[]
-      }
-      sync_external_wallet_balances: {
-        Args: { privy_user_id_param: string }
-        Returns: {
-          difference: number
-          external_balance: number
-          new_internal_balance: number
-          previous_internal_balance: number
-          user_wallet_address: string
-        }[]
-      }
-      update_custody_balance: {
+      allocate_lucky_dip_tickets_batch: {
         Args: {
-          p_amount: number
-          p_reference_id?: string
-          p_transaction_type: string
+          p_competition_id: string
           p_user_id: string
+          p_ticket_count: number
         }
-        Returns: {
-          balance_after: number
-          balance_before: number
-          success: boolean
+        Returns: Json
+      }
+      attach_identity_after_auth: {
+        Args: {
+          p_user_id: string
+          p_email: string
+          p_username: string
+        }
+        Returns: Json
+      }
+      check_and_mark_competition_sold_out: {
+        Args: {
+          p_competition_id: string
+        }
+        Returns: Json
+      }
+      credit_user_balance: {
+        Args: {
           user_id: string
-        }[]
+          amount: number
+        }
+        Returns: void
       }
       finalize_order: {
         Args: {
@@ -2263,6 +2114,159 @@ export type Database = {
           p_user_id: string
           p_competition_id: string
           p_unit_price: number
+        }
+        Returns: Json
+      }
+      get_available_ticket_count_v2: {
+        Args: {
+          p_competition_id: string
+        }
+        Returns: number
+      }
+      get_competition_entries: {
+        Args: {
+          p_competition_id: string
+          p_limit?: number
+          p_offset?: number
+        }
+        Returns: Json
+      }
+      get_competition_entries_bypass_rls: {
+        Args: {
+          p_competition_id: string
+          p_limit?: number
+          p_offset?: number
+        }
+        Returns: Json
+      }
+      get_competition_ticket_availability_text: {
+        Args: {
+          p_competition_id: string
+        }
+        Returns: string
+      }
+      get_competition_unavailable_tickets: {
+        Args: {
+          p_competition_id: string
+        }
+        Returns: number[]
+      }
+      get_comprehensive_user_dashboard_entries: {
+        Args: {
+          p_user_identifier: string
+        }
+        Returns: Json
+      }
+      get_linked_external_wallet: {
+        Args: {
+          user_identifier: string
+        }
+        Returns: Json
+      }
+      get_recent_entries_count: {
+        Args: {
+          p_competition_id: string
+          p_minutes: number
+        }
+        Returns: number
+      }
+      get_unavailable_tickets: {
+        Args: {
+          p_competition_id: string
+        }
+        Returns: number[]
+      }
+      get_user_active_tickets: {
+        Args: {
+          p_user_identifier: string
+          p_competition_id: string
+        }
+        Returns: Json
+      }
+      get_user_balance: {
+        Args: {
+          user_identifier?: string
+          p_canonical_user_id?: string
+        }
+        Returns: Json
+      }
+      get_user_tickets: {
+        Args: {
+          p_user_identifier: string
+          p_competition_id: string
+        }
+        Returns: Json
+      }
+      get_user_tickets_for_competition: {
+        Args: {
+          competition_id: string
+          user_id: string
+        }
+        Returns: Json
+      }
+      get_user_transactions: {
+        Args: {
+          p_user_identifier: string
+        }
+        Returns: Json
+      }
+      get_user_wallet_balance: {
+        Args: {
+          user_identifier: string
+        }
+        Returns: Json
+      }
+      get_user_competition_entries: {
+        Args: {
+          p_user_identifier: string
+        }
+        Returns: {
+          id: string
+          competition_id: string
+          user_id: string
+          canonical_user_id: string
+          wallet_address: string
+          ticket_numbers: number[]
+          ticket_count: number
+          amount_paid: number
+          currency: string
+          transaction_hash: string | null
+          payment_provider: string | null
+          entry_status: string
+          is_winner: boolean
+          prize_claimed: boolean
+          created_at: string
+          updated_at: string
+          competition_title: string
+          competition_description: string
+          competition_image_url: string
+          competition_status: string
+          competition_end_date: string | null
+          competition_prize_value: number | null
+          competition_is_instant_win: boolean
+        }[]
+      }
+      get_competition_entries_public: {
+        Args: {
+          p_competition_id: string
+        }
+        Returns: {
+          id: string
+          competition_id: string
+          user_id: string
+          canonical_user_id: string
+          wallet_address: string
+          ticket_numbers: number[]
+          ticket_count: number
+          amount_paid: number
+          entry_status: string
+          is_winner: boolean
+          created_at: string
+        }[]
+      }
+      migrate_user_balance: {
+        Args: {
+          p_user_identifier: string
         }
         Returns: Json
       }
@@ -2282,195 +2286,6 @@ export type Database = {
         }
         Returns: Json
       }
-      get_unavailable_tickets: {
-        Args: {
-          competition_id: string
-        }
-        Returns: number[]
-      }
-      get_user_tickets_for_competition: {
-        Args: {
-          competition_id: string
-          user_id: string
-        }
-        Returns: {
-          ticket_number: number
-          source: string
-          purchased_at: string
-          wallet_address: string
-        }[]
-      }
-      attach_identity_after_auth: {
-        Args: {
-          in_canonical_user_id: string
-          in_wallet_address: string
-          in_email?: string | null
-          in_privy_user_id?: string | null
-          in_prior_payload?: Json
-          in_base_wallet_address?: string | null
-          in_eth_wallet_address?: string | null
-        }
-        Returns: Json
-      }
-      update_user_avatar: {
-        Args: {
-          user_identifier: string
-          new_avatar_url: string
-        }
-        Returns: Json
-      }
-      get_user_tickets: {
-        Args: {
-          user_identifier: string
-        }
-        Returns: {
-          ticket_number: number
-          competition_id: string
-          purchased_at: string
-        }[]
-      }
-      get_recent_entries_count: {
-        Args: {
-          user_identifier: string
-          p_days?: number
-        }
-        Returns: number
-      }
-      update_user_profile_by_identifier: {
-        Args: {
-          user_identifier: string
-          p_updates: Json
-        }
-        Returns: Json
-      }
-      get_competition_entries: {
-        Args: {
-          competition_identifier: string
-          p_limit?: number
-          p_offset?: number
-        }
-        Returns: {
-          ticket_number: number
-          wallet_address: string
-          username: string | null
-          avatar_url: string | null
-          purchased_at: string
-        }[]
-      }
-      get_competition_entries_bypass_rls: {
-        Args: {
-          competition_identifier: string
-          p_limit?: number
-          p_offset?: number
-        }
-        Returns: {
-          ticket_number: number
-          wallet_address: string
-          username: string | null
-          avatar_url: string | null
-          purchased_at: string
-        }[]
-      }
-      get_competition_ticket_availability_text: {
-        Args: {
-          competition_id_text: string
-        }
-        Returns: {
-          sold_count: number
-          total_tickets: number
-          sold_tickets: number
-        }
-      }
-      get_user_transactions: {
-        Args: {
-          user_identifier: string
-          p_limit?: number
-        }
-        Returns: {
-          id: string
-          type: string
-          amount: number
-          created_at: string
-          status: string
-        }[]
-      }
-      get_comprehensive_user_dashboard_entries: {
-        Args: {
-          user_identifier: string
-        }
-        Returns: Json
-      }
-      get_available_ticket_count_v2: {
-        Args: {
-          p_competition_id: string
-        }
-        Returns: {
-          success: boolean
-          available_count: number
-          total_tickets: number
-          sold_count: number
-        }
-      }
-      upsert_canonical_user: {
-        Args: {
-          p_uid: string
-          p_canonical_user_id: string
-          p_email?: string | null
-          p_username?: string | null
-          p_wallet_address?: string | null
-          p_base_wallet_address?: string | null
-          p_eth_wallet_address?: string | null
-          p_privy_user_id?: string | null
-        }
-        Returns: Json
-      }
-      get_linked_external_wallet: {
-        Args: {
-          user_identifier: string
-        }
-        Returns: Json
-      }
-      unlink_external_wallet: {
-        Args: {
-          user_identifier: string
-        }
-        Returns: Json
-      }
-      allocate_lucky_dip_tickets: {
-        Args: {
-          p_competition_id: string
-          p_user_id: string
-          p_ticket_count: number
-        }
-        Returns: Json
-      }
-      allocate_lucky_dip_tickets_batch: {
-        Args: {
-          p_competition_id: string
-          p_user_id: string
-          p_ticket_count: number
-        }
-        Returns: Json
-      }
-      get_competition_unavailable_tickets: {
-        Args: {
-          p_competition_id: string
-        }
-        Returns: number[]
-      }
-      link_pending_reservation_to_session: {
-        Args: {
-          p_reservation_id: string
-          p_session_id: string
-        }
-        Returns: Json
-      }
-      migrate_user_balance: {
-        Args: {
-          p_user_identifier: string
-        }
-        Returns: Json
-      }
       reserve_tickets_atomically: {
         Args: {
           p_competition_id: string
@@ -2486,148 +2301,64 @@ export type Database = {
         }
         Returns: Json
       }
-      check_and_mark_competition_sold_out: {
-        Args: {
-          p_competition_id: string
-        }
-        Returns: Json
-      }
-      add_pending_balance: {
+      unlink_external_wallet: {
         Args: {
           user_identifier: string
-          amount: number
         }
         Returns: Json
       }
+      update_user_avatar: {
+        Args: {
+          user_identifier: string
+          new_avatar_url: string
+        }
+        Returns: Json
+      }
+      update_user_profile_by_identifier: {
+        Args: {
+          p_user_identifier: string
+          p_username?: string
+          p_email?: string
+          p_country?: string
+          p_telephone_number?: string
+          p_telegram_handle?: string
+        }
+        Returns: Json
+      }
+      upsert_canonical_user: {
+        Args: {
+          p_uid: string
+          p_canonical_user_id: string
+          p_email?: string | null
+          p_username?: string | null
+          p_wallet_address?: string | null
+          p_base_wallet_address?: string | null
+          p_eth_wallet_address?: string | null
+          p_privy_user_id?: string | null
+        }
+        Returns: Json
+      }
+      credit_balance_with_first_deposit_bonus: {
+        Args: {
+          p_canonical_user_id: string
+          p_amount: number
+          p_reason: string
+          p_reference_id: string
+        }
+        Returns: Json
+      }
+      credit_sub_account_balance: {
+        Args: {
+          p_canonical_user_id: string
+          p_amount: number
+          p_currency: string
+        }
+        Returns: Json
+      }
+      [key: string]: any
     }
     Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
+      [_ : string]: never
     }
   }
 }
-
-type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
-
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
-
-export type Tables<
-  DefaultSchemaTableNameOrOptions extends
-    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
-      Row: infer R
-    }
-    ? R
-    : never
-  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])
-    ? (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-        Row: infer R
-      }
-      ? R
-      : never
-    : never
-
-export type TablesInsert<
-  DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Insert: infer I
-    }
-    ? I
-    : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Insert: infer I
-      }
-      ? I
-      : never
-    : never
-
-export type TablesUpdate<
-  DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Update: infer U
-    }
-    ? U
-    : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Update: infer U
-      }
-      ? U
-      : never
-    : never
-
-export type Enums<
-  DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema["Enums"]
-    | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
-> = DefaultSchemaEnumNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
-  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-    : never
-
-export type CompositeTypes<
-  PublicCompositeTypeNameOrOptions extends
-    | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
-> = PublicCompositeTypeNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-    : never
-
-export const Constants = {
-  public: {
-    Enums: {},
-  },
-} as const
