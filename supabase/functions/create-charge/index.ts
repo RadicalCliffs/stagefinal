@@ -367,7 +367,12 @@ Deno.serve(async (req: Request) => {
     const chargeData = JSON.parse(responseText);
     const charge = chargeData.data;
 
-    console.log(`[create-charge][${requestId}] Charge created: id=${charge.id}, code=${charge.code}`);
+    console.log(`[create-charge][${requestId}] Charge created: id=${charge.id}, code=${charge.code}, hosted_url=${charge.hosted_url}`);
+
+    // Validate that we received the hosted_url (checkout URL)
+    if (!charge.hosted_url) {
+      console.error(`[create-charge][${requestId}] WARNING: Coinbase Commerce did not return hosted_url. Charge data:`, JSON.stringify(charge).substring(0, 500));
+    }
 
     // Update transaction with charge info
     const { error: updateError } = await supabase

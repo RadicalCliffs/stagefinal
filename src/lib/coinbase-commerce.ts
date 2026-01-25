@@ -166,7 +166,32 @@ export class CoinbaseCommerceService {
     });
 
     const transactionId = (result.data?.transactionId as string) || '';
-    const checkoutUrl = (result.data?.checkoutUrl as string) || '';
+    const chargeId = (result.data?.chargeId as string) || '';
+    const chargeCode = (result.data?.chargeCode as string) || '';
+    let checkoutUrl = (result.data?.checkoutUrl as string) || '';
+
+    // FALLBACK: If checkoutUrl is missing but we have chargeCode, construct it
+    // Coinbase Commerce checkout URL format: https://commerce.coinbase.com/charges/{chargeCode}
+    if (!checkoutUrl && chargeCode) {
+      checkoutUrl = `https://commerce.coinbase.com/charges/${chargeCode}`;
+      console.log('[CoinbaseCommerce] TopUp: Constructed checkout URL from chargeCode:', checkoutUrl);
+    }
+
+    // FALLBACK 2: If still no URL but we have chargeId, try that format
+    if (!checkoutUrl && chargeId) {
+      checkoutUrl = `https://commerce.coinbase.com/charges/${chargeId}`;
+      console.log('[CoinbaseCommerce] TopUp: Constructed checkout URL from chargeId:', checkoutUrl);
+    }
+
+    // Log warning if we still don't have a checkout URL
+    if (!checkoutUrl) {
+      console.error('[CoinbaseCommerce] TopUp: No checkout URL available after all fallbacks:', {
+        transactionId,
+        chargeId,
+        chargeCode,
+        rawData: result.data,
+      });
+    }
 
     // OPTIMISTIC CREDITING: Create a pending top-up record so user sees balance immediately
     // Webhook will finalize the credit; if payment fails, cleanup job removes pending balance
@@ -291,7 +316,33 @@ export class CoinbaseCommerceService {
     });
 
     const transactionId = (result.data?.transactionId as string) || '';
-    const checkoutUrl = (result.data?.checkoutUrl as string) || '';
+    const chargeId = (result.data?.chargeId as string) || '';
+    const chargeCode = (result.data?.chargeCode as string) || '';
+    let checkoutUrl = (result.data?.checkoutUrl as string) || '';
+
+    // FALLBACK: If checkoutUrl is missing but we have chargeCode, construct it
+    // Coinbase Commerce checkout URL format: https://commerce.coinbase.com/charges/{chargeCode}
+    if (!checkoutUrl && chargeCode) {
+      checkoutUrl = `https://commerce.coinbase.com/charges/${chargeCode}`;
+      console.log('[CoinbaseCommerce] Constructed checkout URL from chargeCode:', checkoutUrl);
+    }
+
+    // FALLBACK 2: If still no URL but we have chargeId, try that format
+    if (!checkoutUrl && chargeId) {
+      // Some versions use the charge ID directly
+      checkoutUrl = `https://commerce.coinbase.com/charges/${chargeId}`;
+      console.log('[CoinbaseCommerce] Constructed checkout URL from chargeId:', checkoutUrl);
+    }
+
+    // Log warning if we still don't have a checkout URL
+    if (!checkoutUrl) {
+      console.error('[CoinbaseCommerce] No checkout URL available after all fallbacks:', {
+        transactionId,
+        chargeId,
+        chargeCode,
+        rawData: result.data,
+      });
+    }
 
     // HACKY BUT EFFECTIVE: Optimistically credit entries to user's dashboard immediately
     // This ensures users see their entries even if payment metadata is lost
