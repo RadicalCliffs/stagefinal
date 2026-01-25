@@ -4,7 +4,7 @@ import { supabase } from "../lib/supabase";
 import { footerLogo, applePay, visaLogo, masterCardLogo } from "../assets/images";
 import PaymentStatus from "./PaymentStatus";
 import { usePaymentStatus } from "../hooks/useGetPaymentStatus";
-import { CircleX, Check, Wallet, DollarSign, Clock, AlertTriangle, RefreshCw, CreditCard, Sparkles, Shield, ChevronRight, ArrowLeft, Coins, ExternalLink } from "lucide-react";
+import { CircleX, Check, DollarSign, Clock, AlertTriangle, RefreshCw, CreditCard, Sparkles, Shield, ChevronRight, ExternalLink, Coins } from "lucide-react";
 import { useAuthUser } from "../contexts/AuthContext";
 import type { UserInfo } from "./UserInfoModal";
 import { BasePaymentService } from "../lib/base-payment";
@@ -13,11 +13,13 @@ import { purchaseTicketsWithBalance, getUserBalance, executeBalancePaymentRPC } 
 import { toCanonicalUserId } from "../lib/canonicalUserId";
 import { isSuccessStatus, isFailureStatus } from "../lib/payment-status";
 import { getPaymentErrorInfo, type PaymentErrorInfo } from "../lib/error-handler";
-import { OnchainKitCheckoutService } from "../lib/onchainkit-checkout";
+// OnchainKit Checkout removed - was causing "invalid argument - Not found" errors
+// import { OnchainKitCheckoutService } from "../lib/onchainkit-checkout";
 import { CoinbaseCommerceService } from "../lib/coinbase-commerce";
 // Note: CoinbaseOnrampService removed - card payments now go through Commerce flow
-import { Checkout, CheckoutButton, CheckoutStatus } from '@coinbase/onchainkit/checkout';
-import type { LifecycleStatus } from '@coinbase/onchainkit/checkout';
+// OnchainKit Checkout components removed - use Balance or Base Account payment instead
+// import { Checkout, CheckoutButton, CheckoutStatus } from '@coinbase/onchainkit/checkout';
+// import type { LifecycleStatus } from '@coinbase/onchainkit/checkout';
 import { useBaseSubAccount } from "../hooks/useBaseSubAccount";
 // Wagmi hook for getting the wallet client (provider) for transactions
 import { useWalletClient } from 'wagmi';
@@ -25,17 +27,7 @@ import { useWalletClient } from 'wagmi';
 // Lazy load TopUpWalletModal - only loaded when user clicks the banner
 const TopUpWalletModal = lazy(() => import('./TopUpWalletModal'));
 
-// Cryptocurrency options for the "Pay with Other Crypto" selection step
-const CRYPTO_OPTIONS = [
-  { id: 'btc', name: 'Bitcoin', symbol: 'BTC', color: '#F7931A', icon: '₿' },
-  { id: 'eth', name: 'Ethereum', symbol: 'ETH', color: '#627EEA', icon: 'Ξ' },
-  { id: 'doge', name: 'Dogecoin', symbol: 'DOGE', color: '#C2A633', icon: 'Ð' },
-  { id: 'ltc', name: 'Litecoin', symbol: 'LTC', color: '#345D9D', icon: 'Ł' },
-  { id: 'sol', name: 'Solana', symbol: 'SOL', color: '#9945FF', icon: '◎' },
-  { id: 'other', name: 'Other (60+ coins)', symbol: 'MORE', color: '#8B5CF6', icon: '⋯' },
-] as const;
-
-type CryptoOption = typeof CRYPTO_OPTIONS[number]['id'];
+// CRYPTO_OPTIONS removed - OnchainKit checkout disabled
 
 /**
  * Format transaction hash for logging (truncate and handle null)
@@ -184,8 +176,10 @@ interface PaymentModalProps {
   textOverrides?: PaymentModalTextOverrides;
 }
 
-type PaymentStep = 'initial' | 'checkout' | 'base-processing' | 'base-account-processing' | 'balance-processing' | 'onchainkit-processing' | 'crypto-selection' | 'othercrypto-processing' | 'oneclick-processing' | 'commerce-checkout' | 'success' | 'error';
-type PaymentMethod = 'coinbase' | 'base' | 'base-account' | 'balance' | 'onchainkit' | 'othercrypto' | 'oneclick' | 'card' | 'commerce';
+// Payment steps: removed 'onchainkit-processing', 'crypto-selection', 'othercrypto-processing' - OnchainKit checkout disabled
+type PaymentStep = 'initial' | 'checkout' | 'base-processing' | 'base-account-processing' | 'balance-processing' | 'oneclick-processing' | 'commerce-checkout' | 'success' | 'error';
+// Payment methods: removed 'onchainkit', 'othercrypto' - OnchainKit checkout disabled
+type PaymentMethod = 'coinbase' | 'base' | 'base-account' | 'balance' | 'oneclick' | 'card' | 'commerce';
 
 const PaymentModal: React.FC<PaymentModalProps> = ({
   isOpen,
@@ -294,20 +288,13 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   const [invoiceId, setInvoiceId] = useState<string>('');
   const [baseTransactionId, setBaseTransactionId] = useState<string>('');
   const [balanceTransactionId, setBalanceTransactionId] = useState<string>('');
-  const [onchainKitTransactionId, setOnchainKitTransactionId] = useState<string>('');
-  const [onchainKitChargeId, setOnchainKitChargeId] = useState<string>('');
-  const [onchainKitLoading, setOnchainKitLoading] = useState(false);
-  const [otherCryptoTransactionId, setOtherCryptoTransactionId] = useState<string>('');
-  const [otherCryptoChargeId, setOtherCryptoChargeId] = useState<string>('');
-  const [otherCryptoLoading, setOtherCryptoLoading] = useState(false);
+  // OnchainKit state removed - checkout disabled due to contract fetching errors
   // Card payment state (now uses Commerce checkout flow)
   const [cardLoading, setCardLoading] = useState(false);
   // Coinbase Commerce checkout state (used for both card and crypto commerce payments)
   const [commerceLoading, setCommerceLoading] = useState(false);
   const [commerceCheckoutUrl, setCommerceCheckoutUrl] = useState<string>('');
   const [commerceTransactionId, setCommerceTransactionId] = useState<string>('');
-  // Crypto selection state (for "Pay with Other Crypto" flow)
-  const [selectedCrypto, setSelectedCrypto] = useState<CryptoOption | null>(null);
   const [userBalance, setUserBalance] = useState<number>(0);
   const [loadingBalance, setLoadingBalance] = useState(false);
   // Inline error message state (replaces browser alert() dialogs)
@@ -480,14 +467,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       setInvoiceId('');
       setBaseTransactionId('');
       setBalanceTransactionId('');
-      setOnchainKitTransactionId('');
-      setOnchainKitChargeId('');
-      setOtherCryptoTransactionId('');
-      setOtherCryptoChargeId('');
+      // OnchainKit state reset removed - checkout disabled
       setHasInitialized(true);
       // Load user balance when modal opens
       loadUserBalance();
-    } else if (!isOpen && paymentStep !== 'base-processing' && paymentStep !== 'base-account-processing' && paymentStep !== 'balance-processing' && paymentStep !== 'onchainkit-processing' && paymentStep !== 'othercrypto-processing') {
+    } else if (!isOpen && paymentStep !== 'base-processing' && paymentStep !== 'base-account-processing' && paymentStep !== 'balance-processing') {
       // Only reset initialization flag when modal closes AND no payment is in progress
       // This prevents state reset if modal re-renders during payment processing
       setHasInitialized(false);
@@ -1002,335 +986,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     }
   };
 
-  // OnchainKit Checkout chargeHandler - creates a charge and returns the chargeId
-  const handleOnchainKitChargeCreate = useCallback(async (): Promise<string> => {
-    console.log('[PaymentModal] handleOnchainKitChargeCreate called');
-    if (!baseUser?.id) {
-      console.error('[PaymentModal] No baseUser.id available');
-      throw new Error('Please login first');
-    }
-
-    const totalAmount = ticketCount * ticketPrice;
-    if (!totalAmount || !Number.isFinite(totalAmount) || totalAmount <= 0) {
-      console.error('OnchainKit invalid amount:', { ticketCount, ticketPrice, totalAmount });
-      throw new Error(`Invalid amount: ticketCount=${ticketCount}, ticketPrice=${ticketPrice}`);
-    }
-
-    console.log('[PaymentModal] Creating charge with:', {
-      userId: baseUser.id,
-      competitionId,
-      ticketPrice,
-      ticketCount,
-      selectedTickets,
-      reservationId,
-    });
-
-    try {
-      const result = await OnchainKitCheckoutService.createEntryCharge(
-        baseUser.id,
-        competitionId,
-        ticketPrice,
-        ticketCount,
-        selectedTickets,
-        reservationId,
-      );
-
-      console.log('[PaymentModal] Charge created successfully:', result);
-
-      // Link reservation if exists
-      if (reservationId && result.transactionId) {
-        await OnchainKitCheckoutService.linkReservation(reservationId, result.transactionId);
-      }
-
-      // Store transaction ID for status tracking
-      setOnchainKitTransactionId(result.transactionId);
-      setOnchainKitChargeId(result.chargeId);
-
-      return result.chargeId;
-    } catch (error) {
-      console.error('OnchainKit charge creation error:', error);
-      throw error;
-    }
-  }, [baseUser?.id, competitionId, ticketPrice, ticketCount, selectedTickets, reservationId]);
-
-  // OnchainKit Checkout status handler
-  // CRITICAL FIX: Do NOT create entries directly from frontend callback
-  // The commerce-webhook will handle entry creation after verifying payment on the blockchain
-  // This prevents creating entries without actual payment confirmation
-  const handleOnchainKitStatus = useCallback(async (status: LifecycleStatus) => {
-    console.log('OnchainKit checkout status:', status);
-
-    try {
-      if (status.statusName === 'success') {
-        // Payment submitted successfully - but NOT confirmed yet
-        // The webhook will create the entry after payment is verified on-chain
-        console.log('[PaymentModal] OnchainKit payment submitted, waiting for webhook confirmation');
-
-        // Update transaction status to indicate payment is processing
-        if (onchainKitTransactionId) {
-          try {
-            await OnchainKitCheckoutService.updateTransactionOnComplete(
-              onchainKitTransactionId,
-              status.statusData?.chargeId || '',
-              'pending' // Mark as pending, NOT success - webhook will confirm
-            );
-          } catch (updateErr) {
-            console.error('[PaymentModal] Failed to update transaction status:', updateErr);
-            // Continue anyway - the webhook will still process the payment
-          }
-        }
-
-        // REMOVED: Do NOT call confirmTicketsUnified here
-        // The commerce-webhook will create entries after verifying payment
-        // This prevents creating entries without actual verified payment
-        // Previous code was creating entries based on frontend callback which could be spoofed
-
-        // Show success state but with a note about confirmation
-        // ISSUE 9B FIX: Show optimistic success immediately
-        setShowOptimisticSuccess(true);
-        setPaymentStep('success');
-
-        // Refresh user data - entries will appear once webhook processes
-        try {
-          await refreshUserData();
-        } catch (refreshErr) {
-          console.error('[PaymentModal] Failed to refresh user data:', refreshErr);
-          // Non-fatal - user can refresh manually
-        }
-
-        // Call success callback
-        if (onPaymentSuccess) {
-          try {
-            onPaymentSuccess();
-          } catch (callbackErr) {
-            console.error('[PaymentModal] onPaymentSuccess callback error:', callbackErr);
-          }
-        }
-        setShowOptimisticSuccess(false);
-      } else if (status.statusName === 'error') {
-        console.error('OnchainKit payment error:', status.statusData);
-        // Check for API key / RPC errors
-        const errorMessage = String(status.statusData?.error || status.statusData?.message || '');
-        if (errorMessage.includes('401') || errorMessage.includes('unauthorized') || errorMessage.includes('invalid key')) {
-          console.error('OnchainKit RPC authentication failed - CDP API key may be invalid');
-        }
-        // Use setPaymentError to provide proper error context and guidance
-        setPaymentError(
-          { message: errorMessage },
-          errorMessage || 'Payment could not be completed. Please try again.'
-        );
-      }
-    } catch (err) {
-      console.error('[PaymentModal] Unhandled error in OnchainKit status handler:', err);
-      // Don't change step to error here since the payment may have succeeded
-      // but just the post-payment processing failed
-    }
-  }, [onchainKitTransactionId, refreshUserData, onPaymentSuccess]);
-
-  // Handle OnchainKit payment button click - shows the checkout UI
-  const handleOnchainKitPayment = () => {
-    setErrorMessage(null);
-    if (!baseUser?.id) {
-      setErrorMessage("Please log in to continue with your purchase.");
-      return;
-    }
-
-    // CRITICAL FIX: Block payment if reservation has expired
-    if (reservationExpired) {
-      setErrorMessage("Your ticket reservation has expired. Please close this dialog and select your tickets again.");
-      return;
-    }
-
-    // CRITICAL FIX: Validate that the user's wallet is connected, not the business wallet
-    // The treasury address should NEVER be used as the sender wallet
-    const userWalletAddress = (linkedWallets?.[0]?.address || profile?.wallet_address)?.toLowerCase();
-    
-    // Check if wallet is connected
-    if (!userWalletAddress) {
-      setErrorMessage("Please connect your wallet to continue. Reconnect if needed.");
-      return;
-    }
-
-    // Check if the connected wallet is the treasury (business) wallet - this should never happen
-    if (treasuryAddress && userWalletAddress === treasuryAddress) {
-      console.error('[PaymentModal] CRITICAL: Business wallet detected as user wallet', {
-        userWallet: userWalletAddress,
-        treasury: treasuryAddress
-      });
-      setErrorMessage("Configuration error: Business wallet detected. Please sign out and sign in with your personal wallet.");
-      return;
-    }
-
-    const totalAmount = ticketCount * ticketPrice;
-    if (!totalAmount || !Number.isFinite(totalAmount) || totalAmount <= 0) {
-      console.error('OnchainKit payment validation failed:', { ticketCount, ticketPrice, totalAmount });
-      setErrorMessage("Invalid payment amount. Please select tickets first.");
-      return;
-    }
-
-    setOnchainKitLoading(true);
-    setPaymentMethod('onchainkit');
-    setPaymentStep('onchainkit-processing');
-    setShowInitialPayment(false);
-    // Store tickets before payment in case they get cleared
-    setPurchasedTickets([...selectedTickets]);
-  };
-
-  // OnchainKit Checkout chargeHandler for Other Crypto - creates a charge and returns the chargeId
-  const handleOtherCryptoChargeCreate = useCallback(async (): Promise<string> => {
-    console.log('[PaymentModal] handleOtherCryptoChargeCreate called');
-    if (!baseUser?.id) {
-      console.error('[PaymentModal] No baseUser.id available');
-      throw new Error('Please login first');
-    }
-
-    const totalAmount = ticketCount * ticketPrice;
-    if (!totalAmount || !Number.isFinite(totalAmount) || totalAmount <= 0) {
-      console.error('Other Crypto invalid amount:', { ticketCount, ticketPrice, totalAmount });
-      throw new Error(`Invalid amount: ticketCount=${ticketCount}, ticketPrice=${ticketPrice}`);
-    }
-
-    console.log('[PaymentModal] Creating Other Crypto charge with:', {
-      userId: baseUser.id,
-      competitionId,
-      ticketPrice,
-      ticketCount,
-      selectedTickets,
-      reservationId,
-    });
-
-    try {
-      // Use the same OnchainKitCheckoutService but flag as other crypto
-      const result = await OnchainKitCheckoutService.createEntryCharge(
-        baseUser.id,
-        competitionId,
-        ticketPrice,
-        ticketCount,
-        selectedTickets,
-        reservationId,
-      );
-
-      console.log('[PaymentModal] Other Crypto charge created successfully:', result);
-
-      // Link reservation if exists
-      if (reservationId && result.transactionId) {
-        await OnchainKitCheckoutService.linkReservation(reservationId, result.transactionId);
-      }
-
-      // Store transaction ID for status tracking
-      setOtherCryptoTransactionId(result.transactionId);
-      setOtherCryptoChargeId(result.chargeId);
-
-      return result.chargeId;
-    } catch (error) {
-      console.error('Other Crypto charge creation error:', error);
-      throw error;
-    }
-  }, [baseUser?.id, competitionId, ticketPrice, ticketCount, selectedTickets, reservationId]);
-
-  // OnchainKit Checkout status handler for Other Crypto
-  // CRITICAL FIX: Do NOT create entries directly from frontend callback
-  // The commerce-webhook will handle entry creation after verifying payment on the blockchain
-  // This prevents creating entries without actual payment confirmation
-  const handleOtherCryptoStatus = useCallback(async (status: LifecycleStatus) => {
-    console.log('Other Crypto checkout status:', status);
-
-    try {
-      if (status.statusName === 'success') {
-        // Payment submitted successfully - but NOT confirmed yet
-        // The webhook will create the entry after payment is verified on-chain
-        console.log('[PaymentModal] Other Crypto payment submitted, waiting for webhook confirmation');
-
-        // Update transaction status to indicate payment is processing
-        if (otherCryptoTransactionId) {
-          try {
-            await OnchainKitCheckoutService.updateTransactionOnComplete(
-              otherCryptoTransactionId,
-              status.statusData?.chargeId || '',
-              'pending' // Mark as pending, NOT success - webhook will confirm
-            );
-          } catch (updateErr) {
-            console.error('[PaymentModal] Failed to update transaction status:', updateErr);
-            // Continue anyway - the webhook will still process the payment
-          }
-        }
-
-        // REMOVED: Do NOT call confirmTicketsUnified here
-        // The commerce-webhook will create entries after verifying payment
-        // This prevents creating entries without actual verified payment
-        // Previous code was creating entries based on frontend callback which could be spoofed
-
-        // Show success state but with a note about confirmation
-        setPaymentStep('success');
-
-        // Refresh user data - entries will appear once webhook processes
-        try {
-          await refreshUserData();
-        } catch (refreshErr) {
-          console.error('[PaymentModal] Failed to refresh user data:', refreshErr);
-          // Non-fatal - user can refresh manually
-        }
-
-        // Call success callback
-        if (onPaymentSuccess) {
-          try {
-            onPaymentSuccess();
-          } catch (callbackErr) {
-            console.error('[PaymentModal] onPaymentSuccess callback error:', callbackErr);
-          }
-        }
-      } else if (status.statusName === 'error') {
-        console.error('Other Crypto payment error:', status.statusData);
-        const errorMessage = String(status.statusData?.error || status.statusData?.message || '');
-        // Use setPaymentError to provide proper error context and guidance
-        setPaymentError(
-          { message: errorMessage },
-          errorMessage || 'Payment could not be completed. Please try again.'
-        );
-      }
-    } catch (err) {
-      console.error('[PaymentModal] Unhandled error in Other Crypto status handler:', err);
-      // Don't change step to error here since the payment may have succeeded
-      // but just the post-payment processing failed
-    }
-  }, [otherCryptoTransactionId, refreshUserData, onPaymentSuccess]);
-
-  // Handle Other Crypto payment button click - shows the crypto selection step first
-  const handleOtherCryptoPayment = () => {
-    setErrorMessage(null);
-    if (!baseUser?.id) {
-      setErrorMessage("Please log in to continue with your purchase.");
-      return;
-    }
-
-    // CRITICAL FIX: Block payment if reservation has expired
-    if (reservationExpired) {
-      setErrorMessage("Your ticket reservation has expired. Please close this dialog and select your tickets again.");
-      return;
-    }
-
-    const totalAmount = ticketCount * ticketPrice;
-    if (!totalAmount || !Number.isFinite(totalAmount) || totalAmount <= 0) {
-      console.error('Other Crypto payment validation failed:', { ticketCount, ticketPrice, totalAmount });
-      setErrorMessage("Invalid payment amount. Please select tickets first.");
-      return;
-    }
-
-    // Show crypto selection step first (NEW: differentiated flow)
-    setPaymentMethod('othercrypto');
-    setPaymentStep('crypto-selection');
-    setShowInitialPayment(false);
-    setSelectedCrypto(null);
-  };
-
-  // Handle crypto selection - proceed to OnchainKit checkout after selecting a crypto
-  const handleCryptoSelect = (cryptoId: CryptoOption) => {
-    setSelectedCrypto(cryptoId);
-    setOtherCryptoLoading(true);
-    setPaymentStep('othercrypto-processing');
-    // Store tickets before payment in case they get cleared
-    setPurchasedTickets([...selectedTickets]);
-  };
+  // OnchainKit Checkout handlers removed - was causing "invalid argument - Not found" errors
+  // Users should use "Pay With Balance" or "Pay With Base Account" instead
 
   // Handle Card Payment - redirects to Coinbase Commerce checkout
   // Uses the same flow as Commerce Payment since Coinbase Commerce supports card payments
@@ -1457,7 +1114,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     }
   };
 
-  const modalWidth = paymentStep === 'checkout' || paymentStep === 'base-processing' || paymentStep === 'base-account-processing' || paymentStep === 'onchainkit-processing' || paymentStep === 'crypto-selection' || paymentStep === 'othercrypto-processing' || paymentStep === 'commerce-checkout' ? 'max-w-2xl' : (hasPaymentParams ? 'max-w-xl' : 'max-w-2xl');
+  // Modal width adjusted - removed onchainkit-processing, crypto-selection, othercrypto-processing
+  const modalWidth = paymentStep === 'checkout' || paymentStep === 'base-processing' || paymentStep === 'base-account-processing' || paymentStep === 'commerce-checkout' ? 'max-w-2xl' : (hasPaymentParams ? 'max-w-xl' : 'max-w-2xl');
 
   const handleReturn = () => {
     if (hasPaymentParams) {
@@ -1469,14 +1127,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     setInvoiceId('');
     setBaseTransactionId('');
     setBalanceTransactionId('');
-    setOnchainKitTransactionId('');
-    setOnchainKitChargeId('');
-    setOnchainKitLoading(false);
-    setOtherCryptoTransactionId('');
-    setOtherCryptoChargeId('');
-    setOtherCryptoLoading(false);
-    // Reset crypto selection state
-    setSelectedCrypto(null);
+    // OnchainKit state reset removed - checkout disabled
     // Reset card payment state
     setCardLoading(false);
     // Reset commerce checkout state (used for both card and crypto commerce payments)
@@ -1535,9 +1186,6 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
              paymentStep === 'base-processing' ? 'Processing Base Payment' :
              paymentStep === 'base-account-processing' ? 'Processing Base Payment' :
              paymentStep === 'balance-processing' ? 'Processing Balance Payment' :
-             paymentStep === 'onchainkit-processing' ? 'Complete Wallet Payment' :
-             paymentStep === 'crypto-selection' ? 'Select Cryptocurrency' :
-             paymentStep === 'othercrypto-processing' ? 'Complete Crypto Payment' :
              paymentStep === 'commerce-checkout' ? 'Complete Payment' :
              paymentStep === 'success' ? (textOverrides?.successMessage || 'Payment Successful') :
              hasPaymentParams ? 'Payment Status' : (textOverrides?.modalTitle || 'Complete Payment')}
@@ -1649,25 +1297,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                   );
                 })()}
 
-                {/* B. Pay With Wallet - Powered by Coinbase Commerce */}
-                {authenticated && (
-                  <button
-                    onClick={handleOnchainKitPayment}
-                    disabled={onchainKitLoading}
-                    className="w-full h-[72px] flex items-center justify-between px-4 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
-                        <Wallet className="text-white" size={22} />
-                      </div>
-                      <div className="text-left">
-                        <p className="text-white sequel-75 text-sm uppercase">Pay With Wallet</p>
-                        <p className="text-white/80 sequel-45 text-xs">Powered by Coinbase Commerce</p>
-                      </div>
-                    </div>
-                    <ChevronRight size={20} className="text-white" />
-                  </button>
-                )}
+                {/* B. Pay With Wallet - DISABLED: OnchainKit checkout removed due to contract fetching errors */}
+                {/* Users should use "Pay With Balance" or "Pay With Base Account" instead */}
 
                 {/* C. Pay With Your Base Account */}
                 {authenticated && (
@@ -1788,197 +1419,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
             </div>
           )}
 
-          {/* OnchainKit Checkout Processing */}
-          {paymentStep === 'onchainkit-processing' && (
-            <div className="space-y-4">
-              <p className="text-white/60 sequel-45 text-sm text-center">
-                {ticketCount} {ticketCount > 1 ? 'entries' : 'entry'} • ${amount.toFixed(2)} USD
-              </p>
-
-              <div className="bg-[#1A1A1A] rounded-lg p-6">
-                <p className="text-purple-300 sequel-45 text-sm text-center mb-4">
-                  Complete your payment using your connected wallet
-                </p>
-                <div className="flex justify-center">
-                  <Checkout
-                    chargeHandler={handleOnchainKitChargeCreate}
-                    onStatus={handleOnchainKitStatus}
-                  >
-                    <CheckoutButton
-                      coinbaseBranded
-                      className="w-full max-w-xs"
-                    />
-                    <CheckoutStatus />
-                  </Checkout>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-center gap-2 text-purple-400 text-xs sequel-45">
-                <div className="animate-pulse w-2 h-2 bg-purple-500 rounded-full"></div>
-                <span>Complete payment in wallet popup</span>
-              </div>
-
-              <p className="text-gray-500 text-xs sequel-45 text-center">
-                Supports MetaMask, Coinbase Wallet, and other EVM wallets on Base network.
-              </p>
-
-              <button
-                onClick={handleReturn}
-                className="w-full bg-transparent border border-white/20 uppercase text-sm text-white/60 sequel-45 hover:bg-white/5 hover:text-white hover:border-white/40 px-6 py-3 cursor-pointer rounded-xl transition-all duration-200"
-              >
-                Cancel
-              </button>
-            </div>
-          )}
-
-          {/* Crypto Selection Step - Choose which cryptocurrency to pay with */}
-          {paymentStep === 'crypto-selection' && (
-            <div className="space-y-5">
-              {/* Back button and summary */}
-              <div className="flex items-center justify-between">
-                <button
-                  onClick={handleReturn}
-                  className="flex items-center gap-2 text-white/60 hover:text-white transition-colors"
-                >
-                  <ArrowLeft size={18} />
-                  <span className="sequel-45 text-sm">Back</span>
-                </button>
-                <div className="text-right">
-                  <p className="text-white/60 sequel-45 text-xs">{textOverrides?.totalLabel || 'Total'}</p>
-                  <p className="text-[#DDE404] sequel-75">${amount.toFixed(2)}</p>
-                </div>
-              </div>
-
-              {/* Instruction */}
-              <div className="text-center">
-                <p className="text-white sequel-75 text-lg mb-1">Choose Your Cryptocurrency</p>
-                <p className="text-white/50 sequel-45 text-sm">Select the cryptocurrency you'd like to pay with</p>
-              </div>
-
-              {/* Crypto Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {CRYPTO_OPTIONS.map((crypto) => (
-                  <button
-                    key={crypto.id}
-                    onClick={() => handleCryptoSelect(crypto.id)}
-                    className="group relative overflow-hidden rounded-xl p-4 border border-white/10 hover:border-white/30 bg-gradient-to-br from-gray-800/50 to-gray-900/50 hover:from-gray-700/50 hover:to-gray-800/50 transition-all duration-300"
-                  >
-                    {/* Glow effect on hover */}
-                    <div
-                      className="absolute inset-0 opacity-0 group-hover:opacity-20 transition-opacity duration-300 blur-xl"
-                      style={{ backgroundColor: crypto.color }}
-                    ></div>
-
-                    <div className="relative flex flex-col items-center gap-2">
-                      {/* Crypto Icon */}
-                      <div
-                        className="w-12 h-12 rounded-full flex items-center justify-center text-2xl"
-                        style={{
-                          backgroundColor: `${crypto.color}20`,
-                          color: crypto.color
-                        }}
-                      >
-                        {crypto.icon}
-                      </div>
-
-                      {/* Crypto Name */}
-                      <div className="text-center">
-                        <p className="text-white sequel-75 text-sm">{crypto.name}</p>
-                        <p className="text-white/40 sequel-45 text-xs">{crypto.symbol}</p>
-                      </div>
-                    </div>
-
-                    {/* Selection Arrow */}
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <ChevronRight size={16} className="text-white/50" />
-                    </div>
-                  </button>
-                ))}
-              </div>
-
-              {/* Info text */}
-              <div className="bg-orange-500/5 border border-orange-500/20 rounded-lg px-4 py-3">
-                <p className="text-orange-300/70 text-xs sequel-45 text-center">
-                  All cryptocurrencies are converted to USD at current market rates. Payment is processed securely via Coinbase Commerce.
-                </p>
-              </div>
-
-              {/* Cancel button */}
-              <button
-                onClick={handleReturn}
-                className="w-full bg-transparent border border-white/20 uppercase text-sm text-white/60 sequel-45 hover:bg-white/5 hover:text-white hover:border-white/40 px-6 py-3 cursor-pointer rounded-xl transition-all duration-200"
-              >
-                Cancel
-              </button>
-            </div>
-          )}
-
-          {/* Other Crypto Checkout Processing - In-app modal for BTC, ETH, and other cryptos */}
-          {paymentStep === 'othercrypto-processing' && (
-            <div className="space-y-4">
-              {/* Show selected cryptocurrency if available */}
-              {selectedCrypto && (
-                <div className="flex items-center justify-center gap-3 py-2">
-                  <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-lg"
-                    style={{
-                      backgroundColor: `${CRYPTO_OPTIONS.find(c => c.id === selectedCrypto)?.color}20`,
-                      color: CRYPTO_OPTIONS.find(c => c.id === selectedCrypto)?.color
-                    }}
-                  >
-                    {CRYPTO_OPTIONS.find(c => c.id === selectedCrypto)?.icon}
-                  </div>
-                  <div>
-                    <p className="text-white sequel-75 text-sm">
-                      Paying with {CRYPTO_OPTIONS.find(c => c.id === selectedCrypto)?.name}
-                    </p>
-                    <p className="text-white/60 sequel-45 text-xs">
-                      {ticketCount} {ticketCount > 1 ? 'entries' : 'entry'} • ${amount.toFixed(2)} USD
-                    </p>
-                  </div>
-                </div>
-              )}
-              {!selectedCrypto && (
-                <p className="text-white/60 sequel-45 text-sm text-center">
-                  {ticketCount} {ticketCount > 1 ? 'entries' : 'entry'} • ${amount.toFixed(2)} USD
-                </p>
-              )}
-
-              <div className="bg-[#1A1A1A] rounded-lg p-6">
-                <p className="text-orange-300 sequel-45 text-sm text-center mb-4">
-                  Pay with Bitcoin, Ethereum, or other cryptocurrencies
-                </p>
-                <div className="flex justify-center">
-                  <Checkout
-                    chargeHandler={handleOtherCryptoChargeCreate}
-                    onStatus={handleOtherCryptoStatus}
-                  >
-                    <CheckoutButton
-                      coinbaseBranded
-                      className="w-full max-w-xs"
-                    />
-                    <CheckoutStatus />
-                  </Checkout>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-center gap-2 text-orange-400 text-xs sequel-45">
-                <div className="animate-pulse w-2 h-2 bg-orange-500 rounded-full"></div>
-                <span>Complete payment in checkout popup</span>
-              </div>
-
-              <p className="text-gray-500 text-xs sequel-45 text-center">
-                Supports Bitcoin, Ethereum, Litecoin, Dogecoin, and 60+ cryptocurrencies.
-              </p>
-
-              <button
-                onClick={handleReturn}
-                className="w-full bg-transparent border border-white/20 uppercase text-sm text-white/60 sequel-45 hover:bg-white/5 hover:text-white hover:border-white/40 px-6 py-3 cursor-pointer rounded-xl transition-all duration-200"
-              >
-                Cancel
-              </button>
-            </div>
-          )}
+          {/* OnchainKit Checkout sections removed - was causing "invalid argument - Not found" errors */}
+          {/* Users should use "Pay With Balance" or "Pay With Base Account" instead */}
 
           {/* Note: Card payments now use the commerce-checkout flow below, which supports card/Apple Pay via Coinbase Commerce */}
 
@@ -2012,7 +1454,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
               <div className="flex items-center justify-center gap-3 text-xs sequel-45 mt-3">
                 <div className="flex items-center gap-1 text-gray-400">
-                  <Wallet size={14} />
+                  <Coins size={14} />
                   <span>Coinbase Account</span>
                 </div>
                 <span className="text-white/30">•</span>
@@ -2076,11 +1518,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
               )}
 
               {/* Proof of Purchase Reference */}
-              {(baseTransactionId || balanceTransactionId || onchainKitTransactionId) && (
+              {(baseTransactionId || balanceTransactionId) && (
                 <div className="bg-[#1A1A1A] rounded-lg p-4 mb-4 max-w-md mx-auto">
                   <p className="text-white/60 sequel-45 text-xs mb-1">Proof of Purchase Reference:</p>
                   <p className="text-[#DDE404] sequel-75 text-sm font-mono break-all">
-                    {baseTransactionId || balanceTransactionId || onchainKitTransactionId}
+                    {baseTransactionId || balanceTransactionId}
                   </p>
                 </div>
               )}
