@@ -96,7 +96,43 @@ async function callCreateCharge(body: Record<string, unknown>): Promise<ChargeRe
     throw new Error(errorMessage);
   }
 
-  return responseData;
+  // Normalize the response to handle different response formats
+  // Some deployments return data wrapped in a 'data' object, others return flat structure
+  // Some use camelCase (chargeId), others use snake_case (charge_id)
+  const rawData = responseData.data || responseData;
+  const normalizedData: Record<string, unknown> = {};
+
+  console.log('[CoinbaseCommerce] callCreateCharge raw response:', JSON.stringify(responseData));
+  console.log('[CoinbaseCommerce] callCreateCharge rawData for normalization:', JSON.stringify(rawData));
+
+  // Handle chargeId/charge_id - check both the rawData and the top-level responseData
+  // in case the response has a flat structure without nesting
+  normalizedData.chargeId = (rawData as any).chargeId ||
+                            (rawData as any).charge_id ||
+                            (responseData as any).chargeId ||
+                            (responseData as any).charge_id;
+  // Handle transactionId/transaction_id
+  normalizedData.transactionId = (rawData as any).transactionId ||
+                                  (rawData as any).transaction_id ||
+                                  (responseData as any).transactionId ||
+                                  (responseData as any).transaction_id;
+  // Handle chargeCode/charge_code
+  normalizedData.chargeCode = (rawData as any).chargeCode ||
+                              (rawData as any).charge_code ||
+                              (responseData as any).chargeCode ||
+                              (responseData as any).charge_code;
+  // Handle checkoutUrl/checkout_url
+  normalizedData.checkoutUrl = (rawData as any).checkoutUrl ||
+                                (rawData as any).checkout_url ||
+                                (responseData as any).checkoutUrl ||
+                                (responseData as any).checkout_url;
+
+  console.log('[CoinbaseCommerce] callCreateCharge normalized data:', JSON.stringify(normalizedData));
+
+  return {
+    ...responseData,
+    data: normalizedData,
+  };
 }
 
 export class CoinbaseCommerceService {
