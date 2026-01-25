@@ -431,13 +431,14 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
       console.log('[TopUpWalletModal] Starting Base Account top-up flow');
 
       // Create transaction record
+      const canonicalUserId = toCanonicalUserId(baseUser.id);
       const { data: newTx, error: txError } = await supabase
         .from('user_transactions')
         .insert({
-          user_id: toCanonicalUserId(baseUser.id),
+          user_id: canonicalUserId,
+          canonical_user_id: canonicalUserId,
           amount: amount,
           currency: 'USD',
-          payment_method: 'base_account',
           payment_provider: 'base_account',
           status: 'pending',
           type: 'topup',
