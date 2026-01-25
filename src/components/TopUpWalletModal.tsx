@@ -453,7 +453,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
           errorDetails: txError?.details,
           errorHint: txError?.hint,
           errorCode: txError?.code,
-          userId: toCanonicalUserId(baseUser.id),
+          userId: canonicalUserId,
           amount,
         });
         throw new Error(`Failed to create transaction record: ${txError?.message || 'Unknown error'}`);
