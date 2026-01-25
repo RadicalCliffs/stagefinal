@@ -172,7 +172,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
       
       try {
         const transactions = await database.getUserTransactions(baseUser.id);
-        setTopUps(transactions.filter(t => t.transaction_type === 'topup'));
+        setTopUps(transactions.filter((t: any) => t.transaction_type === 'topup'));
       } catch (err) {
         console.error('Error fetching top-ups:', err);
       }

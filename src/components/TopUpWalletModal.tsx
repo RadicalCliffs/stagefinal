@@ -489,19 +489,19 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
 
       console.log('[TopUpWalletModal] Calling Base Account SDK pay():', paymentOptions);
 
-      const paymentResult: PaymentResult = await pay(paymentOptions);
+      const paymentResult = await pay(paymentOptions);
 
       console.log('[TopUpWalletModal] Base Account payment result:', paymentResult);
 
-      if (!paymentResult.success) {
-        throw new Error(paymentResult.error || 'Payment failed');
+      if (!(paymentResult as any).success) {
+        throw new Error((paymentResult as any).error || 'Payment failed');
       }
 
       // Update transaction with payment hash
       await supabase
         .from('user_transactions')
         .update({
-          tx_hash: paymentResult.transactionHash,
+          tx_hash: (paymentResult as any).transactionHash,
           status: 'completed',
           payment_status: 'confirmed',
           wallet_credited: true,
@@ -517,7 +517,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
           p_canonical_user_id: toCanonicalUserId(baseUser.id),
           p_amount: amount,
           p_reason: 'base_account_topup',
-          p_reference_id: paymentResult.transactionHash || txId,
+          p_reference_id: (paymentResult as any).transactionHash || txId,
         }
       );
 

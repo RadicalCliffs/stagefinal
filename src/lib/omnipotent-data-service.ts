@@ -480,7 +480,7 @@ class OmnipotentDataService {
           pendingData.forEach(row => {
             const isExpired = row.expires_at && new Date(row.expires_at) < now;
             if (!isExpired && Array.isArray(row.ticket_numbers)) {
-              row.ticket_numbers.forEach(num => unavailableSet.add(num));
+              row.ticket_numbers.forEach((num: any) => unavailableSet.add(num));
             }
           });
         }
