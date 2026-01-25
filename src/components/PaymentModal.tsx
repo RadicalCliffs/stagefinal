@@ -1004,7 +1004,9 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
   // OnchainKit Checkout chargeHandler - creates a charge and returns the chargeId
   const handleOnchainKitChargeCreate = useCallback(async (): Promise<string> => {
+    console.log('[PaymentModal] handleOnchainKitChargeCreate called');
     if (!baseUser?.id) {
+      console.error('[PaymentModal] No baseUser.id available');
       throw new Error('Please login first');
     }
 
@@ -1013,6 +1015,15 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       console.error('OnchainKit invalid amount:', { ticketCount, ticketPrice, totalAmount });
       throw new Error(`Invalid amount: ticketCount=${ticketCount}, ticketPrice=${ticketPrice}`);
     }
+
+    console.log('[PaymentModal] Creating charge with:', {
+      userId: baseUser.id,
+      competitionId,
+      ticketPrice,
+      ticketCount,
+      selectedTickets,
+      reservationId,
+    });
 
     try {
       const result = await OnchainKitCheckoutService.createEntryCharge(
@@ -1023,6 +1034,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         selectedTickets,
         reservationId,
       );
+
+      console.log('[PaymentModal] Charge created successfully:', result);
 
       // Link reservation if exists
       if (reservationId && result.transactionId) {
@@ -1165,7 +1178,9 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
   // OnchainKit Checkout chargeHandler for Other Crypto - creates a charge and returns the chargeId
   const handleOtherCryptoChargeCreate = useCallback(async (): Promise<string> => {
+    console.log('[PaymentModal] handleOtherCryptoChargeCreate called');
     if (!baseUser?.id) {
+      console.error('[PaymentModal] No baseUser.id available');
       throw new Error('Please login first');
     }
 
@@ -1174,6 +1189,15 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       console.error('Other Crypto invalid amount:', { ticketCount, ticketPrice, totalAmount });
       throw new Error(`Invalid amount: ticketCount=${ticketCount}, ticketPrice=${ticketPrice}`);
     }
+
+    console.log('[PaymentModal] Creating Other Crypto charge with:', {
+      userId: baseUser.id,
+      competitionId,
+      ticketPrice,
+      ticketCount,
+      selectedTickets,
+      reservationId,
+    });
 
     try {
       // Use the same OnchainKitCheckoutService but flag as other crypto
@@ -1185,6 +1209,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         selectedTickets,
         reservationId,
       );
+
+      console.log('[PaymentModal] Other Crypto charge created successfully:', result);
 
       // Link reservation if exists
       if (reservationId && result.transactionId) {
