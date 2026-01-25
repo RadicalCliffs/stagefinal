@@ -468,9 +468,10 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
       const isTestnet = import.meta.env.VITE_BASE_MAINNET !== 'true';
 
       // Process payment via Base Account SDK
+      // CRITICAL FIX: amount must be a string, not a number
       const paymentOptions: PaymentOptions = {
         recipient: treasuryAddress,
-        amount: amount,
+        amount: String(amount),
         isTestnet,
       };
 
@@ -821,9 +822,9 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
               <button
                 onClick={handleMethodContinue}
                 disabled={!paymentMethod}
-                className="w-full py-3 px-6 bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.01] active:scale-[0.99] text-sm"
+                className="w-full h-[56px] flex items-center justify-center px-6 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
               >
-                Next
+                <span className="text-white sequel-75 text-sm uppercase">Next</span>
               </button>
             </div>
           )}
@@ -877,7 +878,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                           onClick={() => handleAmountSelect(presetAmount)}
                           className={`py-3 px-4 rounded-lg sequel-75 transition-all ${
                             amount === presetAmount
-                              ? 'bg-blue-500 text-white'
+                              ? 'bg-[#DDE404] text-black'
                               : 'bg-[#3A3A3A] text-white hover:bg-[#4A4A4A]'
                           }`}
                         >
@@ -885,8 +886,8 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                         </button>
                       ))}
                     </div>
-                    <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
-                      <p className="text-blue-400 text-xs sequel-45">
+                    <div className="bg-[#0052FF]/10 border border-[#0052FF]/30 rounded-lg p-3">
+                      <p className="text-[#0052FF] text-xs sequel-45">
                         Quick Coinbase funding
                       </p>
                     </div>
@@ -901,7 +902,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                           onClick={() => handleAmountSelect(presetAmount)}
                           className={`py-3 px-4 rounded-lg sequel-75 transition-all ${
                             amount === presetAmount
-                              ? paymentMethod === 'crypto' ? 'bg-orange-500 text-white' : 'bg-violet-500 text-white'
+                              ? 'bg-[#DDE404] text-black'
                               : 'bg-[#3A3A3A] text-white hover:bg-[#4A4A4A]'
                           }`}
                         >
@@ -926,16 +927,13 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                   (paymentMethod === 'instant' && amount > walletUsdcBalance) ||
                   ((paymentMethod === 'crypto' || paymentMethod === 'commerce') && !TOP_UP_CHECKOUT_URLS[amount])
                 }
-                className={`w-full py-4 px-6 sequel-75 uppercase rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg hover:scale-[1.01] active:scale-[0.99] text-sm ${
-                  paymentMethod === 'fund' ? 'bg-gradient-to-r from-[#0052FF] to-[#00D4FF] hover:from-[#0066FF] hover:to-[#00E5FF] text-white shadow-[#0052FF]/20 hover:shadow-[#00D4FF]/30' :
-                  paymentMethod === 'crypto' ? 'bg-gradient-to-r from-[#0052FF] to-[#00D4FF] hover:from-[#0066FF] hover:to-[#00E5FF] text-white shadow-[#0052FF]/20 hover:shadow-[#00D4FF]/30' :
-                  paymentMethod === 'commerce' ? 'bg-gradient-to-r from-[#0052FF] to-[#00D4FF] hover:from-[#0066FF] hover:to-[#00E5FF] text-white shadow-[#0052FF]/20 hover:shadow-[#00D4FF]/30' :
-                  'bg-gradient-to-r from-[#0052FF] to-[#00D4FF] hover:from-[#0066FF] hover:to-[#00E5FF] text-white shadow-[#0052FF]/20 hover:shadow-[#00D4FF]/30'
-                }`}
+                className="w-full h-[56px] flex items-center justify-center px-6 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
               >
-                {paymentMethod === 'offramp'
-                  ? 'Cash Out'
-                  : `Top Up $${amount}`}
+                <span className="text-white sequel-75 text-sm uppercase">
+                  {paymentMethod === 'offramp'
+                    ? 'Cash Out'
+                    : `Top Up $${amount}`}
+                </span>
               </button>
             </div>
           )}
@@ -1026,9 +1024,9 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                     refreshUserData();
                     onSuccess?.();
                   }}
-                  className="w-full py-4 px-6 bg-gradient-to-r from-[#0052FF] to-[#00D4FF] hover:from-[#0066FF] hover:to-[#00E5FF] text-white sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#0052FF]/20 hover:shadow-[#00D4FF]/30 hover:scale-[1.01] active:scale-[0.99]"
+                  className="w-full h-[56px] flex items-center justify-center px-6 bg-[#0052FF] rounded-xl transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
                 >
-                  Top Up Complete
+                  <span className="text-white sequel-75 text-sm uppercase">Top Up Complete</span>
                 </button>
                 <p className="text-gray-400 text-xs sequel-45 text-center mt-2">
                   Click once your funding is complete
@@ -1102,10 +1100,10 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                   href={checkoutUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 py-4 px-10 bg-gradient-to-r from-[#0052FF] to-[#00D4FF] hover:from-[#0066FF] hover:to-[#00E5FF] text-white sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#0052FF]/30 hover:shadow-[#00D4FF]/40 hover:scale-[1.02] active:scale-[0.98]"
+                  className="inline-flex items-center justify-center gap-2 h-[56px] px-10 bg-[#0052FF] text-white sequel-75 uppercase rounded-xl transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
                 >
                   <ExternalLink size={18} />
-                  Top Up via Coinbase
+                  <span className="text-sm">Top Up via Coinbase</span>
                 </a>
               </div>
 
@@ -1134,9 +1132,9 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
               <div className="border-t border-gray-700 pt-4 mt-4">
                 <button
                   onClick={onClose}
-                  className="w-full py-4 px-6 bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.01] active:scale-[0.99]"
+                  className="w-full h-[56px] flex items-center justify-center px-6 bg-[#0052FF] rounded-xl transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
                 >
-                  Head Back to Site
+                  <span className="text-white sequel-75 text-sm uppercase">Head Back to Site</span>
                 </button>
                 <p className="text-gray-400 text-xs sequel-45 text-center mt-2">
                   (transactions can take up to 30 seconds, don't worry, it's coming!)
@@ -1187,10 +1185,10 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                   href={checkoutUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 py-4 px-10 bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98]"
+                  className="inline-flex items-center justify-center gap-2 h-[56px] px-10 bg-[#0052FF] text-white sequel-75 uppercase rounded-xl transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
                 >
                   <ExternalLink size={18} />
-                  Complete Cash Out
+                  <span className="text-sm">Complete Cash Out</span>
                 </a>
               </div>
 
@@ -1216,9 +1214,9 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
               <p className="text-gray-400 sequel-45 mb-6">Your balance has been updated.</p>
               <button
                 onClick={onClose}
-                className="py-4 px-10 bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98] text-base"
+                className="h-[56px] px-10 flex items-center justify-center mx-auto bg-[#0052FF] rounded-xl transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
               >
-                Done
+                <span className="text-white sequel-75 text-base uppercase">Done</span>
               </button>
             </div>
           )}
@@ -1234,9 +1232,9 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
               <p className="text-gray-400 sequel-45 mb-6">{error || 'Something went wrong. Please try again.'}</p>
               <button
                 onClick={() => setStep('method')}
-                className="py-4 px-10 bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98] text-base"
+                className="h-[56px] px-10 flex items-center justify-center mx-auto bg-[#0052FF] rounded-xl transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
               >
-                Try Again
+                <span className="text-white sequel-75 text-base uppercase">Try Again</span>
               </button>
             </div>
           )}
