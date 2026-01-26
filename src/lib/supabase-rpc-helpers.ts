@@ -12,13 +12,14 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 /**
  * Get user's comprehensive dashboard entries
- * 
- * SQL Function: public.get_comprehensive_user_dashboard_entries(user_identifier TEXT)
- * 
+ *
+ * SQL Function: public.get_comprehensive_user_dashboard_entries(params jsonb)
+ * Uses jsonb params to support both user_identifier and userId keys
+ *
  * @param supabaseClient - Supabase client instance
  * @param canonicalId - User identifier (prize:pid:0x..., 0x wallet, canonical_user_id, or privy_user_id)
  * @returns Promise with RPC result containing user entries
- * 
+ *
  * @example
  * const { data, error } = await getDashboardEntries(supabase, 'prize:pid:0x2137af5047526a1180...');
  */
@@ -29,9 +30,10 @@ export const getDashboardEntries = (
   if (!canonicalId || typeof canonicalId !== 'string' || canonicalId.trim() === '') {
     throw new Error('canonicalId is required for getDashboardEntries');
   }
-  
+
+  // Use params jsonb signature with user_identifier key
   return supabaseClient.rpc('get_comprehensive_user_dashboard_entries', {
-    user_identifier: canonicalId
+    params: { user_identifier: canonicalId }
   });
 };
 
@@ -112,27 +114,43 @@ export const getUnavailableTickets = (
 
 /**
  * Get a user's entries for a specific competition (e.g., post-purchase confirmation)
- * 
- * SQL Function: public.get_user_competition_entries(p_user_identifier TEXT)
- * 
+ *
+ * SQL Function: public.get_user_competition_entries(p_canonical_user_id TEXT, p_competition_id UUID DEFAULT NULL)
+ *
+ * Returns: competition_id, tickets_count, amount_spent, latest_purchase_at, is_winner, ticket_numbers_csv
+ *
  * @param supabaseClient - Supabase client instance
  * @param canonicalId - User identifier (prize:pid:0x..., 0x wallet, canonical_user_id, or privy_user_id)
+ * @param competitionId - Optional competition UUID to filter results
  * @returns Promise with RPC result containing user's competition entries
- * 
+ *
  * @example
+ * // Get all entries for a user
  * const { data, error } = await getUserCompetitionEntries(supabase, 'prize:pid:0x2137af5047526a1180...');
+ *
+ * @example
+ * // Get entries for a specific competition
+ * const { data, error } = await getUserCompetitionEntries(supabase, 'prize:pid:0x2137af5047526a1180...', '88f3467c-747e-4231-bb2e-1869e227bb85');
  */
 export const getUserCompetitionEntries = (
   supabaseClient: SupabaseClient,
-  canonicalId: string
+  canonicalId: string,
+  competitionId?: string
 ) => {
   if (!canonicalId || typeof canonicalId !== 'string' || canonicalId.trim() === '') {
     throw new Error('canonicalId is required for getUserCompetitionEntries');
   }
-  
-  return supabaseClient.rpc('get_user_competition_entries', {
-    p_user_identifier: canonicalId
-  });
+
+  // Build params object - always include p_canonical_user_id, optionally include p_competition_id
+  const params: { p_canonical_user_id: string; p_competition_id?: string } = {
+    p_canonical_user_id: canonicalId
+  };
+
+  if (competitionId && typeof competitionId === 'string' && competitionId.trim() !== '') {
+    params.p_competition_id = competitionId;
+  }
+
+  return supabaseClient.rpc('get_user_competition_entries', params);
 };
 
 /**

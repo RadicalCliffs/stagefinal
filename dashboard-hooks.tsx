@@ -36,8 +36,9 @@ const supabase = createClient(
 // RPC function to fetch user entries
 export const fetchUserEntries = async (userIdentifier: string): Promise<DashboardEntry[]> => {
   try {
+    // Use params jsonb signature: { params: { user_identifier: '...' } }
     const { data, error } = await supabase.rpc('get_comprehensive_user_dashboard_entries', {
-      user_identifier: userIdentifier
+      params: { user_identifier: userIdentifier }
     });
 
     if (error) {

@@ -200,23 +200,26 @@ RETURNS TABLE (
 
 **Usage:**
 ```typescript
+// Get all entries for a user
 const { data, error } = await supabase.rpc('get_user_competition_entries', {
-  p_user_identifier: 'prize:pid:0x1234...'
+  p_canonical_user_id: 'prize:pid:0x1234...'
+});
+
+// Get entries for a specific competition
+const { data, error } = await supabase.rpc('get_user_competition_entries', {
+  p_canonical_user_id: 'prize:pid:0x1234...',
+  p_competition_id: '88f3467c-747e-4231-bb2e-1869e227bb85'
 });
 
 // Returns:
 // [
 //   {
-//     entry_id: 'uuid-1',
 //     competition_id: 'comp-uuid-1',
-//     competition_title: 'Win a Tesla',
-//     ticket_count: 5,
-//     ticket_numbers: '1,5,10,42,99',
+//     tickets_count: 5,
 //     amount_spent: 25.00,
-//     purchase_date: '2026-01-20T10:30:00Z',
-//     payment_method: 'balance',  // Shows this was paid with balance!
-//     transaction_hash: 'txn_789',
-//     is_winner: false
+//     latest_purchase_at: '2026-01-20T10:30:00Z',
+//     is_winner: false,
+//     ticket_numbers_csv: '1,5,10,42,99'
 //   },
 //   ...
 // ]
