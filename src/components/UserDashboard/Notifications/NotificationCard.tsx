@@ -101,9 +101,16 @@ const NotificationCard = ({ notification, onMarkAsRead, onDelete }: Notification
 
   // Format notification type for display
   const formatType = (type: UserNotification['type']) => {
-    return type.split('_').map(word => 
-      word.charAt(0).toUpperCase() + word.slice(1)
-    ).join(' ');
+    const typeMap: Record<UserNotification['type'], string> = {
+      'win': 'Win',
+      'special_offer': 'Special Offer',
+      'competition_ended': 'Competition Ended',
+      'announcement': 'Announcement',
+      'payment': 'Payment',
+      'topup': 'Top-Up',
+      'entry': 'Entry'
+    };
+    return typeMap[type] || type;
   };
 
   return (
@@ -160,10 +167,10 @@ const NotificationCard = ({ notification, onMarkAsRead, onDelete }: Notification
             </p>
 
             {/* Additional info for specific types */}
-            {notification.amount && (
+            {notification.amount !== undefined && notification.amount !== null && (
               <div className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 mb-3 inline-block">
                 <span className="text-[#DDE404] sequel-75 text-base">
-                  ${notification.amount.toFixed(2)}
+                  ${Number(notification.amount).toFixed(2)}
                 </span>
               </div>
             )}

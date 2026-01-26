@@ -28,7 +28,19 @@ const AccountAvatarSection = () => {
               onClick={() => setIsModalOpen(true)}
             />
             {/* Edit overlay on hover */}
-            <div className="absolute inset-0 bg-black/60 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer" onClick={() => setIsModalOpen(true)}>
+            <div 
+              className="absolute inset-0 bg-black/60 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer" 
+              onClick={() => setIsModalOpen(true)}
+              role="button"
+              tabIndex={0}
+              aria-label="Edit avatar"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setIsModalOpen(true);
+                }
+              }}
+            >
               <div className="flex flex-col items-center gap-1">
                 <Edit className="text-[#DDE404]" size={28} />
                 <span className="text-[#DDE404] sequel-75 text-xs uppercase">Edit</span>
