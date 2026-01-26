@@ -30,8 +30,7 @@ export interface UserCompetitionEntry {
  * Parameters for getUserCompetitionEntries helper function
  */
 export interface GetUserCompetitionEntriesParams {
-  canonicalUserId: string;
-  competitionId?: string | null;
+  userIdentifier: string;
 }
 
 /**

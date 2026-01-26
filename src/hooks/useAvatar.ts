@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { userDataService } from '../services/userDataService';
 import { useAuthUser } from '../contexts/AuthContext';
 import { toPrizePid } from '../utils/userId';
@@ -11,31 +11,42 @@ export function useAvatar() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
 
   // Get current user ID - supports both Base wallet addresses and legacy Privy DIDs
   // Converts to canonical prize:pid: format for consistent API calls
-  const getCurrentUserId = useCallback(() => {
-    if (!baseUser?.id) {
-      return null;
+  // FORCE ALLOW: Use multiple sources to ensure userId is available
+  const userId = useMemo(() => {
+    // Priority 1: baseUser.id (wallet address or DID)
+    if (baseUser?.id) {
+      return toPrizePid(baseUser.id);
     }
 
-    // The baseUser.id is the wallet address for Base auth, or DID for legacy Privy
-    // Convert to canonical format for consistent API usage
-    return toPrizePid(baseUser.id);
-  }, [baseUser?.id]);
+    // Priority 2: profile.canonical_user_id (already in canonical format)
+    if (profile?.canonical_user_id) {
+      return profile.canonical_user_id;
+    }
 
-  // Initialize user ID and avatar URL from profile
+    // Priority 3: profile.wallet_address
+    if (profile?.wallet_address) {
+      return toPrizePid(profile.wallet_address);
+    }
+
+    // Priority 4: profile.id (might be wallet address)
+    if (profile?.id && profile.id.startsWith('0x')) {
+      return toPrizePid(profile.id);
+    }
+
+    return null;
+  }, [baseUser?.id, profile?.canonical_user_id, profile?.wallet_address, profile?.id]);
+
+  // Update avatar URL from profile when it changes
   useEffect(() => {
-    const currentUserId = getCurrentUserId();
-    setUserId(currentUserId);
-
     // Set avatar URL from profile if available and cache it
     if (profile?.avatar_url) {
       setAvatarUrl(profile.avatar_url);
       userDataService.cacheAvatarUrl(profile.avatar_url);
     }
-  }, [getCurrentUserId, profile?.avatar_url]);
+  }, [profile?.avatar_url]);
 
   // Update avatar function
   const updateAvatar = useCallback(async (newAvatarUrl: string) => {

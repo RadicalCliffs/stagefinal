@@ -401,7 +401,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           // p_uid, p_canonical_user_id, p_email, p_username, p_wallet_address,
           // p_base_wallet_address, p_eth_wallet_address, p_privy_user_id,
           // p_first_name, p_last_name, p_telegram_handle, p_wallet_linked
-          const { error: rpcError } = await supabase.rpc('upsert_canonical_user', {
+          const { data: rpcData, error: rpcError } = await supabase.rpc('upsert_canonical_user', {
             p_uid: userProfile.uid || userProfile.id,
             p_canonical_user_id: canonicalUserId,
             p_email: effectiveEmail || null,
@@ -420,6 +420,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             console.warn('[AuthContext] upsert_canonical_user RPC warning:', rpcError);
           } else {
             console.log('[AuthContext] upsert_canonical_user RPC success');
+
+            // Send welcome email for new users
+            // The RPC returns { success: true, is_new_user: boolean, ... }
+            if (rpcData && typeof rpcData === 'object' && 'is_new_user' in rpcData && rpcData.is_new_user === true) {
+              console.log('[AuthContext] New user detected, sending welcome email');
+              const emailToSend = effectiveEmail || userProfile.email;
+              const usernameToSend = userProfile.username || 'Player';
+
+              if (emailToSend) {
+                try {
+                  const emailResponse = await fetch('/api/send-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      type: 'welcome',
+                      to: emailToSend,
+                      templateData: { username: usernameToSend },
+                    }),
+                  });
+
+                  if (emailResponse.ok) {
+                    console.log('[AuthContext] Welcome email sent successfully to:', emailToSend);
+                  } else {
+                    console.warn('[AuthContext] Welcome email failed:', await emailResponse.text());
+                  }
+                } catch (emailErr) {
+                  console.warn('[AuthContext] Welcome email error:', emailErr);
+                }
+              } else {
+                console.log('[AuthContext] No email available for welcome email');
+              }
+            }
           }
         } catch (rpcErr) {
           console.warn('[AuthContext] upsert_canonical_user RPC exception:', rpcErr);

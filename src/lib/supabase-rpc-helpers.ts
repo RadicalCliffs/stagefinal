@@ -170,42 +170,34 @@ export const getUnavailableTickets = (
 /**
  * Get a user's entries for a specific competition (e.g., post-purchase confirmation)
  *
- * SQL Function: public.get_user_competition_entries(p_canonical_user_id TEXT, p_competition_id UUID DEFAULT NULL)
+ * SQL Function: public.get_user_competition_entries(p_user_identifier TEXT)
  *
- * Returns: competition_id, tickets_count, amount_spent, latest_purchase_at, is_winner, ticket_numbers_csv
+ * Returns: id, competition_id, user_id, canonical_user_id, wallet_address, ticket_numbers,
+ *          ticket_count, amount_paid, currency, transaction_hash, payment_provider,
+ *          entry_status, is_winner, prize_claimed, created_at, updated_at,
+ *          competition_title, competition_description, competition_image_url,
+ *          competition_status, competition_end_date, competition_prize_value, competition_is_instant_win
  *
  * @param supabaseClient - Supabase client instance
- * @param canonicalId - User identifier (prize:pid:0x..., 0x wallet, canonical_user_id, or privy_user_id)
- * @param competitionId - Optional competition UUID to filter results
+ * @param userIdentifier - User identifier (prize:pid:0x..., 0x wallet, canonical_user_id, or privy_user_id)
  * @returns Promise with RPC result containing user's competition entries
  *
  * @example
  * // Get all entries for a user
  * const { data, error } = await getUserCompetitionEntries(supabase, 'prize:pid:0x2137af5047526a1180...');
- *
- * @example
- * // Get entries for a specific competition
- * const { data, error } = await getUserCompetitionEntries(supabase, 'prize:pid:0x2137af5047526a1180...', '88f3467c-747e-4231-bb2e-1869e227bb85');
  */
 export const getUserCompetitionEntries = (
   supabaseClient: SupabaseClient,
-  canonicalId: string,
-  competitionId?: string
+  userIdentifier: string
 ) => {
-  if (!canonicalId || typeof canonicalId !== 'string' || canonicalId.trim() === '') {
-    throw new Error('canonicalId is required for getUserCompetitionEntries');
+  if (!userIdentifier || typeof userIdentifier !== 'string' || userIdentifier.trim() === '') {
+    throw new Error('userIdentifier is required for getUserCompetitionEntries');
   }
 
-  // Build params object - always include p_canonical_user_id, optionally include p_competition_id
-  const params: { p_canonical_user_id: string; p_competition_id?: string } = {
-    p_canonical_user_id: canonicalId
-  };
-
-  if (competitionId && typeof competitionId === 'string' && competitionId.trim() !== '') {
-    params.p_competition_id = competitionId;
-  }
-
-  return supabaseClient.rpc('get_user_competition_entries', params);
+  // The SQL function expects p_user_identifier parameter
+  return supabaseClient.rpc('get_user_competition_entries', {
+    p_user_identifier: userIdentifier
+  });
 };
 
 /**

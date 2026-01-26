@@ -356,6 +356,34 @@ export default function EntriesList() {
         )
         .subscribe();
 
+      // Channel for balance_ledger changes (for balance-based purchases)
+      const balanceLedgerChannel = supabase
+        .channel(`balance-ledger-${normalizedUserId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'balance_ledger',
+          },
+          (payload) => {
+            // Check if this is a purchase entry (source = 'purchase')
+            const record = payload.new as {
+              user_id?: string;
+              source?: string;
+              metadata?: any;
+            };
+
+            // balance_ledger entries are matched by user_id (UUID from canonical_users)
+            // The source should be 'purchase' for competition entries
+            if (record.source === 'purchase' && record.metadata?.competition_id) {
+              console.log('[EntriesList] Balance ledger purchase detected:', payload.eventType);
+              debouncedFetchEntries();
+            }
+          }
+        )
+        .subscribe();
+
       // Listen for balance-updated events (dispatched after successful payments/top-ups)
       // This ensures entries refresh immediately after wallet balance changes
       const handleBalanceUpdated = () => {
@@ -376,6 +404,7 @@ export default function EntriesList() {
         supabase.removeChannel(pendingTicketsChannel);
         supabase.removeChannel(competitionStatusChannel);
         supabase.removeChannel(userTransactionsChannel);
+        supabase.removeChannel(balanceLedgerChannel);
       };
     }
   }, [baseUser?.id, fetchEntries, debouncedFetchEntries]);
@@ -407,15 +436,20 @@ export default function EntriesList() {
     const effectiveStatus = isCompetitionEnded && normalizedStatus === 'live' ? 'completed' : normalizedStatus;
 
     // Step 4: Determine entry type (completed vs pending)
+    // FIX: Include balance_purchase and transaction entry types from RPC
     const entryType = (entry.entry_type || '').toLowerCase().trim();
     const isCompletedEntry = !entryType ||
       entryType === 'completed' ||
       entryType === 'completed_transaction' ||
       entryType === 'completed_from_tickets' ||
       entryType === 'confirmed' ||
-      entryType === 'finished';
+      entryType === 'finished' ||
+      entryType === 'balance_purchase' ||
+      entryType === 'transaction' ||
+      entryType === 'competition_entry' ||
+      entryType === 'ticket';
 
-    const isPendingEntry = entryType === 'pending' || normalizedStatus === 'pending';
+    const isPendingEntry = entryType === 'pending' || entryType === 'pending_ticket' || normalizedStatus === 'pending';
     const isInstantWin = entry.is_instant_win === true;
 
     // Step 5: Route to appropriate tab
