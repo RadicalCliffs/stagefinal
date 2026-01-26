@@ -11,6 +11,7 @@ import {
   COMPETITION_VISIBILITY_CUTOFF,
 } from './appConfig';
 import { userIdsEqual, normalizeWalletAddress, toPrizePid, isWalletAddress } from '../utils/userId';
+import { getDashboardEntries, getUnavailableTickets, getUserCompetitionEntries } from './supabase-rpc-helpers';
 import type {
   WinnerCardProps,
   Faq,
@@ -1398,8 +1399,7 @@ export const database = {
         competition_id: competitionId.slice(0, 8) + '...'
       });
 
-      const { data: unavailableTickets, error: rpcError } = await supabase
-        .rpc('get_unavailable_tickets', { competition_id: competitionId.trim() });
+      const { data: unavailableTickets, error: rpcError } = await getUnavailableTickets(supabase, competitionId.trim());
 
       if (rpcError) {
         // RPC call failed - log error and try direct query fallback
@@ -1714,10 +1714,7 @@ export const database = {
         // - joincompetition table (legacy confirmed entries)
         // - user_transactions table (payment-based entries with "finished" status)
         // - pending_tickets table (reservations awaiting payment confirmation)
-        const { data, error } = await supabase
-          .rpc('get_comprehensive_user_dashboard_entries', {
-            user_identifier: identity.primaryId
-          });
+        const { data, error } = await getDashboardEntries(supabase, identity.primaryId);
 
         if (error) {
           databaseLogger.rpcError('get_comprehensive_user_dashboard_entries', error, 'direct query fallback');
@@ -3109,9 +3106,7 @@ export const database = {
       }
 
       // Try the new RPC that reads from competition_entries table
-      const { data, error } = await supabase.rpc('get_user_competition_entries', {
-        p_user_identifier: userId
-      });
+      const { data, error } = await getUserCompetitionEntries(supabase, userId);
 
       if (error) {
         databaseLogger.warn('get_user_competition_entries RPC not available, falling back to getUserEntries', error.message);

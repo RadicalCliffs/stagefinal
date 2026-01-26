@@ -15,6 +15,7 @@
 import { supabase } from './supabase';
 import { resolveUserIdentity, type ResolvedIdentity } from './identity';
 import { databaseLogger } from './debug-console';
+import { getDashboardEntries, getCompetitionEntries, getUnavailableTickets } from './supabase-rpc-helpers';
 
 // Get Supabase URL from environment for image URL normalization
 // This is required for fixing malformed image URLs in the database
@@ -312,10 +313,7 @@ class OmnipotentDataService {
 
     try {
       // Use the comprehensive RPC function
-      const { data, error } = await supabase
-        .rpc('get_comprehensive_user_dashboard_entries', {
-          user_identifier: identity.canonicalUserId
-        });
+      const { data, error } = await getDashboardEntries(supabase, identity.canonicalUserId);
 
       if (error) throw error;
 
@@ -356,10 +354,7 @@ class OmnipotentDataService {
       let data: any[] | null = null;
       let error: any = null;
 
-      const { data: standardData, error: standardError } = await supabase
-        .rpc('get_competition_entries', {
-          competition_identifier: competitionId
-        });
+      const { data: standardData, error: standardError } = await getCompetitionEntries(supabase, competitionId);
 
       if (!standardError && standardData) {
         data = standardData;
@@ -459,8 +454,7 @@ class OmnipotentDataService {
       // Use Supabase RPC to get ALL unavailable tickets (sold + pending) in one call
       // The RPC function get_unavailable_tickets returns distinct ticket numbers that are not available
       // Uses pending_tickets.ticket_numbers (array), filters where expires_at > now() and status IN ('pending','confirming')
-      const { data: unavailableTickets, error: rpcError } = await supabase
-        .rpc('get_unavailable_tickets', { competition_id: competitionId });
+      const { data: unavailableTickets, error: rpcError } = await getUnavailableTickets(supabase, competitionId);
 
       if (rpcError) {
         databaseLogger.warn('[OmnipotentData] RPC get_unavailable_tickets failed, using fallback', { error: rpcError.message });
