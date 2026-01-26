@@ -231,7 +231,7 @@ async function handleUpdateStatus(
 
   // Add payment_status for consistency
   if (SUCCESS_STATUSES.includes(newStatus.toLowerCase())) {
-    updateData.payment_status = "finished";
+    updateData.payment_status = "completed";
     updateData.completed_at = new Date().toISOString();
   } else if (FAILURE_STATUSES.includes(newStatus.toLowerCase())) {
     updateData.payment_status = "failed";

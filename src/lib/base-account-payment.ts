@@ -408,7 +408,7 @@ export class BaseAccountPaymentService {
           .from('user_transactions')
           .update({
             status: 'completed',
-            payment_status: 'finished',
+            payment_status: 'completed',
             notes: `Payment completed but ticket confirmation needs review. Error: ${
               confirmData.error || 'Unknown error'
             }`,
