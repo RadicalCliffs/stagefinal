@@ -43,6 +43,7 @@ interface CreateChargeRequest {
   reservationId?: string;
   type: 'entry' | 'topup';
   checkoutUrl?: string;
+  paymentMethod?: 'coinbase' | 'onchainkit' | 'base_account' | 'commerce';
 }
 
 Deno.serve(async (req: Request) => {
@@ -108,6 +109,7 @@ Deno.serve(async (req: Request) => {
       reservationId,
       type,
       checkoutUrl,
+      paymentMethod,
     } = body;
 
     // Support both 'totalAmount' (preferred) and 'amount' (legacy) field names
@@ -229,6 +231,11 @@ Deno.serve(async (req: Request) => {
     console.log(`[create-charge][${requestId}] Creating transaction: id=${transactionId}, webhookRef=${webhookRef}`);
 
     // Prepare insert data for logging and insertion
+    // payment_provider is determined by paymentMethod or defaults to 'coinbase' for Commerce flow
+    const effectiveProvider = paymentMethod === 'base_account' ? 'base_account'
+      : paymentMethod === 'onchainkit' ? 'onchainkit'
+      : 'coinbase';
+
     const transactionData = {
       id: transactionId,
       user_id: canonicalUserId,
@@ -240,7 +247,7 @@ Deno.serve(async (req: Request) => {
       ticket_count: isEntry ? (entryCount || 1) : 0,
       order_id: reservationId || null,
       webhook_ref: webhookRef,
-      payment_provider: "coinbase",
+      payment_provider: effectiveProvider,
       type: type || 'entry', // Default to 'entry' if not specified for backward compatibility
     };
     console.log(`[create-charge][${requestId}] Transaction data:`, JSON.stringify(transactionData));
@@ -265,6 +272,25 @@ Deno.serve(async (req: Request) => {
           code: "DB_ERROR",
           details: errorDetails,
           db_error_code: insertError.code
+        }),
+        { status: 200, headers: { "Content-Type": "application/json", ...cors } }
+      );
+    }
+
+    // For base_account or onchainkit payment methods, return early with just the transaction ID
+    // The client will handle the actual blockchain payment separately
+    // This avoids trying to create a Coinbase Commerce charge which would fail
+    if (paymentMethod === 'base_account' || paymentMethod === 'onchainkit') {
+      const elapsed = Date.now() - startTime;
+      console.log(`[create-charge][${requestId}] SUCCESS (${paymentMethod}): transaction=${transactionId}, elapsed=${elapsed}ms`);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          data: {
+            transactionId,
+            // No chargeId or checkoutUrl - client handles payment via SDK
+          },
         }),
         { status: 200, headers: { "Content-Type": "application/json", ...cors } }
       );
@@ -359,7 +385,14 @@ Deno.serve(async (req: Request) => {
       }
 
       return new Response(
-        JSON.stringify({ success: false, error: errorMessage, code: "PROVIDER_ERROR", upstream_status: chargeResponse.status }),
+        JSON.stringify({
+          success: false,
+          error: errorMessage,
+          code: "PROVIDER_ERROR",
+          upstream_status: chargeResponse.status,
+          // Include transactionId so client can track the failed transaction
+          data: { transactionId }
+        }),
         { status: 200, headers: { "Content-Type": "application/json", ...cors } }
       );
     }

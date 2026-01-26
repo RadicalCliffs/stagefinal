@@ -207,12 +207,18 @@ export default async (req: Request, context: Context): Promise<Response> => {
 
       console.log(`[create-charge-proxy][${requestId}] Normalized error: code=${responseData.code}, message=${errorMessage}`);
 
+      // Extract transactionId from data object if present (for failed Commerce API calls)
+      const errorData = responseData.data as Record<string, unknown> | undefined;
+      const transactionId = errorData?.transactionId || errorData?.transaction_id;
+
       return jsonResponse({
         success: false,
         error: {
           code: (responseData.code as string) || 'UNKNOWN_ERROR',
           message: errorMessage
         },
+        // Include transactionId in data if available - client may need it for tracking
+        ...(transactionId ? { data: { transactionId } } : {}),
         // Preserve details separately for debugging
         ...(details ? { details } : {})
       }, response.ok ? 200 : response.status);
