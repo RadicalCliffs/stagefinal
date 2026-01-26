@@ -9,7 +9,7 @@ import { usePaymentStatus } from "../../../hooks/useGetPaymentStatus";
 import PaymentStatus from "../../PaymentStatus";
 import { footerLogo } from "../../../assets/images";
 import { CircleX, RefreshCw } from "lucide-react";
-import { userIdsEqual, normalizeWalletAddress } from "../../../utils/userId";
+import { userIdsEqual } from "../../../utils/userId";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -74,8 +74,9 @@ export default function OrdersList() {
       // Fetch from user_transactions table for purchases (includes Base and other payments)
       const purchasesData = await database.getUserTransactions(baseUser.id);
 
-      // Also fetch from joincompetition for entries (keeping backward compatibility)
-      const entriesData = await database.getUserEntries(baseUser.id);
+      // For entries tab, use the same user_transactions data but filter out top-ups
+      // This ensures both tabs pull from the same source for consistency
+      const entriesData = (purchasesData || []).filter((tx: any) => !tx.is_topup);
 
       setPurchases(purchasesData || []);
       setEntries(entriesData || []);
@@ -130,36 +131,8 @@ export default function OrdersList() {
         )
         .subscribe();
 
-      // Channel for user's competition entries (INSERT/UPDATE)
-      // This ensures entries also show up in the "entries" tab
-      const entriesChannel = supabase
-        .channel(`user-orders-entries-${baseUser.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'joincompetition',
-          },
-          (payload) => {
-            const record = payload.new as {
-              walletaddress?: string;
-              privy_user_id?: string;
-              userid?: string;
-            };
-
-            // Check if this entry is for the current user using userIdsEqual
-            const matchesWallet = userIdsEqual(record.walletaddress, baseUser.id);
-            const matchesPrivyId = userIdsEqual(record.privy_user_id, baseUser.id);
-            const matchesUserId = userIdsEqual(record.userid, baseUser.id);
-
-            if (matchesWallet || matchesPrivyId || matchesUserId) {
-              console.log('[OrdersList] Entry change detected:', payload.eventType);
-              debouncedFetchOrders();
-            }
-          }
-        )
-        .subscribe();
+      // NOTE: Entries tab now also uses user_transactions data (filtered for non-top-ups)
+      // so we only need to listen to user_transactions changes, not joincompetition
 
       // Channel for balance changes (covers top-ups via sub_account_balances)
       const balanceChannel = supabase
@@ -208,7 +181,6 @@ export default function OrdersList() {
         }
         window.removeEventListener('balance-updated', handleBalanceUpdated);
         supabase.removeChannel(transactionsChannel);
-        supabase.removeChannel(entriesChannel);
         supabase.removeChannel(balanceChannel);
       };
     }
