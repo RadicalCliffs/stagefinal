@@ -35,49 +35,128 @@ export const steps: Step[] = [
   },
 ];
 
-// Static explanatory content for competition process
+// Static explanatory content for competition process - DESKTOP VERSION
 export const enteringCompetitionProcess = [
   {
     id: 1,
-    text: "All entries cost $0.99 and you get discounts when purchasing in bundles. You must first connect your wallet, you can then enter direct on the competition page for $0.99 per entry or visit the TOP UP BALANCE section in your account to add funds.",
+    text: "Buying Entries: Entry prices vary by competition and are clearly displayed on each competition page. To enter a competition, simply sign up or log in and enter using crypto or card, or your available account balance. You can create a wallet and let us manage it for you, so no crypto experience is required.",
   },
   {
     id: 2,
-    text: "Choose Your Competition: Explore our range of exciting crypto and luxury item competitions and select the one that interests you. Please note that competitions may have different entry prices and may require multiple entries. All information including entry requirements and prize information will be displayed on the competition page. To enter for free, see section 3.11 of our Terms & Conditions.",
+    text: "You can enter directly from the competition page or top up your balance in advance. Free entry routes are available where legally required; see section 3.11 of our Terms & Conditions for details.",
   },
   {
     id: 3,
-    text: "Pick Your Entry Numbers: Use our Lucky Dip feature to have your numbers randomly assigned or choose your own numbers with our selective number picker. You can purchase as many entries as you like, depending on the competition's rules.",
+    text: "Choose Your Competition: Browse our live competitions featuring crypto prizes, instant wins, and luxury items. Each competition page shows the entry price, prize details, entries sold, any entry limits, and the competition end time.",
   },
   {
     id: 4,
-    text: "Confirmation: After completing your purchase, you will be able to view these inside the MY ACCOUNT section where you will find the details of your entry numbers and competition entry. This ensures you have a record of your participation.",
+    text: "Select Your Entries: Entering is quick and flexible, you choose how you want to play. Use the lucky dip entry slider to select how many entries you want and let the system randomly assign your entry numbers for you. This is the fastest way to enter and ideal for first-time users. Prefer more control? You can manually select your own entry numbers from the available numbers for that competition before confirming your entry.",
+  },
+  {
+    id: 5,
+    text: "Each entry represents a valid competition entry and is securely recorded and linked to your account. Entry limits may apply depending on the competition and will always be clearly displayed before you confirm.",
+  },
+  {
+    id: 6,
+    text: "Confirmation: Once your entry is completed, it's confirmed instantly. You can view all live and finished entries in your account dashboard, including competition and order details.",
   },
 ];
 
 export const winnerSelectionProcess = [
   {
     id: 1,
-    text: "Announcement: Once all entries are sold for a competition or the timer has ended, we'll announce the winner of the competition via our social media channels. You will also see if you have won or lost inside the MY ACCOUNT section.",
+    text: "Announcement: When a competition ends, the draw is completed and the competition moves into the Drawn section. Winners are shown on the website and inside your account dashboard, and may also be announced via our official social channels.",
   },
   {
     id: 2,
-    text: "Draw Numbers: All entry numbers and buyer wallet addresses will be added to the competition page as they are purchased for full transparency.",
+    text: "Draw Transparency: Entry totals update live on the competition page, ensuring full transparency throughout the competition.",
   },
   {
     id: 3,
-    text: "End Draw: At the end of each competition we'll use Chainlink VRF random number generator to fairly and transparently select the winning entry, we will then publish the winning Chainlink VRF transaction hash for users to independently verify. We will also publish the corresponding winners on our website and inside the MY ACCOUNT section along with the transaction hash transfer of the crypto prize to the winning wallet address.",
+    text: "End Draw: All winners are selected using Chainlink VRF, providing a fair and verifiable random draw. The VRF transaction hash is published so results can be independently verified, alongside full winner and prize details.",
   },
 ];
 
 export const prizeDistributionProcess = [
-  { 
-    id: 1, 
-    text: "Prize Distribution: Once you've been announced as the winner, your prize will be securely transferred in cryptocurrency to your digital wallet within 7 days, however in most cases this will be done within 24 hours. If you've won a physical prize our team will contact you directly via telegram or email to arrange delivery, or offer you a crypto cash alternative. The transaction hash of any crypto prize transfer will be published on our website and inside the MY ACCOUNT section for on-chain verification." 
+  {
+    id: 1,
+    text: "Prize Distribution: If you win a crypto prize, it will be transferred securely to your account wallet once the draw has been completed and approved. For physical prizes, the crypto cash alternative will be transferred first. Our team will then contact you to confirm whether you would like to keep the cash alternative or swap it for the physical prize. All crypto prize transfers include a transaction hash, which is published on-site for full on-chain verification."
   },
-  { 
-    id: 2, 
-    text: "Winner Spotlight: Your achievement may be highlighted in our Winners section on the website, where your username and winning wallet address would be proudly displayed for the community to see, however your identity will remain anonymous." 
+  {
+    id: 2,
+    text: "Winner Spotlight: Winning entries may be featured in our Winners section, displaying the winner's username and prize details. Wallet addresses and personal details are never publicly exposed, ensuring winners remain anonymous while results stay transparent."
+  },
+];
+
+// Mobile accordion version - How to Play content
+export const mobileHowToPlayAccordion = [
+  {
+    id: 1,
+    title: "Entering the Competitions",
+    content: [
+      "Entry prices vary by competition and are shown on each competition page.",
+      "Sign up or log in, then enter using crypto, card, or account balance.",
+      "No crypto experience is required — you can create a wallet and let us manage it.",
+      "You can enter directly from the competition page or top up your balance in advance.",
+      "Free entry routes are available where legally required (see section 3.11 of our Terms & Conditions).",
+    ],
+  },
+  {
+    id: 2,
+    title: "Choosing a Competition",
+    content: [
+      "Browse live competitions featuring crypto prizes, instant wins, and luxury items.",
+      "Each competition page shows the prize, entry price, entries sold, entry limits, and end time.",
+    ],
+  },
+  {
+    id: 3,
+    title: "Selecting Your Entries",
+    content: [
+      "Choose how you want to enter:",
+      "Lucky Dip: select the number of entries and receive randomly assigned numbers.",
+      "Manual Selection: choose your own available entry numbers.",
+      "Each entry represents a valid competition entry and is securely linked to your account.",
+      "Entry limits may apply and are always shown before confirmation.",
+    ],
+  },
+  {
+    id: 4,
+    title: "Confirmation & Account Access",
+    content: [
+      "Entries are confirmed instantly once completed.",
+      "You can view all live and completed entries in your account dashboard, including competition and order details.",
+    ],
+  },
+  {
+    id: 5,
+    title: "Winner Selection & Draws",
+    content: [
+      "When a competition ends, it moves into the Drawn section.",
+      "Winners are displayed on the website, in your account, and may be announced on official social channels.",
+      "Entry totals update live throughout the competition.",
+      "All winners are selected using Chainlink VRF for a fair and verifiable draw.",
+      "The VRF transaction hash is published so results can be independently verified.",
+    ],
+  },
+  {
+    id: 6,
+    title: "Prize Distribution",
+    content: [
+      "Crypto prizes are transferred securely to your account wallet after draw approval.",
+      "For physical prizes, the crypto cash alternative is transferred first.",
+      "Our team will contact you to confirm whether you want the cash alternative or the physical prize.",
+      "All prize transfers include a published transaction hash for on-chain verification.",
+    ],
+  },
+  {
+    id: 7,
+    title: "Winner Spotlight",
+    content: [
+      "Winning entries may be featured in the Winners section showing username and prize details.",
+      "Wallet addresses and personal details are never publicly displayed.",
+    ],
   },
 ];
 
