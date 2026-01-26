@@ -1603,44 +1603,48 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                           </div>
                         </button>
 
-                        {/* Divider for other options */}
-                        <div className="relative py-2">
-                          <div className="absolute inset-0 flex items-center">
-                            <div className="w-full border-t border-white/10"></div>
+                        {/* Other wallet options - hidden for now, keeping Base front and center */}
+                        {/* TODO: Re-enable when other wallets are supported */}
+                        <div className="hidden">
+                          {/* Divider for other options */}
+                          <div className="relative py-2">
+                            <div className="absolute inset-0 flex items-center">
+                              <div className="w-full border-t border-white/10"></div>
+                            </div>
+                            <div className="relative flex justify-center text-xs">
+                              <span className="bg-[#101010] px-3 text-white/40">or connect with</span>
+                            </div>
                           </div>
-                          <div className="relative flex justify-center text-xs">
-                            <span className="bg-[#101010] px-3 text-white/40">or connect with</span>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            {/* MetaMask button */}
+                            <button
+                              onClick={handleConnectMetaMask}
+                              disabled={true}
+                              className="bg-[#E8821E] hover:bg-[#E8821E]/90 text-white font-semibold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 disabled:opacity-50 text-sm pointer-events-none"
+                            >
+                              <Wallet size={18} className="flex-shrink-0" />
+                              <span>MetaMask</span>
+                            </button>
+
+                            {/* Other wallets (injected) */}
+                            <button
+                              onClick={() => {
+                                const injectedConnector = connectors.find((c) => c.id === 'injected');
+                                if (injectedConnector) {
+                                  setEmailError('');
+                                  connect({ connector: injectedConnector });
+                                } else {
+                                  setEmailError('No browser wallet detected. Please install a wallet extension.');
+                                }
+                              }}
+                              disabled={true}
+                              className="bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 text-sm disabled:opacity-50 pointer-events-none"
+                            >
+                              <Wallet size={18} className="flex-shrink-0" />
+                              <span>Other Wallet</span>
+                            </button>
                           </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                          {/* MetaMask button */}
-                          <button
-                            onClick={handleConnectMetaMask}
-                            disabled={isConnecting}
-                            className="bg-[#E8821E] hover:bg-[#E8821E]/90 text-white font-semibold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
-                          >
-                            <Wallet size={18} className="flex-shrink-0" />
-                            <span>MetaMask</span>
-                          </button>
-
-                          {/* Other wallets (injected) */}
-                          <button
-                            onClick={() => {
-                              const injectedConnector = connectors.find((c) => c.id === 'injected');
-                              if (injectedConnector) {
-                                setEmailError('');
-                                connect({ connector: injectedConnector });
-                              } else {
-                                setEmailError('No browser wallet detected. Please install a wallet extension.');
-                              }
-                            }}
-                            disabled={isConnecting}
-                            className="bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 text-sm disabled:opacity-50"
-                          >
-                            <Wallet size={18} className="flex-shrink-0" />
-                            <span>Other Wallet</span>
-                          </button>
                         </div>
                       </div>
                     )}
@@ -1656,8 +1660,8 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                       {options?.isReturningUser
                         ? 'Click the button above to connect and sign in.'
                         : options?.resumeSignup
-                          ? 'If you have Coinbase Wallet or another Base-compatible wallet, connect it now. Otherwise, create a free wallet below.'
-                          : 'If you have a Base or Coinbase Wallet installed, it will be detected automatically. Otherwise, you can create a new wallet with your email below.'
+                          ? 'Connect your Base wallet now, or create a free wallet below.'
+                          : 'Bring your own Base wallet or have one made for you below.'
                       }
                     </p>
                   </div>

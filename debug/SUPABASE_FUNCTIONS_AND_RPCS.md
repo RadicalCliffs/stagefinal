@@ -985,16 +985,16 @@ supabase.rpc('get_user_transactions_bypass_rls', {
 **Invocation**:
 ```typescript
 supabase.rpc('get_comprehensive_user_dashboard_entries', {
-  user_identifier: string
+  params: { user_identifier: string }  // or { userId: string }
 })
 ```
 
 **Parameters**:
-- `user_identifier` (text, required): User ID or wallet address
+- `params` (jsonb, required): Object containing either `user_identifier` or `userId`
 
-**Returns**: `jsonb` - Dashboard data including entries, tickets, balance
+**Returns**: Table with `competition_id`, `tickets_count`, `amount_spent`, `latest_purchase_at`, `is_winner`, `ticket_numbers_csv`
 
-**Frontend Usage**: 
+**Frontend Usage**:
 - `src/lib/database.ts`
 - `src/lib/omnipotent-data-service.ts`
 
@@ -1020,21 +1020,21 @@ supabase.rpc('get_user_dashboard_entries', {
 
 ### `get_user_competition_entries`
 
-**Purpose**: Get user entries for a specific competition
+**Purpose**: Get user entries for competitions
 
 **Invocation**:
 ```typescript
 supabase.rpc('get_user_competition_entries', {
-  p_user_id: string,
-  p_competition_id: string
+  p_canonical_user_id: string,
+  p_competition_id?: string  // optional
 })
 ```
 
 **Parameters**:
-- `p_user_id` (text, required): User ID
-- `p_competition_id` (text, required): Competition ID
+- `p_canonical_user_id` (text, required): User ID (prize:pid:0x... format)
+- `p_competition_id` (uuid, optional): Competition ID to filter results
 
-**Returns**: `jsonb[]` - Competition entries
+**Returns**: Table with `competition_id`, `tickets_count`, `amount_spent`, `latest_purchase_at`, `is_winner`, `ticket_numbers_csv`
 
 ---
 

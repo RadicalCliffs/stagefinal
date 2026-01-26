@@ -58,6 +58,9 @@ export interface Entry {
   date: string;
   walletAddress: string;
   username?: string;
+  transactionHash?: string;  // Crypto payment tx hash or most recent top-up tx hash
+  vrfHash?: string;  // VRF hash for provably fair verification
+  rngHash?: string;  // RNG hash alias
 }
 
 // Dashboard entry type returned from get_comprehensive_user_dashboard_entries

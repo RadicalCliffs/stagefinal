@@ -21,7 +21,7 @@ interface EntriesWithFilterTabsProps {
 }
 
 const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFilterTabsProps = {}) => {
-  const [entries, setEntries] = useState<Array<{ ticketNumber: number; date: string; walletAddress: string; username?: string }>>([]);
+  const [entries, setEntries] = useState<Array<{ ticketNumber: number; date: string; walletAddress: string; username?: string; transactionHash?: string; vrfHash?: string }>>([]);
   const [loading, setLoading] = useState(true);
 
   // Fetch real competition entries
@@ -49,10 +49,13 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
         });
 
         // Transform data to match expected format
-        const transformedEntries: Array<{ ticketNumber: number; date: string; walletAddress: string; username?: string }> = [];
+        const transformedEntries: Array<{ ticketNumber: number; date: string; walletAddress: string; username?: string; transactionHash?: string; vrfHash?: string }> = [];
 
         // Collect wallet addresses for username lookup
         const walletAddresses = new Set<string>();
+
+        // Map to store user IDs to their most recent top-up transaction hash
+        const userToTopUpTxHash = new Map<string, string>();
 
         // Strategy 1: Try standard RPC function first (staging compatible with anon key)
         let rpcSucceeded = false;
@@ -102,6 +105,9 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
                 walletAddresses.add(wallet.toLowerCase());
               }
 
+              // Get transaction hash - could be from crypto payment or stored in entry
+              const txHash = entry.transactionhash || entry.transaction_hash || entry.vrf_hash || '';
+
               if (entry.ticketnumbers) {
                 const ticketNumbers = entry.ticketnumbers
                   .split(',')
@@ -121,7 +127,8 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
                       hour12: false
                     }),
                     walletAddress: wallet || 'Unknown',
-                    username: entry.username || undefined
+                    username: entry.username || undefined,
+                    transactionHash: txHash || undefined
                   });
                 });
               }
@@ -157,7 +164,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
           const exactStartTime = Date.now();
           const { data: exactData, error: exactError } = await supabase
             .from('v_joincompetition_active')
-            .select('ticketnumbers, purchasedate, walletaddress, userid, canonical_user_id')
+            .select('ticketnumbers, purchasedate, walletaddress, userid, canonical_user_id, transactionhash')
             .eq('competitionid', idToUse);
 
           if (!exactError && exactData && exactData.length > 0) {
@@ -189,7 +196,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
               const uidStartTime = Date.now();
               const { data: uidData, error: uidError } = await supabase
                 .from('v_joincompetition_active')
-                .select('ticketnumbers, purchasedate, walletaddress, userid, canonical_user_id')
+                .select('ticketnumbers, purchasedate, walletaddress, userid, canonical_user_id, transactionhash')
                 .eq('competitionid', compData.uid);
 
               if (!uidError && uidData && uidData.length > 0) {
@@ -225,6 +232,9 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
                 walletAddresses.add(wallet.toLowerCase());
               }
 
+              // Get transaction hash from entry
+              const txHash = entry.transactionhash || entry.transaction_hash || '';
+
               if (entry.ticketnumbers) {
                 const ticketNumbers = entry.ticketnumbers
                   .split(',')
@@ -245,7 +255,8 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
                         second: '2-digit',
                         hour12: false
                       }) : 'Unknown',
-                      walletAddress: wallet || 'Unknown'
+                      walletAddress: wallet || 'Unknown',
+                      transactionHash: txHash || undefined
                     });
                   }
                 });
@@ -271,7 +282,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
           const ticketsStartTime = Date.now();
           const { data: ticketsData, error: ticketsError } = await supabase
             .from('tickets')
-            .select('ticket_number, created_at, privy_user_id, user_id')
+            .select('ticket_number, created_at, privy_user_id, user_id, transaction_hash')
             .eq('competition_id', idToUse);
 
           if (!ticketsError && ticketsData && ticketsData.length > 0) {
@@ -308,7 +319,8 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
                       second: '2-digit',
                       hour12: false
                     }) : 'Unknown',
-                    walletAddress: wallet || 'Unknown'
+                    walletAddress: wallet || 'Unknown',
+                    transactionHash: ticket.transaction_hash || undefined
                   });
                 }
               }
@@ -324,6 +336,69 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
               error: ticketsError.message
             });
           }
+        }
+
+        // Strategy 4: Query pending_tickets table (used for confirmed purchases, kept for posterity)
+        // Note: Despite the name, pending_tickets now contains confirmed entries
+        entriesLogger.info('Querying pending_tickets table');
+        const pendingStartTime = Date.now();
+        const { data: pendingData, error: pendingError } = await supabase
+          .from('pending_tickets')
+          .select('ticket_numbers, created_at, canonical_user_id, wallet_address, transaction_hash, status, user_id')
+          .eq('competition_id', idToUse);
+
+        if (!pendingError && pendingData && pendingData.length > 0) {
+          entriesLogger.success('pending_tickets table returned data', {
+            count: pendingData.length,
+            duration: Date.now() - pendingStartTime
+          });
+
+          pendingData.forEach((pending: any) => {
+            const wallet = pending.wallet_address || pending.canonical_user_id || pending.user_id || '';
+            if (wallet && wallet.startsWith('0x')) {
+              walletAddresses.add(wallet.toLowerCase());
+            }
+
+            // Parse ticket_numbers - could be JSON array string like '["516"]' or comma-separated
+            let ticketNumbers: number[] = [];
+            if (pending.ticket_numbers) {
+              try {
+                // Try parsing as JSON array first
+                const parsed = JSON.parse(pending.ticket_numbers);
+                if (Array.isArray(parsed)) {
+                  ticketNumbers = parsed.map((t: string | number) => parseInt(String(t).trim())).filter((t: number) => !isNaN(t));
+                }
+              } catch {
+                // Fall back to comma-separated parsing
+                ticketNumbers = String(pending.ticket_numbers)
+                  .split(',')
+                  .map((t: string) => parseInt(t.trim()))
+                  .filter((t: number) => !isNaN(t));
+              }
+            }
+
+            ticketNumbers.forEach((ticketNum: number) => {
+              // Check if this ticket already exists (avoid duplicates)
+              if (!transformedEntries.some(e => e.ticketNumber === ticketNum)) {
+                transformedEntries.push({
+                  ticketNumber: ticketNum,
+                  date: pending.created_at ? new Date(pending.created_at).toLocaleString('en-US', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                  }) : 'Unknown',
+                  walletAddress: wallet || 'Unknown',
+                  transactionHash: pending.transaction_hash || undefined
+                });
+              }
+            });
+          });
+        } else if (pendingError) {
+          entriesLogger.warn('pending_tickets table query error', pendingError);
         }
 
         // Fetch usernames for all wallet addresses from multiple sources
@@ -455,6 +530,62 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
             });
           } catch (userErr) {
             entriesLogger.warn('Failed to fetch usernames', userErr);
+          }
+        }
+
+        // For entries without transaction hashes, try to fetch from user's most recent top-up
+        // This handles balance payments where the tx hash isn't directly on the entry
+        const entriesWithoutTxHash = transformedEntries.filter(e => !e.transactionHash);
+        if (entriesWithoutTxHash.length > 0) {
+          try {
+            // Collect unique user identifiers that need tx hash lookup
+            const usersNeedingTxHash = new Set<string>();
+            entriesWithoutTxHash.forEach(entry => {
+              if (entry.walletAddress && entry.walletAddress !== 'Unknown') {
+                usersNeedingTxHash.add(entry.walletAddress.toLowerCase());
+              }
+            });
+
+            if (usersNeedingTxHash.size > 0) {
+              const userArray = Array.from(usersNeedingTxHash);
+
+              // Query pending_tickets for the most recent tx hash per user (from top-ups)
+              const { data: topUpData } = await supabase
+                .from('pending_tickets')
+                .select('canonical_user_id, wallet_address, user_id, transaction_hash, created_at')
+                .not('transaction_hash', 'is', null)
+                .order('created_at', { ascending: false });
+
+              if (topUpData && topUpData.length > 0) {
+                // Build map of user identifier -> most recent tx hash
+                const userToTxHash = new Map<string, string>();
+                topUpData.forEach((record: any) => {
+                  const identifiers = [
+                    record.canonical_user_id?.toLowerCase(),
+                    record.wallet_address?.toLowerCase(),
+                    record.user_id?.toLowerCase()
+                  ].filter(Boolean);
+
+                  identifiers.forEach(id => {
+                    if (id && record.transaction_hash && !userToTxHash.has(id)) {
+                      userToTxHash.set(id, record.transaction_hash);
+                    }
+                  });
+                });
+
+                // Update entries with the fetched tx hashes
+                entriesWithoutTxHash.forEach(entry => {
+                  if (entry.walletAddress && !entry.transactionHash) {
+                    const txHash = userToTxHash.get(entry.walletAddress.toLowerCase());
+                    if (txHash) {
+                      entry.transactionHash = txHash;
+                    }
+                  }
+                });
+              }
+            }
+          } catch (txHashErr) {
+            entriesLogger.warn('Failed to fetch top-up tx hashes', txHashErr);
           }
         }
 

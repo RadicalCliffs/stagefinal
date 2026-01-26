@@ -226,30 +226,20 @@ The frontend calls:
 ```typescript
 const { data, error } = await supabase
   .rpc('get_comprehensive_user_dashboard_entries', {
-    user_identifier: userId // Can be: canonical_user_id, wallet, privy_user_id, etc.
+    params: { user_identifier: userId }  // Can be: canonical_user_id, wallet, privy_user_id, etc.
+    // or: params: { userId: userId }
   });
 ```
 
 Expected data structure:
 ```typescript
 Array<{
-  id: string;
   competition_id: string;
-  title: string;
-  description: string;
-  image: string;
-  status: 'live' | 'completed' | 'pending' | 'expired';
-  entry_type: 'competition_entry' | 'ticket' | 'transaction' | 'pending_ticket';
+  tickets_count: number;
+  amount_spent: number;
+  latest_purchase_at: string;
   is_winner: boolean;
-  ticket_numbers: string; // comma-separated: "1,2,3"
-  total_tickets: number;
-  total_amount_spent: number;
-  purchase_date: string;
-  transaction_hash: string;
-  is_instant_win: boolean;
-  prize_value: number;
-  competition_status: string;
-  end_date: string;
+  ticket_numbers_csv: string;
 }>
 ```
 

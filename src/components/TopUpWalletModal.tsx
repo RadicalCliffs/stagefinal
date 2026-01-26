@@ -734,24 +734,24 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                       onClick={() => handleMethodSelect('instant')}
                       className={`flex items-center justify-between gap-3 p-3 rounded-xl transition-all w-full ${
                         paymentMethod === 'instant'
-                          ? 'bg-green-500/20 border-2 border-green-500'
-                          : 'bg-[#3A3A3A] border-2 border-green-500/30 hover:border-green-500/60'
+                          ? 'bg-[#0052FF]/20 border-2 border-[#0052FF]'
+                          : 'bg-[#3A3A3A] border-2 border-[#0052FF]/30 hover:border-[#0052FF]/60'
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${paymentMethod === 'instant' ? 'bg-green-500' : 'bg-green-500/20'}`}>
-                          <Wallet size={20} className={paymentMethod === 'instant' ? 'text-white' : 'text-green-400'} />
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${paymentMethod === 'instant' ? 'bg-[#0052FF]' : 'bg-[#0052FF]/20'}`}>
+                          <Wallet size={20} className="text-white" />
                         </div>
                         <div className="text-left">
-                          <p className={`sequel-75 text-sm ${paymentMethod === 'instant' ? 'text-green-400' : 'text-white'}`}>
+                          <p className={`sequel-75 text-sm ${paymentMethod === 'instant' ? 'text-white' : 'text-white'}`}>
                             {textOverrides?.instantTopUpLabel || 'Wallet'}
                           </p>
-                          <p className="text-green-400 sequel-45 text-xs">
+                          <p className="text-[#DDE404] sequel-45 text-xs">
                             ${walletUsdcBalance.toFixed(2)} • Instant
                           </p>
                         </div>
                       </div>
-                      <ChevronRight size={18} className="text-green-400 flex-shrink-0" />
+                      <ChevronRight size={18} className="text-[#DDE404] flex-shrink-0" />
                     </button>
                   )}
 
@@ -771,15 +771,15 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                         </svg>
                       </div>
                       <div className="text-left">
-                        <p className={`sequel-75 text-sm ${paymentMethod === 'base-account' ? 'text-[#0052FF]' : 'text-white'}`}>
+                        <p className={`sequel-75 text-sm text-white`}>
                           Base Account
                         </p>
-                        <p className="text-[#0052FF]/70 sequel-45 text-xs">
+                        <p className="text-[#DDE404] sequel-45 text-xs">
                           Fast USDC payments
                         </p>
                       </div>
                     </div>
-                    <ChevronRight size={18} className="text-[#0052FF] flex-shrink-0" />
+                    <ChevronRight size={18} className="text-[#DDE404] flex-shrink-0" />
                   </button>
 
                   {/* Option 3: Top up with Coinbase (Commerce flow) */}
@@ -797,18 +797,18 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                     >
                       <div className="flex items-center gap-3">
                         <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${paymentMethod === 'commerce' ? 'bg-[#0052FF]' : 'bg-[#0052FF]/20'}`}>
-                          <Coins size={20} className={paymentMethod === 'commerce' ? 'text-white' : 'text-[#0052FF]'} />
+                          <Coins size={20} className="text-white" />
                         </div>
                         <div className="text-left">
-                          <p className={`sequel-75 text-sm ${paymentMethod === 'commerce' ? 'text-[#0052FF]' : 'text-white'}`}>
+                          <p className={`sequel-75 text-sm text-white`}>
                             {textOverrides?.cryptoTopUpLabel || 'Crypto'}
                           </p>
-                          <p className="text-[#0052FF]/70 sequel-45 text-xs">
+                          <p className="text-[#DDE404] sequel-45 text-xs">
                             60+ coins
                           </p>
                         </div>
                       </div>
-                      <ChevronRight size={18} className="text-[#0052FF] flex-shrink-0" />
+                      <ChevronRight size={18} className="text-[#DDE404] flex-shrink-0" />
                     </button>
                   </div>
 
