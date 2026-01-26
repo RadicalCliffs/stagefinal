@@ -2257,7 +2257,7 @@ export const database = {
               )
             `)
             .or(txFilters.join(','))
-            .in('payment_status', ['completed', 'finished'])
+            .in('payment_status', ['completed', 'finished', 'confirmed'])
             .order('created_at', { ascending: false });
 
           if (!txError && txData && txData.length > 0) {
@@ -2298,7 +2298,92 @@ export const database = {
       }
     }
 
-    databaseLogger.info('Individual queries complete', { totalEntries: allEntries.length, sources: 'view+joincompetition+tickets+transactions' });
+    // ===== SOURCE 5: Query orders table =====
+    // Completed orders that may not be in other tables yet
+    if (identity.walletAddress || identity.legacyUserId || identity.canonicalUserId) {
+      try {
+        // Orders table uses user_id column which stores the user identifier
+        const orderFilters: string[] = [];
+        if (identity.walletAddress) {
+          orderFilters.push(`user_id.eq.${identity.walletAddress}`);
+        }
+        if (identity.legacyUserId) {
+          orderFilters.push(`user_id.eq.${identity.legacyUserId}`);
+        }
+        if (identity.canonicalUserId) {
+          orderFilters.push(`user_id.eq.${identity.canonicalUserId}`);
+        }
+
+        if (orderFilters.length > 0) {
+          const { data: ordersData, error: ordersError } = await supabase
+            .from('orders')
+            .select(`
+              id,
+              competition_id,
+              user_id,
+              amount,
+              ticket_count,
+              status,
+              payment_status,
+              payment_tx_hash,
+              created_at,
+              completed_at,
+              competitions (
+                id,
+                uid,
+                title,
+                description,
+                image_url,
+                status,
+                prize_value,
+                is_instant_win,
+                end_date,
+                winner_address
+              )
+            `)
+            .or(orderFilters.join(','))
+            .in('status', ['completed', 'confirmed', 'paid'])
+            .not('competition_id', 'is', null)
+            .order('created_at', { ascending: false });
+
+          if (!ordersError && ordersData && ordersData.length > 0) {
+            ordersData.forEach((order: any) => {
+              const comp = order.competitions;
+              const entry = {
+                id: order.id,
+                competition_id: order.competition_id,
+                title: comp?.title || 'Unknown Competition',
+                description: comp?.description || '',
+                image: comp?.image_url,
+                status: comp?.status === 'active' ? 'live' : (comp?.status || 'live'),
+                entry_type: 'completed',
+                expires_at: null,
+                is_winner: false,
+                ticket_numbers: '',
+                number_of_tickets: order.ticket_count || 1,
+                amount_spent: order.amount,
+                purchase_date: order.completed_at || order.created_at,
+                wallet_address: identity.walletAddress,
+                transaction_hash: order.payment_tx_hash || null,
+                is_instant_win: comp?.is_instant_win || false,
+                prize_value: comp?.prize_value,
+                competition_status: comp?.status || 'active',
+                end_date: comp?.end_date,
+              };
+
+              addEntry(entry, 'orders');
+            });
+            databaseLogger.debug('Orders query found entries', { count: ordersData.length });
+          } else if (ordersError) {
+            databaseLogger.warn('Orders query error', { code: ordersError.code, message: ordersError.message });
+          }
+        }
+      } catch (e) {
+        databaseLogger.warn('Orders query exception', e);
+      }
+    }
+
+    databaseLogger.info('Individual queries complete', { totalEntries: allEntries.length, sources: 'view+joincompetition+tickets+transactions+orders' });
     return allEntries;
   },
 
@@ -3114,9 +3199,10 @@ export const database = {
         return this.getUserEntries(userId);
       }
 
-      if (!data || !Array.isArray(data)) {
-        databaseLogger.info('getUserEntriesFromCompetitionEntries: No entries found');
-        return [];
+      if (!data || !Array.isArray(data) || data.length === 0) {
+        databaseLogger.info('getUserEntriesFromCompetitionEntries: No entries in competition_entries, falling back to comprehensive method');
+        // Fallback to the comprehensive method that queries joincompetition, tickets, user_transactions, and pending_tickets
+        return this.getUserEntries(userId);
       }
 
       databaseLogger.success(`getUserEntriesFromCompetitionEntries: Found ${data.length} entries`);
