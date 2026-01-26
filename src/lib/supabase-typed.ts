@@ -12,6 +12,7 @@
 
 import { supabase } from '@/lib/supabase';
 import type { Database } from '../../supabase/types';
+import { getUnavailableTickets as getUnavailableTicketsRPC } from './supabase-rpc-helpers';
 
 // ============================================================================
 // Type Aliases for Better Ergonomics
@@ -251,7 +252,7 @@ export async function releaseReservation(params: {
  * @throws Error if the RPC call fails
  */
 export async function getUnavailableTickets(competitionId: string): Promise<number[]> {
-  const { data, error } = await getUnavailableTicketsHelper(supabase, competitionId);
+  const { data, error } = await getUnavailableTicketsRPC(supabase, competitionId);
 
   if (error) throw error;
   return data ?? [];
