@@ -11,6 +11,7 @@ import {
   COMPETITION_VISIBILITY_CUTOFF,
 } from './appConfig';
 import { userIdsEqual, normalizeWalletAddress, toPrizePid, isWalletAddress } from '../utils/userId';
+import { getDashboardEntries } from './supabase-rpc-helpers';
 import type {
   WinnerCardProps,
   Faq,
@@ -1714,10 +1715,7 @@ export const database = {
         // - joincompetition table (legacy confirmed entries)
         // - user_transactions table (payment-based entries with "finished" status)
         // - pending_tickets table (reservations awaiting payment confirmation)
-        const { data, error } = await supabase
-          .rpc('get_comprehensive_user_dashboard_entries', {
-            user_identifier: identity.primaryId
-          });
+        const { data, error } = await getDashboardEntries(supabase, identity.primaryId);
 
         if (error) {
           databaseLogger.rpcError('get_comprehensive_user_dashboard_entries', error, 'direct query fallback');

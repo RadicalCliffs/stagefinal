@@ -6,6 +6,7 @@ import { withRetry, isNetworkError, parseSupabaseFunctionError, getUserFriendlyE
 import { toPrizePid, isPrizePid } from '../utils/userId';
 import { toCanonicalUserId } from './canonicalUserId';
 import { notificationService } from './notification-service';
+import { executeBalancePayment } from './supabase-rpc-helpers';
 
 // Re-export supabase for backwards compatibility
 export { supabase };
@@ -714,17 +715,17 @@ export async function executeBalancePaymentRPC({
       selectedTicketsCount: selectedTickets?.length || 0
     });
 
-    // Call the GODLIKE RPC directly
+    // Call the GODLIKE RPC using the centralized helper
     const { data, error } = await withRetry(
       async () => {
-        return await supabase.rpc('execute_balance_payment', {
-          p_user_identifier: userId,
-          p_competition_id: competitionId,
-          p_amount: amount,
-          p_ticket_count: ticketCount,
-          p_selected_tickets: selectedTickets && selectedTickets.length > 0 ? selectedTickets : null,
-          p_idempotency_key: finalIdempotencyKey,
-          p_reservation_id: reservationId || null
+        return await executeBalancePayment(supabase, {
+          competitionId,
+          userIdentifier: userId,
+          amount,
+          ticketCount,
+          selectedTickets: selectedTickets && selectedTickets.length > 0 ? selectedTickets : null,
+          idempotencyKey: finalIdempotencyKey,
+          reservationId: reservationId || null
         });
       },
       {
