@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { notificationService } from '../../../lib/notification-service';
 import { useAuthUser } from '../../../contexts/AuthContext';
 import type { UserNotification } from '../../../types/notifications';
-import { Bell, Check, CheckCheck, Trash2, Gift, Trophy, Megaphone, AlertCircle, CreditCard, Wallet, Ticket, RefreshCw } from 'lucide-react';
+import { Bell, CheckCheck, RefreshCw, Sparkles } from 'lucide-react';
 import Loader from '../../Loader';
+import NotificationCard from './NotificationCard';
 
 const NotificationsLayout = () => {
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
@@ -79,26 +80,7 @@ const NotificationsLayout = () => {
     await loadNotifications();
   };
 
-  const getNotificationIcon = (type: UserNotification['type']) => {
-    switch (type) {
-      case 'win':
-        return <Trophy className="text-[#DDE404]" size={24} />;
-      case 'special_offer':
-        return <Gift className="text-purple-400" size={24} />;
-      case 'competition_ended':
-        return <AlertCircle className="text-blue-400" size={24} />;
-      case 'announcement':
-        return <Megaphone className="text-white" size={24} />;
-      case 'payment':
-        return <CreditCard className="text-green-400" size={24} />;
-      case 'topup':
-        return <Wallet className="text-[#DDE404]" size={24} />;
-      case 'entry':
-        return <Ticket className="text-[#EF008F]" size={24} />;
-      default:
-        return <Bell className="text-white" size={24} />;
-    }
-  };
+
 
   if (loading) {
     return (
@@ -112,109 +94,84 @@ const NotificationsLayout = () => {
 
   return (
     <div className="max-w-5xl mx-auto">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <div>
-          <h2 className="text-white sequel-95 uppercase text-2xl md:text-3xl">Notifications</h2>
-          <p className="text-white/60 sequel-45 text-sm mt-1">
-            {unreadCount > 0 ? `${unreadCount} unread notification${unreadCount !== 1 ? 's' : ''}` : 'All caught up!'}
-          </p>
+      {/* Header with gradient and animated background */}
+      <div className="relative mb-8 overflow-hidden rounded-2xl">
+        <div className="absolute inset-0 bg-gradient-to-r from-[#DDE404]/20 via-purple-500/10 to-[#EF008F]/20 animate-pulse" />
+        <div className="relative bg-[#181818]/90 backdrop-blur-sm border-2 border-white/20 rounded-2xl p-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="flex items-center gap-4">
+              <div className="bg-gradient-to-br from-[#DDE404] to-[#B8BE04] p-3 rounded-xl">
+                {unreadCount > 0 ? (
+                  <Sparkles className="text-black" size={32} />
+                ) : (
+                  <Bell className="text-black" size={32} />
+                )}
+              </div>
+              <div>
+                <h2 className="text-white sequel-95 uppercase text-2xl md:text-3xl flex items-center gap-2">
+                  Notifications
+                  {unreadCount > 0 && (
+                    <span className="bg-red-500 text-white text-sm sequel-75 px-2 py-1 rounded-full animate-pulse">
+                      {unreadCount}
+                    </span>
+                  )}
+                </h2>
+                <p className="text-white/60 sequel-45 text-sm mt-1">
+                  {unreadCount > 0 ? `${unreadCount} unread notification${unreadCount !== 1 ? 's' : ''}` : 'All caught up! 🎉'}
+                </p>
+              </div>
+            </div>
+            {unreadCount > 0 && (
+              <button
+                onClick={handleMarkAllAsRead}
+                className="bg-[#DDE404] hover:bg-[#DDE404]/90 text-[#1A1A1A] sequel-75 uppercase px-5 py-3 rounded-xl transition-all hover:scale-105 active:scale-95 text-sm flex items-center gap-2 shadow-lg shadow-[#DDE404]/30"
+              >
+                <CheckCheck size={18} />
+                Mark All as Read
+              </button>
+            )}
+          </div>
         </div>
-        {unreadCount > 0 && (
-          <button
-            onClick={handleMarkAllAsRead}
-            className="bg-[#DDE404] hover:bg-[#DDE404]/90 text-[#1A1A1A] sequel-75 uppercase px-4 py-2 rounded-lg transition-colors text-sm flex items-center gap-2"
-          >
-            <CheckCheck size={18} />
-            Mark All as Read
-          </button>
-        )}
       </div>
 
       {notifications.length === 0 ? (
-        <div className="bg-[#181818] border-2 border-white/20 rounded-xl p-12 text-center">
-          <Bell className="text-white/30 mx-auto mb-4" size={48} />
-          <p className="text-white/60 sequel-45 text-lg">No notifications yet</p>
-          <p className="text-white/40 sequel-45 text-sm mt-2 mb-6">
-            You'll be notified here when you win, competitions end, or we have special offers
-          </p>
-          {backfillStatus && (
-            <p className="text-[#DDE404] sequel-45 text-sm mb-4">{backfillStatus}</p>
-          )}
-          <button
-            onClick={handleBackfill}
-            disabled={backfilling}
-            className="bg-[#2A2A2A] hover:bg-[#3A3A3A] text-white sequel-75 uppercase px-4 py-2 rounded-lg transition-colors text-sm flex items-center gap-2 mx-auto disabled:opacity-50"
-          >
-            <RefreshCw size={18} className={backfilling ? 'animate-spin' : ''} />
-            {backfilling ? 'Loading...' : 'Load Activity History'}
-          </button>
+        <div className="relative overflow-hidden rounded-2xl">
+          <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-white/5" />
+          <div className="relative bg-[#181818]/90 backdrop-blur-sm border-2 border-white/20 rounded-2xl p-12 text-center">
+            <div className="inline-block p-6 bg-gradient-to-br from-white/10 to-transparent rounded-full mb-6">
+              <Bell className="text-white/30" size={64} />
+            </div>
+            <h3 className="text-white sequel-75 text-xl mb-2">No notifications yet</h3>
+            <p className="text-white/40 sequel-45 text-sm mb-6 max-w-md mx-auto">
+              You'll be notified here when you win, competitions end, or we have special offers
+            </p>
+            {backfillStatus && (
+              <p className="text-[#DDE404] sequel-45 text-sm mb-4 animate-pulse">{backfillStatus}</p>
+            )}
+            <button
+              onClick={handleBackfill}
+              disabled={backfilling}
+              className="bg-gradient-to-r from-[#DDE404] to-[#B8BE04] hover:from-[#B8BE04] hover:to-[#DDE404] text-black sequel-75 uppercase px-6 py-3 rounded-xl transition-all hover:scale-105 active:scale-95 text-sm flex items-center gap-2 mx-auto disabled:opacity-50 shadow-lg shadow-[#DDE404]/30"
+            >
+              <RefreshCw size={18} className={backfilling ? 'animate-spin' : ''} />
+              {backfilling ? 'Loading...' : 'Load Activity History'}
+            </button>
+          </div>
         </div>
       ) : (
-        <div className="space-y-3">
-          {notifications.map((notification) => (
+        <div className="space-y-4">
+          {notifications.map((notification, index) => (
             <div
               key={notification.id}
-              className={`bg-[#181818] border-2 ${
-                notification.read ? 'border-white/10' : 'border-[#DDE404]/50'
-              } rounded-xl p-4 transition-all hover:border-white/30`}
+              style={{
+                animation: `fadeInUp 0.5s ease-out ${index * 0.1}s both`
+              }}
             >
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0 mt-1">
-                  {getNotificationIcon(notification.type)}
-                </div>
-                
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <h3 className="text-white sequel-75 text-base md:text-lg">
-                      {notification.title}
-                    </h3>
-                    {!notification.read && (
-                      <span className="flex-shrink-0 w-2 h-2 bg-[#DDE404] rounded-full mt-2"></span>
-                    )}
-                  </div>
-                  
-                  <p className="text-white/70 sequel-45 text-sm mb-3">
-                    {notification.message}
-                  </p>
-                  
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-white/50 sequel-45">
-                    <span>
-                      {new Date(notification.created_at).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </span>
-                    {notification.expires_at && (
-                      <>
-                        <span>•</span>
-                        <span>Expires {new Date(notification.expires_at).toLocaleDateString()}</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-2 flex-shrink-0">
-                  {!notification.read && (
-                    <button
-                      onClick={() => handleMarkAsRead(notification.id)}
-                      className="bg-[#2A2A2A] hover:bg-[#3A3A3A] text-white p-2 rounded-lg transition-colors"
-                      title="Mark as read"
-                    >
-                      <Check size={16} />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => handleDelete(notification.id)}
-                    className="bg-red-500/20 hover:bg-red-500/30 text-red-400 p-2 rounded-lg transition-colors"
-                    title="Delete"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
+              <NotificationCard
+                notification={notification}
+                onMarkAsRead={handleMarkAsRead}
+                onDelete={handleDelete}
+              />
             </div>
           ))}
         </div>
