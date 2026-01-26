@@ -26,6 +26,60 @@ export interface DashboardEntry {
 }
 
 /**
+ * RPC response interface for get_comprehensive_user_dashboard_entries
+ */
+interface ComprehensiveDashboardEntryResponse {
+  id: string;
+  competition_id: string;
+  title: string | null;
+  description: string | null;
+  image: string | null;
+  status: string | null;
+  entry_type: string;
+  expires_at: string | null;
+  is_winner: boolean;
+  ticket_numbers: string | null;
+  number_of_tickets: number;
+  amount_spent: number;
+  purchase_date: string | null;
+  wallet_address: string | null;
+  transaction_hash: string | null;
+  is_instant_win: boolean;
+  prize_value: string | null;
+  competition_status: string | null;
+  end_date: string | null;
+}
+
+/**
+ * RPC response interface for get_user_competition_entries
+ */
+interface UserCompetitionEntryResponse {
+  id: string;
+  competition_id: string;
+  user_id: string | null;
+  canonical_user_id: string | null;
+  wallet_address: string | null;
+  ticket_numbers: number[];
+  ticket_count: number;
+  amount_paid: number;
+  currency: string | null;
+  transaction_hash: string | null;
+  payment_provider: string | null;
+  entry_status: string;
+  is_winner: boolean;
+  prize_claimed: boolean;
+  created_at: string;
+  updated_at: string;
+  competition_title: string | null;
+  competition_description: string | null;
+  competition_image_url: string | null;
+  competition_status: string | null;
+  competition_end_date: string | null;
+  competition_prize_value: number | null;
+  competition_is_instant_win: boolean;
+}
+
+/**
  * Detailed entry interface with user identifiers
  */
 export interface DetailedEntry extends DashboardEntry {
@@ -85,7 +139,7 @@ export async function fetchUserDashboardEntries(identifier: string): Promise<Das
   if (error) throw error;
 
   // Map to UI model with competition URL
-  const entries = (data ?? []).map((row: any) => {
+  const entries = (data ?? []).map((row: ComprehensiveDashboardEntryResponse) => {
     const competitionUrl = `/competitions/${row.competition_id}`; // change if you have slugs
 
     return {
@@ -96,7 +150,7 @@ export async function fetchUserDashboardEntries(identifier: string): Promise<Das
       status: row.status,
       source: row.entry_type === 'pending' ? 'pending_tickets' : 'tickets',
       competitionUrl,
-    };
+    } as DashboardEntry;
   });
 
   return entries;
@@ -120,7 +174,7 @@ export async function fetchUserEntriesDetailed(identifier: string): Promise<Deta
 
   if (error) throw error;
 
-  const entries = (data ?? []).map((row: any) => {
+  const entries = (data ?? []).map((row: UserCompetitionEntryResponse) => {
     const competitionUrl = `/competitions/${row.competition_id}`;
     
     // Extract first ticket number if ticket_numbers is an array
@@ -139,7 +193,7 @@ export async function fetchUserEntriesDetailed(identifier: string): Promise<Deta
       walletAddress: row.wallet_address,
       privyUserId: row.user_id,
       competitionUrl,
-    };
+    } as DetailedEntry;
   });
 
   return entries;
@@ -249,19 +303,23 @@ export async function loadUserOverview(identifier: string): Promise<{
   entries: DashboardEntry[];
   availabilityMap: Map<string, CompetitionAvailability>;
 }> {
-  const [entries] = await Promise.all([
-    fetchUserDashboardEntries(identifier),
-    // You can fetch availability per competition after you know which ones appear in entries
-  ]);
+  const entries = await fetchUserDashboardEntries(identifier);
 
-  // Optionally fetch availability for top N competitions on screen
+  // Optionally fetch availability for all competitions concurrently
   const uniqueCompetitionIds = [...new Set(entries.map(e => e.competitionId))];
   const availabilityMap = new Map<string, CompetitionAvailability>();
 
-  for (const id of uniqueCompetitionIds) {
-    const a = await fetchCompetitionAvailability(id);
-    if (a) availabilityMap.set(id, a);
-  }
+  // Fetch all availability data concurrently for better performance
+  const availabilities = await Promise.all(
+    uniqueCompetitionIds.map(id => fetchCompetitionAvailability(id))
+  );
+
+  // Build the map from the results
+  availabilities.forEach((availability, index) => {
+    if (availability) {
+      availabilityMap.set(uniqueCompetitionIds[index], availability);
+    }
+  });
 
   return { entries, availabilityMap };
 }
