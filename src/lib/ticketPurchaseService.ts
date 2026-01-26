@@ -6,7 +6,7 @@ import { withRetry, isNetworkError, parseSupabaseFunctionError, getUserFriendlyE
 import { toPrizePid, isPrizePid } from '../utils/userId';
 import { toCanonicalUserId } from './canonicalUserId';
 import { notificationService } from './notification-service';
-import { executeBalancePayment } from './supabase-rpc-helpers';
+import { executeBalancePayment, finalizePurchase } from './supabase-rpc-helpers';
 
 // Re-export supabase for backwards compatibility
 export { supabase };
@@ -815,6 +815,164 @@ export async function executeBalancePaymentRPC({
 
   } catch (err) {
     console.error('[executeBalancePaymentRPC] Unexpected error:', err);
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+
+    return {
+      success: false,
+      error: getUserFriendlyErrorMessage(undefined, errorMessage),
+      error_code: 'UNEXPECTED_ERROR',
+      error_detail: errorMessage
+    };
+  }
+}
+
+/**
+ * Finalize a balance payment using the finalize_purchase2 RPC
+ *
+ * This is the preferred method for balance payments as it:
+ * - Is idempotent (same key = same result, no double-charges or double-allocations)
+ * - Works even if reservation expired or ticket list is missing
+ * - Auto-allocates from available tickets up to ticket_count if needed
+ * - Handles partial failures by topping up from available inventory
+ * - Upserts competition_entries, inserts user_transactions (one-per-idempotency)
+ * - Balance updates are soft-idempotent using balance_ledger.reference_id='entry:{key}'
+ * - Always returns the same success payload for the same idempotency key
+ * - On failure, stores and returns an error payload; retried calls return stored result
+ *
+ * @param params - Payment parameters
+ * @returns Payment result with detailed success/error info surfaced to frontend
+ */
+export async function finalizeBalancePayment({
+  reservationId,
+  idempotencyKey,
+  ticketCount,
+  competitionId
+}: {
+  reservationId: string;
+  idempotencyKey?: string;
+  ticketCount?: number;
+  competitionId?: string;
+}) {
+  // Validate required fields
+  if (!reservationId || typeof reservationId !== 'string' || reservationId.trim() === '') {
+    console.error('[finalizeBalancePayment] Invalid reservationId provided:', reservationId);
+    return {
+      success: false,
+      error: 'Reservation ID is missing. Please try again.',
+      error_code: 'INVALID_RESERVATION'
+    };
+  }
+
+  // Use reservationId as idempotency key if not provided (recommended pattern)
+  const finalIdempotencyKey = idempotencyKey || reservationId;
+
+  try {
+    console.log('[finalizeBalancePayment] Calling finalize_purchase2 RPC with:', {
+      reservationId,
+      idempotencyKey: finalIdempotencyKey,
+      ticketCount: ticketCount || 'auto'
+    });
+
+    // Call the finalize_purchase2 RPC using the centralized helper
+    const { data, error } = await withRetry(
+      async () => {
+        return await finalizePurchase(supabase, {
+          reservationId,
+          idempotencyKey: finalIdempotencyKey,
+          ticketCount: ticketCount ?? null
+        });
+      },
+      {
+        maxRetries: 3,
+        delayMs: 1500,
+        context: 'finalize_purchase2_rpc',
+        shouldRetry: (error) => {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          // Retry on network errors but not on validation errors
+          return errorMessage.includes('Network') ||
+                 errorMessage.includes('Failed to send') ||
+                 errorMessage.includes('FunctionsFetchError') ||
+                 errorMessage.includes('network') ||
+                 isNetworkError(error);
+        }
+      }
+    );
+
+    if (error) {
+      console.error('[finalizeBalancePayment] RPC error:', error);
+      return {
+        success: false,
+        error: getUserFriendlyErrorMessage(undefined, error.message || 'Payment finalization failed'),
+        error_code: 'RPC_ERROR',
+        error_detail: error.message
+      };
+    }
+
+    // The RPC returns a JSONB object
+    if (!data) {
+      return {
+        success: false,
+        error: 'No response from payment service',
+        error_code: 'EMPTY_RESPONSE'
+      };
+    }
+
+    // Check if the RPC returned an error
+    if (data.success === false) {
+      console.error('[finalizeBalancePayment] RPC returned error:', data);
+      return {
+        success: false,
+        error: data.error || 'Payment finalization failed',
+        error_code: data.error_code || 'FINALIZE_FAILED',
+        ...data
+      };
+    }
+
+    // Success! Extract and format the response for frontend consumption
+    console.log('[finalizeBalancePayment] Payment finalized successfully:', {
+      entryId: data.entry_id,
+      ticketsCreated: data.tickets_created?.length || 0,
+      totalCost: data.total_cost,
+      balanceAfter: data.balance_after
+    });
+
+    // Dispatch balance-updated event to update UI immediately
+    if (typeof window !== 'undefined' && data.balance_after !== undefined) {
+      window.dispatchEvent(new CustomEvent('balance-updated', {
+        detail: {
+          newBalance: data.balance_after,
+          previousBalance: data.balance_before,
+          purchaseAmount: data.total_cost,
+          ticketsCreated: data.tickets_created?.length || 0,
+          competitionId: data.competition_id || competitionId
+        }
+      }));
+    }
+
+    // Check if competition is now sold out (non-blocking)
+    const finalCompetitionId = data.competition_id || competitionId;
+    if (finalCompetitionId) {
+      checkCompetitionSoldOut(finalCompetitionId).catch((err: Error) => {
+        console.log('[finalizeBalancePayment] Sold-out check (non-blocking):', err);
+      });
+    }
+
+    // Return structured success response that surfaces to frontend
+    return {
+      success: true,
+      entryId: data.entry_id,
+      ticketsCreated: data.tickets_created || [],
+      ticketNumbers: data.tickets_created || [],
+      totalCost: data.total_cost,
+      balanceBeforePurchase: data.balance_before,
+      balanceAfterPurchase: data.balance_after,
+      competitionId: data.competition_id || competitionId,
+      idempotent: data.idempotent || false,
+      message: `Successfully purchased ${data.tickets_created?.length || ticketCount || 0} tickets`
+    };
+
+  } catch (err) {
+    console.error('[finalizeBalancePayment] Unexpected error:', err);
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
 
     return {

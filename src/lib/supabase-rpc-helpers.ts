@@ -1,14 +1,69 @@
 /**
  * Supabase RPC Helpers
- * 
+ *
  * Centralized helpers for calling Supabase RPC functions with proper parameter names.
  * These helpers ensure that all RPC calls use the exact parameter names defined in SQL,
  * preventing 404/42883 errors from parameter mismatches.
- * 
+ *
  * CRITICAL: Always pass non-empty parameter objects matching SQL function signatures exactly.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+
+/**
+ * Finalize a purchase using the finalize_purchase2 RPC
+ *
+ * SQL Function: public.finalize_purchase2(p_reservation_id uuid, p_idempotency_key text, p_ticket_count int default null)
+ *
+ * This is the preferred method for balance payments as it:
+ * - Is idempotent (same key = same result, no double-charges)
+ * - Auto-allocates tickets from available inventory if needed
+ * - Handles partial failures gracefully by topping up from available tickets
+ * - Updates competition_entries and user_transactions atomically
+ * - Stores and returns results for retrieval on retry
+ *
+ * @param supabaseClient - Supabase client instance
+ * @param params - Finalize parameters
+ * @returns Promise with RPC result containing success status and purchase details
+ *
+ * @example
+ * const { data, error } = await finalizePurchase(supabase, {
+ *   reservationId: 'uuid-here',
+ *   idempotencyKey: 'uuid-or-payment-session-id',
+ *   ticketCount: 5 // optional but recommended
+ * });
+ *
+ * if (data?.success) {
+ *   // data contains: entry_id, tickets_created[], total_cost, balance_before, balance_after, competition_id
+ * } else {
+ *   // data.error is a human-readable message
+ * }
+ */
+export const finalizePurchase = (
+  supabaseClient: SupabaseClient,
+  params: {
+    reservationId: string;
+    idempotencyKey: string;
+    ticketCount?: number | null;
+  }
+) => {
+  const { reservationId, idempotencyKey, ticketCount } = params;
+
+  // Validate required parameters
+  if (!reservationId || typeof reservationId !== 'string' || reservationId.trim() === '') {
+    throw new Error('reservationId is required for finalizePurchase');
+  }
+
+  if (!idempotencyKey || typeof idempotencyKey !== 'string' || idempotencyKey.trim() === '') {
+    throw new Error('idempotencyKey is required for finalizePurchase');
+  }
+
+  return supabaseClient.rpc('finalize_purchase2', {
+    p_reservation_id: reservationId,
+    p_idempotency_key: idempotencyKey,
+    p_ticket_count: ticketCount ?? null
+  });
+};
 
 /**
  * Get user's comprehensive dashboard entries
@@ -241,5 +296,6 @@ export default {
   getAvailability,
   getUnavailableTickets,
   getUserCompetitionEntries,
-  executeBalancePayment
+  executeBalancePayment,
+  finalizePurchase
 };
