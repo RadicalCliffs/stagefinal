@@ -77,9 +77,9 @@ export async function createNewUser(walletAddress: string, privyUserId?: string)
       privy_user_id: privyUserId || null, // Keep for backward compatibility
       uid: privyUserId || walletAddress,
       created_at: new Date().toISOString()
-    }])
+    }] as any)
     .select()
-    .single();
+    .single() as any;
 
   if (error) {
     console.error("Error creating user:", error);

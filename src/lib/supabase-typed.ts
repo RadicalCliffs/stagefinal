@@ -11,7 +11,7 @@
  */
 
 import { supabase } from '@/lib/supabase';
-import type { Database } from '@/supabase/types';
+import type { Database } from '../../supabase/types';
 
 // ============================================================================
 // Type Aliases for Better Ergonomics
@@ -111,7 +111,7 @@ export async function getActiveEntriesByUser(userIdentifier: string): Promise<Ac
     .order('purchasedate', { ascending: false });
 
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []) as ActiveEntry[];
 }
 
 /**
@@ -129,7 +129,7 @@ export async function getActiveEntriesByCompetition(competitionUid: string): Pro
     .order('purchasedate', { ascending: false });
 
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []) as ActiveEntry[];
 }
 
 // ============================================================================

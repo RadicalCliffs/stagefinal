@@ -747,7 +747,7 @@ export async function executeBalancePaymentRPC({
       console.error('[executeBalancePaymentRPC] RPC error:', error);
       return {
         success: false,
-        error: getUserFriendlyErrorMessage(null, error.message || 'Payment failed'),
+        error: getUserFriendlyErrorMessage(undefined, error.message || 'Payment failed'),
         error_code: 'RPC_ERROR',
         error_detail: error.message
       };
@@ -767,7 +767,7 @@ export async function executeBalancePaymentRPC({
       console.error('[executeBalancePaymentRPC] RPC returned error:', data);
       return {
         success: false,
-        error: getUserFriendlyErrorMessage(null, data.error || 'Payment failed'),
+        error: getUserFriendlyErrorMessage(undefined, data.error || 'Payment failed'),
         error_code: data.error_code || 'PAYMENT_FAILED',
         ...data
       };
@@ -818,7 +818,7 @@ export async function executeBalancePaymentRPC({
 
     return {
       success: false,
-      error: getUserFriendlyErrorMessage(null, errorMessage),
+      error: getUserFriendlyErrorMessage(undefined, errorMessage),
       error_code: 'UNEXPECTED_ERROR',
       error_detail: errorMessage
     };
