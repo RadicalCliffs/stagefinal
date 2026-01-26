@@ -2257,7 +2257,8 @@ export const database = {
               )
             `)
             .or(txFilters.join(','))
-            .in('payment_status', ['completed', 'finished', 'confirmed'])
+            // Include ALL valid completed statuses (including 'complete', 'success', 'paid')
+            .in('payment_status', ['completed', 'complete', 'finished', 'confirmed', 'success', 'paid'])
             .order('created_at', { ascending: false });
 
           if (!txError && txData && txData.length > 0) {
@@ -2342,7 +2343,8 @@ export const database = {
               )
             `)
             .or(orderFilters.join(','))
-            .in('status', ['completed', 'confirmed', 'paid'])
+            // Include ALL valid completed statuses (including 'success')
+            .in('status', ['completed', 'confirmed', 'paid', 'success'])
             .not('competition_id', 'is', null)
             .order('created_at', { ascending: false });
 
@@ -2383,7 +2385,107 @@ export const database = {
       }
     }
 
-    databaseLogger.info('Individual queries complete', { totalEntries: allEntries.length, sources: 'view+joincompetition+tickets+transactions+orders' });
+    // ===== SOURCE 6: Query balance_ledger table =====
+    // Balance-based purchases are recorded in balance_ledger with source='purchase'
+    if (identity.canonicalUserId || identity.walletAddress) {
+      try {
+        // First, get the user UUID from canonical_users for balance_ledger lookup
+        let userUuid: string | null = null;
+
+        if (identity.canonicalUserId) {
+          const { data: userData } = await supabase
+            .from('canonical_users')
+            .select('id')
+            .eq('canonical_user_id', identity.canonicalUserId)
+            .maybeSingle();
+          if (userData?.id) {
+            userUuid = userData.id;
+          }
+        }
+
+        // Fallback to wallet address lookup
+        if (!userUuid && identity.walletAddress) {
+          const { data: userData } = await supabase
+            .from('canonical_users')
+            .select('id')
+            .or(`wallet_address.ilike.${identity.walletAddress},base_wallet_address.ilike.${identity.walletAddress}`)
+            .maybeSingle();
+          if (userData?.id) {
+            userUuid = userData.id;
+          }
+        }
+
+        if (userUuid) {
+          const { data: ledgerData, error: ledgerError } = await supabase
+            .from('balance_ledger')
+            .select('*')
+            .eq('user_id', userUuid)
+            .eq('source', 'purchase')
+            .lt('amount', 0) // Purchases are negative (debits)
+            .not('metadata->competition_id', 'is', null)
+            .order('created_at', { ascending: false });
+
+          if (!ledgerError && ledgerData && ledgerData.length > 0) {
+            // Fetch competition data for all competition IDs
+            const competitionIds = [...new Set(
+              ledgerData
+                .map((bl: any) => bl.metadata?.competition_id)
+                .filter(Boolean)
+            )];
+
+            let competitionsMap = new Map<string, any>();
+            if (competitionIds.length > 0) {
+              const { data: compData } = await supabase
+                .from('competitions')
+                .select('id, title, description, image_url, status, prize_value, is_instant_win, end_date, winner_address')
+                .in('id', competitionIds);
+              if (compData) {
+                compData.forEach((c: any) => {
+                  competitionsMap.set(c.id, c);
+                });
+              }
+            }
+
+            ledgerData.forEach((bl: any) => {
+              const compId = bl.metadata?.competition_id;
+              if (!compId) return;
+
+              const comp = competitionsMap.get(compId);
+              const entry = {
+                id: bl.id,
+                competition_id: compId,
+                title: comp?.title || 'Unknown Competition',
+                description: comp?.description || '',
+                image: comp?.image_url,
+                status: comp?.status === 'active' ? 'live' : (comp?.status || 'live'),
+                entry_type: 'completed',
+                expires_at: null,
+                is_winner: false,
+                ticket_numbers: bl.metadata?.ticket_numbers || '',
+                number_of_tickets: bl.metadata?.ticket_count || 1,
+                amount_spent: Math.abs(bl.amount),
+                purchase_date: bl.created_at,
+                wallet_address: bl.metadata?.wallet_address || identity.walletAddress,
+                transaction_hash: bl.transaction_id || bl.metadata?.transaction_hash || bl.metadata?.order_id || null,
+                is_instant_win: comp?.is_instant_win || false,
+                prize_value: comp?.prize_value,
+                competition_status: comp?.status || 'active',
+                end_date: comp?.end_date,
+              };
+
+              addEntry(entry, 'balance_ledger');
+            });
+            databaseLogger.debug('Balance ledger query found entries', { count: ledgerData.length });
+          } else if (ledgerError) {
+            databaseLogger.warn('Balance ledger query error', { code: ledgerError.code, message: ledgerError.message });
+          }
+        }
+      } catch (e) {
+        databaseLogger.warn('Balance ledger query exception', e);
+      }
+    }
+
+    databaseLogger.info('Individual queries complete', { totalEntries: allEntries.length, sources: 'view+joincompetition+tickets+transactions+orders+balance_ledger' });
     return allEntries;
   },
 

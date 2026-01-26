@@ -324,6 +324,38 @@ export default function EntriesList() {
         )
         .subscribe();
 
+      // Channel for user_transactions updates (for balance and crypto payments)
+      const userTransactionsChannel = supabase
+        .channel(`user-transactions-${normalizedUserId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'user_transactions',
+          },
+          (payload) => {
+            // Check if this transaction belongs to the current user
+            const record = payload.new as {
+              canonical_user_id?: string;
+              wallet_address?: string;
+              user_id?: string;
+              status?: string;
+              payment_status?: string;
+            };
+
+            if (recordMatchesUser(record, normalizedUserId, baseUser.id)) {
+              // Refresh on completed/confirmed transactions
+              const status = (record.status || record.payment_status || '').toLowerCase();
+              if (status === 'completed' || status === 'complete' || status === 'confirmed' || status === 'finished' || status === 'success' || status === 'paid') {
+                console.log('[EntriesList] User transaction completed:', payload.eventType, status);
+                debouncedFetchEntries();
+              }
+            }
+          }
+        )
+        .subscribe();
+
       // Listen for balance-updated events (dispatched after successful payments/top-ups)
       // This ensures entries refresh immediately after wallet balance changes
       const handleBalanceUpdated = () => {
@@ -343,6 +375,7 @@ export default function EntriesList() {
         supabase.removeChannel(entriesChannel);
         supabase.removeChannel(pendingTicketsChannel);
         supabase.removeChannel(competitionStatusChannel);
+        supabase.removeChannel(userTransactionsChannel);
       };
     }
   }, [baseUser?.id, fetchEntries, debouncedFetchEntries]);
