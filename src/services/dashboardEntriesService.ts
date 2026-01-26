@@ -79,29 +79,22 @@ export interface PendingTransaction {
 export async function fetchUserDashboardEntries(identifier: string): Promise<DashboardEntry[]> {
   const { data, error } = await supabase.rpc(
     'get_comprehensive_user_dashboard_entries',
-    { p_identifier: identifier }
+    { user_identifier: identifier }
   );
 
   if (error) throw error;
 
   // Map to UI model with competition URL
-  const entries = (data ?? []).map((row: {
-    competition_id: string;
-    competition_title: string | null;
-    ticket_number: number | null;
-    purchased_at: string | null;
-    status: string | null;
-    source: 'tickets' | 'pending_tickets';
-  }) => {
+  const entries = (data ?? []).map((row: any) => {
     const competitionUrl = `/competitions/${row.competition_id}`; // change if you have slugs
 
     return {
       competitionId: row.competition_id,
-      competitionTitle: row.competition_title,
-      ticketNumber: row.ticket_number,
-      purchasedAt: row.purchased_at,
+      competitionTitle: row.title,
+      ticketNumber: row.ticket_numbers ? parseInt(row.ticket_numbers.split(',')[0]) : null,
+      purchasedAt: row.purchase_date,
       status: row.status,
-      source: row.source,
+      source: row.entry_type === 'pending' ? 'pending_tickets' : 'tickets',
       competitionUrl,
     };
   });
@@ -127,29 +120,24 @@ export async function fetchUserEntriesDetailed(identifier: string): Promise<Deta
 
   if (error) throw error;
 
-  const entries = (data ?? []).map((row: {
-    competition_id: string;
-    competition_title: string | null;
-    ticket_number: number | null;
-    purchased_at: string | null;
-    status: string | null;
-    source: 'tickets' | 'pending_tickets';
-    canonical_user_id: string | null;
-    wallet_address: string | null;
-    privy_user_id: string | null;
-  }) => {
+  const entries = (data ?? []).map((row: any) => {
     const competitionUrl = `/competitions/${row.competition_id}`;
+    
+    // Extract first ticket number if ticket_numbers is an array
+    const ticketNumber = row.ticket_numbers && Array.isArray(row.ticket_numbers) && row.ticket_numbers.length > 0
+      ? row.ticket_numbers[0]
+      : null;
 
     return {
       competitionId: row.competition_id,
       competitionTitle: row.competition_title,
-      ticketNumber: row.ticket_number,
-      purchasedAt: row.purchased_at,
-      status: row.status,
-      source: row.source,
+      ticketNumber,
+      purchasedAt: row.created_at,
+      status: row.entry_status,
+      source: 'tickets', // This RPC returns competition_entries which are finalized
       canonicalUserId: row.canonical_user_id,
       walletAddress: row.wallet_address,
-      privyUserId: row.privy_user_id,
+      privyUserId: row.user_id,
       competitionUrl,
     };
   });
@@ -177,17 +165,16 @@ export async function fetchCompetitionAvailability(
 
   if (error) throw error;
 
-  // Function returns one row
-  const row = (data ?? [])[0];
-  if (!row) return null;
+  // Function returns JSON object directly
+  if (!data) return null;
 
   return {
-    competitionId: row.competition_id as string,
-    totalTickets: row.total_tickets as number,
-    soldCount: row.sold_count as number,
-    pendingCount: row.pending_count as number,
-    availableCount: row.available_count as number,
-    availableTickets: row.available_tickets as number[],
+    competitionId: data.competition_id as string,
+    totalTickets: data.total_tickets as number,
+    soldCount: data.sold_count as number,
+    pendingCount: 0, // Not returned by this RPC, calculate if needed
+    availableCount: data.available_count as number,
+    availableTickets: data.available_tickets as number[],
   };
 }
 
