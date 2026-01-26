@@ -158,7 +158,7 @@ const EntriesTable: React.FC<EntriesTableProps> = ({ entries, itemsPerPage = 20 
                 <p>Ticket Number(s)</p>
                 <p className="text-left">Username</p>
                 <p className="text-left">Wallet Address</p>
-                <p className="text-left">VRF Hash</p>
+                <p className="text-left">TX Hash</p>
             </div>
 
             {/* Rows */}
@@ -193,7 +193,7 @@ const EntriesTable: React.FC<EntriesTableProps> = ({ entries, itemsPerPage = 20 
                                         <p className="text-white truncate max-w-[160px] text-right" title={entry.walletAddress}>{displayWallet}</p>
                                     </div>
                                     <div className="flex justify-between gap-4 items-center">
-                                        <p className="text-white/60">VRF Hash</p>
+                                        <p className="text-white/60">TX Hash</p>
                                         <div className="flex items-center gap-2">
                                             {renderVRFHash(entry)}
                                         </div>
