@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X, Check, AlertCircle, Wallet, ExternalLink, CreditCard, ArrowDownToLine, ArrowUpFromLine, Gift, Zap, Smartphone, Coins, Sparkles, Shield, ChevronRight } from 'lucide-react';
+import { X, Check, AlertCircle, ExternalLink, CreditCard, Gift, Coins, ChevronRight } from 'lucide-react';
 import { useAuthUser } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { toCanonicalUserId } from '../lib/canonicalUserId';
@@ -11,8 +11,7 @@ import { Checkout, CheckoutButton, CheckoutStatus } from '@coinbase/onchainkit/c
 import type { LifecycleStatus } from '@coinbase/onchainkit/checkout';
 import { FundButton, getOnrampBuyUrl } from '@coinbase/onchainkit/fund';
 import { useRealTimeBalance } from '../hooks/useRealTimeBalance';
-import { useWalletTokens } from '../hooks/useWalletTokens';
-import { useWalletClient } from 'wagmi';
+import { useRealtimeSubscriptions } from '../hooks/useRealtimeSubscriptions';
 import { pay, type PaymentOptions, type PaymentResult } from '@base-org/account/payment/browser';
 
 // Text overrides for visual editor live preview
@@ -20,8 +19,6 @@ export interface TopUpWalletModalTextOverrides {
   modalTitle?: string;
   modalSubtitle?: string;
   methodSelectionTitle?: string;
-  instantTopUpLabel?: string;
-  instantTopUpDesc?: string;
   cryptoTopUpLabel?: string;
   cryptoTopUpDesc?: string;
   successMessage?: string;
@@ -35,8 +32,8 @@ interface TopUpWalletModalProps {
   textOverrides?: TopUpWalletModalTextOverrides;
 }
 
-type PaymentStep = 'method' | 'amount' | 'loading' | 'checkout' | 'crypto-checkout' | 'commerce-checkout' | 'instant-processing' | 'onramp-processing' | 'fund-button' | 'base-account-processing' | 'success' | 'error';
-type PaymentMethod = 'crypto' | 'commerce' | 'offramp' | 'instant' | 'onramp' | 'fund' | 'base-account';
+type PaymentStep = 'method' | 'amount' | 'loading' | 'checkout' | 'crypto-checkout' | 'commerce-checkout' | 'onramp-processing' | 'fund-button' | 'base-account-processing' | 'success' | 'error';
+type PaymentMethod = 'crypto' | 'commerce' | 'offramp' | 'onramp' | 'fund' | 'base-account';
 
 // Get preset amounts from Coinbase checkout URLs
 const PRESET_AMOUNTS = Object.keys(TOP_UP_CHECKOUT_URLS).map(Number).filter(a => a >= 3).sort((a, b) => a - b);
@@ -84,20 +81,39 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
   textOverrides,
 }) => {
   const { baseUser, linkedWallets, refreshUserData } = useAuthUser();
-  const { hasUsedBonus } = useRealTimeBalance();
-  const { data: walletClient } = useWalletClient();
+  const { hasUsedBonus, refresh: refreshBalance } = useRealTimeBalance();
   const [step, setStep] = useState<PaymentStep>('method');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('commerce');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('base-account');
   const [amount, setAmount] = useState<number>(50);
   const [error, setError] = useState<string>('');
   const [checkoutUrl, setCheckoutUrl] = useState<string>('');
   const [transactionId, setTransactionId] = useState<string>('');
   const [cryptoChargeId, setCryptoChargeId] = useState<string>('');
-  const [instantProcessing, setInstantProcessing] = useState<boolean>(false);
   const [onrampUrl, setOnrampUrl] = useState<string>('');
   const [baseAccountLoading, setBaseAccountLoading] = useState<boolean>(false);
 
-  // Get user's primary wallet address for token balance check
+  // Real-time subscriptions for balance and transaction updates
+  // Auto-refreshes balance when changes are detected in the database
+  useRealtimeSubscriptions({
+    onBalanceLedgerChange: useCallback(() => {
+      if (baseUser?.id && isOpen) {
+        console.log('[TopUpWalletModal] Balance ledger changed, refreshing balance');
+        refreshBalance();
+      }
+    }, [baseUser?.id, isOpen, refreshBalance]),
+    onUserTransactionChange: useCallback((payload) => {
+      if (baseUser?.id && isOpen) {
+        const status = (payload.new?.status || '').toLowerCase();
+        if (status === 'completed' || status === 'confirmed' || status === 'success') {
+          console.log('[TopUpWalletModal] Transaction completed, refreshing balance');
+          refreshBalance();
+        }
+      }
+    }, [baseUser?.id, isOpen, refreshBalance]),
+    debounceMs: 500,
+  });
+
+  // Get user's primary wallet address for Base Account payments
   const primaryWallet = linkedWallets.find(w => w.isEmbeddedWallet === true) ||
     linkedWallets.find(w => w.isBaseAccount === true) ||
     linkedWallets.find(w => w.chainType === 'ethereum') ||
@@ -105,24 +121,15 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
 
   const walletAddress = primaryWallet?.address;
 
-  // Fetch wallet token balances
-  const { tokens, isLoading: tokensLoading } = useWalletTokens(walletAddress);
-
-  // Get USDC balance from wallet
-  const usdcToken = tokens.find(t => t.symbol === 'USDC');
-  const walletUsdcBalance = usdcToken ? parseFloat(usdcToken.formattedBalance.replace(/,/g, '')) : 0;
-  const hasWalletBalance = walletUsdcBalance >= 10;
-
   useEffect(() => {
     if (!isOpen) {
       setStep('method');
-      setPaymentMethod('commerce');
+      setPaymentMethod('base-account');
       setAmount(50);
       setError('');
       setCheckoutUrl('');
       setTransactionId('');
       setCryptoChargeId('');
-      setInstantProcessing(false);
       setOnrampUrl('');
     }
   }, [isOpen]);
@@ -188,32 +195,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
     setError('');
 
     try {
-      if (paymentMethod === 'instant') {
-        // Instant wallet payment - direct USDC transfer from wallet
-        if (!walletAddress) {
-          setError('No wallet connected. Please connect a wallet first.');
-          setStep('error');
-          return;
-        }
-
-        if (walletUsdcBalance < amount) {
-          setError(`Insufficient wallet USDC balance. You have $${walletUsdcBalance.toFixed(2)} but need $${amount}.`);
-          setStep('error');
-          return;
-        }
-
-        if (!walletClient) {
-          setError('Wallet not connected. Please reconnect your wallet.');
-          setStep('error');
-          return;
-        }
-
-        setStep('instant-processing');
-        setInstantProcessing(true);
-
-        // Process instant wallet top-up
-        await handleInstantTopUp();
-      } else if (paymentMethod === 'crypto') {
+      if (paymentMethod === 'crypto') {
         // Crypto payment now uses OnchainKit in-modal checkout
         if (!TOP_UP_CHECKOUT_URLS[amount]) {
           setError(`Amount $${amount} is not available. Please select from: $${PRESET_AMOUNTS.join(', $')}`);
@@ -229,7 +211,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
         if (sessionData.session?.access_token) {
           headers['Authorization'] = `Bearer ${sessionData.session.access_token}`;
         }
-        
+
         const response = await fetch('/api/create-charge', {
           method: 'POST',
           headers,
@@ -239,7 +221,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
             type: 'topup',
           }),
         });
-        
+
         const result = await response.json();
         if (!response.ok || !result.success) {
           console.error('Failed to create charge:', result);
@@ -247,7 +229,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
           setStep('error');
           return;
         }
-        
+
         setTransactionId(result.data.transactionId);
         setCheckoutUrl(result.data.checkoutUrl);
         setStep('commerce-checkout');
@@ -289,127 +271,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
       console.error('Payment initiation error:', err);
       setError(err instanceof Error ? err.message : 'Failed to initiate payment');
       setStep('error');
-      setInstantProcessing(false);
       setBaseAccountLoading(false);
-    }
-  };
-
-  // Handle instant wallet top-up - direct USDC transfer from wallet to treasury
-  const handleInstantTopUp = async () => {
-    if (!walletClient || !walletAddress || !baseUser?.id) {
-      setError('Wallet not connected');
-      setStep('error');
-      setInstantProcessing(false);
-      return;
-    }
-
-    try {
-      const treasuryAddress = import.meta.env.VITE_TREASURY_ADDRESS;
-      if (!treasuryAddress) {
-        throw new Error('Treasury address not configured');
-      }
-
-      // USDC contract addresses
-      const isMainnet = import.meta.env.VITE_BASE_MAINNET === 'true';
-      const USDC_MAINNET = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
-      const USDC_TESTNET = '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
-      const USDC_ADDRESS = import.meta.env.VITE_USDC_CONTRACT_ADDRESS || (isMainnet ? USDC_MAINNET : USDC_TESTNET);
-
-      // Convert amount to USDC units (6 decimals)
-      const amountInUnits = BigInt(Math.floor(amount * 1_000_000));
-
-      // ERC20 transfer function signature: transfer(address,uint256)
-      const transferFunctionSelector = '0xa9059cbb';
-      const paddedAddress = treasuryAddress.slice(2).padStart(64, '0');
-      const paddedAmount = amountInUnits.toString(16).padStart(64, '0');
-      const data = `${transferFunctionSelector}${paddedAddress}${paddedAmount}`;
-
-      console.log('[TopUpWalletModal] Initiating instant top-up:', {
-        amount,
-        from: walletAddress,
-        to: treasuryAddress,
-      });
-
-      // Send the USDC transfer transaction
-      const txHash = await walletClient.request({
-        method: 'eth_sendTransaction',
-        params: [{
-          from: walletAddress,
-          to: USDC_ADDRESS,
-          data: data,
-        }] as any,
-      });
-
-      console.log('[TopUpWalletModal] Transaction submitted:', txHash);
-
-      // Get auth token for the API call
-      const authToken = localStorage.getItem('cdp:wallet_address') ||
-                       localStorage.getItem('base:wallet_address');
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      if (authToken) {
-        headers['Authorization'] = `Bearer wallet:${authToken}`;
-      } else {
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (sessionData.session?.access_token) {
-          headers['Authorization'] = `Bearer ${sessionData.session.access_token}`;
-        }
-      }
-
-      // Call the instant-topup API to verify and credit balance
-      const response = await fetch('/api/instant-topup', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          transactionHash: txHash,
-          amount,
-          walletAddress,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Failed to process top-up');
-      }
-
-      console.log('[TopUpWalletModal] Instant top-up successful:', result);
-
-      // Success!
-      setStep('success');
-      await refreshUserData();
-      // Dispatch event to update balance display
-      // Only dispatch if we have valid balance data
-      if (result.newBalance !== undefined && result.newBalance !== null) {
-        window.dispatchEvent(new CustomEvent('balance-updated', {
-          detail: { newBalance: result.newBalance }
-        }));
-      }
-
-      // Send in-app notification for the successful top-up
-      if (baseUser?.id) {
-        notificationService.notifyTopUp(baseUser.id, amount, result.newBalance).catch(err => {
-          console.warn('[TopUpWalletModal] Failed to send top-up notification:', err);
-        });
-      }
-
-      onSuccess?.();
-    } catch (err) {
-      console.error('[TopUpWalletModal] Instant top-up error:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Payment failed';
-
-      // Provide user-friendly error messages
-      if (errorMessage.includes('rejected') || errorMessage.includes('denied')) {
-        setError('Transaction was rejected by wallet');
-      } else if (errorMessage.includes('insufficient')) {
-        setError('Insufficient USDC balance in your wallet');
-      } else {
-        setError(errorMessage);
-      }
-      setStep('error');
-    } finally {
-      setInstantProcessing(false);
     }
   };
 
@@ -728,83 +590,31 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
               <div>
                 <p className="text-white sequel-45 mb-3 text-sm">{textOverrides?.methodSelectionTitle || 'Choose method:'}</p>
                 <div className="grid grid-cols-1 gap-2">
-                  {/* Option 1: Top up with another wallet (Instant wallet transfer) */}
-                  {hasWalletBalance && (
-                    <button
-                      onClick={() => handleMethodSelect('instant')}
-                      className={`flex items-center justify-between gap-3 p-3 rounded-xl transition-all w-full ${
-                        paymentMethod === 'instant'
-                          ? 'bg-[#0052FF]/20 border-2 border-[#0052FF]'
-                          : 'bg-[#3A3A3A] border-2 border-[#0052FF]/30 hover:border-[#0052FF]/60'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${paymentMethod === 'instant' ? 'bg-[#0052FF]' : 'bg-[#0052FF]/20'}`}>
-                          <Wallet size={20} className="text-white" />
-                        </div>
-                        <div className="text-left">
-                          <p className={`sequel-75 text-sm ${paymentMethod === 'instant' ? 'text-white' : 'text-white'}`}>
-                            {textOverrides?.instantTopUpLabel || 'Wallet'}
-                          </p>
-                          <p className="text-[#DDE404] sequel-45 text-xs">
-                            ${walletUsdcBalance.toFixed(2)} • Instant
-                          </p>
-                        </div>
-                      </div>
-                      <ChevronRight size={18} className="text-[#DDE404] flex-shrink-0" />
-                    </button>
-                  )}
-
-                  {/* Option 2: Pay with Base Account - One-tap USDC payment */}
-                  <button
-                    onClick={() => handleMethodSelect('base-account')}
-                    className={`flex items-center justify-between gap-3 p-3 rounded-xl transition-all w-full ${
-                      paymentMethod === 'base-account'
-                        ? 'bg-[#0052FF]/20 border-2 border-[#0052FF]'
-                        : 'bg-[#3A3A3A] border-2 border-[#0052FF]/30 hover:border-[#0052FF]/60'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${paymentMethod === 'base-account' ? 'bg-[#0052FF]' : 'bg-[#0052FF]/20'}`}>
-                        <svg className="w-6 h-6 text-white" viewBox="0 0 111 111" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M54.921 110.034C85.359 110.034 110.034 85.402 110.034 55.017C110.034 24.6319 85.359 0 54.921 0C26.0432 0 2.35281 22.1714 0 50.3923H72.8467V59.6416H3.9565e-07C2.35281 87.8625 26.0432 110.034 54.921 110.034Z" fill="currentColor"/>
-                        </svg>
-                      </div>
-                      <div className="text-left">
-                        <p className={`sequel-75 text-sm text-white`}>
-                          Base Account
-                        </p>
-                        <p className="text-[#DDE404] sequel-45 text-xs">
-                          Fast USDC payments
-                        </p>
-                      </div>
-                    </div>
-                    <ChevronRight size={18} className="text-[#DDE404] flex-shrink-0" />
-                  </button>
-
-                  {/* Option 3: Top up with Coinbase (Commerce flow) */}
+                  {/* Option 1: Pay with Base Account - One-tap USDC payment */}
                   <div className="relative">
                     <div className="absolute -top-1.5 -right-1.5 bg-[#DDE404] text-black text-[9px] font-bold px-1.5 py-0.5 rounded-full z-10">
                       TOP
                     </div>
                     <button
-                      onClick={() => handleMethodSelect('commerce')}
+                      onClick={() => handleMethodSelect('base-account')}
                       className={`flex items-center justify-between gap-3 p-3 rounded-xl transition-all w-full ${
-                        paymentMethod === 'commerce'
+                        paymentMethod === 'base-account'
                           ? 'bg-[#0052FF]/20 border-2 border-[#0052FF]'
                           : 'bg-[#3A3A3A] border-2 border-[#0052FF]/30 hover:border-[#0052FF]/60'
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${paymentMethod === 'commerce' ? 'bg-[#0052FF]' : 'bg-[#0052FF]/20'}`}>
-                          <Coins size={20} className="text-white" />
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${paymentMethod === 'base-account' ? 'bg-[#0052FF]' : 'bg-[#0052FF]/20'}`}>
+                          <svg className="w-6 h-6 text-white" viewBox="0 0 111 111" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M54.921 110.034C85.359 110.034 110.034 85.402 110.034 55.017C110.034 24.6319 85.359 0 54.921 0C26.0432 0 2.35281 22.1714 0 50.3923H72.8467V59.6416H3.9565e-07C2.35281 87.8625 26.0432 110.034 54.921 110.034Z" fill="currentColor"/>
+                          </svg>
                         </div>
                         <div className="text-left">
                           <p className={`sequel-75 text-sm text-white`}>
-                            {textOverrides?.cryptoTopUpLabel || 'Crypto'}
+                            Pay With Base
                           </p>
                           <p className="text-[#DDE404] sequel-45 text-xs">
-                            60+ coins
+                            Fast USDC payments
                           </p>
                         </div>
                       </div>
@@ -812,7 +622,32 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                     </button>
                   </div>
 
-                  {/* Option 4: Pay with Card - Coming Soon */}
+                  {/* Option 2: Top up with Coinbase (Commerce flow) */}
+                  <button
+                    onClick={() => handleMethodSelect('commerce')}
+                    className={`flex items-center justify-between gap-3 p-3 rounded-xl transition-all w-full ${
+                      paymentMethod === 'commerce'
+                        ? 'bg-[#0052FF]/20 border-2 border-[#0052FF]'
+                        : 'bg-[#3A3A3A] border-2 border-[#0052FF]/30 hover:border-[#0052FF]/60'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${paymentMethod === 'commerce' ? 'bg-[#0052FF]' : 'bg-[#0052FF]/20'}`}>
+                        <Coins size={20} className="text-white" />
+                      </div>
+                      <div className="text-left">
+                        <p className={`sequel-75 text-sm text-white`}>
+                          {textOverrides?.cryptoTopUpLabel || 'Pay With Crypto'}
+                        </p>
+                        <p className="text-[#DDE404] sequel-45 text-xs">
+                          60+ coins supported
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight size={18} className="text-[#DDE404] flex-shrink-0" />
+                  </button>
+
+                  {/* Option 3: Pay with Card - Coming Soon */}
                   <button
                     disabled={true}
                     className="flex items-center justify-between gap-3 p-3 rounded-xl w-full bg-[#3A3A3A] border-2 border-gray-600/30 opacity-50 cursor-not-allowed"
@@ -857,29 +692,6 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                       Redirecting to Coinbase...
                     </p>
                   </div>
-                ) : paymentMethod === 'instant' ? (
-                  <>
-                    <p className="text-white sequel-45 mb-4 text-sm">Select amount:</p>
-                    <div className="grid grid-cols-4 gap-3 mb-4">
-                      {PRESET_AMOUNTS.filter(a => a <= walletUsdcBalance).map((presetAmount) => (
-                        <button
-                          key={presetAmount}
-                          onClick={() => handleAmountSelect(presetAmount)}
-                          className={`py-3 px-4 rounded-lg sequel-75 transition-all ${
-                            amount === presetAmount
-                              ? 'bg-[#DDE404] text-black'
-                              : 'bg-[#3A3A3A] text-white hover:bg-[#4A4A4A]'
-                          }`}
-                        >
-                          ${presetAmount}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-2 text-[#DDE404] text-sm sequel-45">
-                      <Wallet size={16} />
-                      <span>${walletUsdcBalance.toFixed(2)} available</span>
-                    </div>
-                  </>
                 ) : paymentMethod === 'fund' ? (
                   <>
                     <p className="text-white sequel-45 mb-4 text-sm">Select amount:</p>
@@ -936,7 +748,6 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
               <button
                 onClick={handleContinue}
                 disabled={
-                  (paymentMethod === 'instant' && amount > walletUsdcBalance) ||
                   ((paymentMethod === 'crypto' || paymentMethod === 'commerce') && !TOP_UP_CHECKOUT_URLS[amount])
                 }
                 className="w-full h-[56px] flex items-center justify-center px-6 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
@@ -957,8 +768,6 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
               <p className="text-gray-400 text-xs sequel-45 mt-2">
                 {paymentMethod === 'offramp'
                   ? 'Redirecting to Coinbase...'
-                  : paymentMethod === 'instant'
-                  ? 'Preparing wallet transaction...'
                   : 'Preparing checkout...'}
               </p>
             </div>
@@ -978,23 +787,6 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
               </p>
             </div>
           )}
-
-          {/* Instant Top-Up Processing - Wallet transaction in progress */}
-          {step === 'instant-processing' && (
-            <div className="py-12 text-center">
-              <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-700 border-t-[#DDE404] mx-auto mb-4"></div>
-              <p className="text-white sequel-45 mb-2">Processing Instant Top-Up</p>
-              <p className="text-[#DDE404] sequel-75 text-xl mb-4">${amount} USDC</p>
-              <p className="text-gray-400 text-xs sequel-45">
-                Please confirm the transaction in your wallet...
-              </p>
-              <p className="text-gray-500 text-xs sequel-45 mt-2">
-                Your balance will be credited immediately after confirmation.
-              </p>
-            </div>
-          )}
-
-          {/* Coinbase Onramp Processing - DISABLED */}
 
           {/* FundButton Step - OnchainKit FundButton */}
           {step === 'fund-button' && walletAddress && (

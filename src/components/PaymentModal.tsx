@@ -13,14 +13,9 @@ import { purchaseTicketsWithBalance, getUserBalance, executeBalancePaymentRPC, f
 import { toCanonicalUserId } from "../lib/canonicalUserId";
 import { isSuccessStatus, isFailureStatus } from "../lib/payment-status";
 import { getPaymentErrorInfo, type PaymentErrorInfo } from "../lib/error-handler";
-// OnchainKit Checkout removed - was causing "invalid argument - Not found" errors
-// import { OnchainKitCheckoutService } from "../lib/onchainkit-checkout";
 import { CoinbaseCommerceService } from "../lib/coinbase-commerce";
-// Note: CoinbaseOnrampService removed - card payments now go through Commerce flow
-// OnchainKit Checkout components removed - use Balance or Base Account payment instead
-// import { Checkout, CheckoutButton, CheckoutStatus } from '@coinbase/onchainkit/checkout';
-// import type { LifecycleStatus } from '@coinbase/onchainkit/checkout';
 import { useBaseSubAccount } from "../hooks/useBaseSubAccount";
+import { useRealtimeSubscriptions } from "../hooks/useRealtimeSubscriptions";
 // Wagmi hook for getting the wallet client (provider) for transactions
 import { useWalletClient } from 'wagmi';
 
@@ -220,7 +215,33 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   // Get the wallet client from wagmi for direct wallet transactions
   // This provides the EIP-1193 provider needed for Base USDC payments
   const { data: walletClient } = useWalletClient();
-  
+
+  // Real-time subscriptions for balance and transaction updates
+  // Auto-refreshes balance when changes are detected in the database
+  useRealtimeSubscriptions({
+    onBalanceLedgerChange: useCallback(() => {
+      if (baseUser?.id && isOpen) {
+        console.log('[PaymentModal] Balance ledger changed, refreshing balance');
+        getUserBalance(baseUser.id).then(result => {
+          if (result.success) {
+            setUserBalance(result.data.usdc_balance);
+          }
+        }).catch(err => console.warn('[PaymentModal] Balance refresh failed:', err));
+      }
+    }, [baseUser?.id, isOpen]),
+    onSubAccountBalanceChange: useCallback(() => {
+      if (baseUser?.id && isOpen) {
+        console.log('[PaymentModal] Sub-account balance changed, refreshing balance');
+        getUserBalance(baseUser.id).then(result => {
+          if (result.success) {
+            setUserBalance(result.data.usdc_balance);
+          }
+        }).catch(err => console.warn('[PaymentModal] Balance refresh failed:', err));
+      }
+    }, [baseUser?.id, isOpen]),
+    debounceMs: 500,
+  });
+
   // Memoize treasury address to avoid repeated env var access and toLowerCase() calls
   const treasuryAddress = useMemo(
     () => import.meta.env.VITE_TREASURY_ADDRESS?.toLowerCase(),
@@ -1350,7 +1371,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                 {/* B. Pay With Wallet - DISABLED: OnchainKit checkout removed due to contract fetching errors */}
                 {/* Users should use "Pay With Balance" or "Pay With Base Account" instead */}
 
-                {/* C. Pay With Your Base Account */}
+                {/* C. Pay With Base */}
                 {authenticated && (
                   <button
                     onClick={handleBaseAccountPayment}
@@ -1364,7 +1385,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                         </svg>
                       </div>
                       <div className="text-left">
-                        <p className="text-white sequel-75 text-sm uppercase">Pay With Your Base Account</p>
+                        <p className="text-white sequel-75 text-sm uppercase">Pay With Base</p>
                         <p className="text-white/80 sequel-45 text-xs">Fast USDC payments on Base</p>
                       </div>
                     </div>
