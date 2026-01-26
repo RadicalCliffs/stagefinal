@@ -9,7 +9,7 @@ import { useAuthUser } from "../contexts/AuthContext";
 import type { UserInfo } from "./UserInfoModal";
 import { BasePaymentService } from "../lib/base-payment";
 import { BaseAccountPaymentService } from "../lib/base-account-payment";
-import { purchaseTicketsWithBalance, getUserBalance, executeBalancePaymentRPC } from "../lib/ticketPurchaseService";
+import { purchaseTicketsWithBalance, getUserBalance, executeBalancePaymentRPC, finalizeBalancePayment } from "../lib/ticketPurchaseService";
 import { toCanonicalUserId } from "../lib/canonicalUserId";
 import { isSuccessStatus, isFailureStatus } from "../lib/payment-status";
 import { getPaymentErrorInfo, type PaymentErrorInfo } from "../lib/error-handler";
@@ -537,7 +537,57 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     setPurchasedTickets([...selectedTickets]);
 
     try {
-      // PRIMARY: Try the GODLIKE RPC first - most reliable, bypasses Edge Functions
+      // PRIMARY: Try finalize_purchase2 RPC first when reservationId is available
+      // This is idempotent and handles edge cases like expired reservations gracefully
+      if (reservationId) {
+        console.log('[PaymentModal] Attempting balance payment via finalize_purchase2 RPC');
+        const finalizeResult = await finalizeBalancePayment({
+          reservationId,
+          idempotencyKey: reservationId, // Use reservationId as idempotency key (recommended)
+          ticketCount,
+          competitionId
+        });
+
+        if (finalizeResult.success) {
+          // finalize_purchase2 succeeded!
+          console.log('[PaymentModal] Balance payment succeeded via finalize_purchase2:', finalizeResult);
+          setShowOptimisticSuccess(true);
+          setBalanceTransactionId(finalizeResult.entryId || finalizeResult.ticketsCreated?.length?.toString() || 'success');
+          setPaymentStep('success');
+
+          // Update balance from the response
+          if (finalizeResult.balanceAfterPurchase !== undefined && finalizeResult.balanceAfterPurchase !== null) {
+            setUserBalance(finalizeResult.balanceAfterPurchase);
+            console.log('[PaymentModal] Balance updated from finalize_purchase2 response:', finalizeResult.balanceAfterPurchase);
+          }
+
+          // Store purchased ticket numbers for display
+          if (finalizeResult.ticketsCreated && Array.isArray(finalizeResult.ticketsCreated)) {
+            setPurchasedTickets(finalizeResult.ticketsCreated);
+          }
+
+          await refreshUserData();
+          loadUserBalance().catch(err => console.error('[PaymentModal] Background balance refresh failed:', err));
+
+          if (finalizeResult.balanceAfterPurchase !== undefined && finalizeResult.balanceAfterPurchase !== null) {
+            window.dispatchEvent(new CustomEvent('balance-updated', {
+              detail: { newBalance: finalizeResult.balanceAfterPurchase }
+            }));
+          }
+
+          if (onPaymentSuccess) {
+            onPaymentSuccess();
+          }
+          setShowOptimisticSuccess(false);
+          setBalanceLoading(false);
+          return;
+        }
+
+        // finalize_purchase2 failed - log and try other methods
+        console.warn('[PaymentModal] finalize_purchase2 failed, trying execute_balance_payment RPC:', finalizeResult.error);
+      }
+
+      // SECONDARY: Try the execute_balance_payment RPC - reliable, bypasses Edge Functions
       console.log('[PaymentModal] Attempting balance payment via execute_balance_payment RPC');
       const rpcResult = await executeBalancePaymentRPC({
         userId: toCanonicalUserId(baseUser.id),
