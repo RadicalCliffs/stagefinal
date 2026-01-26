@@ -49,20 +49,42 @@ const AboutPage = () => {
         </div>
 
         <div className="md:hidden">
-          <div className="space-y-[3.45rem] flex flex-col items-center">
-            {mobileFrames.map((frame, index) => (
-              <div key={index} className="w-full py-[1.725rem] flex justify-center px-4">
-                <img
-                  src={frame}
-                  alt={`About section ${index + 1}`}
-                  className="w-full max-w-[320px] h-auto object-contain"
-                  loading={index === 0 ? "eager" : "lazy"}
-                  style={{ imageRendering: 'auto' }}
-                />
-              </div>
-            ))}
+          <div className="flex flex-col items-center">
+            {/* Part 1: Hero section with gold coins - extends to screen edges */}
+            <div className="w-full py-[0.53rem] flex justify-center">
+              <img
+                src={mobileFrames[0]}
+                alt="About section 1"
+                className="w-full h-auto object-contain"
+                loading="eager"
+                style={{ imageRendering: 'auto' }}
+              />
+            </div>
 
-            <div className="w-full py-[3.68rem] bg-gradient-to-br from-pink-600 via-purple-700 to-[#1A1A1A] overflow-hidden">
+            {/* Part 2: Middle section - 69% reduced spacing */}
+            <div className="w-full py-[0.53rem] flex justify-center px-4">
+              <img
+                src={mobileFrames[1]}
+                alt="About section 2"
+                className="w-full max-w-[320px] h-auto object-contain"
+                loading="lazy"
+                style={{ imageRendering: 'auto' }}
+              />
+            </div>
+
+            {/* Part 3: Black explainer box - extends to screen edges */}
+            <div className="w-full py-[0.53rem] flex justify-center">
+              <img
+                src={mobileFrames[2]}
+                alt="About section 3"
+                className="w-full h-auto object-contain"
+                loading="lazy"
+                style={{ imageRendering: 'auto' }}
+              />
+            </div>
+
+            {/* Part 4: Carousel - joined to part 3 with reduced spacing to carousel */}
+            <div className="w-full py-[1.14rem] bg-gradient-to-br from-pink-600 via-purple-700 to-[#1A1A1A] overflow-hidden">
               <Swiper
                 modules={[Navigation, Pagination, A11y]}
                 spaceBetween={20}
