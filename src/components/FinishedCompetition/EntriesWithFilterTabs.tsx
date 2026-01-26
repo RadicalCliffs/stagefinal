@@ -5,6 +5,7 @@ import Heading from "../Heading";
 import type { Options } from "../../models/models";
 import { supabase } from "../../lib/supabase";
 import { entriesLogger, requestTracker, showDebugHintOnError } from "../../lib/debug-console";
+import { getCompetitionEntries } from "../../lib/supabase-rpc-helpers";
 
 // UUID validation regex
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -65,10 +66,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
           let rpcData: any[] | null = null;
           let rpcError: any = null;
 
-          const { data: standardData, error: standardError } = await supabase
-            .rpc('get_competition_entries', {
-              competition_identifier: idToUse
-            });
+          const { data: standardData, error: standardError } = await getCompetitionEntries(supabase, idToUse);
 
           if (!standardError && standardData) {
             rpcData = standardData;

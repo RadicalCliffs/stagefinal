@@ -251,9 +251,7 @@ export async function releaseReservation(params: {
  * @throws Error if the RPC call fails
  */
 export async function getUnavailableTickets(competitionId: string): Promise<number[]> {
-  const { data, error } = await supabase.rpc('get_unavailable_tickets', {
-    p_competition_id: competitionId,
-  } as any); // Using 'as any' because PostgREST expects p_competition_id but generated types show competition_id
+  const { data, error } = await getUnavailableTicketsHelper(supabase, competitionId);
 
   if (error) throw error;
   return data ?? [];
