@@ -8,7 +8,6 @@
  * CRITICAL: Always pass non-empty parameter objects matching SQL function signatures exactly.
  */
 
-import { supabase } from './supabase';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 /**
@@ -16,11 +15,12 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  * 
  * SQL Function: public.get_comprehensive_user_dashboard_entries(user_identifier TEXT)
  * 
+ * @param supabaseClient - Supabase client instance
  * @param canonicalId - User identifier (prize:pid:0x..., 0x wallet, canonical_user_id, or privy_user_id)
  * @returns Promise with RPC result containing user entries
  * 
  * @example
- * const { data, error } = await getDashboardEntries('prize:pid:0x2137af5047526a1180...');
+ * const { data, error } = await getDashboardEntries(supabase, 'prize:pid:0x2137af5047526a1180...');
  */
 export const getDashboardEntries = (
   supabaseClient: SupabaseClient,
@@ -40,6 +40,7 @@ export const getDashboardEntries = (
  * 
  * SQL Function: public.get_competition_entries(competition_identifier TEXT)
  * 
+ * @param supabaseClient - Supabase client instance
  * @param compIdOrUid - Competition UUID or UID
  * @returns Promise with RPC result containing competition entries
  * 
@@ -64,6 +65,7 @@ export const getCompetitionEntries = (
  * 
  * SQL Function: public.get_competition_ticket_availability_text(competition_id_text TEXT)
  * 
+ * @param supabaseClient - Supabase client instance
  * @param compIdOrUid - Competition UUID or UID
  * @returns Promise with RPC result containing availability info
  * 
@@ -88,6 +90,7 @@ export const getAvailability = (
  * 
  * SQL Function: public.get_unavailable_tickets(competition_id TEXT)
  * 
+ * @param supabaseClient - Supabase client instance
  * @param compIdOrUid - Competition UUID or UID
  * @returns Promise with RPC result containing unavailable ticket numbers
  * 
@@ -112,6 +115,7 @@ export const getUnavailableTickets = (
  * 
  * SQL Function: public.get_user_competition_entries(p_user_identifier TEXT)
  * 
+ * @param supabaseClient - Supabase client instance
  * @param canonicalId - User identifier (prize:pid:0x..., 0x wallet, canonical_user_id, or privy_user_id)
  * @returns Promise with RPC result containing user's competition entries
  * 
