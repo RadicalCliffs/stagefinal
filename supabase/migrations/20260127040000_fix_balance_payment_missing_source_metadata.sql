@@ -13,7 +13,7 @@
 --   Update the balance_ledger INSERT in execute_balance_payment to include
 --   source and metadata fields so dashboard queries can find these entries.
 --
--- Date: 2027-01-27
+-- Date: 2026-01-27
 -- =====================================================
 
 BEGIN;
