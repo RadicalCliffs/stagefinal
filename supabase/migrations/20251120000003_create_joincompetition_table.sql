@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS joincompetition (
   uid text PRIMARY KEY,
   competitionid text NOT NULL,
   userid text NOT NULL,
-  walletaddress text,
+  wallet_address text,
   numberoftickets integer NOT NULL DEFAULT 1,
   ticketnumbers text,
   amountspent numeric(10, 2) NOT NULL DEFAULT 0,
@@ -89,8 +89,8 @@ CREATE INDEX IF NOT EXISTS idx_joincompetition_competitionid
 CREATE INDEX IF NOT EXISTS idx_joincompetition_userid
   ON joincompetition(userid);
 
-CREATE INDEX IF NOT EXISTS idx_joincompetition_walletaddress
-  ON joincompetition(walletaddress);
+CREATE INDEX IF NOT EXISTS idx_joincompetition_wallet_address
+  ON joincompetition(wallet_address);
 
 CREATE INDEX IF NOT EXISTS idx_joincompetition_transactionhash
   ON joincompetition(transactionhash);

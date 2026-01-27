@@ -8,7 +8,7 @@
   This causes `is_winner` to ALWAYS be FALSE because:
   - The VRF webhook stores winner in `competitions.winner_address`
   - But the RPC queries `c.winner_wallet_address` which doesn't exist (returns NULL)
-  - So LOWER(jc.walletaddress) = LOWER(NULL) is always FALSE
+  - So LOWER(jc.wallet_address) = LOWER(NULL) is always FALSE
 
   ## Impact
   Users who won competitions are incorrectly shown as "COMPETITION LOST" because
@@ -125,12 +125,12 @@ BEGIN
     NULL::TIMESTAMPTZ AS expires_at,
     -- FIX: Use winner_address (correct column) instead of winner_wallet_address (wrong column)
     -- Case-insensitive winner check
-    COALESCE((LOWER(jc.walletaddress) = LOWER(c.winner_address)), FALSE) AS is_winner,
+    COALESCE((LOWER(jc.wallet_address) = LOWER(c.winner_address)), FALSE) AS is_winner,
     jc.ticketnumbers::TEXT AS ticket_numbers,
     COALESCE(jc.numberoftickets, 1) AS number_of_tickets,
     COALESCE(jc.amountspent, 0) AS amount_spent,
     COALESCE(jc.purchasedate::TIMESTAMPTZ, jc.created_at::TIMESTAMPTZ, NOW()) AS purchase_date,
-    jc.walletaddress AS wallet_address,
+    jc.wallet_address AS wallet_address,
     jc.transactionhash AS transaction_hash,
     COALESCE(c.is_instant_win, FALSE) AS is_instant_win,
     c.prize_value::TEXT AS prize_value,
@@ -147,9 +147,9 @@ BEGIN
     -- ISSUE D FIX: Case-insensitive wallet address comparison using LOWER()
     jc.privy_user_id = user_identifier
     OR jc.userid = user_identifier
-    OR LOWER(jc.walletaddress) = lower_identifier
+    OR LOWER(jc.wallet_address) = lower_identifier
     -- FIX: Also match by extracted wallet from prize:pid: format
-    OR (search_wallet IS NOT NULL AND LOWER(jc.walletaddress) = search_wallet)
+    OR (search_wallet IS NOT NULL AND LOWER(jc.wallet_address) = search_wallet)
   )
   AND jc.competitionid IS NOT NULL
   AND LENGTH(TRIM(COALESCE(jc.competitionid, ''))) > 0
@@ -166,7 +166,7 @@ BEGIN
       ARRAY[]::TEXT[]
     ),
     COALESCE(
-      ARRAY_AGG(DISTINCT (jc.competitionid || '|' || COALESCE(jc.privy_user_id, jc.userid, LOWER(jc.walletaddress), ''))),
+      ARRAY_AGG(DISTINCT (jc.competitionid || '|' || COALESCE(jc.privy_user_id, jc.userid, LOWER(jc.wallet_address), ''))),
       ARRAY[]::TEXT[]
     )
   INTO seen_tx_hashes, seen_ticket_sets, seen_competition_user_pairs
@@ -174,8 +174,8 @@ BEGIN
   WHERE (
     jc.privy_user_id = user_identifier
     OR jc.userid = user_identifier
-    OR LOWER(jc.walletaddress) = lower_identifier
-    OR (search_wallet IS NOT NULL AND LOWER(jc.walletaddress) = search_wallet)
+    OR LOWER(jc.wallet_address) = lower_identifier
+    OR (search_wallet IS NOT NULL AND LOWER(jc.wallet_address) = search_wallet)
   )
   AND jc.competitionid IS NOT NULL;
 

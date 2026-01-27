@@ -100,7 +100,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
             });
 
             rpcData.forEach((entry: any) => {
-              const wallet = entry.walletaddress || entry.privy_user_id || '';
+              const wallet = entry.wallet_address || entry.privy_user_id || '';
               if (wallet && wallet.startsWith('0x')) {
                 walletAddresses.add(wallet.toLowerCase());
               }
@@ -164,7 +164,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
           const exactStartTime = Date.now();
           const { data: exactData, error: exactError } = await supabase
             .from('v_joincompetition_active')
-            .select('ticketnumbers, purchasedate, walletaddress, userid, canonical_user_id, transactionhash')
+            .select('ticketnumbers, purchasedate, wallet_address, userid, canonical_user_id, transactionhash')
             .eq('competitionid', idToUse);
 
           if (!exactError && exactData && exactData.length > 0) {
@@ -196,7 +196,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
               const uidStartTime = Date.now();
               const { data: uidData, error: uidError } = await supabase
                 .from('v_joincompetition_active')
-                .select('ticketnumbers, purchasedate, walletaddress, userid, canonical_user_id, transactionhash')
+                .select('ticketnumbers, purchasedate, wallet_address, userid, canonical_user_id, transactionhash')
                 .eq('competitionid', compData.uid);
 
               if (!uidError && uidData && uidData.length > 0) {
@@ -227,7 +227,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
             });
 
             jcData.forEach((entry: any) => {
-              const wallet = entry.walletaddress || entry.userid || '';
+              const wallet = entry.wallet_address || entry.userid || '';
               if (wallet && wallet.startsWith('0x')) {
                 walletAddresses.add(wallet.toLowerCase());
               }
@@ -467,7 +467,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
             // Third try: Query joincompetition for this competition to get wallet/user mapping
             const { data: joinData } = await supabase
               .from('joincompetition')
-              .select('walletaddress, userid, canonical_user_id')
+              .select('wallet_address, userid, canonical_user_id')
               .eq('competitionid', idToUse);
 
             if (joinData && joinData.length > 0) {

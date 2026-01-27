@@ -86,12 +86,12 @@ BEGIN
     END AS status,
     'completed'::TEXT AS entry_type,
     NULL::TIMESTAMPTZ AS expires_at,
-    COALESCE((LOWER(jc.walletaddress) = LOWER(c.winner_wallet_address)), FALSE) AS is_winner,
+    COALESCE((LOWER(jc.wallet_address) = LOWER(c.winner_wallet_address)), FALSE) AS is_winner,
     jc.ticketnumbers::TEXT AS ticket_numbers,
     COALESCE(jc.numberoftickets, 1) AS number_of_tickets,
     jc.amountspent AS amount_spent,
     COALESCE(jc.purchasedate::TIMESTAMPTZ, jc.created_at::TIMESTAMPTZ) AS purchase_date,
-    jc.walletaddress AS wallet_address,
+    jc.wallet_address AS wallet_address,
     jc.transactionhash AS transaction_hash,
     COALESCE(c.is_instant_win, FALSE) AS is_instant_win,
     c.prize_value AS prize_value,
@@ -110,7 +110,7 @@ BEGIN
     jc.privy_user_id = user_identifier
     OR jc.userid = user_identifier
     -- Case-insensitive wallet address comparison
-    OR LOWER(jc.walletaddress) = lower_identifier
+    OR LOWER(jc.wallet_address) = lower_identifier
   )
   AND (c.id IS NOT NULL OR jc.competitionid ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
   ORDER BY COALESCE(jc.purchasedate::TIMESTAMPTZ, jc.created_at::TIMESTAMPTZ) DESC;
@@ -128,7 +128,7 @@ BEGIN
     jc.privy_user_id = user_identifier
     OR jc.userid = user_identifier
     -- Case-insensitive wallet address comparison
-    OR LOWER(jc.walletaddress) = lower_identifier
+    OR LOWER(jc.wallet_address) = lower_identifier
   )
   AND (c.id IS NOT NULL OR jc.competitionid ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
 
@@ -273,7 +273,7 @@ COMMENT ON FUNCTION get_comprehensive_user_dashboard_entries(TEXT) IS
   -- For joincompetition table
   CREATE INDEX IF NOT EXISTS idx_joincompetition_privy_user_id ON joincompetition(privy_user_id);
   CREATE INDEX IF NOT EXISTS idx_joincompetition_userid ON joincompetition(userid);
-  CREATE INDEX IF NOT EXISTS idx_joincompetition_walletaddress_lower ON joincompetition(LOWER(walletaddress));
+  CREATE INDEX IF NOT EXISTS idx_joincompetition_wallet_address_lower ON joincompetition(LOWER(wallet_address));
 
   -- For user_transactions table
   CREATE INDEX IF NOT EXISTS idx_user_transactions_user_privy_id ON user_transactions(user_privy_id);
@@ -294,8 +294,8 @@ COMMENT ON FUNCTION get_comprehensive_user_dashboard_entries(TEXT) IS
 -- Using LOWER() expression indexes for case-insensitive matching
 
 -- Index on joincompetition for wallet address lookups
-CREATE INDEX IF NOT EXISTS idx_joincompetition_walletaddress_lower
-ON joincompetition(LOWER(walletaddress));
+CREATE INDEX IF NOT EXISTS idx_joincompetition_wallet_address_lower
+ON joincompetition(LOWER(wallet_address));
 
 -- Index on joincompetition for privy_user_id lookups
 CREATE INDEX IF NOT EXISTS idx_joincompetition_privy_user_id

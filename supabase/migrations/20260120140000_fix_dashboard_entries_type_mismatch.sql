@@ -28,7 +28,7 @@ SELECT
   jc.id,
   jc.uid,
   jc.userid,
-  jc.walletaddress,
+  jc.wallet_address,
   jc.competitionid,
   jc.numberoftickets,
   jc.ticketnumbers,
@@ -143,7 +143,7 @@ BEGIN
     END AS status,
     'competition_entry' AS entry_type,
     COALESCE(
-      LOWER(c.winner_address) = LOWER(jc.walletaddress),
+      LOWER(c.winner_address) = LOWER(jc.wallet_address),
       FALSE
     ) AS is_winner,
     COALESCE(jc.ticketnumbers, '') AS ticket_numbers,
@@ -169,13 +169,13 @@ BEGIN
     -- Match by canonical_user_id
     jc.canonical_user_id = user_identifier
     -- Match by wallet address (case-insensitive)
-    OR LOWER(jc.walletaddress) = lower_identifier
+    OR LOWER(jc.wallet_address) = lower_identifier
     -- Match by userid (legacy)
     OR jc.userid = user_identifier
     -- Match by privy_user_id if it exists
     OR jc.privy_user_id = user_identifier
     -- Match by wallet in search_wallet
-    OR (search_wallet IS NOT NULL AND LOWER(jc.walletaddress) = search_wallet)
+    OR (search_wallet IS NOT NULL AND LOWER(jc.wallet_address) = search_wallet)
   )
   AND jc.competitionid IS NOT NULL
 
@@ -228,7 +228,7 @@ BEGIN
     AND (
       -- Match user
       jc2.canonical_user_id = t.canonical_user_id
-      OR LOWER(jc2.walletaddress) = LOWER(t.user_id)
+      OR LOWER(jc2.wallet_address) = LOWER(t.user_id)
       OR jc2.userid = t.user_id
     )
   )
@@ -361,7 +361,7 @@ CREATE INDEX IF NOT EXISTS idx_joincompetition_canonical_user_id_lower
   WHERE canonical_user_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_joincompetition_wallet_canonical
-  ON joincompetition(LOWER(walletaddress), canonical_user_id);
+  ON joincompetition(LOWER(wallet_address), canonical_user_id);
 
 
 -- ============================================================================

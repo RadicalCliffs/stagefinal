@@ -56,7 +56,7 @@ RETURNS TABLE (
     numberoftickets INTEGER,
     ticketnumbers TEXT,
     amountspent DECIMAL,
-    walletaddress TEXT,
+    wallet_address TEXT,
     chain TEXT,
     transactionhash TEXT,
     purchasedate TIMESTAMPTZ
@@ -82,7 +82,7 @@ BEGIN
         jc.numberoftickets,
         jc.ticketnumbers,
         jc.amountspent,
-        jc.walletaddress,
+        jc.wallet_address,
         jc.chain,
         jc.transactionhash,
         jc.purchasedate

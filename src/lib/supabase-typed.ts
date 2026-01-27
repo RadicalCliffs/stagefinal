@@ -108,7 +108,7 @@ export async function getActiveEntriesByUser(userIdentifier: string): Promise<Ac
   const { data, error } = await supabase
     .from('v_joincompetition_active')
     .select('*')
-    .or(`userid.eq."${userIdentifier.replace(/"/g, '""')}",walletaddress.eq."${userIdentifier.replace(/"/g, '""')}"`)
+    .or(`userid.eq."${userIdentifier.replace(/"/g, '""')}",wallet_address.eq."${userIdentifier.replace(/"/g, '""')}"`)
     .order('purchasedate', { ascending: false });
 
   if (error) throw error;

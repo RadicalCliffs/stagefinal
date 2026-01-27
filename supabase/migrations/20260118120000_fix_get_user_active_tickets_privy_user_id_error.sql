@@ -54,8 +54,8 @@ ON joincompetition(privy_user_id) WHERE privy_user_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_joincompetition_canonical_user_id
 ON joincompetition(canonical_user_id) WHERE canonical_user_id IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_joincompetition_walletaddress_lower
-ON joincompetition(LOWER(walletaddress)) WHERE walletaddress IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_joincompetition_wallet_address_lower
+ON joincompetition(LOWER(wallet_address)) WHERE wallet_address IS NOT NULL;
 
 -- ============================================================================
 -- STEP 2: Recreate get_user_active_tickets RPC (robust version)
@@ -121,7 +121,7 @@ BEGIN
   )
   WHERE (
     -- Match by wallet address (case-insensitive) - always works
-    LOWER(jc.walletaddress) = search_wallet
+    LOWER(jc.wallet_address) = search_wallet
     -- Match by userid (legacy)
     OR jc.userid = user_identifier
     OR jc.userid = canonical_id
@@ -143,7 +143,7 @@ EXCEPTION
     SELECT COALESCE(SUM(jc.numberoftickets), 0)::INTEGER INTO ticket_count
     FROM joincompetition jc
     INNER JOIN competitions c ON jc.competitionid::text = c.id::text OR jc.competitionid::text = c.uid::text
-    WHERE LOWER(jc.walletaddress) = search_wallet
+    WHERE LOWER(jc.wallet_address) = search_wallet
       OR jc.userid = user_identifier
     AND c.status IN ('active', 'live', 'drawing')
     AND c.enddate > NOW();
@@ -170,16 +170,16 @@ privy_user_id, userid. Includes defensive error handling for missing columns.';
 -- Populate canonical_user_id and privy_user_id for existing entries
 
 UPDATE joincompetition
-SET canonical_user_id = 'prize:pid:' || LOWER(walletaddress)
+SET canonical_user_id = 'prize:pid:' || LOWER(wallet_address)
 WHERE canonical_user_id IS NULL
-  AND walletaddress IS NOT NULL
-  AND walletaddress LIKE '0x%';
+  AND wallet_address IS NOT NULL
+  AND wallet_address LIKE '0x%';
 
 UPDATE joincompetition
-SET privy_user_id = LOWER(walletaddress)
+SET privy_user_id = LOWER(wallet_address)
 WHERE privy_user_id IS NULL
-  AND walletaddress IS NOT NULL
-  AND walletaddress LIKE '0x%';
+  AND wallet_address IS NOT NULL
+  AND wallet_address LIKE '0x%';
 
 -- ============================================================================
 -- STEP 4: Validation

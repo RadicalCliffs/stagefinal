@@ -1398,7 +1398,7 @@ Deno.serve(async (req: Request) => {
             numberoftickets: assignedNumbers.length,
             ticketnumbers: assignedNumbers.join(","),
             amountspent: totalCost,
-            walletaddress: walletAddress,
+            wallet_address: walletAddress,
             chain: "balance",  // Changed from USDC to balance to indicate balance payment
             transactionhash: txRef,
             purchasedate: new Date().toISOString(),

@@ -230,7 +230,7 @@ BEGIN
       WHERE jc.competitionid = v_comp_uuid::text
         AND (
           jc.privy_user_id = p_user_id
-          OR jc.walletaddress = p_user_id
+          OR jc.wallet_address = p_user_id
           OR jc.userid = p_user_id
         )
         AND jc.ticketnumbers IS NOT NULL

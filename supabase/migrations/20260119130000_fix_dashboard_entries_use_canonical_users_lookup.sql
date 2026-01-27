@@ -139,7 +139,7 @@ BEGIN
     END AS status,
     'competition_entry' AS entry_type,
     COALESCE(
-      LOWER(c.winner_address) = LOWER(jc.walletaddress),
+      LOWER(c.winner_address) = LOWER(jc.wallet_address),
       FALSE
     ) AS is_winner,
     COALESCE(jc.ticketnumbers, '') AS ticket_numbers,
@@ -156,17 +156,17 @@ BEGIN
   WHERE (
     -- Match using resolved identifiers from canonical_users
     (resolved_canonical_user_id IS NOT NULL AND jc.canonical_user_id = resolved_canonical_user_id)
-    OR (resolved_wallet_address IS NOT NULL AND LOWER(jc.walletaddress) = resolved_wallet_address)
-    OR (resolved_base_wallet_address IS NOT NULL AND LOWER(jc.walletaddress) = resolved_base_wallet_address)
-    OR (resolved_eth_wallet_address IS NOT NULL AND LOWER(jc.walletaddress) = resolved_eth_wallet_address)
+    OR (resolved_wallet_address IS NOT NULL AND LOWER(jc.wallet_address) = resolved_wallet_address)
+    OR (resolved_base_wallet_address IS NOT NULL AND LOWER(jc.wallet_address) = resolved_base_wallet_address)
+    OR (resolved_eth_wallet_address IS NOT NULL AND LOWER(jc.wallet_address) = resolved_eth_wallet_address)
     OR (resolved_privy_user_id IS NOT NULL AND jc.privy_user_id = resolved_privy_user_id)
     OR (resolved_uid IS NOT NULL AND jc.userid = resolved_uid)
     -- Fallback: Direct matching if user not found in canonical_users
     OR (resolved_canonical_user_id IS NULL AND (
       jc.canonical_user_id = user_identifier
-      OR LOWER(jc.walletaddress) = lower_identifier
+      OR LOWER(jc.wallet_address) = lower_identifier
       OR jc.userid = user_identifier
-      OR (search_wallet IS NOT NULL AND LOWER(jc.walletaddress) = search_wallet)
+      OR (search_wallet IS NOT NULL AND LOWER(jc.wallet_address) = search_wallet)
     ))
   )
   AND jc.competitionid IS NOT NULL

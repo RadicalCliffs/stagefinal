@@ -40,7 +40,7 @@ BEGIN
       SELECT unnest(string_to_array(jc.ticketnumbers, ',')) AS t_num
       FROM joincompetition jc
       WHERE jc.competitionid = v_comp_uuid::text
-        AND (jc.privy_user_id = user_id OR jc.walletaddress = user_id)
+        AND (jc.privy_user_id = user_id OR jc.wallet_address = user_id)
         AND jc.ticketnumbers IS NOT NULL
         AND trim(jc.ticketnumbers) != ''
     ) jc_tickets

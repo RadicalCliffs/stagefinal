@@ -181,9 +181,9 @@ CREATE TRIGGER normalize_wallet_on_insert_update
 
 -- Normalize joincompetition.walletaddress
 UPDATE joincompetition
-SET walletaddress = LOWER(walletaddress)
-WHERE walletaddress ~ '^0x[a-fA-F0-9]{40}$'
-  AND walletaddress != LOWER(walletaddress);
+SET wallet_address = LOWER(wallet_address)
+WHERE wallet_address ~ '^0x[a-fA-F0-9]{40}$'
+  AND wallet_address != LOWER(wallet_address);
 
 -- Normalize user_transactions.wallet_address
 UPDATE user_transactions
@@ -234,7 +234,7 @@ DO $$
 BEGIN
   -- Index on joincompetition.walletaddress (lower)
   IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_joincompetition_wallet_lower') THEN
-    CREATE INDEX idx_joincompetition_wallet_lower ON joincompetition (LOWER(walletaddress));
+    CREATE INDEX idx_joincompetition_wallet_lower ON joincompetition (LOWER(wallet_address));
   END IF;
 
   -- Index on user_transactions.wallet_address (lower)

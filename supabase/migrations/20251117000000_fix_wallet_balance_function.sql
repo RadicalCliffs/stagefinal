@@ -75,7 +75,7 @@ BEGIN
   SELECT COALESCE(SUM(numberoftickets), 0)::INTEGER INTO ticket_count
   FROM joincompetition jc
   INNER JOIN competitions c ON jc.competitionid = c.uid
-  WHERE (jc.userid = user_identifier OR jc.walletaddress = user_identifier)
+  WHERE (jc.userid = user_identifier OR jc.wallet_address = user_identifier)
     AND c.enddate > NOW()
     AND c.is_active = TRUE;
 

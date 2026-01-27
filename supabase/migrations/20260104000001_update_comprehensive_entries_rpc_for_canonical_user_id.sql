@@ -57,7 +57,7 @@ BEGIN
     COALESCE(jc.numberoftickets, 0) AS number_of_tickets,
     COALESCE(jc.amountspent, 0) AS amount_spent,
     jc.purchasedate AS purchase_date,
-    jc.walletaddress AS wallet_address,
+    jc.wallet_address AS wallet_address,
     jc.transactionhash AS transaction_hash,
     COALESCE(c.is_instant_win, FALSE) AS is_instant_win,
     c.prize_value AS prize_value,
@@ -70,7 +70,7 @@ BEGIN
   WHERE (
     jc.privy_user_id = user_identifier
     OR jc.userid = user_identifier
-    OR jc.walletaddress = user_identifier
+    OR jc.wallet_address = user_identifier
   );
 
   -- Track seen competitions
@@ -80,7 +80,7 @@ BEGIN
   WHERE (
     jc.privy_user_id = user_identifier
     OR jc.userid = user_identifier
-    OR jc.walletaddress = user_identifier
+    OR jc.wallet_address = user_identifier
   );
 
   IF seen_competition_ids IS NULL THEN

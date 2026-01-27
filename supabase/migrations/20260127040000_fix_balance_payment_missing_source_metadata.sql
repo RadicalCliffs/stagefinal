@@ -380,7 +380,7 @@ BEGIN
     id,
     userid,
     canonical_user_id,
-    walletaddress,
+    wallet_address,
     competitionid,
     ticketnumbers,
     numberoftickets,

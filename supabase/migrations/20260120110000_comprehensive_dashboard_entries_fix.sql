@@ -55,7 +55,7 @@ RETURNS TABLE (
   numberoftickets integer,
   ticketnumbers text,
   amountspent numeric,
-  walletaddress text,
+  wallet_address text,
   chain text,
   transactionhash text,
   purchasedate timestamp with time zone,
@@ -93,11 +93,11 @@ BEGIN
     COALESCE(jc.uid::text, gen_random_uuid()::text) as uid,
     COALESCE(jc.competitionid, '')::text as competitionid,
     COALESCE(jc.userid, '')::text as userid,
-    COALESCE(jc.privy_user_id, jc.walletaddress, '')::text as privy_user_id,
+    COALESCE(jc.privy_user_id, jc.wallet_address, '')::text as privy_user_id,
     COALESCE(jc.numberoftickets, 1)::integer as numberoftickets,
     COALESCE(jc.ticketnumbers, '')::text as ticketnumbers,
     COALESCE(jc.amountspent, 0)::numeric as amountspent,
-    COALESCE(jc.walletaddress, '')::text as walletaddress,
+    COALESCE(jc.wallet_address, '')::text as wallet_address,
     COALESCE(jc.chain, 'Base')::text as chain,
     COALESCE(jc.transactionhash, '')::text as transactionhash,
     COALESCE(jc.purchasedate, jc.created_at, NOW())::timestamptz as purchasedate,
@@ -119,7 +119,7 @@ BEGIN
     COUNT(*)::integer as numberoftickets,
     string_agg(t.ticket_number::text, ',' ORDER BY t.ticket_number)::text as ticketnumbers,
     COALESCE(SUM(t.purchase_price), 0)::numeric as amountspent,
-    COALESCE(t.user_id, '')::text as walletaddress,
+    COALESCE(t.user_id, '')::text as wallet_address,
     'USDC'::text as chain,
     ''::text as transactionhash,
     MIN(t.created_at)::timestamptz as purchasedate,
@@ -138,7 +138,7 @@ BEGIN
       AND (
         jc2.canonical_user_id = t.canonical_user_id
         OR jc2.privy_user_id = t.user_id
-        OR jc2.walletaddress = t.user_id
+        OR jc2.wallet_address = t.user_id
         OR jc2.userid = t.user_id
       )
     )
@@ -173,7 +173,7 @@ RETURNS TABLE (
   numberoftickets integer,
   ticketnumbers text,
   amountspent numeric,
-  walletaddress text,
+  wallet_address text,
   chain text,
   transactionhash text,
   purchasedate timestamp with time zone,
@@ -576,7 +576,7 @@ BEGIN
   -- ALWAYS ensure we have a valid ID and competition_id
   -- Use deterministic ID generation to ensure same entry always gets same ID
   SELECT
-    COALESCE(jc.uid, 'jc-' || COALESCE(jc.competitionid, '') || '-' || COALESCE(jc.walletaddress, '') || '-' || COALESCE(jc.created_at::TEXT, '')) AS id,
+    COALESCE(jc.uid, 'jc-' || COALESCE(jc.competitionid, '') || '-' || COALESCE(jc.wallet_address, '') || '-' || COALESCE(jc.created_at::TEXT, '')) AS id,
     COALESCE(jc.competitionid, c.id::TEXT, c.uid) AS competition_id,
     COALESCE(c.title, '') AS title,
     COALESCE(c.description, '') AS description,
@@ -589,7 +589,7 @@ BEGIN
     END AS status,
     'competition_entry' AS entry_type,
     COALESCE(
-      LOWER(c.winner_address) = LOWER(jc.walletaddress),
+      LOWER(c.winner_address) = LOWER(jc.wallet_address),
       FALSE
     ) AS is_winner,
     COALESCE(jc.ticketnumbers, '') AS ticket_numbers,
@@ -614,17 +614,17 @@ BEGIN
   WHERE (
     -- Match using resolved identifiers from canonical_users
     (resolved_canonical_user_id IS NOT NULL AND jc.canonical_user_id = resolved_canonical_user_id)
-    OR (resolved_wallet_address IS NOT NULL AND LOWER(jc.walletaddress) = resolved_wallet_address)
-    OR (resolved_base_wallet_address IS NOT NULL AND LOWER(jc.walletaddress) = resolved_base_wallet_address)
-    OR (resolved_eth_wallet_address IS NOT NULL AND LOWER(jc.walletaddress) = resolved_eth_wallet_address)
+    OR (resolved_wallet_address IS NOT NULL AND LOWER(jc.wallet_address) = resolved_wallet_address)
+    OR (resolved_base_wallet_address IS NOT NULL AND LOWER(jc.wallet_address) = resolved_base_wallet_address)
+    OR (resolved_eth_wallet_address IS NOT NULL AND LOWER(jc.wallet_address) = resolved_eth_wallet_address)
     OR (resolved_privy_user_id IS NOT NULL AND jc.privy_user_id = resolved_privy_user_id)
     OR (resolved_uid IS NOT NULL AND jc.userid::TEXT = resolved_uid)
     -- Fallback: Direct matching if user not found in canonical_users
     OR (resolved_canonical_user_id IS NULL AND (
       jc.canonical_user_id = user_identifier
-      OR LOWER(jc.walletaddress) = lower_identifier
+      OR LOWER(jc.wallet_address) = lower_identifier
       OR jc.userid::TEXT = user_identifier
-      OR (search_wallet IS NOT NULL AND LOWER(jc.walletaddress) = search_wallet)
+      OR (search_wallet IS NOT NULL AND LOWER(jc.wallet_address) = search_wallet)
     ))
   )
   -- CRITICAL: Only return entries with valid competition_id

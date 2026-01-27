@@ -85,7 +85,7 @@ interface CompetitionEntry {
   uid: string;
   competitionid: string;
   userid: string;
-  walletaddress: string | null;
+  wallet_address: string | null;
   numberoftickets: number;
   ticketnumbers: string | null;
   amountspent: number;
@@ -265,7 +265,7 @@ async function createWinner(
     }
 
     // If still no user data, try by wallet address
-    if (!userData && entry.walletaddress) {
+    if (!userData && entry.wallet_address) {
       const { data: userByWallet } = await supabase
         .from("canonical_users")
         .select("id, username, email, country, wallet_address")

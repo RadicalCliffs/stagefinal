@@ -217,7 +217,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                     .from('v_joincompetition_active')
                     .select('ticketnumbers')
                     .eq('competitionid', resolvedCompetitionId)
-                    .eq('walletaddress', baseUser.id),
+                    .eq('wallet_address', baseUser.id),
                 supabase
                     .from('v_joincompetition_active')
                     .select('ticketnumbers')

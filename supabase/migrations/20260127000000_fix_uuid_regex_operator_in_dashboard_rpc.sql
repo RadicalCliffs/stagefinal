@@ -107,7 +107,7 @@ BEGIN
   -- Part 1: Entries from joincompetition table (authoritative source)
   -- FIX: Cast competitionid to TEXT before using regex operator
   SELECT
-    COALESCE(jc.uid, 'jc-' || COALESCE(jc.competitionid::TEXT, '') || '-' || COALESCE(jc.walletaddress, '') || '-' || COALESCE(jc.created_at::TEXT, '')) AS id,
+    COALESCE(jc.uid, 'jc-' || COALESCE(jc.competitionid::TEXT, '') || '-' || COALESCE(jc.wallet_address, '') || '-' || COALESCE(jc.created_at::TEXT, '')) AS id,
     COALESCE(jc.competitionid::TEXT, c.id::TEXT, c.uid) AS competition_id,
     COALESCE(c.title, '') AS title,
     COALESCE(c.description, '') AS description,
@@ -120,7 +120,7 @@ BEGIN
     END AS status,
     'competition_entry' AS entry_type,
     COALESCE(
-      LOWER(c.winner_address) = LOWER(jc.walletaddress),
+      LOWER(c.winner_address) = LOWER(jc.wallet_address),
       FALSE
     ) AS is_winner,
     COALESCE(jc.ticketnumbers, '') AS ticket_numbers,
@@ -141,16 +141,16 @@ BEGIN
   )
   WHERE (
     (resolved_canonical_user_id IS NOT NULL AND jc.canonical_user_id = resolved_canonical_user_id)
-    OR (resolved_wallet_address IS NOT NULL AND LOWER(jc.walletaddress) = resolved_wallet_address)
-    OR (resolved_base_wallet_address IS NOT NULL AND LOWER(jc.walletaddress) = resolved_base_wallet_address)
-    OR (resolved_eth_wallet_address IS NOT NULL AND LOWER(jc.walletaddress) = resolved_eth_wallet_address)
+    OR (resolved_wallet_address IS NOT NULL AND LOWER(jc.wallet_address) = resolved_wallet_address)
+    OR (resolved_base_wallet_address IS NOT NULL AND LOWER(jc.wallet_address) = resolved_base_wallet_address)
+    OR (resolved_eth_wallet_address IS NOT NULL AND LOWER(jc.wallet_address) = resolved_eth_wallet_address)
     OR (resolved_privy_user_id IS NOT NULL AND jc.privy_user_id = resolved_privy_user_id)
     OR (resolved_uid IS NOT NULL AND jc.userid::TEXT = resolved_uid)
     OR (resolved_canonical_user_id IS NULL AND (
       jc.canonical_user_id = user_identifier
-      OR LOWER(jc.walletaddress) = lower_identifier
+      OR LOWER(jc.wallet_address) = lower_identifier
       OR jc.userid::TEXT = user_identifier
-      OR (search_wallet IS NOT NULL AND LOWER(jc.walletaddress) = search_wallet)
+      OR (search_wallet IS NOT NULL AND LOWER(jc.wallet_address) = search_wallet)
     ))
   )
   AND jc.competitionid IS NOT NULL

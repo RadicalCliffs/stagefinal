@@ -266,11 +266,11 @@ BEGIN
       jc.userid = user_identifier
       OR jc.userid = LOWER(user_identifier)
       -- Match by wallet address (extracted from prize:pid: or direct)
-      OR (search_wallet IS NOT NULL AND LOWER(jc.walletaddress) = search_wallet)
+      OR (search_wallet IS NOT NULL AND LOWER(jc.wallet_address) = search_wallet)
       -- Match by privy_user_id column
       OR jc.privy_user_id = user_identifier
       -- Legacy wallet address match
-      OR LOWER(jc.walletaddress) = LOWER(user_identifier)
+      OR LOWER(jc.wallet_address) = LOWER(user_identifier)
     );
 
   RETURN COALESCE(ticket_count, 0);

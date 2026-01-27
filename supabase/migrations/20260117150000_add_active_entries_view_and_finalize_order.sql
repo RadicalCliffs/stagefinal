@@ -19,7 +19,7 @@ CREATE OR REPLACE VIEW public.v_joincompetition_active AS
 SELECT
   jc.uid,
   jc.userid,
-  jc.walletaddress,
+  jc.wallet_address,
   jc.canonical_user_id,
   jc.privy_user_id,
   jc.competitionid,

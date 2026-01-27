@@ -61,7 +61,7 @@ function recordMatchesUser(
     'canonical_user_id',
     'privy_user_id',
     'wallet_address',
-    'walletaddress',
+    'wallet_address',
     'userid',
   ];
 

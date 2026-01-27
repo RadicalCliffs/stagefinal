@@ -84,8 +84,8 @@ CREATE INDEX IF NOT EXISTS idx_privy_user_connections_uid
 CREATE INDEX IF NOT EXISTS idx_joincompetition_userid 
   ON joincompetition(userid);
 
-CREATE INDEX IF NOT EXISTS idx_joincompetition_walletaddress 
-  ON joincompetition(walletaddress);
+CREATE INDEX IF NOT EXISTS idx_joincompetition_wallet_address 
+  ON joincompetition(wallet_address);
 
 -- Function to get total ticket count for a user
 CREATE OR REPLACE FUNCTION get_user_ticket_count(user_identifier text)
@@ -97,7 +97,7 @@ BEGIN
   INTO ticket_count
   FROM joincompetition
   WHERE userid = user_identifier 
-     OR walletaddress = user_identifier;
+     OR wallet_address = user_identifier;
   
   RETURN ticket_count;
 END;
@@ -113,7 +113,7 @@ BEGIN
   INTO balance
   FROM joincompetition
   WHERE userid = user_identifier 
-     OR walletaddress = user_identifier;
+     OR wallet_address = user_identifier;
   
   RETURN balance;
 END;
@@ -129,7 +129,7 @@ BEGIN
   INTO ticket_count
   FROM joincompetition jc
   INNER JOIN competitions c ON jc.competitionid = c.uid
-  WHERE (jc.userid = user_identifier OR jc.walletaddress = user_identifier)
+  WHERE (jc.userid = user_identifier OR jc.wallet_address = user_identifier)
     AND c.competitionended = 0;
   
   RETURN ticket_count;

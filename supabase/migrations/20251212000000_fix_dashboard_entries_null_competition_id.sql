@@ -119,12 +119,12 @@ BEGIN
     END AS status,
     'completed'::TEXT AS entry_type,
     NULL::TIMESTAMPTZ AS expires_at,
-    COALESCE((jc.walletaddress = c.winner_wallet_address), FALSE) AS is_winner,
+    COALESCE((jc.wallet_address = c.winner_wallet_address), FALSE) AS is_winner,
     jc.ticketnumbers::TEXT AS ticket_numbers,
     COALESCE(jc.numberoftickets, 1) AS number_of_tickets,
     COALESCE(jc.amountspent, 0) AS amount_spent,
     COALESCE(jc.purchasedate::TIMESTAMPTZ, jc.created_at::TIMESTAMPTZ, NOW()) AS purchase_date,
-    jc.walletaddress AS wallet_address,
+    jc.wallet_address AS wallet_address,
     jc.transactionhash AS transaction_hash,
     COALESCE(c.is_instant_win, FALSE) AS is_instant_win,
     c.prize_value AS prize_value,
@@ -143,7 +143,7 @@ BEGIN
   WHERE (
     jc.privy_user_id = user_identifier
     OR jc.userid = user_identifier
-    OR jc.walletaddress = user_identifier
+    OR jc.wallet_address = user_identifier
   )
   -- CRITICAL FIX: Include entries even if competitionid is not a valid UUID
   -- Only filter out entries with completely NULL competitionid
@@ -172,7 +172,7 @@ BEGIN
   WHERE (
     jc.privy_user_id = user_identifier
     OR jc.userid = user_identifier
-    OR jc.walletaddress = user_identifier
+    OR jc.wallet_address = user_identifier
   )
   AND jc.competitionid IS NOT NULL;
 

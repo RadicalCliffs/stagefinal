@@ -118,7 +118,7 @@ BEGIN
 
   -- joincompetition
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='joincompetition') THEN
-    UPDATE joincompetition SET privy_user_id = get_privy_user_id_from_identifiers(walletaddress, NULL, uid, userid) WHERE privy_user_id IS NULL;
+    UPDATE joincompetition SET privy_user_id = get_privy_user_id_from_identifiers(wallet_address, NULL, uid, userid) WHERE privy_user_id IS NULL;
   END IF;
 
   -- joined_competitions

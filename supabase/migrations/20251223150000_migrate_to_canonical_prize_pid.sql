@@ -65,9 +65,9 @@ WHERE eth_wallet_address IS NOT NULL
 -- Normalize wallet addresses in joincompetition
 UPDATE joincompetition
 SET 
-  walletaddress = LOWER(walletaddress)
-WHERE walletaddress IS NOT NULL 
-  AND walletaddress ~ '^0x[0-9a-fA-F]{40}$';
+  wallet_address = LOWER(wallet_address)
+WHERE wallet_address IS NOT NULL 
+  AND wallet_address ~ '^0x[0-9a-fA-F]{40}$';
 
 -- Normalize wallet addresses in pending_tickets
 UPDATE pending_tickets
@@ -177,8 +177,8 @@ WHERE canonical_user_id IS NULL;
 -- Update userid to canonical format
 UPDATE joincompetition
 SET userid = CASE
-  WHEN walletaddress IS NOT NULL AND walletaddress ~ '^0x[0-9a-fA-F]{40}$'
-    THEN to_prize_pid(LOWER(walletaddress))
+  WHEN walletaddress IS NOT NULL AND wallet_address ~ '^0x[0-9a-fA-F]{40}$'
+    THEN to_prize_pid(LOWER(wallet_address))
   WHEN userid ~ '^0x[0-9a-fA-F]{40}$'
     THEN to_prize_pid(LOWER(userid))
   WHEN userid LIKE 'prize:pid:%'

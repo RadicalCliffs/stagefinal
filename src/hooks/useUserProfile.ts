@@ -138,7 +138,7 @@ export function useUserProfile(privyUserId: string | null | undefined): UseUserP
 
     // Fetch tickets using unified identity filter
     const ticketFilter = buildIdentityFilter(identity, {
-      walletColumn: 'walletaddress',
+      walletColumn: 'wallet_address',
       privyColumn: 'privy_user_id',
       userIdColumn: 'userid',
     });
@@ -254,7 +254,7 @@ export function useUserProfile(privyUserId: string | null | undefined): UseUserP
           schema: 'public',
           table: 'v_joincompetition_active',
           filter: userIsWallet
-            ? `walletaddress=eq.${privyUserId.toLowerCase()}`
+            ? `wallet_address=eq.${privyUserId.toLowerCase()}`
             : `userid=eq.${privyUserId}`
         },
         () => fetchProfile()

@@ -537,9 +537,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const normalizedWalletId = isWalletAddress ? walletId.toLowerCase() : walletId;
 
     // Helper function for case-insensitive matching across multiple columns
-    const recordMatchesUser = (record: { walletaddress?: string; privy_user_id?: string; userid?: string }) => {
+    const recordMatchesUser = (record: { wallet_address?: string; privy_user_id?: string; userid?: string }) => {
       // Case-insensitive wallet address comparison
-      const matchesWallet = record.walletaddress?.toLowerCase() === normalizedWalletId;
+      const matchesWallet = record.wallet_address?.toLowerCase() === normalizedWalletId;
       // Check privy_user_id - could be a Privy DID or wallet address
       const matchesPrivyId = record.privy_user_id === walletId ||
                              record.privy_user_id?.toLowerCase() === normalizedWalletId;
@@ -563,7 +563,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         (payload) => {
           // Use helper function for robust case-insensitive matching
           const record = payload.new as {
-            walletaddress?: string;
+            wallet_address?: string;
             privy_user_id?: string;
             userid?: string;
           };

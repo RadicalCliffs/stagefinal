@@ -13,7 +13,7 @@ RETURNS TABLE (
   numberoftickets integer,
   ticketnumbers text,
   amountspent numeric,
-  walletaddress text,
+  wallet_address text,
   username text,
   chain text,
   transactionhash text,
@@ -57,7 +57,7 @@ BEGIN
     jc.numberoftickets,
     jc.ticketnumbers,
     jc.amountspent,
-    jc.walletaddress,
+    jc.wallet_address,
     COALESCE(cu.username, NULL) as username,
     jc.chain,
     jc.transactionhash,
@@ -66,9 +66,9 @@ BEGIN
   FROM joincompetition jc
   LEFT JOIN canonical_users cu ON (
     -- Match by canonical_user_id (prize:pid:0x...)
-    cu.canonical_user_id = jc.walletaddress
+    cu.canonical_user_id = jc.wallet_address
     -- Or match by wallet_address (0x...)
-    OR LOWER(cu.wallet_address) = LOWER(jc.walletaddress)
+    OR LOWER(cu.wallet_address) = LOWER(jc.wallet_address)
     -- Or match by canonical_user_id field in joincompetition (if populated)
     OR (jc.canonical_user_id IS NOT NULL AND cu.canonical_user_id = jc.canonical_user_id)
     -- Or match by privy_user_id
@@ -93,7 +93,7 @@ BEGIN
     COUNT(*)::integer as numberoftickets,
     string_agg(t.ticket_number::text, ',' ORDER BY t.ticket_number) as ticketnumbers,
     COALESCE(SUM(t.purchase_price), 0)::numeric as amountspent,
-    NULL::text as walletaddress,
+    NULL::text as wallet_address,
     COALESCE(cu.username, NULL) as username,
     'USDC'::text as chain,
     NULL::text as transactionhash,

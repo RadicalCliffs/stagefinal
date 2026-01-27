@@ -398,13 +398,15 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
         (payload) => {
           // Filter in callback for case-insensitive matching using userIdsEqual
           const record = payload.new as {
-            walletaddress?: string;
+            wallet_address?: string;
             userid?: string;
+            privy_user_id?: string;
+            canonical_user_id?: string;
           };
 
           // Check if this entry is for the current user
-          // Check walletaddress and userid as the view uses canonical identifiers
-          const matchesWallet = userIdsEqual(record.walletaddress, userId);
+          // Check wallet_address and userid as the view uses canonical identifiers
+          const matchesWallet = userIdsEqual(record.wallet_address, userId);
           const matchesUserId = userIdsEqual(record.userid, userId);
 
           if (matchesWallet || matchesUserId) {

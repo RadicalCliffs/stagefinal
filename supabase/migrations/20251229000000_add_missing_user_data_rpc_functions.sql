@@ -64,7 +64,7 @@ BEGIN
     COALESCE(jc.numberoftickets, 1)::INTEGER AS number_of_tickets,
     COALESCE(jc.amountspent, 0)::NUMERIC AS amount_spent,
     COALESCE(jc.purchasedate, jc.created_at, NOW())::TIMESTAMPTZ AS purchase_date,
-    jc.walletaddress::TEXT AS wallet_address,
+    jc.wallet_address::TEXT AS wallet_address,
     jc.transactionhash::TEXT AS transaction_hash,
     -- Determine if ticket is active based on competition status and end date
     CASE
@@ -81,7 +81,7 @@ BEGIN
   WHERE (
     jc.privy_user_id = user_identifier
     OR jc.userid = user_identifier
-    OR LOWER(jc.walletaddress) = lower_identifier
+    OR LOWER(jc.wallet_address) = lower_identifier
   )
   AND jc.competitionid IS NOT NULL
 
@@ -161,7 +161,7 @@ BEGIN
   WHERE (
     jc.privy_user_id = user_identifier
     OR jc.userid = user_identifier
-    OR LOWER(jc.walletaddress) = lower_identifier
+    OR LOWER(jc.wallet_address) = lower_identifier
   )
   AND jc.competitionid IS NOT NULL
   AND COALESCE(jc.purchasedate, jc.created_at) >= NOW() - INTERVAL '30 days';

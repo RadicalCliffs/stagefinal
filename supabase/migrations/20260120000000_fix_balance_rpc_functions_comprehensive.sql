@@ -427,7 +427,7 @@ BEGIN
     numberoftickets,
     ticketnumbers,
     amountspent,
-    walletaddress,
+    wallet_address,
     chain,
     transactionhash,
     purchasedate,
@@ -548,7 +548,7 @@ BEGIN
     COALESCE(jc.chain, 'unknown') AS payment_method,
     jc.transactionhash AS transaction_hash,
     COALESCE(
-      LOWER(c.winner_address) = LOWER(jc.walletaddress),
+      LOWER(c.winner_address) = LOWER(jc.wallet_address),
       FALSE
     ) AS is_winner
   FROM public.joincompetition jc
@@ -560,8 +560,8 @@ BEGIN
     OR (resolved_canonical_user_id IS NULL AND (
       jc.canonical_user_id = p_user_identifier
       OR jc.userid = p_user_identifier
-      OR LOWER(jc.walletaddress) = lower_identifier
-      OR (search_wallet IS NOT NULL AND LOWER(jc.walletaddress) = search_wallet)
+      OR LOWER(jc.wallet_address) = lower_identifier
+      OR (search_wallet IS NOT NULL AND LOWER(jc.wallet_address) = search_wallet)
     ))
   )
   AND jc.competitionid IS NOT NULL

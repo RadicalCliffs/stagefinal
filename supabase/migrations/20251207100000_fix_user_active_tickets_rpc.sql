@@ -46,7 +46,7 @@ BEGIN
   WHERE (
     jc.privy_user_id = user_identifier
     OR jc.userid = user_identifier
-    OR jc.walletaddress = user_identifier
+    OR jc.wallet_address = user_identifier
   )
   AND c.status = 'live';
 

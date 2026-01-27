@@ -5,7 +5,7 @@ interface CompetitionEntry {
   uid: string;
   competitionid: string;
   userid: string;
-  walletaddress: string | null;
+  wallet_address: string | null;
   numberoftickets: number;
   ticketnumbers: string | null;
   amountspent: number;
