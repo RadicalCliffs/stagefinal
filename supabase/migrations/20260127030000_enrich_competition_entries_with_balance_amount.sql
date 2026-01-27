@@ -95,90 +95,55 @@ BEGIN
     LIMIT 1
   ) INTO has_competition_entries;
 
-  -- If competition_entries has data, return from it with enriched amount from balance_ledger
-  IF has_competition_entries THEN
-    RETURN QUERY
-    SELECT
-      ce.id,
-      ce.competition_id,
-      ce.user_id,
-      ce.canonical_user_id,
-      ce.wallet_address,
-      ce.ticket_numbers,
-      ce.ticket_count,
-      -- FIX: If amount_paid is 0 or NULL, try to get it from balance_ledger
-      COALESCE(
-        NULLIF(ce.amount_paid, 0),
-        (
-          SELECT ABS(bl.amount)
-          FROM balance_ledger bl
-          WHERE bl.source IN ('purchase', 'ticket_purchase')
-            AND bl.amount < 0
-            AND (bl.metadata->>'competition_id')::UUID = ce.competition_id
-            AND (
-              (resolved_user_uuid IS NOT NULL AND bl.user_id = resolved_user_uuid)
-              OR (resolved_canonical_user_id IS NOT NULL AND bl.metadata->>'canonical_user_id' = resolved_canonical_user_id)
-            )
-            AND ABS(DATE_PART('second', bl.created_at - ce.created_at)) < 10
-          ORDER BY bl.created_at DESC
-          LIMIT 1
-        ),
-        ce.amount_paid,
-        0
-      ) AS amount_paid,
-      ce.currency,
-      -- Also enrich transaction_hash if missing
-      COALESCE(
-        ce.transaction_hash,
-        (
-          SELECT COALESCE(bl.transaction_id::TEXT, bl.metadata->>'transaction_id')
-          FROM balance_ledger bl
-          WHERE bl.source IN ('purchase', 'ticket_purchase')
-            AND bl.amount < 0
-            AND (bl.metadata->>'competition_id')::UUID = ce.competition_id
-            AND (
-              (resolved_user_uuid IS NOT NULL AND bl.user_id = resolved_user_uuid)
-              OR (resolved_canonical_user_id IS NOT NULL AND bl.metadata->>'canonical_user_id' = resolved_canonical_user_id)
-            )
-            AND ABS(DATE_PART('second', bl.created_at - ce.created_at)) < 10
-          ORDER BY bl.created_at DESC
-          LIMIT 1
-        )
-      ) AS transaction_hash,
-      ce.payment_provider,
-      ce.entry_status,
-      ce.is_winner,
-      ce.prize_claimed,
-      ce.created_at,
-      ce.updated_at,
-      COALESCE(c.title, '') AS competition_title,
-      COALESCE(c.description, '') AS competition_description,
-      COALESCE(c.image_url, '') AS competition_image_url,
-      COALESCE(c.status, 'active') AS competition_status,
-      c.end_date AS competition_end_date,
-      c.prize_value AS competition_prize_value,
-      COALESCE(c.is_instant_win, FALSE) AS competition_is_instant_win
-    FROM competition_entries ce
-    LEFT JOIN competitions c ON ce.competition_id = c.id
-    WHERE (
-      (resolved_canonical_user_id IS NOT NULL AND ce.canonical_user_id = resolved_canonical_user_id)
-      OR (resolved_wallet_address IS NOT NULL AND LOWER(ce.wallet_address) = resolved_wallet_address)
-      OR (resolved_base_wallet_address IS NOT NULL AND LOWER(ce.wallet_address) = resolved_base_wallet_address)
-      OR (resolved_canonical_user_id IS NULL AND (
-        ce.canonical_user_id = p_user_identifier
-        OR LOWER(ce.wallet_address) = lower_identifier
-        OR ce.user_id = p_user_identifier
-        OR (search_wallet IS NOT NULL AND LOWER(ce.wallet_address) = search_wallet)
-      ))
-    )
-    AND ce.entry_status != 'cancelled'
-    ORDER BY ce.created_at DESC;
-  ELSE
-    -- Fallback: Return entries from user_transactions, orders, AND balance_ledger
-    -- This ensures entries are visible even when competition_entries is not populated
-    RETURN QUERY
+  -- CRITICAL FIX: ALWAYS return data from ALL sources (competition_entries, user_transactions, orders, AND balance_ledger)
+  -- This ensures balance_ledger entries show up even when competition_entries has other data
+  RETURN QUERY
+  
+  -- Source 1: competition_entries (if any exist)
+  SELECT
+    ce.id,
+    ce.competition_id,
+    ce.user_id,
+    ce.canonical_user_id,
+    ce.wallet_address,
+    ce.ticket_numbers,
+    ce.ticket_count,
+    ce.amount_paid,
+    ce.currency,
+    ce.transaction_hash,
+    ce.payment_provider,
+    ce.entry_status,
+    ce.is_winner,
+    ce.prize_claimed,
+    ce.created_at,
+    ce.updated_at,
+    COALESCE(c.title, '') AS competition_title,
+    COALESCE(c.description, '') AS competition_description,
+    COALESCE(c.image_url, '') AS competition_image_url,
+    COALESCE(c.status, 'active') AS competition_status,
+    c.end_date AS competition_end_date,
+    c.prize_value AS competition_prize_value,
+    COALESCE(c.is_instant_win, FALSE) AS competition_is_instant_win
+  FROM competition_entries ce
+  LEFT JOIN competitions c ON ce.competition_id = c.id
+  WHERE (
+    (resolved_canonical_user_id IS NOT NULL AND ce.canonical_user_id = resolved_canonical_user_id)
+    OR (resolved_wallet_address IS NOT NULL AND LOWER(ce.wallet_address) = resolved_wallet_address)
+    OR (resolved_base_wallet_address IS NOT NULL AND LOWER(ce.wallet_address) = resolved_base_wallet_address)
+    OR (resolved_canonical_user_id IS NULL AND (
+      ce.canonical_user_id = p_user_identifier
+      OR LOWER(ce.wallet_address) = lower_identifier
+      OR ce.user_id = p_user_identifier
+      OR (search_wallet IS NOT NULL AND LOWER(ce.wallet_address) = search_wallet)
+    ))
+  )
+  AND ce.entry_status != 'cancelled'
 
-    -- Source 1: user_transactions with ALL valid completed statuses
+  UNION ALL
+  
+  UNION ALL
+
+  -- Source 2: user_transactions with ALL valid completed statuses
     SELECT
       ut.id::UUID AS id,
       ut.competition_id::UUID AS competition_id,
@@ -222,10 +187,10 @@ BEGIN
     )
     AND ut.competition_id IS NOT NULL
     AND LOWER(ut.status) IN ('completed', 'complete', 'finished', 'confirmed', 'success', 'paid')
+  
+  UNION ALL
 
-    UNION ALL
-
-    -- Source 2: orders table
+  -- Source 3: orders table
     SELECT
       o.id::UUID AS id,
       o.competition_id::UUID AS competition_id,
@@ -265,10 +230,10 @@ BEGIN
     )
     AND o.competition_id IS NOT NULL
     AND LOWER(o.status) IN ('completed', 'confirmed', 'paid', 'success')
+  
+  UNION ALL
 
-    UNION ALL
-
-    -- Source 3: balance_ledger (for balance-based purchases)
+  -- Source 4: balance_ledger (CRITICAL - for balance-based purchases)
     SELECT
       bl.id AS id,
       (bl.metadata->>'competition_id')::UUID AS competition_id,
@@ -317,18 +282,16 @@ BEGIN
     AND bl.amount < 0
     AND bl.metadata->>'competition_id' IS NOT NULL
 
-    ORDER BY created_at DESC;
-  END IF;
+  ORDER BY created_at DESC;
 END;
 $$;
 
 -- Add helpful comment explaining the fix
 COMMENT ON FUNCTION get_user_competition_entries(TEXT) IS
-'Returns user competition entries with all available metadata from competition_entries table.
-FIX: Now enriches amount_paid from balance_ledger when competition_entries.amount_paid is 0,
-ensuring balance purchases show correct cost even if amount_paid wasnt initially recorded.
-Also enriches transaction_hash from balance_ledger when missing.
-Falls back to querying user_transactions, orders, and balance_ledger if competition_entries is empty.';
+'Returns user competition entries from ALL sources: competition_entries, user_transactions, orders, AND balance_ledger.
+CRITICAL FIX: Now ALWAYS queries balance_ledger (not just as fallback), ensuring balance purchases show up even when other entries exist in competition_entries.
+All sources are UNIONed together to ensure complete visibility of all user entries.
+Deduplication happens on the frontend.';
 
 -- Grant necessary permissions
 GRANT EXECUTE ON FUNCTION get_user_competition_entries(TEXT) TO authenticated;
