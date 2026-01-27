@@ -998,22 +998,32 @@ export const database = {
       });
     }
 
-    // Batch fetch users by wallet addresses (single query instead of N queries)
+    // Batch fetch users by wallet addresses AND canonical_user_ids (single query instead of N queries)
+    // NOTE: walletaddress in joincompetition can be either a plain wallet address OR a canonical_user_id (prize:pid:0x...)
     const { data: usersData } = walletAddresses.length > 0
       ? await supabase
           .from('canonical_users')
-          .select('username, avatar_url, wallet_address')
-          .in('wallet_address', walletAddresses)
+          .select('username, avatar_url, wallet_address, canonical_user_id')
+          .or(walletAddresses.map(addr => `wallet_address.eq.${addr},canonical_user_id.eq.${addr}`).join(','))
       : { data: [] };
 
     // Create user lookup map for O(1) access
+    // Map by both wallet_address and canonical_user_id for flexible lookups
     const userMap = new Map<string, { username: string | null; avatar_url: string | null }>();
     for (const user of usersData || []) {
+      const userData = {
+        username: user.username,
+        avatar_url: user.avatar_url
+      };
+      
+      // Map by wallet_address (lowercase for case-insensitive lookup)
       if (user.wallet_address) {
-        userMap.set(user.wallet_address.toLowerCase(), {
-          username: user.username,
-          avatar_url: user.avatar_url
-        });
+        userMap.set(user.wallet_address.toLowerCase(), userData);
+      }
+      
+      // Also map by canonical_user_id for entries that store canonical IDs
+      if ((user as any).canonical_user_id) {
+        userMap.set((user as any).canonical_user_id.toLowerCase(), userData);
       }
     }
 
@@ -1037,6 +1047,7 @@ export const database = {
       // Skip entries where we can't find valid competition data
       if (!comp || !comp.competitionname) continue;
 
+      // Look up user data by wallet address (lowercase for case-insensitive match)
       const userData = ticket.walletaddress ? userMap.get(ticket.walletaddress.toLowerCase()) : null;
 
       // For the TIME column on Entry actions, show when the activity happened (purchase date)
@@ -1123,6 +1134,7 @@ export const database = {
     const winnerIdentifiers = [...new Set(filteredWinnerData.slice(0, 10).map(w => w.Winner).filter(Boolean))];
 
     // Batch fetch winner users (single query instead of N queries)
+    // NOTE: Winner field can be either a plain wallet address OR a canonical_user_id (prize:pid:0x...)
     const { data: winnerUsersData } = winnerIdentifiers.length > 0
       ? await supabase
           .from('canonical_users')
@@ -1130,14 +1142,20 @@ export const database = {
           .or(winnerIdentifiers.map(id => `canonical_user_id.eq.${id},wallet_address.eq.${id}`).join(','))
       : { data: [] };
 
-    // Create winner user lookup map
+    // Create winner user lookup map - map by both canonical_user_id and wallet_address
     const winnerUserMap = new Map<string, { username: string | null; avatar_url: string | null }>();
     for (const user of winnerUsersData || []) {
+      const userData = { username: user.username, avatar_url: user.avatar_url };
+      
+      // Map by canonical_user_id
       if (user.canonical_user_id) {
-        winnerUserMap.set(user.canonical_user_id, { username: user.username, avatar_url: user.avatar_url });
+        winnerUserMap.set(user.canonical_user_id, userData);
+        winnerUserMap.set(user.canonical_user_id.toLowerCase(), userData);
       }
+      
+      // Map by wallet_address (lowercase for case-insensitive lookup)
       if (user.wallet_address) {
-        winnerUserMap.set(user.wallet_address.toLowerCase(), { username: user.username, avatar_url: user.avatar_url });
+        winnerUserMap.set(user.wallet_address.toLowerCase(), userData);
       }
     }
 
