@@ -20,7 +20,7 @@ This migration addresses the missing triggers component.
 
 ### Implemented Triggers (Core Functionality)
 
-#### 1. Timestamp Management (9 triggers)
+#### 1. Timestamp Management (8 triggers)
 Automatically updates `updated_at` columns on row modifications:
 - `update_user_transactions_updated_at`
 - `update_pending_tickets_updated_at`

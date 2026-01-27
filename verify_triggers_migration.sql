@@ -290,7 +290,7 @@ BEGIN
   RAISE NOTICE 'If all Phase 1 triggers show ✓ (checkmark), the migration was';
   RAISE NOTICE 'applied successfully. If any show ✗ (x), re-run the migration.';
   RAISE NOTICE '';
-  RAISE NOTICE 'For Phase 2 (remaining 41 triggers), see:';
+  RAISE NOTICE 'For Phase 2 (remaining 42 triggers), see:';
   RAISE NOTICE '  - TRIGGERS_MIGRATION_README.md';
   RAISE NOTICE '  - TRIGGERS_MIGRATION_TASK_SUMMARY.md';
   RAISE NOTICE '';

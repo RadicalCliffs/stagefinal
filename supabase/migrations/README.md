@@ -14,10 +14,10 @@ This directory contains the database schema migrations for ThePrize.io.
    - See: `/BASELINE_MIGRATION_README.md` for details
 
 2. **`00000000000001_baseline_triggers.sql`** - Database triggers baseline
-   - 10 core triggers (Phase 1)
+   - 9 core triggers (Phase 1)
    - Timestamp management triggers
    - Reservation expiry logic
-   - Documentation for 41 additional triggers
+   - Documentation for 42 additional triggers
    - See: `/TRIGGERS_MIGRATION_README.md` for details
 
 ### Skipped Migrations
