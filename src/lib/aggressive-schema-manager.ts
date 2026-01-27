@@ -41,7 +41,7 @@ async function executeSQL(sql: string, params: any[] = []): Promise<any> {
   
   try {
     databaseLogger.info('[SchemaManager] Executing SQL', { sql: sql.substring(0, 100) });
-    const { data, error } = await admin.rpc('exec_sql', { sql_query: sql });
+    const { data, error } = await (admin as any).rpc('exec_sql', { sql_query: sql });
     
     if (error) {
       databaseLogger.error('[SchemaManager] SQL execution failed', { sql, error });

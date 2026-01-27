@@ -181,7 +181,7 @@ export async function aggressiveUpdate<T = any>(
   const client = options.useAdmin && hasAdminAccess() ? getAdminClient() : supabase;
   
   return executeWithAutoFix(async () => {
-    let query = client.from(table).update(data);
+    let query = (client as any).from(table).update(data);
     
     Object.entries(filters).forEach(([key, value]) => {
       query = query.eq(key, value);
@@ -239,7 +239,7 @@ export async function aggressiveRPC<T = any>(
   const client = options.useAdmin && hasAdminAccess() ? getAdminClient() : supabase;
   
   return executeWithAutoFix(async () => {
-    return await client.rpc(functionName, params);
+    return await (client as any).rpc(functionName, params);
   }, options);
 }
 
