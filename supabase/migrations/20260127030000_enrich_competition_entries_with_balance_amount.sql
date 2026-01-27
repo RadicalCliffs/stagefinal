@@ -40,7 +40,6 @@ DECLARE
   resolved_wallet_address TEXT := NULL;
   resolved_base_wallet_address TEXT := NULL;
   resolved_user_uuid UUID := NULL;
-  has_competition_entries BOOLEAN := FALSE;
 BEGIN
   -- Normalize identifier for case-insensitive matching
   lower_identifier := LOWER(TRIM(p_user_identifier));
@@ -76,24 +75,6 @@ BEGIN
       OR LOWER(cu.base_wallet_address) = search_wallet
     ))
   LIMIT 1;
-
-  -- Check if there are any entries in competition_entries for this user
-  SELECT EXISTS (
-    SELECT 1 FROM competition_entries ce
-    WHERE (
-      (resolved_canonical_user_id IS NOT NULL AND ce.canonical_user_id = resolved_canonical_user_id)
-      OR (resolved_wallet_address IS NOT NULL AND LOWER(ce.wallet_address) = resolved_wallet_address)
-      OR (resolved_base_wallet_address IS NOT NULL AND LOWER(ce.wallet_address) = resolved_base_wallet_address)
-      OR (resolved_canonical_user_id IS NULL AND (
-        ce.canonical_user_id = p_user_identifier
-        OR LOWER(ce.wallet_address) = lower_identifier
-        OR ce.user_id = p_user_identifier
-        OR (search_wallet IS NOT NULL AND LOWER(ce.wallet_address) = search_wallet)
-      ))
-    )
-    AND ce.entry_status != 'cancelled'
-    LIMIT 1
-  ) INTO has_competition_entries;
 
   -- CRITICAL FIX: ALWAYS return data from ALL sources (competition_entries, user_transactions, orders, AND balance_ledger)
   -- This ensures balance_ledger entries show up even when competition_entries has other data
@@ -244,7 +225,14 @@ BEGIN
         bl.metadata->>'wallet_address',
         (SELECT cu3.wallet_address FROM canonical_users cu3 WHERE cu3.id = bl.user_id LIMIT 1)
       ) AS wallet_address,
-      ARRAY[]::INTEGER[] AS ticket_numbers,
+      -- Try to extract ticket_numbers from metadata if available
+      CASE
+        WHEN bl.metadata->>'ticket_numbers' IS NOT NULL THEN
+          -- Parse JSON array of ticket numbers from metadata
+          (SELECT ARRAY_AGG((value::text)::INTEGER) 
+           FROM jsonb_array_elements_text((bl.metadata->>'ticket_numbers')::jsonb))
+        ELSE ARRAY[]::INTEGER[]
+      END AS ticket_numbers,
       COALESCE((bl.metadata->>'ticket_count')::INTEGER, 1) AS ticket_count,
       ABS(bl.amount) AS amount_paid,
       'USD' AS currency,
