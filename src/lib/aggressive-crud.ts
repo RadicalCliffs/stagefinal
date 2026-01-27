@@ -181,7 +181,9 @@ export async function aggressiveUpdate<T = any>(
   const client = options.useAdmin && hasAdminAccess() ? getAdminClient() : supabase;
   
   return executeWithAutoFix(async () => {
-    let query = (client as any).from(table).update(data);
+    // Use 'as any' to bypass TypeScript's strict client typing
+    const baseClient: any = client;
+    let query = baseClient.from(table).update(data);
     
     Object.entries(filters).forEach(([key, value]) => {
       query = query.eq(key, value);

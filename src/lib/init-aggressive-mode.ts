@@ -1,18 +1,16 @@
 /**
  * Aggressive Mode Initialization
  * 
- * Import this file EARLY in your app (in main.tsx) to enable aggressive mode.
+ * AUTOMATIC - This file is imported early in main.tsx and sets up everything.
  * 
  * What it does:
  * - Initializes admin client with service-level credentials
  * - Enables global error interception
  * - Sets up automatic schema fixes
  * - Configures aggressive CRUD operations
+ * - Makes all user operations seamless
  * 
- * Usage:
- *   import './lib/init-aggressive-mode';
- * 
- * Then use the omnipotent data service or aggressive CRUD anywhere in your app.
+ * Users never see technical errors - everything "just works"
  */
 
 import { hasAdminAccess } from './supabase-admin';
@@ -23,15 +21,15 @@ import { databaseLogger } from './debug-console';
 // Initialize aggressive mode
 function initializeAggressiveMode() {
   console.log('\n🚀 ===============================================');
-  console.log('🚀 AGGRESSIVE MODE INITIALIZATION');
+  console.log('🚀 SEAMLESS MODE INITIALIZATION');
   console.log('🚀 ===============================================\n');
 
   if (hasAdminAccess()) {
-    console.log('✅ Admin credentials detected');
     console.log('✅ Service-level access enabled');
     console.log('✅ Auto-schema management active');
-    console.log('✅ Error interception enabled');
-    console.log('✅ Aggressive CRUD operations ready');
+    console.log('✅ Error auto-fix enabled');
+    console.log('✅ User-friendly error messages active');
+    console.log('✅ Seamless operations ready');
     
     // Enable console error interception
     enableConsoleInterception();
@@ -39,28 +37,35 @@ function initializeAggressiveMode() {
     // Set omnipotent data to aggressive mode
     omnipotentData.aggressiveMode = true;
     
-    console.log('\n🔥 AGGRESSIVE MODE: FULLY OPERATIONAL');
-    console.log('🔥 Database will auto-fix all schema issues');
-    console.log('🔥 No more "column does not exist" errors\n');
+    console.log('\n🔥 SEAMLESS MODE: FULLY OPERATIONAL');
+    console.log('🔥 All user operations will "just work"');
+    console.log('🔥 Database auto-fixes all issues silently');
+    console.log('🔥 Users get friendly, actionable messages\n');
     
-    databaseLogger.info('[AggressiveMode] Initialization complete');
+    databaseLogger.info('[SeamlessMode] Initialization complete');
   } else {
-    console.warn('⚠️  Admin credentials not found');
-    console.warn('⚠️  Set VITE_SUPABASE_SERVICE_ROLE_KEY to enable aggressive mode');
+    console.warn('⚠️  Service credentials not configured');
+    console.warn('⚠️  Set VITE_SUPABASE_SERVICE_ROLE_KEY to enable seamless mode');
     console.warn('⚠️  Falling back to standard mode\n');
     
-    databaseLogger.warn('[AggressiveMode] Not available - missing service key');
+    databaseLogger.warn('[SeamlessMode] Not available - missing service key');
   }
 
   console.log('===============================================\n');
 }
 
-// Run initialization
+// Run initialization immediately
 initializeAggressiveMode();
 
-// Export utilities for manual use
+// Export the main interface - this is what apps should use
+export { seamlessOps } from './seamless-ops';
 export { hasAdminAccess } from './supabase-admin';
 export { omnipotentData } from './omnipotent-data-service';
+
+// Advanced operations (for edge cases)
 export { aggressiveCRUD } from './aggressive-crud';
+export { aggressiveOps } from './aggressive-ops';
 export { schemaManager } from './aggressive-schema-manager';
 export { errorInterceptor } from './error-interceptor';
+export { userFriendlyErrors } from './user-friendly-errors';
+

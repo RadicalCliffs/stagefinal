@@ -41,7 +41,9 @@ async function executeSQL(sql: string, params: any[] = []): Promise<any> {
   
   try {
     databaseLogger.info('[SchemaManager] Executing SQL', { sql: sql.substring(0, 100) });
-    const { data, error } = await (admin as any).rpc('exec_sql', { sql_query: sql });
+    // Use 'as any' to bypass TypeScript's RPC parameter typing
+    const adminClient: any = admin;
+    const { data, error } = await adminClient.rpc('exec_sql', { sql_query: sql });
     
     if (error) {
       databaseLogger.error('[SchemaManager] SQL execution failed', { sql, error });
