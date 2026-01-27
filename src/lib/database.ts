@@ -1022,8 +1022,8 @@ export const database = {
       }
       
       // Also map by canonical_user_id for entries that store canonical IDs
-      if ((user as any).canonical_user_id) {
-        userMap.set((user as any).canonical_user_id.toLowerCase(), userData);
+      if (user.canonical_user_id) {
+        userMap.set(user.canonical_user_id.toLowerCase(), userData);
       }
     }
 

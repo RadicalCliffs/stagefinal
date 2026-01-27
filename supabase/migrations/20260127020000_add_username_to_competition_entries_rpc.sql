@@ -69,7 +69,7 @@ BEGIN
     cu.canonical_user_id = jc.walletaddress
     -- Or match by wallet_address (0x...)
     OR LOWER(cu.wallet_address) = LOWER(jc.walletaddress)
-    -- Or match by canonical_user_id field if it exists in joincompetition
+    -- Or match by canonical_user_id field in joincompetition (if populated)
     OR (jc.canonical_user_id IS NOT NULL AND cu.canonical_user_id = jc.canonical_user_id)
     -- Or match by privy_user_id
     OR (jc.privy_user_id IS NOT NULL AND cu.privy_user_id = jc.privy_user_id)
