@@ -169,6 +169,7 @@ BEGIN
               (resolved_user_uuid IS NOT NULL AND t.user_id = resolved_user_uuid)
               OR (t.privy_user_id = ut.user_id)
               OR (t.privy_user_id = ut.canonical_user_id)
+              OR (resolved_canonical_user_id IS NOT NULL AND t.privy_user_id = resolved_canonical_user_id)
             )
             AND ABS(EXTRACT(EPOCH FROM (t.created_at - ut.created_at))) < 30
         ),
@@ -326,7 +327,6 @@ BEGIN
               OR (resolved_canonical_user_id IS NOT NULL AND t.privy_user_id = resolved_canonical_user_id)
             )
             AND ABS(EXTRACT(EPOCH FROM (t.created_at - bl.created_at))) < 30
-          LIMIT 1
         ),
         -- Strategy 3: Query competition_entries table (match by competition, user, timestamp within 30 seconds)
         (
