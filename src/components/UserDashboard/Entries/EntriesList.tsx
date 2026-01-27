@@ -761,14 +761,13 @@ export default function EntriesList() {
             const isValidUuid = entry.competition_id &&
               /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entry.competition_id);
 
-            // For entries with valid UUIDs, make them clickable
+            // For entries with valid UUIDs, make them clickable and link to the competition page
             // For legacy/synthetic IDs, just show the card without a link
             if (isValidUuid) {
               return (
                 <Link
-                  to={`/dashboard/entries/competition/${entry.competition_id}`}
+                  to={`/competitions/${entry.competition_id}`}
                   key={entry.competition_id}
-                  state={{ status: entry.status, is_winner: entry.is_winner }}
                 >
                   <EntriesCard
                     variant="compact"
