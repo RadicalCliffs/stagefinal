@@ -762,3 +762,15 @@ input[data-slot="otp-input"] {
   vertical-align: middle !important;
   overflow: visible !important;
 }
+
+/* Notification card animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

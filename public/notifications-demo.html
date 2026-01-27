@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Enhanced Notifications Demo</title>
+  <style>
+    body {
+      background: #000;
+      color: #fff;
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 2rem;
+      margin: 0;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 2rem;
+      font-size: 2.5rem;
+      text-transform: uppercase;
+      background: linear-gradient(to right, #DDE404, #B8BE04);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .section {
+      margin-bottom: 3rem;
+    }
+    .section h2 {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+      color: #DDE404;
+    }
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.5rem;
+      margin-top: 2rem;
+    }
+    .feature {
+      background: #181818;
+      border: 2px solid rgba(255, 255, 255, 0.1);
+      border-radius: 1rem;
+      padding: 1.5rem;
+    }
+    .feature h3 {
+      color: #DDE404;
+      margin-top: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .feature ul {
+      list-style: none;
+      padding: 0;
+    }
+    .feature li {
+      padding: 0.25rem 0;
+      color: rgba(255, 255, 255, 0.8);
+    }
+    .feature li:before {
+      content: "✅ ";
+      margin-right: 0.5rem;
+    }
+    .demo-link {
+      display: inline-block;
+      background: linear-gradient(to right, #DDE404, #B8BE04);
+      color: #000;
+      padding: 1rem 2rem;
+      border-radius: 0.5rem;
+      text-decoration: none;
+      font-weight: bold;
+      text-transform: uppercase;
+      margin-top: 1rem;
+      transition: transform 0.2s;
+    }
+    .demo-link:hover {
+      transform: scale(1.05);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎉 Enhanced Notifications System</h1>
+    
+    <div class="section">
+      <h2>New Features</h2>
+      <div class="features">
+        <div class="feature">
+          <h3>🎨 Visual Design</h3>
+          <ul>
+            <li>Type-specific gradient backgrounds</li>
+            <li>Animated icons that bounce for unread</li>
+            <li>Glow effects with matching colors</li>
+            <li>Sparkle decorations for unread</li>
+            <li>Smooth hover and scale effects</li>
+          </ul>
+        </div>
+        
+        <div class="feature">
+          <h3>🎯 Notification Types</h3>
+          <ul>
+            <li>🏆 Win - Yellow/Orange gradient</li>
+            <li>🎁 Special Offers - Purple/Pink gradient</li>
+            <li>🔔 Competition Ended - Blue gradient</li>
+            <li>📢 Announcements - White gradient</li>
+            <li>💳 Payments - Green gradient</li>
+            <li>💰 Top-ups - Yellow gradient</li>
+            <li>🎟️ Entries - Pink/Red gradient</li>
+          </ul>
+        </div>
+        
+        <div class="feature">
+          <h3>✨ Animations</h3>
+          <ul>
+            <li>Staggered fade-in on load</li>
+            <li>Pulse effects for unread</li>
+            <li>Bounce animation for icons</li>
+            <li>Scale on hover</li>
+            <li>Smooth transitions</li>
+          </ul>
+        </div>
+
+        <div class="feature">
+          <h3>👤 Avatar Editing</h3>
+          <ul>
+            <li>Click avatar to edit</li>
+            <li>Edit overlay on hover</li>
+            <li>34 avatar options available</li>
+            <li>Instant visual feedback</li>
+            <li>Works across all pages</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" style="text-align: center;">
+      <h2>Ready to Experience It?</h2>
+      <p style="color: rgba(255, 255, 255, 0.7); margin-bottom: 1rem;">
+        Navigate to your user dashboard to see the new notifications system in action!
+      </p>
+      <a href="/" class="demo-link">Go to Dashboard</a>
+    </div>
+
+    <div class="section">
+      <h2>Implementation Details</h2>
+      <div class="features">
+        <div class="feature">
+          <h3>📦 Components Created</h3>
+          <ul>
+            <li>NotificationCard.tsx - Enhanced card component</li>
+            <li>Updated NotificationsLayout.tsx</li>
+            <li>Enhanced AccountAvatarSection.tsx</li>
+            <li>CSS animations in index.css</li>
+          </ul>
+        </div>
+        
+        <div class="feature">
+          <h3>🔧 Technical Features</h3>
+          <ul>
+            <li>Type-safe TypeScript interfaces</li>
+            <li>Responsive design (mobile-first)</li>
+            <li>Accessibility considerations</li>
+            <li>Performance optimized</li>
+            <li>Clean, maintainable code</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
