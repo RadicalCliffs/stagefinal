@@ -310,7 +310,7 @@ export function buildIdentityFilter(
 ): string {
   const {
     canonicalColumn = 'canonical_user_id',
-    walletColumn = 'walletaddress',
+    walletColumn = 'wallet_address',
     privyColumn = 'privy_user_id',
     userIdColumn = 'userid',
   } = columns;
@@ -462,7 +462,7 @@ export async function fetchUserEntriesWithIdentity(identifier: string): Promise<
   // The view may not have canonical_user_id column, so we exclude it
   const filter = buildIdentityFilter(identity, {
     canonicalColumn: '', // Disabled - column may not exist in this view
-    walletColumn: 'walletaddress',
+    walletColumn: 'wallet_address',
     privyColumn: 'privy_user_id',
     userIdColumn: 'userid',
   });

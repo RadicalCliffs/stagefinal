@@ -864,7 +864,7 @@ export interface Database {
         Row: {
           id: string
           userid: string
-          walletaddress: string | null
+          wallet_address: string | null
           competitionid: string
           ticketnumbers: string
           purchasedate: string
@@ -881,7 +881,7 @@ export interface Database {
         Insert: {
           id?: string
           userid: string
-          walletaddress?: string | null
+          wallet_address?: string | null
           competitionid: string
           ticketnumbers: string
           purchasedate?: string
@@ -898,7 +898,7 @@ export interface Database {
         Update: {
           id?: string
           userid?: string
-          walletaddress?: string | null
+          wallet_address?: string | null
           competitionid?: string
           ticketnumbers?: string
           purchasedate?: string

@@ -412,7 +412,7 @@ class OmnipotentDataService {
    */
   private transformCompetitionEntry(raw: any): OmnipotentEntry {
     const ticketNumbers = this.parseTicketNumbers(raw.ticketnumbers);
-    const walletAddress = raw.walletaddress || raw.privy_user_id || '';
+    const walletAddress = raw.wallet_address || raw.privy_user_id || '';
     
     // Filter out mock/zero addresses
     // Match Ethereum zero address: 0x followed by exactly 40 zeros

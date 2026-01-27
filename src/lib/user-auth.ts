@@ -692,7 +692,7 @@ export const userAuth = {
           *,
           competitions(*)
         `)
-        .or(`walletaddress.ilike.${normalizedWallet},userid.eq.${canonicalId}`)
+        .or(`wallet_address.ilike.${normalizedWallet},userid.eq.${canonicalId}`)
         .order('buytime', { ascending: false });
       data = result.data;
       error = result.error;

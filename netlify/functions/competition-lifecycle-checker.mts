@@ -77,7 +77,7 @@ interface CompetitionEntry {
   uid: string;
   competitionid: string;
   userid: string;
-  walletaddress: string | null;
+  wallet_address: string | null;
   numberoftickets: number;
   ticketnumbers: string | null;
   amountspent: number;
@@ -172,7 +172,7 @@ async function getCompetitionEntries(
         uid: `tickets-${userId}-${competitionId}`,
         competitionid: competitionId,
         userid: userId,
-        walletaddress: null,
+        wallet_address: null,
         numberoftickets: ticketNumbers.length,
         ticketnumbers: ticketNumbers.join(','),
         amountspent: userTickets.reduce((sum, t) => sum + (t.purchase_price || 0), 0),

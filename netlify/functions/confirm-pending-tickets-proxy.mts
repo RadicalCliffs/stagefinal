@@ -769,7 +769,7 @@ function isValidUserId(userId: string): boolean {
           numberoftickets: ticketNumbers.length,
           ticketnumbers: ticketNumbers.join(","),
           amountspent: totalAmount,
-          walletaddress: walletAddress,
+          wallet_address: walletAddress,
           chain: paymentProvider || "USDC",
           transactionhash: finalTransactionHash,
           purchasedate: new Date().toISOString(),
@@ -872,7 +872,7 @@ function isValidUserId(userId: string): boolean {
                 // Lookup user details from canonical_users to get proper username
                 const userDetails = await lookupUserDetails(
                   supabase,
-                  winningEntry.walletaddress,
+                  winningEntry.wallet_address,
                   winningEntry.userid,
                   winningEntry.privy_user_id
                 );
@@ -1172,7 +1172,7 @@ function isValidUserId(userId: string): boolean {
         numberoftickets: ticketNumbers.length,
         ticketnumbers: ticketNumbers.join(","),
         amountspent: finalTotalAmount,
-        walletaddress: walletAddress,
+        wallet_address: walletAddress,
         chain: paymentProvider || "USDC",
         transactionhash: finalTransactionHash,
         purchasedate: new Date().toISOString(),
@@ -1309,7 +1309,7 @@ function isValidUserId(userId: string): boolean {
               // Lookup user details from canonical_users to get proper username
               const userDetails = await lookupUserDetails(
                 supabase,
-                winningEntry.walletaddress,
+                winningEntry.wallet_address,
                 winningEntry.userid,
                 winningEntry.privy_user_id
               );

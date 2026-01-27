@@ -198,7 +198,7 @@ export const userDataService = {
           const { data: directData, error: directError } = await supabase
             .from('v_joincompetition_active')
             .select('*')
-            .or(`walletaddress.ilike.${normalizedWallet},userid.eq.${canonicalId}`)
+            .or(`wallet_address.ilike.${normalizedWallet},userid.eq.${canonicalId}`)
             .order('purchasedate', { ascending: false });
 
           if (!directError && directData) {
@@ -262,7 +262,7 @@ export const userDataService = {
           const { count, error: countError } = await supabase
             .from('v_joincompetition_active')
             .select('*', { count: 'exact', head: true })
-            .or(`walletaddress.ilike.${normalizedWallet},userid.eq.${canonicalId}`)
+            .or(`wallet_address.ilike.${normalizedWallet},userid.eq.${canonicalId}`)
             .gte('purchasedate', thirtyDaysAgo.toISOString());
 
           if (!countError) {
@@ -314,7 +314,7 @@ export const userDataService = {
       const { count, error } = await supabase
         .from('v_joincompetition_active')
         .select('*', { count: 'exact', head: true })
-        .or(`walletaddress.ilike.${normalizedWallet},userid.eq.${canonicalId}`);
+        .or(`wallet_address.ilike.${normalizedWallet},userid.eq.${canonicalId}`);
 
       if (error) {
         console.error('Error fetching user ticket count:', error);
@@ -347,7 +347,7 @@ export const userDataService = {
       const { count, error } = await supabase
         .from('v_joincompetition_active')
         .select('*', { count: 'exact', head: true })
-        .or(`walletaddress.ilike.${normalizedWallet},userid.eq.${canonicalId}`);
+        .or(`wallet_address.ilike.${normalizedWallet},userid.eq.${canonicalId}`);
 
       if (error) {
         console.error('Error fetching user active tickets:', error);

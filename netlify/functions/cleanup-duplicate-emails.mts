@@ -174,7 +174,7 @@ async function findDuplicateEmails(serviceClient: ReturnType<typeof createClient
       const { count: entryCount } = await serviceClient
         .from("joincompetition")
         .select("*", { count: "exact", head: true })
-        .or(`userid.eq.${account.privy_user_id},walletaddress.ilike.${walletAddr},walletaddress.ilike.${baseWalletAddr},privy_user_id.eq.${account.privy_user_id}`);
+        .or(`userid.eq.${account.privy_user_id},wallet_address.ilike.${walletAddr},wallet_address.ilike.${baseWalletAddr},privy_user_id.eq.${account.privy_user_id}`);
 
       const enrichedAccount: AccountWithActivity = {
         ...account,

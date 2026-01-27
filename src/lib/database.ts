@@ -102,12 +102,12 @@ function transformJoinCompetitionEntry(jc: any, identity: ResolvedIdentity): any
 
   // Check winner using case-insensitive comparison for wallet addresses
   const isWinner = identity.walletAddress && comp?.winner_address
-    ? userIdsEqual(jc.walletaddress, comp.winner_address) ||
+    ? userIdsEqual(jc.wallet_address, comp.winner_address) ||
       userIdsEqual(identity.walletAddress, comp.winner_address)
     : false;
 
   // Generate a safe ID - use a combination of fields if uid/id are missing
-  const entryId = jc.uid || jc.id || `entry-${jc.competitionid || 'no-comp'}-${jc.walletaddress?.substring(0, 8) || 'no-wallet'}-${jc.purchasedate || 'unknown'}`;
+  const entryId = jc.uid || jc.id || `entry-${jc.competitionid || 'no-comp'}-${jc.wallet_address?.substring(0, 8) || 'no-wallet'}-${jc.purchasedate || 'unknown'}`;
 
   return {
     id: entryId,
@@ -976,7 +976,7 @@ export const database = {
     // PERFORMANCE FIX: Batch fetch all competitions and users instead of N+1 queries
     // Extract unique IDs for batch fetching
     const competitionIds = [...new Set((entryData || []).map(t => t.competitionid).filter(Boolean))];
-    const walletAddresses = [...new Set((entryData || []).map(t => t.walletaddress).filter(Boolean))];
+    const walletAddresses = [...new Set((entryData || []).map(t => t.wallet_address).filter(Boolean))];
 
     // Batch fetch competitions (single query instead of N queries)
     const { data: competitionsData } = competitionIds.length > 0
@@ -999,7 +999,7 @@ export const database = {
     }
 
     // Batch fetch users by wallet addresses AND canonical_user_ids (single query instead of N queries)
-    // NOTE: walletaddress in joincompetition can be either a plain wallet address OR a canonical_user_id (prize:pid:0x...)
+    // NOTE: wallet_address in joincompetition can be either a plain wallet address OR a canonical_user_id (prize:pid:0x...)
     const { data: usersData } = walletAddresses.length > 0
       ? await supabase
           .from('canonical_users')
@@ -1048,7 +1048,7 @@ export const database = {
       if (!comp || !comp.competitionname) continue;
 
       // Look up user data by wallet address (lowercase for case-insensitive match)
-      const userData = ticket.walletaddress ? userMap.get(ticket.walletaddress.toLowerCase()) : null;
+      const userData = ticket.wallet_address ? userMap.get(ticket.wallet_address.toLowerCase()) : null;
 
       // For the TIME column on Entry actions, show when the activity happened (purchase date)
       // not the competition end date - users want to see when the entry was made
@@ -1061,8 +1061,8 @@ export const database = {
       }
 
       const displayName = userData?.username ||
-        (ticket.walletaddress
-          ? ticket.walletaddress.substring(0, 6) + '...' + ticket.walletaddress.slice(-4)
+        (ticket.wallet_address
+          ? ticket.wallet_address.substring(0, 6) + '...' + ticket.wallet_address.slice(-4)
           : 'Anonymous');
 
       const avatarUrl = userData?.avatar_url || getRandomAvatar();
@@ -1761,7 +1761,7 @@ export const database = {
             // Skip canonical_user_id by setting it to a non-existent empty column name
             // This effectively removes it from the filter
             canonicalColumn: '', // Disabled - column doesn't exist in this view
-            walletColumn: 'walletaddress',
+            walletColumn: 'wallet_address',
             privyColumn: 'privy_user_id',
             userIdColumn: 'userid',
           });
@@ -1792,7 +1792,7 @@ export const database = {
                     winner_address
                   )
                 `)
-                .ilike('walletaddress', identity.walletAddress)
+                .ilike('wallet_address', identity.walletAddress)
                 .order('purchasedate', { ascending: false });
 
               if (directError) {
@@ -1978,7 +1978,7 @@ export const database = {
         const { data, error } = await supabase
           .from('v_joincompetition_active')
           .select(viewSelectQuery)
-          .ilike('walletaddress', identity.walletAddress)
+          .ilike('wallet_address', identity.walletAddress)
           .order('purchasedate', { ascending: false });
 
         if (error) {
@@ -2009,7 +2009,7 @@ export const database = {
           const { data, error } = await supabase
             .from('joincompetition')
             .select('*')
-            .ilike('walletaddress', identity.walletAddress)
+            .ilike('wallet_address', identity.walletAddress)
             .order('purchasedate', { ascending: false });
 
           if (!error && data && data.length > 0) {

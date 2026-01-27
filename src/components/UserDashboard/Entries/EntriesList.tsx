@@ -34,7 +34,7 @@ function recordMatchesUser(
   const matchesCanonical = record.canonical_user_id === originalUserId ||
                           normalizeAddress(record.canonical_user_id) === normalizedUserId;
   // Case-insensitive wallet address comparison
-  const matchesWallet = normalizeAddress(record.walletaddress) === normalizedUserId;
+  const matchesWallet = normalizeAddress(record.wallet_address) === normalizedUserId;
   const matchesWallet2 = normalizeAddress(record.wallet_address) === normalizedUserId;
   // Check privy_user_id - could be a Privy DID or a wallet address stored in this column
   const matchesPrivyId = record.privy_user_id === originalUserId ||
@@ -263,7 +263,7 @@ export default function EntriesList() {
           (payload) => {
             // Use the helper function for robust case-insensitive matching
             const record = payload.new as {
-              walletaddress?: string;
+              wallet_address?: string;
               userid?: string;
             };
 
