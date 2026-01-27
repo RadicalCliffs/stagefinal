@@ -262,3 +262,23 @@ Stored as TEXT (no SQL enums):
 - **Created:** 2026-01-27
 - **Replaces:** 197 individual migration files
 - **Compatibility:** Supabase PostgreSQL 15+
+
+## Code Review Notes
+
+### Policy Naming
+The migration uses the same policy name "Service role full access" across multiple tables. This is **intentional and correct** in PostgreSQL, as policy names are scoped to their respective tables. Each table has its own policy namespace, so there are no naming conflicts.
+
+For example:
+```sql
+CREATE POLICY "Service role full access" ON canonical_users ...
+CREATE POLICY "Service role full access" ON users ...
+```
+
+These create distinct policies: `canonical_users."Service role full access"` and `users."Service role full access"`.
+
+### RLS Enabling
+The migration explicitly lists each `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` statement rather than using a loop. This is intentional for a baseline migration to:
+1. Make the schema completely explicit and readable
+2. Allow easy auditing of which tables have RLS enabled
+3. Avoid complexity in the foundational migration file
+
