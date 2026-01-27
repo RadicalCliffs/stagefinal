@@ -86,12 +86,12 @@ BEGIN
     END AS status,
     'completed'::TEXT AS entry_type,
     NULL::TIMESTAMPTZ AS expires_at,
-    COALESCE((LOWER(jc.walletaddress) = LOWER(c.winner_wallet_address)), FALSE) AS is_winner,
+    COALESCE((LOWER(jc.wallet_address) = LOWER(c.winner_wallet_address)), FALSE) AS is_winner,
     jc.ticketnumbers::TEXT AS ticket_numbers,
     COALESCE(jc.numberoftickets, 1) AS number_of_tickets,
     jc.amountspent AS amount_spent,
     COALESCE(jc.purchasedate::TIMESTAMPTZ, jc.created_at::TIMESTAMPTZ) AS purchase_date,
-    jc.walletaddress AS wallet_address,
+    jc.wallet_address AS wallet_address,
     jc.transactionhash AS transaction_hash,
     COALESCE(c.is_instant_win, FALSE) AS is_instant_win,
     c.prize_value AS prize_value,
@@ -112,7 +112,7 @@ BEGIN
     -- Exact match on userid (also stores canonical format)
     OR jc.userid = user_identifier
     -- Case-insensitive wallet address match
-    OR LOWER(jc.walletaddress) = lower_identifier
+    OR LOWER(jc.wallet_address) = lower_identifier
     -- Canonical ID pattern match (prize:pid:xxx matches if xxx is the wallet or privy id)
     OR (
       user_identifier LIKE 'prize:pid:%' AND (
@@ -139,7 +139,7 @@ BEGIN
 
   -- Collect competition IDs and user-comp pairs for deduplication
   SELECT ARRAY_AGG(DISTINCT COALESCE(c.id, safe_uuid_cast(jc.competitionid))),
-         ARRAY_AGG(DISTINCT (jc.competitionid::TEXT || '|' || COALESCE(jc.privy_user_id, jc.userid, LOWER(jc.walletaddress))))
+         ARRAY_AGG(DISTINCT (jc.competitionid::TEXT || '|' || COALESCE(jc.privy_user_id, jc.userid, LOWER(jc.wallet_address))))
   INTO seen_competition_ids, seen_user_comp_pairs
   FROM joincompetition jc
   LEFT JOIN competitions c ON (
@@ -149,7 +149,7 @@ BEGIN
   WHERE (
     jc.privy_user_id = user_identifier
     OR jc.userid = user_identifier
-    OR LOWER(jc.walletaddress) = lower_identifier
+    OR LOWER(jc.wallet_address) = lower_identifier
     OR (
       user_identifier LIKE 'prize:pid:%' AND (
         jc.privy_user_id = user_identifier
@@ -320,8 +320,8 @@ Uses case-insensitive matching for wallet addresses and handles canonical ID for
 Fixed to properly show entries from balance payments.';
 
 -- Also add index for case-insensitive wallet lookups
-CREATE INDEX IF NOT EXISTS idx_joincompetition_walletaddress_lower
-ON joincompetition (LOWER(walletaddress));
+CREATE INDEX IF NOT EXISTS idx_joincompetition_wallet_address_lower
+ON joincompetition (LOWER(wallet_address));
 
 CREATE INDEX IF NOT EXISTS idx_user_transactions_wallet_lower
 ON user_transactions (LOWER(wallet_address));

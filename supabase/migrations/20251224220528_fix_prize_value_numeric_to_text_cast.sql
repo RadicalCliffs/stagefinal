@@ -112,12 +112,12 @@ BEGIN
     'completed'::TEXT AS entry_type,
     NULL::TIMESTAMPTZ AS expires_at,
     -- Case-insensitive winner check
-    COALESCE((LOWER(jc.walletaddress) = LOWER(c.winner_wallet_address)), FALSE) AS is_winner,
+    COALESCE((LOWER(jc.wallet_address) = LOWER(c.winner_wallet_address)), FALSE) AS is_winner,
     jc.ticketnumbers::TEXT AS ticket_numbers,
     COALESCE(jc.numberoftickets, 1) AS number_of_tickets,
     COALESCE(jc.amountspent, 0) AS amount_spent,
     COALESCE(jc.purchasedate::TIMESTAMPTZ, jc.created_at::TIMESTAMPTZ, NOW()) AS purchase_date,
-    jc.walletaddress AS wallet_address,
+    jc.wallet_address AS wallet_address,
     jc.transactionhash AS transaction_hash,
     COALESCE(c.is_instant_win, FALSE) AS is_instant_win,
     -- FIX: Cast prize_value to TEXT to match declared return type (column 17)
@@ -135,7 +135,7 @@ BEGIN
     -- ISSUE D FIX: Case-insensitive wallet address comparison using LOWER()
     jc.privy_user_id = user_identifier
     OR jc.userid = user_identifier
-    OR LOWER(jc.walletaddress) = lower_identifier
+    OR LOWER(jc.wallet_address) = lower_identifier
   )
   AND jc.competitionid IS NOT NULL
   AND LENGTH(TRIM(COALESCE(jc.competitionid, ''))) > 0
@@ -152,7 +152,7 @@ BEGIN
       ARRAY[]::TEXT[]
     ),
     COALESCE(
-      ARRAY_AGG(DISTINCT (jc.competitionid || '|' || COALESCE(jc.privy_user_id, jc.userid, LOWER(jc.walletaddress), ''))),
+      ARRAY_AGG(DISTINCT (jc.competitionid || '|' || COALESCE(jc.privy_user_id, jc.userid, LOWER(jc.wallet_address), ''))),
       ARRAY[]::TEXT[]
     )
   INTO seen_tx_hashes, seen_ticket_sets, seen_competition_user_pairs
@@ -160,7 +160,7 @@ BEGIN
   WHERE (
     jc.privy_user_id = user_identifier
     OR jc.userid = user_identifier
-    OR LOWER(jc.walletaddress) = lower_identifier
+    OR LOWER(jc.wallet_address) = lower_identifier
   )
   AND jc.competitionid IS NOT NULL;
 

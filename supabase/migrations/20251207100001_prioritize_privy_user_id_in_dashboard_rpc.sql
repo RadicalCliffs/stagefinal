@@ -26,7 +26,7 @@ RETURNS TABLE (
   numberoftickets integer,
   ticketnumbers text,
   amountspent numeric,
-  walletaddress text,
+  wallet_address text,
   chain text,
   transactionhash text,
   purchasedate timestamp with time zone,
@@ -55,7 +55,7 @@ BEGIN
     jc.numberoftickets,
     jc.ticketnumbers,
     jc.amountspent,
-    jc.walletaddress::text as walletaddress,
+    jc.wallet_address::text as wallet_address,
     jc.chain::text as chain,
     jc.transactionhash::text as transactionhash,
     jc.purchasedate::timestamptz as purchasedate,
@@ -78,7 +78,7 @@ BEGIN
   -- Fall back to userid and walletaddress for legacy data compatibility
   WHERE jc.privy_user_id = user_identifier
      OR jc.userid = user_identifier
-     OR jc.walletaddress = user_identifier
+     OR jc.wallet_address = user_identifier
   ORDER BY jc.purchasedate DESC NULLS LAST;
 END;
 $$;

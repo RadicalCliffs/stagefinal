@@ -77,7 +77,7 @@ BEGIN
     END AS status,
     'competition_entry' AS entry_type,
     COALESCE(
-      LOWER(c.winner_address) = LOWER(jc.walletaddress),
+      LOWER(c.winner_address) = LOWER(jc.wallet_address),
       FALSE
     ) AS is_winner,
     COALESCE(jc.ticketnumbers, '') AS ticket_numbers,
@@ -95,7 +95,7 @@ BEGIN
     -- Match by canonical_user_id
     jc.canonical_user_id = user_identifier
     -- Match by wallet address (case-insensitive)
-    OR LOWER(jc.walletaddress) = lower_identifier
+    OR LOWER(jc.wallet_address) = lower_identifier
     -- Match by privy_user_id (legacy)
     OR jc.privy_user_id = user_identifier
     OR LOWER(jc.privy_user_id) = lower_identifier

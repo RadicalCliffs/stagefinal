@@ -149,8 +149,8 @@ BEGIN
         OR jc.privy_user_id = v_canonical_user_id
         OR jc.userid = user_id
         OR jc.userid = v_canonical_user_id
-        OR (v_search_wallet IS NOT NULL AND LOWER(jc.walletaddress) = v_search_wallet)
-        OR (v_search_wallet IS NOT NULL AND jc.walletaddress = user_id)
+        OR (v_search_wallet IS NOT NULL AND LOWER(jc.wallet_address) = v_search_wallet)
+        OR (v_search_wallet IS NOT NULL AND jc.wallet_address = user_id)
       )
       AND jc.ticketnumbers IS NOT NULL
       AND trim(jc.ticketnumbers) != ''

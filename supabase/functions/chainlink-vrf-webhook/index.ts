@@ -184,7 +184,7 @@ Deno.serve(async (req: Request) => {
       const { error: raffleUpdateError } = await supabase
         .from("raffle_competitions")
         .update({
-          winner_address: winner.walletaddress,
+          winner_address: winner.wallet_address,
           winning_ticket_id: winningTicket,
           status: 'completed',
           completed_at: new Date().toISOString(),
@@ -202,7 +202,7 @@ Deno.serve(async (req: Request) => {
       const { error: compUpdateError } = await supabase
         .from("competitions")
         .update({
-          winner_address: winner.walletaddress,
+          winner_address: winner.wallet_address,
           winning_ticket_id: winningTicket,
           status: 'completed',
           completed_at: new Date().toISOString(),
@@ -222,7 +222,7 @@ Deno.serve(async (req: Request) => {
       .from("winners")
       .select("id")
       .eq("competition_id", competitionIdToUse)
-      .eq("wallet_address", winner.walletaddress)
+      .eq("wallet_address", winner.wallet_address)
       .maybeSingle();
 
     if (!existingWinner) {
@@ -230,7 +230,7 @@ Deno.serve(async (req: Request) => {
         .from("winners")
         .insert({
           competition_id: competitionIdToUse,
-          wallet_address: winner.walletaddress,
+          wallet_address: winner.wallet_address,
           ticket_id: winningTicket,
           random_number: randomNumber,
           vrf_tx_hash: txHash,
@@ -248,7 +248,7 @@ Deno.serve(async (req: Request) => {
     console.log('VRF processed successfully:', {
       requestId,
       competitionId: competitionIdToUse,
-      winnerAddress: winner.walletaddress,
+      winnerAddress: winner.wallet_address,
       winningTicket,
       randomNumber,
       txHash,
@@ -262,7 +262,7 @@ Deno.serve(async (req: Request) => {
           requestId,
           competitionId: competitionIdToUse,
           winner: {
-            address: winner.walletaddress,
+            address: winner.wallet_address,
             ticketId: winningTicket,
             ticketNumbers: ticketNumbers,
           },

@@ -59,8 +59,8 @@ BEGIN
         COALESCE((
           SELECT COUNT(*) FROM joincompetition jc
           WHERE jc.userid = p.privy_user_id
-             OR LOWER(jc.walletaddress) = LOWER(p.wallet_address)
-             OR LOWER(jc.walletaddress) = LOWER(p.base_wallet_address)
+             OR LOWER(jc.wallet_address) = LOWER(p.wallet_address)
+             OR LOWER(jc.wallet_address) = LOWER(p.base_wallet_address)
              OR jc.privy_user_id = p.privy_user_id
         ), 0) as entry_count,
         COALESCE((
@@ -73,8 +73,8 @@ BEGIN
         COALESCE((
           SELECT COUNT(*) FROM joincompetition jc
           WHERE jc.userid = p.privy_user_id
-             OR LOWER(jc.walletaddress) = LOWER(p.wallet_address)
-             OR LOWER(jc.walletaddress) = LOWER(p.base_wallet_address)
+             OR LOWER(jc.wallet_address) = LOWER(p.wallet_address)
+             OR LOWER(jc.wallet_address) = LOWER(p.base_wallet_address)
              OR jc.privy_user_id = p.privy_user_id
         ), 0) * 100 +
         COALESCE((

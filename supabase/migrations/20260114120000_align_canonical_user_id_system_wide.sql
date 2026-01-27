@@ -96,10 +96,10 @@ END $$;
 
 -- Backfill canonical_user_id in joincompetition from walletaddress
 UPDATE public.joincompetition jc
-SET canonical_user_id = 'prize:pid:' || LOWER(jc.walletaddress)
+SET canonical_user_id = 'prize:pid:' || LOWER(jc.wallet_address)
 WHERE jc.canonical_user_id IS NULL
-  AND jc.walletaddress IS NOT NULL
-  AND jc.walletaddress LIKE '0x%';
+  AND jc.wallet_address IS NOT NULL
+  AND jc.wallet_address LIKE '0x%';
 
 -- Create index on joincompetition canonical_user_id
 CREATE INDEX IF NOT EXISTS idx_joincompetition_canonical_user_id 
@@ -159,7 +159,7 @@ BEGIN
     -- Match by canonical_user_id
     jc.canonical_user_id = user_identifier
     -- Match by wallet address (case-insensitive)
-    OR LOWER(jc.walletaddress) = LOWER(user_identifier)
+    OR LOWER(jc.wallet_address) = LOWER(user_identifier)
     -- Match by privy_user_id (legacy, case-insensitive for wallet addresses)
     OR jc.privy_user_id = user_identifier
     OR LOWER(jc.privy_user_id) = LOWER(user_identifier)

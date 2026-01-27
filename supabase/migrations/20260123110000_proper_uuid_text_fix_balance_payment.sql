@@ -459,7 +459,7 @@ BEGIN
     numberoftickets,
     ticketnumbers,
     amountspent,
-    walletaddress,
+    wallet_address,
     chain,
     transactionhash,
     purchasedate,

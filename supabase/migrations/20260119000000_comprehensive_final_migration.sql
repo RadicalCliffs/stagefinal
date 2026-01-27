@@ -118,7 +118,7 @@ CREATE INDEX IF NOT EXISTS idx_canonical_users_canonical_user_id ON canonical_us
 
 -- Joincompetition indexes
 CREATE INDEX IF NOT EXISTS idx_joincompetition_competitionid ON joincompetition(competitionid);
-CREATE INDEX IF NOT EXISTS idx_joincompetition_wallet_lower ON joincompetition(LOWER(walletaddress));
+CREATE INDEX IF NOT EXISTS idx_joincompetition_wallet_lower ON joincompetition(LOWER(wallet_address));
 CREATE INDEX IF NOT EXISTS idx_joincompetition_canonical_user_id ON joincompetition(canonical_user_id);
 CREATE INDEX IF NOT EXISTS idx_joincompetition_userid ON joincompetition(userid);
 
@@ -159,7 +159,7 @@ RETURNS TABLE (
   numberoftickets integer,
   ticketnumbers text,
   amountspent numeric,
-  walletaddress text,
+  wallet_address text,
   chain text,
   transactionhash text,
   purchasedate timestamp with time zone,
@@ -193,11 +193,11 @@ BEGIN
     COALESCE(jc.uid::text, jc.id::text, gen_random_uuid()::text) as uid,
     COALESCE(jc.competitionid, '')::text as competitionid,
     COALESCE(jc.userid, '')::text as userid,
-    COALESCE(jc.canonical_user_id, jc.walletaddress, '')::text as privy_user_id,
+    COALESCE(jc.canonical_user_id, jc.wallet_address, '')::text as privy_user_id,
     COALESCE(jc.numberoftickets, 1)::integer as numberoftickets,
     COALESCE(jc.ticketnumbers, '')::text as ticketnumbers,
     COALESCE(jc.amountspent, 0)::numeric as amountspent,
-    COALESCE(jc.walletaddress, '')::text as walletaddress,
+    COALESCE(jc.wallet_address, '')::text as wallet_address,
     COALESCE(jc.chain, 'Base')::text as chain,
     COALESCE(jc.transactionhash, '')::text as transactionhash,
     COALESCE(jc.purchasedate, jc.created_at, NOW())::timestamptz as purchasedate,
@@ -219,7 +219,7 @@ BEGIN
     COUNT(*)::integer as numberoftickets,
     string_agg(t.ticket_number::text, ',' ORDER BY t.ticket_number)::text as ticketnumbers,
     COALESCE(SUM(t.purchase_price), 0)::numeric as amountspent,
-    ''::text as walletaddress,
+    ''::text as wallet_address,
     'USDC'::text as chain,
     ''::text as transactionhash,
     MIN(t.purchased_at)::timestamptz as purchasedate,
@@ -236,7 +236,7 @@ BEGIN
       )
       AND (
         jc2.canonical_user_id = t.canonical_user_id
-        OR jc2.walletaddress = t.user_id
+        OR jc2.wallet_address = t.user_id
         OR jc2.userid = t.user_id
       )
     )

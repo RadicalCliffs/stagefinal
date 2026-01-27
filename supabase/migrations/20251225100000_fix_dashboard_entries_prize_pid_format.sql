@@ -9,7 +9,7 @@
 
   This causes entries to not be found because:
   - `LOWER('prize:pid:0x1234...')` = `prize:pid:0x1234...`
-  - `LOWER(walletaddress)` = `0x1234...`
+  - `LOWER(wallet_address)` = `0x1234...`
   - These never match!
 
   ## Root Cause
@@ -139,12 +139,12 @@ BEGIN
     END AS status,
     'completed'::TEXT AS entry_type,
     NULL::TIMESTAMPTZ AS expires_at,
-    COALESCE((LOWER(jc.walletaddress) = LOWER(c.winner_wallet_address)), FALSE) AS is_winner,
+    COALESCE((LOWER(jc.wallet_address) = LOWER(c.winner_wallet_address)), FALSE) AS is_winner,
     jc.ticketnumbers::TEXT AS ticket_numbers,
     COALESCE(jc.numberoftickets, 1) AS number_of_tickets,
     COALESCE(jc.amountspent, 0) AS amount_spent,
     COALESCE(jc.purchasedate::TIMESTAMPTZ, jc.created_at::TIMESTAMPTZ, NOW()) AS purchase_date,
-    jc.walletaddress AS wallet_address,
+    jc.wallet_address AS wallet_address,
     jc.transactionhash AS transaction_hash,
     COALESCE(c.is_instant_win, FALSE) AS is_instant_win,
     c.prize_value AS prize_value,
@@ -164,9 +164,9 @@ BEGIN
     OR jc.privy_user_id = lower_identifier
     OR jc.userid = lower_identifier
     -- FIX: Match by extracted wallet address (handles prize:pid:0x... format)
-    OR (search_wallet IS NOT NULL AND LOWER(jc.walletaddress) = search_wallet)
+    OR (search_wallet IS NOT NULL AND LOWER(jc.wallet_address) = search_wallet)
     -- Also try case-insensitive match on the full identifier
-    OR LOWER(jc.walletaddress) = lower_identifier
+    OR LOWER(jc.wallet_address) = lower_identifier
   )
   AND jc.competitionid IS NOT NULL
   AND LENGTH(TRIM(COALESCE(jc.competitionid, ''))) > 0
@@ -183,7 +183,7 @@ BEGIN
       ARRAY[]::TEXT[]
     ),
     COALESCE(
-      ARRAY_AGG(DISTINCT (jc.competitionid || '|' || COALESCE(jc.privy_user_id, jc.userid, LOWER(jc.walletaddress), ''))),
+      ARRAY_AGG(DISTINCT (jc.competitionid || '|' || COALESCE(jc.privy_user_id, jc.userid, LOWER(jc.wallet_address), ''))),
       ARRAY[]::TEXT[]
     )
   INTO seen_tx_hashes, seen_ticket_sets, seen_competition_user_pairs
@@ -193,8 +193,8 @@ BEGIN
     OR jc.userid = user_identifier
     OR jc.privy_user_id = lower_identifier
     OR jc.userid = lower_identifier
-    OR (search_wallet IS NOT NULL AND LOWER(jc.walletaddress) = search_wallet)
-    OR LOWER(jc.walletaddress) = lower_identifier
+    OR (search_wallet IS NOT NULL AND LOWER(jc.wallet_address) = search_wallet)
+    OR LOWER(jc.wallet_address) = lower_identifier
   )
   AND jc.competitionid IS NOT NULL;
 
@@ -399,9 +399,9 @@ BEGIN
     OR jc.privy_user_id = lower_identifier
     OR jc.userid = lower_identifier
     -- FIX: Match by extracted wallet address (handles prize:pid:0x... format)
-    OR (search_wallet IS NOT NULL AND LOWER(jc.walletaddress) = search_wallet)
+    OR (search_wallet IS NOT NULL AND LOWER(jc.wallet_address) = search_wallet)
     -- Also case-insensitive match on full identifier
-    OR LOWER(jc.walletaddress) = lower_identifier
+    OR LOWER(jc.wallet_address) = lower_identifier
   )
   AND c.status IN ('live', 'active');
 

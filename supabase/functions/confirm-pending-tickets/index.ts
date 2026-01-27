@@ -815,7 +815,7 @@ Deno.serve(async (req: Request) => {
         numberoftickets: ticketNumbers.length,
         ticketnumbers: ticketNumbers.join(","),
         amountspent: totalAmount,
-        walletaddress: walletAddress,
+        wallet_address: walletAddress,
         chain: paymentProvider || "USDC",
         transactionhash: transactionHash || sessionId || crypto.randomUUID(),
         purchasedate: new Date().toISOString(),

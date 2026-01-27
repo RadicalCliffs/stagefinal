@@ -114,7 +114,7 @@ Returns int4[] of ticket numbers that are NOT available for purchase.';
 -- Actually, privy_user_id DOES exist on joincompetition (added in migration 20251201000000)
 -- However, the problem statement requests NOT using privy_user_id in direct REST queries
 -- because complex OR filters with privy_user_id cause 400 errors in Supabase REST API.
--- This RPC recreates the function to use canonical_user_id, walletaddress, and userid instead.
+-- This RPC recreates the function to use canonical_user_id, wallet_address, and userid instead.
 -- Note: The RPC itself does NOT use privy_user_id for joincompetition queries (only for other tables
 -- where it's safe), matching the frontend changes that removed privy_user_id from OR filters.
 
@@ -176,7 +176,7 @@ BEGIN
     END AS status,
     'competition_entry' AS entry_type,
     COALESCE(
-      LOWER(c.winner_address) = LOWER(jc.walletaddress),
+      LOWER(c.winner_address) = LOWER(jc.wallet_address),
       FALSE
     ) AS is_winner,
     COALESCE(jc.ticketnumbers, '') AS ticket_numbers,
@@ -194,11 +194,11 @@ BEGIN
     -- Match by canonical_user_id
     jc.canonical_user_id = user_identifier
     -- Match by wallet address (case-insensitive)
-    OR LOWER(jc.walletaddress) = lower_identifier
+    OR LOWER(jc.wallet_address) = lower_identifier
     -- Match by userid (legacy)
     OR jc.userid = user_identifier
     -- Match by wallet in search_wallet
-    OR (search_wallet IS NOT NULL AND LOWER(jc.walletaddress) = search_wallet)
+    OR (search_wallet IS NOT NULL AND LOWER(jc.wallet_address) = search_wallet)
   )
   AND jc.competitionid IS NOT NULL
 
@@ -356,7 +356,7 @@ RETURNS TABLE (
   uid TEXT,
   competitionid TEXT,
   userid TEXT,
-  walletaddress TEXT,
+  wallet_address TEXT,
   ticketnumbers TEXT,
   numberoftickets INTEGER,
   purchasedate TIMESTAMPTZ,
@@ -388,7 +388,7 @@ BEGIN
     jc.uid,
     jc.competitionid,
     jc.userid,
-    jc.walletaddress,
+    jc.wallet_address,
     jc.ticketnumbers,
     jc.numberoftickets,
     jc.purchasedate,
@@ -401,11 +401,11 @@ BEGIN
     -- Match by canonical_user_id
     jc.canonical_user_id = user_identifier
     -- Match by wallet address (case-insensitive)
-    OR LOWER(jc.walletaddress) = lower_identifier
+    OR LOWER(jc.wallet_address) = lower_identifier
     -- Match by userid
     OR jc.userid = user_identifier
     -- Match by wallet in search_wallet
-    OR (search_wallet IS NOT NULL AND LOWER(jc.walletaddress) = search_wallet)
+    OR (search_wallet IS NOT NULL AND LOWER(jc.wallet_address) = search_wallet)
   )
   ORDER BY jc.purchasedate DESC;
 END;

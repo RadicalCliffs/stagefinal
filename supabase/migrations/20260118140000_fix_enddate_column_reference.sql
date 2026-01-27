@@ -69,7 +69,7 @@ BEGIN
   )
   WHERE (
     -- Match by wallet address (case-insensitive) - always works
-    LOWER(jc.walletaddress) = search_wallet
+    LOWER(jc.wallet_address) = search_wallet
     -- Match by userid (legacy)
     OR jc.userid = user_identifier
     OR jc.userid = canonical_id
@@ -91,7 +91,7 @@ EXCEPTION
     SELECT COALESCE(SUM(jc.numberoftickets), 0)::INTEGER INTO ticket_count
     FROM joincompetition jc
     INNER JOIN competitions c ON jc.competitionid::text = c.id::text OR jc.competitionid::text = c.uid::text
-    WHERE LOWER(jc.walletaddress) = search_wallet
+    WHERE LOWER(jc.wallet_address) = search_wallet
       OR jc.userid = user_identifier
     AND c.status IN ('active', 'live', 'drawing')
     AND c.end_date > NOW(); -- FIXED: Changed from c.enddate to c.end_date

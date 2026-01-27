@@ -23,7 +23,7 @@
 --   privy_user_id, canonical_user_id, wallet_address, payment_provider, tx_id
 --
 -- joincompetition:
---   id, userid, walletaddress, competitionid, ticketnumbers, purchasedate,
+--   id, userid, wallet_address, competitionid, ticketnumbers, purchasedate,
 --   status, created_at, uid, chain, transactionhash, numberoftickets,
 --   amountspent, canonical_user_id, privy_user_id
 --
@@ -506,7 +506,7 @@ BEGIN
     numberoftickets,
     ticketnumbers,
     amountspent,
-    walletaddress,
+    wallet_address,
     chain,
     transactionhash,
     purchasedate,
