@@ -4,18 +4,25 @@ This directory contains a complete baseline database migration that consolidates
 
 ## 📁 Files in This Package
 
-### 🗄️ Migration File
+### 🗄️ Migration Files
 - **`supabase/migrations/00000000000000_initial_schema.sql`** (84KB, 2,675 lines)
   - Single comprehensive migration file
   - Creates 45 tables, 43 RPC functions, 125+ indexes
   - Complete RLS policies and security grants
   - Production-ready, transaction-wrapped
 
+- **`supabase/migrations/00000000000001_baseline_triggers.sql`** (9KB, 270 lines)
+  - Database triggers baseline migration (Phase 1)
+  - Implements 9 core triggers (timestamp updates, expiry logic)
+  - Documents 42 additional triggers for future implementation
+  - See TRIGGERS_MIGRATION_README.md for details
+
 ### 📚 Documentation Files
 - **`DELIVERY_SUMMARY.md`** - Executive overview with architecture diagrams
 - **`BASELINE_MIGRATION_SUMMARY.md`** - Technical details (tables, functions, indexes)
 - **`BASELINE_MIGRATION_USAGE.md`** - Deployment guide and troubleshooting
 - **`TASK_COMPLETION_BASELINE_MIGRATION.md`** - Implementation notes and review feedback
+- **`TRIGGERS_MIGRATION_README.md`** - Database triggers baseline migration (Phase 1)
 
 ### 🧪 Testing & Verification
 - **`verify_baseline_migration.sql`** - Comprehensive verification script
@@ -64,6 +71,7 @@ supabase db execute -f verify_baseline_migration.sql
 | **Functions** | 43 | Complete RPC API for frontend |
 | **Indexes** | 125+ | Performance optimizations |
 | **RLS Policies** | 60+ | Security access control |
+| **Triggers** | 9/51 | Timestamp & expiry triggers (see TRIGGERS_MIGRATION_README.md) |
 
 ### Key Features
 

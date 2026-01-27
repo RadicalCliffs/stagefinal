@@ -1,152 +1,95 @@
-# Database Schema Migration - Single Source of Truth
+# Database Migrations
 
-## Overview
-This directory now contains a **single, immutable baseline migration** that replaces all previous ~197 migration files.
+This directory contains the database schema migrations for ThePrize.io.
 
-## Current State
+## Migration Files
 
-### Files
-- **`00000000000000_initial_schema.sql`** - Complete baseline schema (2,675 lines)
-  - All 45 tables with proper constraints
-  - All 43 RPC functions the frontend expects
-  - All 125+ performance indexes
-  - All 60+ RLS policies
-  - Complete security grants
+### Baseline Migrations
 
-- **`migrations_backup/`** - Backup of all 197 old migration files (for reference only)
+1. **`00000000000000_initial_schema.sql`** - Complete baseline schema
+   - 45 tables with RLS policies
+   - 43 RPC functions
+   - 125+ indexes
+   - Production-ready initial state
+   - See: `/BASELINE_MIGRATION_README.md` for details
 
-## Schema Components
+2. **`00000000000001_baseline_triggers.sql`** - Database triggers baseline
+   - 9 core triggers (Phase 1)
+   - Timestamp management triggers
+   - Reservation expiry logic
+   - Documentation for 42 additional triggers
+   - See: `/TRIGGERS_MIGRATION_README.md` for details
 
-### Tables (45 total)
-Core tables matching frontend expectations:
-- **User Management:** `canonical_users`, `users`, `profiles`, `admin_users`
-- **Competitions:** `competitions`, `competition_entries`, `hero_competitions`
-- **Tickets:** `tickets`, `pending_tickets`, `tickets_sold`
-- **Orders & Payments:** `orders`, `payments_jobs`, `payment_webhook_events`
-- **Balance & Wallets:** `sub_account_balances`, `balance_ledger`, `user_transactions`
-- **Winners & Prizes:** `winners`, `Prize_Instantprizes`
-- **Admin & Logs:** `confirmation_incident_log`, `bonus_award_audit`, `admin_sessions`
-- **Content:** `faqs`, `site_metadata`, `testimonials`, `partners`
-- And 20+ more supporting tables
+### Skipped Migrations
 
-### Functions (43 active RPCs)
-Only functions that the frontend actually uses (verified against `types.ts`):
-- Wallet management (get, link, unlink, set primary)
-- Balance operations (get, credit, debit)
-- Ticket operations (reserve, allocate, get availability)
-- Competition queries (entries, status, availability)
-- Order processing (finalize, confirm)
-- User profile management
-- Transaction history
+- **`20251218100000_create_vrf_availability_view_and_lucky_dip_support.sql.skip`**
+  - VRF availability view and lucky dip support
+  - Functionality is already included in baseline schema
+  - Kept for historical reference only
 
-**Note:** ~120 stale/duplicate functions were removed
+## Applying Migrations
 
-### Indexes (250 essential)
-Only high-value indexes retained:
-- Primary keys and unique constraints
-- Foreign key indexes for joins
-- Query-critical composite indexes
-- Case-insensitive indexes for text searches
+### Fresh Database Setup
 
-**Note:** ~150 duplicate/redundant indexes were removed
-
-### Triggers (30 active)
-Only essential triggers kept:
-- Identity synchronization
-- Balance updates
-- Canonical user management
-- Transaction ID generation
-- Wallet address syncing
-
-**Note:** ~20 duplicate/conflicting triggers were removed
-
-## Stale Objects Removed
-
-A comprehensive analysis identified and removed:
-- **120 stale functions:** Duplicates, test functions, deprecated migrations
-- **20 redundant triggers:** Conflicting normalization, duplicate syncs
-- **150 duplicate indexes:** Multiple indexes on same columns, overlapping coverage
-
-See `/tmp/stale_objects_analysis.md` for detailed reasoning.
-
-## Applying the Migration
-
-### Fresh Database (Recommended for Staging)
 ```bash
-# Reset the database to clean state
+# Reset database (applies all migrations)
 supabase db reset
-
-# This will:
-# 1. Drop all existing objects
-# 2. Apply 00000000000000_initial_schema.sql
-# 3. Give you a clean, consistent schema
 ```
 
-### Existing Database (Production)
+### Apply New Migrations
+
 ```bash
-# Apply the cleanup script first (optional)
-psql -f /tmp/cleanup_stale_objects.sql
-
-# Then review differences and plan migration
-supabase db diff
+# Push new migrations to database
+supabase db push
 ```
 
-## Benefits of Single Migration
+### Manual Application
 
-### ✅ **Clarity**
-- One file to understand the entire schema
-- No need to trace through 197 migration files
-- Clear documentation and comments
-
-### ✅ **Consistency**
-- No accumulated technical debt
-- No conflicting migrations
-- Clean type definitions matching frontend
-
-### ✅ **Performance**
-- Only essential indexes (no duplicates)
-- Optimized for actual query patterns
-- Removed performance-killing duplicate triggers
-
-### ✅ **Security**
-- All RLS policies in one place
-- Consistent SECURITY DEFINER usage
-- Proper role grants (authenticated, anon, service_role)
-
-### ✅ **Maintainability**
-- Easy to review and audit
-- Simple to onboard new developers
-- Clear source of truth
+Via Supabase Studio SQL Editor:
+1. Copy migration file contents
+2. Paste into SQL Editor
+3. Execute
 
 ## Verification
 
-The baseline migration was verified to:
-- ✅ Match all tables in `supabase/types.ts`
-- ✅ Include all functions called by frontend code
-- ✅ Provide all RLS policies for security
-- ✅ Include proper indexes for performance
-- ✅ Grant appropriate permissions
+After applying migrations, verify with:
 
-## Future Migrations
+```bash
+# Run baseline schema verification
+supabase db execute -f /verify_baseline_migration.sql
 
-Going forward:
-- New migrations should be **incremental changes only**
-- Test thoroughly in staging first
-- Keep migrations focused and atomic
-- Document reasoning in migration file
+# Run triggers verification
+supabase db execute -f /verify_triggers_migration.sql
+```
 
-## Rollback
+Or check manually:
 
-If needed, old migrations are preserved in `migrations_backup/` directory.
+```sql
+-- Check tables
+SELECT COUNT(*) FROM information_schema.tables 
+WHERE table_schema = 'public' AND table_type = 'BASE TABLE';
+
+-- Check functions
+SELECT COUNT(*) FROM information_schema.routines 
+WHERE routine_schema = 'public';
+
+-- Check triggers
+SELECT COUNT(*) FROM pg_trigger 
+WHERE NOT tgisinternal 
+AND tgrelid IN (SELECT oid FROM pg_class WHERE relnamespace = 
+  (SELECT oid FROM pg_namespace WHERE nspname = 'public'));
+```
 
 ## Documentation
 
-Additional documentation:
-- `/tmp/stale_objects_analysis.md` - Detailed analysis of removed objects
-- `/tmp/cleanup_stale_objects.sql` - SQL script to remove stale objects
-- `BASELINE_MIGRATION_README.md` - Technical deep-dive
-- `BASELINE_MIGRATION_USAGE.md` - Deployment guide
+For detailed information about the database schema and migrations:
 
-## Questions?
+- **Schema Overview:** `/BASELINE_MIGRATION_README.md`
+- **Technical Details:** `/BASELINE_MIGRATION_SUMMARY.md`
+- **Deployment Guide:** `/BASELINE_MIGRATION_USAGE.md`
+- **Triggers Documentation:** `/TRIGGERS_MIGRATION_README.md`
+- **Diagnostics:** `/supabase/diagnostics/ACTUAL_DATABASE_ANALYSIS.md`
 
-The schema is now clean, documented, and ready for deployment. All objects match what the frontend expects based on `supabase/types.ts`.
+## Migration History
+
+This project previously had 197 individual migration files which have been consolidated into the baseline migrations for easier maintenance and fresh environment setup.
