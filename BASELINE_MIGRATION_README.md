@@ -13,8 +13,8 @@ This directory contains a complete baseline database migration that consolidates
 
 - **`supabase/migrations/00000000000001_baseline_triggers.sql`** (9KB, 270 lines)
   - Database triggers baseline migration (Phase 1)
-  - Implements 10 core triggers (timestamp updates, expiry logic)
-  - Documents 41 additional triggers for future implementation
+  - Implements 9 core triggers (timestamp updates, expiry logic)
+  - Documents 42 additional triggers for future implementation
   - See TRIGGERS_MIGRATION_README.md for details
 
 ### 📚 Documentation Files
@@ -71,7 +71,7 @@ supabase db execute -f verify_baseline_migration.sql
 | **Functions** | 43 | Complete RPC API for frontend |
 | **Indexes** | 125+ | Performance optimizations |
 | **RLS Policies** | 60+ | Security access control |
-| **Triggers** | 10/51 | Timestamp & expiry triggers (see TRIGGERS_MIGRATION_README.md) |
+| **Triggers** | 9/51 | Timestamp & expiry triggers (see TRIGGERS_MIGRATION_README.md) |
 
 ### Key Features
 

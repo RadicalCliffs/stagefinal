@@ -13,7 +13,7 @@
 DO $$ 
 DECLARE
   v_trigger_count INTEGER;
-  v_expected_min INTEGER := 10; -- Minimum expected from Phase 1
+  v_expected_min INTEGER := 9; -- Phase 1: 8 timestamp triggers + 1 expiry trigger
 BEGIN
   -- Count all non-internal triggers in public schema
   SELECT COUNT(*) INTO v_trigger_count
@@ -49,12 +49,12 @@ DECLARE
   v_fail_count INTEGER := 0;
 BEGIN
   RAISE NOTICE '-----------------------------------------------------------------';
-  RAISE NOTICE 'Phase 1 Core Triggers (Expected: 10)';
+  RAISE NOTICE 'Phase 1 Core Triggers (Expected: 9 total)';
   RAISE NOTICE '-----------------------------------------------------------------';
   RAISE NOTICE '';
   
   -- Check timestamp update triggers (8 expected)
-  RAISE NOTICE 'Timestamp Update Triggers:';
+  RAISE NOTICE 'Timestamp Update Triggers (8 expected):';
   
   -- user_transactions
   SELECT EXISTS (
@@ -177,7 +177,7 @@ BEGIN
   END IF;
   
   RAISE NOTICE '';
-  RAISE NOTICE 'Reservation Expiry Trigger:';
+  RAISE NOTICE 'Reservation Expiry Trigger (1 expected):';
   
   -- check_reservation_expiry
   SELECT EXISTS (

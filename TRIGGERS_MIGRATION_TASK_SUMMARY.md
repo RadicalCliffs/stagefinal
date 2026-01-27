@@ -17,10 +17,10 @@
 - ✅ 2 trigger functions implemented
   - `update_updated_at_column()` - Auto-updates timestamps
   - `auto_expire_reservations()` - Auto-expires pending reservations
-- ✅ 10 triggers created
+- ✅ 9 triggers created
   - 8 timestamp update triggers for key tables
   - 1 reservation expiry trigger
-- ✅ Comprehensive documentation for 41 additional triggers
+- ✅ Comprehensive documentation for 42 additional triggers
 - ✅ Idempotent SQL (safe to run multiple times)
 - ✅ Transaction-wrapped for safety
 - ✅ Verification queries included
@@ -31,7 +31,7 @@
 **Contents:**
 - Complete overview of trigger baseline migration
 - Categorized list of all 51 triggers in production
-- Implementation status (10/51 complete)
+- Implementation status (9/51 complete)
 - Deployment instructions
 - Known issues and optimization opportunities
 - Reference to diagnostic files
@@ -55,7 +55,7 @@
 
 ### Phase 1: Core Triggers (COMPLETE ✅)
 
-#### Timestamp Management Triggers (9 triggers)
+#### Timestamp Management Triggers (8 triggers)
 Automatically update `updated_at` column when rows are modified:
 
 1. `update_user_transactions_updated_at` → user_transactions
@@ -81,7 +81,7 @@ $$ LANGUAGE plpgsql;
 #### Reservation Expiry Trigger (1 trigger)
 Auto-expires pending ticket reservations on insert/update:
 
-9. `check_reservation_expiry` → pending_tickets
+10. `check_reservation_expiry` → pending_tickets
 
 **Function:** `auto_expire_reservations()`
 ```sql
@@ -98,7 +98,7 @@ $$ LANGUAGE plpgsql;
 
 ### Phase 2: Advanced Triggers (DOCUMENTED, NOT IMPLEMENTED)
 
-The migration file includes comprehensive documentation for 41 additional triggers organized into 12 categories:
+The migration file includes comprehensive documentation for 42 additional triggers organized into 12 categories:
 
 1. **Normalization Triggers (5)** - Data consistency
 2. **Wallet Sync Triggers (4)** - Wallet address consistency
@@ -262,20 +262,23 @@ The migration includes:
 
 ## 📞 Questions & Answers
 
-**Q: Why are only 10 triggers implemented in Phase 1?**
-A: The trigger functions exist in the production database but not in the codebase. Phase 1 implements the core triggers that are fully documented. Phase 2 requires extracting the remaining trigger function definitions from the database.
+**Q: Why are only 9 triggers implemented in Phase 1?**
+A: The trigger functions exist in the production database but not in the codebase. Phase 1 implements the core triggers that are fully documented (8 timestamp updates + 1 reservation expiry). Phase 2 requires extracting the remaining trigger function definitions from the database.
 
 **Q: Is it safe to apply this migration to production?**
 A: Yes, the migration uses idempotent SQL and won't destroy existing triggers. However, test in staging first as a best practice.
 
-**Q: What about the 41 documented triggers?**
+**Q: What about the 42 documented triggers?**
 A: They are documented in the migration file with comprehensive comments. To implement them, extract the function definitions from the production database and add them to the migration.
 
 **Q: Why were there 197 migrations before but only 2 baseline migrations now?**
 A: The original 197 migrations were consolidated into a single baseline schema migration. The triggers migration is separate because triggers weren't included in the original baseline.
 
+**Q: How many triggers total are there?**
+A: Production has 51 unique triggers (83 instances with duplicates). Phase 1 implements 9 core triggers. Phase 2 will implement the remaining 42 triggers.
+
 ---
 
 **Created:** 2026-01-27  
 **Status:** Phase 1 Complete ✅  
-**Next Phase:** Extract and implement remaining 41 triggers
+**Next Phase:** Extract and implement remaining 42 triggers

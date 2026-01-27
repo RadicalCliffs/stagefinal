@@ -55,8 +55,11 @@ Via Supabase Studio SQL Editor:
 After applying migrations, verify with:
 
 ```bash
-# Run verification script
+# Run baseline schema verification
 supabase db execute -f /verify_baseline_migration.sql
+
+# Run triggers verification
+supabase db execute -f /verify_triggers_migration.sql
 ```
 
 Or check manually:
