@@ -13,7 +13,8 @@
 DO $$ 
 DECLARE
   v_trigger_count INTEGER;
-  v_expected_min INTEGER := 9; -- Phase 1: 8 timestamp triggers + 1 expiry trigger
+  -- Phase 1: 8 timestamp triggers + 1 expiry trigger = 9 total
+  v_expected_min INTEGER := 9;
 BEGIN
   -- Count all non-internal triggers in public schema
   SELECT COUNT(*) INTO v_trigger_count
