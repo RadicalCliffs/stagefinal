@@ -16,7 +16,7 @@ ALTER TABLE joincompetition
   RENAME COLUMN walletaddress TO wallet_address;
 
 -- Drop old index and create new one with updated column name
-DROP INDEX IF EXISTS idx_joincompetition_wallet_address;
+DROP INDEX IF EXISTS idx_joincompetition_walletaddress;
 CREATE INDEX IF NOT EXISTS idx_joincompetition_wallet_address
   ON joincompetition(wallet_address);
 
