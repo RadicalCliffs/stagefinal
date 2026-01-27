@@ -964,8 +964,6 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role;
 
-COMMIT;
-
 -- =====================================================
 -- SECTION 16: RPC FUNCTIONS
 -- =====================================================
