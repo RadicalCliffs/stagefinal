@@ -140,8 +140,6 @@ BEGIN
   AND ce.entry_status != 'cancelled'
 
   UNION ALL
-  
-  UNION ALL
 
   -- Source 2: user_transactions with ALL valid completed statuses
     SELECT
