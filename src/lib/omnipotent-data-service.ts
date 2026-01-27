@@ -8,14 +8,23 @@
  * 4. Errors are handled gracefully with fallbacks
  * 5. Real-time updates are managed properly
  * 6. User identity resolution works across all contexts
+ * 7. AGGRESSIVE MODE: Auto-fixes schema issues on the fly
  * 
  * This service acts as a single source of truth for all data operations.
+ * 
+ * AGGRESSIVE MODE (when admin access available):
+ * - Automatically creates missing tables
+ * - Adds missing columns as needed
+ * - Removes blocking constraints/triggers
+ * - Retries failed operations after fixes
  */
 
 import { supabase } from './supabase';
 import { resolveUserIdentity, type ResolvedIdentity } from './identity';
 import { databaseLogger } from './debug-console';
 import { getDashboardEntries, getCompetitionEntries, getUnavailableTickets } from './supabase-rpc-helpers';
+import { aggressiveCRUD } from './aggressive-crud';
+import { hasAdminAccess } from './supabase-admin';
 
 // Get Supabase URL from environment for image URL normalization
 // This is required for fixing malformed image URLs in the database
@@ -151,6 +160,7 @@ const dataCache = new DataCache();
 
 class OmnipotentDataService {
   private userIdentity: ResolvedIdentity | null = null;
+  public aggressiveMode: boolean = true; // Enable by default
 
   /**
    * Initialize the service with user identity
@@ -166,6 +176,13 @@ class OmnipotentDataService {
       } catch (error) {
         databaseLogger.error('[OmnipotentData] Failed to resolve user identity', error);
       }
+    }
+
+    // Log aggressive mode status
+    if (hasAdminAccess()) {
+      databaseLogger.info('[OmnipotentData] ✓ AGGRESSIVE MODE ENABLED - Auto-fix ready');
+    } else {
+      databaseLogger.warn('[OmnipotentData] Aggressive mode unavailable - no admin access');
     }
   }
 
@@ -743,6 +760,119 @@ class OmnipotentDataService {
     }
 
     databaseLogger.info('[OmnipotentData] Data refreshed', { type });
+  }
+
+  // ==========================================================================
+  // AGGRESSIVE OPERATIONS - Direct CRUD with auto-fix
+  // ==========================================================================
+
+  /**
+   * Aggressive SELECT - with auto-fix for missing tables/columns
+   */
+  async aggressiveSelect<T = any>(
+    table: string,
+    columns: string = '*',
+    filters?: Record<string, any>
+  ): Promise<{ data: T[] | null; error: any }> {
+    if (!this.aggressiveMode || !hasAdminAccess()) {
+      // Fallback to regular query
+      let query = supabase.from(table).select(columns);
+      if (filters) {
+        Object.entries(filters).forEach(([key, value]) => {
+          query = query.eq(key, value);
+        });
+      }
+      return await query;
+    }
+
+    return await aggressiveCRUD.select<T>(table, columns, filters, {
+      autoFix: true,
+      useAdmin: true,
+    });
+  }
+
+  /**
+   * Aggressive INSERT - with auto-fix for missing tables/columns
+   */
+  async aggressiveInsert<T = any>(
+    table: string,
+    data: any
+  ): Promise<{ data: T | null; error: any }> {
+    if (!this.aggressiveMode || !hasAdminAccess()) {
+      // Fallback to regular insert
+      return await supabase.from(table).insert(data).select().single();
+    }
+
+    return await aggressiveCRUD.insert<T>(table, data, {
+      autoFix: true,
+      useAdmin: true,
+    });
+  }
+
+  /**
+   * Aggressive UPDATE - with auto-fix for missing columns
+   */
+  async aggressiveUpdate<T = any>(
+    table: string,
+    data: any,
+    filters: Record<string, any>
+  ): Promise<{ data: T | null; error: any }> {
+    if (!this.aggressiveMode || !hasAdminAccess()) {
+      // Fallback to regular update
+      let query = supabase.from(table).update(data);
+      Object.entries(filters).forEach(([key, value]) => {
+        query = query.eq(key, value);
+      });
+      return await query.select().single();
+    }
+
+    return await aggressiveCRUD.update<T>(table, data, filters, {
+      autoFix: true,
+      useAdmin: true,
+    });
+  }
+
+  /**
+   * Aggressive UPSERT - with auto-fix
+   */
+  async aggressiveUpsert<T = any>(
+    table: string,
+    data: any,
+    onConflict?: string
+  ): Promise<{ data: T | null; error: any }> {
+    if (!this.aggressiveMode || !hasAdminAccess()) {
+      // Fallback to regular upsert
+      const opts = onConflict ? { onConflict } : undefined;
+      return await supabase.from(table).upsert(data, opts).select().single();
+    }
+
+    return await aggressiveCRUD.upsert<T>(table, data, {
+      autoFix: true,
+      useAdmin: true,
+      onConflict,
+    });
+  }
+
+  /**
+   * Aggressive DELETE
+   */
+  async aggressiveDelete(
+    table: string,
+    filters: Record<string, any>
+  ): Promise<{ data: any | null; error: any }> {
+    if (!this.aggressiveMode || !hasAdminAccess()) {
+      // Fallback to regular delete
+      let query = supabase.from(table).delete();
+      Object.entries(filters).forEach(([key, value]) => {
+        query = query.eq(key, value);
+      });
+      return await query;
+    }
+
+    return await aggressiveCRUD.delete(table, filters, {
+      autoFix: true,
+      useAdmin: true,
+    });
   }
 }
 
