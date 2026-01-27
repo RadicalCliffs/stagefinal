@@ -129,8 +129,51 @@ BEGIN
       ut.user_id AS user_id,
       ut.canonical_user_id AS canonical_user_id,
       ut.wallet_address AS wallet_address,
-      ARRAY[]::INTEGER[] AS ticket_numbers,
-      COALESCE(ut.ticket_count, 0) AS ticket_count,
+      -- REVERSE ENGINEER ticket_numbers from tickets table
+      COALESCE(
+        (
+          SELECT ARRAY_AGG(t.ticket_number ORDER BY t.ticket_number)
+          FROM tickets t
+          WHERE t.competition_id = ut.competition_id::UUID
+            AND (
+              (resolved_user_uuid IS NOT NULL AND t.user_id = resolved_user_uuid)
+              OR (t.privy_user_id = ut.user_id)
+              OR (t.privy_user_id = ut.canonical_user_id)
+              OR (resolved_canonical_user_id IS NOT NULL AND t.privy_user_id = resolved_canonical_user_id)
+            )
+            AND ABS(EXTRACT(EPOCH FROM (t.created_at - ut.created_at))) < 30
+        ),
+        -- Fallback to competition_entries
+        (
+          SELECT ce.ticket_numbers
+          FROM competition_entries ce
+          WHERE ce.competition_id = ut.competition_id::UUID
+            AND (
+              (ut.canonical_user_id IS NOT NULL AND ce.canonical_user_id = ut.canonical_user_id)
+              OR (ut.wallet_address IS NOT NULL AND LOWER(ce.wallet_address) = LOWER(ut.wallet_address))
+            )
+            AND ABS(EXTRACT(EPOCH FROM (ce.created_at - ut.created_at))) < 30
+          ORDER BY ce.created_at DESC
+          LIMIT 1
+        ),
+        ARRAY[]::INTEGER[]
+      ) AS ticket_numbers,
+      COALESCE(
+        ut.ticket_count,
+        -- Reverse engineer count from tickets table
+        (
+          SELECT COUNT(*)::INTEGER
+          FROM tickets t
+          WHERE t.competition_id = ut.competition_id::UUID
+            AND (
+              (resolved_user_uuid IS NOT NULL AND t.user_id = resolved_user_uuid)
+              OR (t.privy_user_id = ut.user_id)
+              OR (t.privy_user_id = ut.canonical_user_id)
+            )
+            AND ABS(EXTRACT(EPOCH FROM (t.created_at - ut.created_at))) < 30
+        ),
+        0
+      ) AS ticket_count,
       COALESCE(ut.amount, 0) AS amount_paid,
       COALESCE(ut.currency, 'USD') AS currency,
       COALESCE(ut.tx_id, ut.charge_id, ut.charge_code) AS transaction_hash,
@@ -176,8 +219,44 @@ BEGIN
       o.user_id AS user_id,
       NULL::TEXT AS canonical_user_id,
       NULL::TEXT AS wallet_address,
-      ARRAY[]::INTEGER[] AS ticket_numbers,
-      COALESCE(o.ticket_count, 0) AS ticket_count,
+      -- REVERSE ENGINEER ticket_numbers from tickets or competition_entries
+      COALESCE(
+        (
+          SELECT ARRAY_AGG(t.ticket_number ORDER BY t.ticket_number)
+          FROM tickets t
+          WHERE t.competition_id = o.competition_id::UUID
+            AND (
+              (resolved_user_uuid IS NOT NULL AND t.user_id = resolved_user_uuid)
+              OR (t.privy_user_id = o.user_id)
+            )
+            AND ABS(EXTRACT(EPOCH FROM (t.created_at - COALESCE(o.completed_at, o.created_at)))) < 30
+        ),
+        (
+          SELECT ce.ticket_numbers
+          FROM competition_entries ce
+          WHERE ce.competition_id = o.competition_id::UUID
+            AND ce.user_id = o.user_id
+            AND ABS(EXTRACT(EPOCH FROM (ce.created_at - COALESCE(o.completed_at, o.created_at)))) < 30
+          ORDER BY ce.created_at DESC
+          LIMIT 1
+        ),
+        ARRAY[]::INTEGER[]
+      ) AS ticket_numbers,
+      COALESCE(
+        o.ticket_count,
+        -- Reverse engineer count
+        (
+          SELECT COUNT(*)::INTEGER
+          FROM tickets t
+          WHERE t.competition_id = o.competition_id::UUID
+            AND (
+              (resolved_user_uuid IS NOT NULL AND t.user_id = resolved_user_uuid)
+              OR (t.privy_user_id = o.user_id)
+            )
+            AND ABS(EXTRACT(EPOCH FROM (t.created_at - COALESCE(o.completed_at, o.created_at)))) < 30
+        ),
+        0
+      ) AS ticket_count,
       COALESCE(o.amount, 0) AS amount_paid,
       COALESCE(o.currency, 'USD') AS currency,
       o.payment_tx_hash AS transaction_hash,
@@ -225,15 +304,63 @@ BEGIN
         bl.metadata->>'wallet_address',
         (SELECT cu3.wallet_address FROM canonical_users cu3 WHERE cu3.id = bl.user_id LIMIT 1)
       ) AS wallet_address,
-      -- Try to extract ticket_numbers from metadata if available
-      CASE
-        WHEN bl.metadata->>'ticket_numbers' IS NOT NULL THEN
-          -- Parse JSON array of ticket numbers from metadata
-          (SELECT ARRAY_AGG((value::text)::INTEGER) 
-           FROM jsonb_array_elements_text((bl.metadata->>'ticket_numbers')::jsonb))
-        ELSE ARRAY[]::INTEGER[]
-      END AS ticket_numbers,
-      COALESCE((bl.metadata->>'ticket_count')::INTEGER, 1) AS ticket_count,
+      -- REVERSE ENGINEER ticket_numbers: Try multiple strategies in order of preference
+      COALESCE(
+        -- Strategy 1: Extract from metadata if available (fastest)
+        (
+          CASE
+            WHEN bl.metadata->>'ticket_numbers' IS NOT NULL THEN
+              (SELECT ARRAY_AGG((value::text)::INTEGER) 
+               FROM jsonb_array_elements_text((bl.metadata->>'ticket_numbers')::jsonb))
+            ELSE NULL
+          END
+        ),
+        -- Strategy 2: Query tickets table to reverse engineer (match by competition, user, timestamp within 30 seconds)
+        (
+          SELECT ARRAY_AGG(t.ticket_number ORDER BY t.ticket_number)
+          FROM tickets t
+          WHERE t.competition_id = (bl.metadata->>'competition_id')::UUID
+            AND (
+              (resolved_user_uuid IS NOT NULL AND t.user_id = resolved_user_uuid)
+              OR (t.privy_user_id = p_user_identifier)
+              OR (resolved_canonical_user_id IS NOT NULL AND t.privy_user_id = resolved_canonical_user_id)
+            )
+            AND ABS(EXTRACT(EPOCH FROM (t.created_at - bl.created_at))) < 30
+          LIMIT 1
+        ),
+        -- Strategy 3: Query competition_entries table (match by competition, user, timestamp within 30 seconds)
+        (
+          SELECT ce.ticket_numbers
+          FROM competition_entries ce
+          WHERE ce.competition_id = (bl.metadata->>'competition_id')::UUID
+            AND (
+              (resolved_canonical_user_id IS NOT NULL AND ce.canonical_user_id = resolved_canonical_user_id)
+              OR (resolved_wallet_address IS NOT NULL AND LOWER(ce.wallet_address) = resolved_wallet_address)
+            )
+            AND ABS(EXTRACT(EPOCH FROM (ce.created_at - bl.created_at))) < 30
+          ORDER BY ce.created_at DESC
+          LIMIT 1
+        ),
+        -- Fallback: empty array
+        ARRAY[]::INTEGER[]
+      ) AS ticket_numbers,
+      -- Also reverse engineer ticket_count if not in metadata
+      COALESCE(
+        (bl.metadata->>'ticket_count')::INTEGER,
+        -- Count from tickets table
+        (
+          SELECT COUNT(*)::INTEGER
+          FROM tickets t
+          WHERE t.competition_id = (bl.metadata->>'competition_id')::UUID
+            AND (
+              (resolved_user_uuid IS NOT NULL AND t.user_id = resolved_user_uuid)
+              OR (t.privy_user_id = p_user_identifier)
+              OR (resolved_canonical_user_id IS NOT NULL AND t.privy_user_id = resolved_canonical_user_id)
+            )
+            AND ABS(EXTRACT(EPOCH FROM (t.created_at - bl.created_at))) < 30
+        ),
+        1
+      ) AS ticket_count,
       ABS(bl.amount) AS amount_paid,
       'USD' AS currency,
       COALESCE(
@@ -276,6 +403,7 @@ $$;
 COMMENT ON FUNCTION get_user_competition_entries(TEXT) IS
 'Returns user competition entries from ALL sources: competition_entries, user_transactions, orders, AND balance_ledger.
 CRITICAL FIX: Now ALWAYS queries balance_ledger (not just as fallback), ensuring balance purchases show up even when other entries exist in competition_entries.
+REVERSE ENGINEERING: For balance_ledger, user_transactions, and orders entries that lack ticket_numbers, the function queries the tickets table and competition_entries table to reverse engineer the actual ticket numbers purchased. Matches by competition_id, user, and timestamp (within 30 seconds).
 All sources are UNIONed together to ensure complete visibility of all user entries.
 Deduplication happens on the frontend.';
 
