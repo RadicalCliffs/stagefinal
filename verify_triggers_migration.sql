@@ -288,7 +288,12 @@ BEGIN
   RAISE NOTICE '=================================================================';
   RAISE NOTICE '';
   RAISE NOTICE 'If all Phase 1 triggers show ✓ (checkmark), the migration was';
-  RAISE NOTICE 'applied successfully. If any show ✗ (x), re-run the migration.';
+  RAISE NOTICE 'applied successfully. If any show ✗ (x), troubleshoot:';
+  RAISE NOTICE '  1. Verify the migration file was executed completely';
+  RAISE NOTICE '  2. Check that the target tables exist in the database';
+  RAISE NOTICE '  3. Ensure you have CREATE TRIGGER permissions';
+  RAISE NOTICE '  4. Review database logs for any error messages';
+  RAISE NOTICE '  5. Re-run the migration if needed (it is idempotent)';
   RAISE NOTICE '';
   RAISE NOTICE 'For Phase 2 (remaining 42 triggers), see:';
   RAISE NOTICE '  - TRIGGERS_MIGRATION_README.md';

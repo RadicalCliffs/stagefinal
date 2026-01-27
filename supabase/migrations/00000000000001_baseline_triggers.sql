@@ -39,7 +39,8 @@ CREATE OR REPLACE FUNCTION auto_expire_reservations()
 RETURNS TRIGGER AS $$
 BEGIN
   -- Called on INSERT or UPDATE
-  IF NEW.expires_at < NOW() AND NEW.status = 'pending' THEN
+  -- Only process if expires_at is set and status is pending
+  IF NEW.expires_at IS NOT NULL AND NEW.expires_at < NOW() AND NEW.status = 'pending' THEN
     NEW.status := 'expired';
   END IF;
   RETURN NEW;
