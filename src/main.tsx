@@ -3,6 +3,10 @@
 import { Buffer } from 'buffer';
 globalThis.Buffer = Buffer;
 
+// ⚡ AGGRESSIVE MODE INITIALIZATION - Must be imported EARLY
+// This enables auto-schema management and error fixing
+import './lib/init-aggressive-mode';
+
 import { StrictMode, lazy, Suspense, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
