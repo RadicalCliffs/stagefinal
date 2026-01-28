@@ -188,20 +188,23 @@ export function useRealtimeWithGuards(userId: string | null) {
     user_transactions: null,
   });
 
-  // Balance guard instance
+  // Balance guard instance - create once with stable reference
+  const latestRef = useRef(latest);
+  latestRef.current = latest;
+  
   const balanceGuard = useMemo(() => {
     return new BalanceGuard({
-      getLatest: () => latest.balances,
+      getLatest: () => latestRef.current.balances,
       subscribe: (handler) => {
         const interval = setInterval(() => {
-          if (latest.balances) {
-            handler(latest.balances);
+          if (latestRef.current.balances) {
+            handler(latestRef.current.balances);
           }
         }, 100);
         return () => clearInterval(interval);
       },
     });
-  }, [latest.balances]);
+  }, []); // Empty deps - create only once
 
   // Reservation guard instance
   const reservationGuard = useMemo(() => {
@@ -307,7 +310,9 @@ export function useRealtimeWithGuards(userId: string | null) {
       }
     );
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+    };
   }, [userId]);
 
   // Subscribe to purchases/reservations channel

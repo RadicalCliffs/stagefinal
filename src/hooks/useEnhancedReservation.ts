@@ -25,7 +25,7 @@ export interface EnhancedReservationOptions {
   enableGuards?: boolean;
 }
 
-export function useEnhancedTicketReservation(options: EnhancedReservationOptions) {
+export function useEnhancedReservation(options: EnhancedReservationOptions) {
   const { competitionId, ticketPrice, enableGuards = true } = options;
   const { baseUser } = useAuthUser();
   const userId = baseUser?.id;

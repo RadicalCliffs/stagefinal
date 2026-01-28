@@ -413,8 +413,20 @@ export function isNewerVersion(
   }
   
   if (typeof eventVersion === 'string' && typeof lastVersion === 'string') {
-    // Compare as ISO timestamps
-    return new Date(eventVersion) > new Date(lastVersion);
+    // Compare as ISO timestamps - validate dates first
+    const eventDate = new Date(eventVersion);
+    const lastDate = new Date(lastVersion);
+    
+    // Check if dates are valid
+    if (isNaN(eventDate.getTime()) || isNaN(lastDate.getTime())) {
+      console.warn('[Realtime] Invalid date format in version comparison:', {
+        eventVersion,
+        lastVersion,
+      });
+      return true; // Accept if we can't compare
+    }
+    
+    return eventDate > lastDate;
   }
   
   return true; // Accept if types don't match (shouldn't happen)
@@ -495,6 +507,7 @@ export function subscribeToTableWithState<T = any>(
   // Return enhanced unsubscribe function
   return () => {
     baseUnsubscribe();
+    supabase.removeChannel(channel);
     setChannelState(channelKey, 'CLOSED');
     options?.onStateChange?.('CLOSED');
   };

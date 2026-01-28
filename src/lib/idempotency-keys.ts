@@ -173,11 +173,10 @@ class IdempotencyKeyManager {
 // Export singleton instance
 export const idempotencyKeyManager = new IdempotencyKeyManager();
 
-// Run cleanup on initialization
-idempotencyKeyManager.cleanup();
-
-// Run cleanup periodically
+// Run cleanup on initialization and periodically (client-side only)
 if (typeof window !== 'undefined') {
+  idempotencyKeyManager.cleanup();
+  
   setInterval(() => {
     idempotencyKeyManager.cleanup();
   }, 60 * 60 * 1000); // Every hour

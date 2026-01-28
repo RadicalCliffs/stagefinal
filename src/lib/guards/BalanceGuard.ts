@@ -77,7 +77,7 @@ export class BalanceGuard {
         if (
           now &&
           nowVer &&
-          nowVer !== initialVer &&
+          (!initialVer || nowVer !== initialVer) &&
           (!opts?.predicate || opts.predicate(now))
         ) {
           this.lastAcceptedVersion = nowVer;

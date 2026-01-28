@@ -118,11 +118,10 @@ export class ReservationStateMachineManager {
    */
   reset(): void {
     this.transition('RESET');
+    // Clear reservation data - transition already updated state and notified listeners
     this.state.reservationId = null;
     this.state.totalAmount = 0;
     this.state.idempotencyKey = null;
-    this.state.error = null;
-    this.notifyListeners();
   }
 
   /**
