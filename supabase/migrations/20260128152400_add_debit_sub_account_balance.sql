@@ -1,6 +1,7 @@
 -- Migration: Add debit_sub_account_balance RPC function
 -- This function is called by purchase-tickets-with-bonus to atomically debit user balance
 -- It was missing from the initial schema, causing purchase failures
+-- SECURITY: Only callable by service_role (edge functions) to prevent unauthorized debits
 
 CREATE OR REPLACE FUNCTION debit_sub_account_balance(
   p_canonical_user_id TEXT,
@@ -22,6 +23,16 @@ DECLARE
   v_new_balance NUMERIC;
   v_record_exists BOOLEAN;
 BEGIN
+  -- Validate amount is positive
+  IF p_amount IS NULL OR p_amount <= 0 THEN
+    RETURN QUERY SELECT 
+      FALSE,
+      0::NUMERIC,
+      0::NUMERIC,
+      'Amount must be greater than zero'::TEXT;
+    RETURN;
+  END IF;
+
   -- Check if record exists and get current balance with row lock
   SELECT 
     COALESCE(available_balance, 0),
@@ -66,6 +77,8 @@ BEGIN
     AND currency = p_currency;
 
   -- Log transaction in balance_ledger
+  -- NOTE: Debits are stored as negative amounts in balance_ledger for audit consistency
+  -- Credits are positive, debits are negative
   INSERT INTO balance_ledger (
     canonical_user_id,
     transaction_type,
@@ -77,7 +90,7 @@ BEGIN
   ) VALUES (
     p_canonical_user_id,
     'debit',
-    -p_amount, -- Negative for debit
+    -p_amount, -- Negative for debit (convention: credits positive, debits negative)
     p_currency,
     v_current_balance,
     v_new_balance,
@@ -93,5 +106,7 @@ BEGIN
 END;
 $$;
 
--- Grant execute permission to authenticated users and service role
-GRANT EXECUTE ON FUNCTION debit_sub_account_balance(TEXT, NUMERIC, TEXT) TO authenticated, service_role;
+-- Grant execute permission ONLY to service_role (edge functions)
+-- This prevents authenticated users from debiting arbitrary accounts
+REVOKE ALL ON FUNCTION debit_sub_account_balance(TEXT, NUMERIC, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION debit_sub_account_balance(TEXT, NUMERIC, TEXT) TO service_role;
