@@ -384,6 +384,32 @@ export default function EntriesList() {
         )
         .subscribe();
 
+      // Channel for winners table (to detect when user wins)
+      const winnersChannel = supabase
+        .channel(`winners-${normalizedUserId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'winners',
+          },
+          (payload) => {
+            // Check if this winner record belongs to the current user
+            const record = payload.new as {
+              canonical_user_id?: string;
+              wallet_address?: string;
+              user_id?: string;
+            };
+
+            if (recordMatchesUser(record, normalizedUserId, baseUser.id)) {
+              console.log('[EntriesList] Winner update detected:', payload.eventType);
+              debouncedFetchEntries();
+            }
+          }
+        )
+        .subscribe();
+
       // Listen for balance-updated events (dispatched after successful payments/top-ups)
       // This ensures entries refresh immediately after wallet balance changes
       const handleBalanceUpdated = () => {
@@ -405,6 +431,7 @@ export default function EntriesList() {
         supabase.removeChannel(competitionStatusChannel);
         supabase.removeChannel(userTransactionsChannel);
         supabase.removeChannel(balanceLedgerChannel);
+        supabase.removeChannel(winnersChannel);
       };
     }
   }, [baseUser?.id, fetchEntries, debouncedFetchEntries]);

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import FilterTabs from "../FilterButtons";
 import EntriesTable from "./Entries";
 import Heading from "../Heading";
@@ -6,6 +6,7 @@ import type { Options } from "../../models/models";
 import { supabase } from "../../lib/supabase";
 import { entriesLogger, requestTracker, showDebugHintOnError } from "../../lib/debug-console";
 import { getCompetitionEntries } from "../../lib/supabase-rpc-helpers";
+import { useSupabaseRealtimeMultiple } from "../../hooks/useSupabaseRealtime";
 
 // UUID validation regex
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -25,8 +26,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
   const [loading, setLoading] = useState(true);
 
   // Fetch real competition entries
-  useEffect(() => {
-    const fetchEntries = async () => {
+  const fetchEntries = useCallback(async () => {
       // Get the ID to use, preferring competitionId if valid UUID
       const idToUse = competitionId || competitionUid;
       const startTime = Date.now();
@@ -609,10 +609,50 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
         setLoading(false);
         entriesLogger.groupEnd();
       }
-    };
+    }, [competitionId, competitionUid]);
 
+  // Initial fetch
+  useEffect(() => {
     fetchEntries();
-  }, [competitionId, competitionUid]);
+  }, [fetchEntries]);
+
+  // Subscribe to realtime updates for this competition's tickets and transactions
+  const idToUse = competitionId || competitionUid;
+  const shouldSubscribe = idToUse && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idToUse);
+
+  useSupabaseRealtimeMultiple([
+    {
+      table: 'tickets',
+      handlers: {
+        onInsert: (payload) => {
+          if (payload.new.competition_id === idToUse) {
+            console.log('[EntriesWithFilterTabs] New ticket detected, refreshing entries');
+            fetchEntries();
+          }
+        }
+      }
+    },
+    {
+      table: 'user_transactions',
+      handlers: {
+        onInsert: (payload) => {
+          if (payload.new.competition_id === idToUse) {
+            console.log('[EntriesWithFilterTabs] New transaction detected, refreshing entries');
+            fetchEntries();
+          }
+        }
+      }
+    },
+    {
+      table: 'balance_ledger',
+      handlers: {
+        onInsert: () => {
+          console.log('[EntriesWithFilterTabs] Balance ledger updated, refreshing entries');
+          fetchEntries();
+        }
+      }
+    }
+  ], shouldSubscribe);
 
   // Dynamically determine filter ranges based on entries
   const maxTicketNumber = useMemo(() => {
