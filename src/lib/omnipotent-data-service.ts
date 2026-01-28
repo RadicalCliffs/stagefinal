@@ -179,17 +179,13 @@ class OmnipotentDataService {
       }
     }
 
-    // Log aggressive mode status
+    // AGGRESSIVE MODE DISABLED - was causing 404 errors with exec_sql
+    // Schema validation has been disabled to prevent unnecessary database calls
+    // that fail when exec_sql RPC endpoint is not available
     if (hasAdminAccess()) {
-      databaseLogger.info('[OmnipotentData] ✓ AGGRESSIVE MODE ENABLED - Auto-fix ready');
-      
-      // Proactively validate all schemas on initialization
-      // This ensures the database is ready for user operations
-      schemaValidator.validateAllSchemas().catch(err => {
-        databaseLogger.warn('[OmnipotentData] Schema validation failed during init', err);
-      });
+      databaseLogger.info('[OmnipotentData] Admin access available (schema validation disabled)');
     } else {
-      databaseLogger.warn('[OmnipotentData] Aggressive mode unavailable - no admin access');
+      databaseLogger.info('[OmnipotentData] Standard mode - no admin access');
     }
   }
 
@@ -214,13 +210,8 @@ class OmnipotentDataService {
     status?: 'active' | 'completed' | 'drawing' | 'drawn' | 'cancelled' | 'expired' | 'draft',
     options: DataFetchOptions = {}
   ): Promise<OmnipotentCompetition[]> {
-    // JOURNEY POINT: User browsing competitions
-    // Validate schema before fetching to ensure database is ready
-    if (hasAdminAccess()) {
-      schemaValidator.validateCompetitionSchema().catch(err => {
-        databaseLogger.warn('[OmnipotentData] Schema validation failed', err);
-      });
-    }
+    // SCHEMA VALIDATION DISABLED - was causing 404 errors with exec_sql
+    // The competition schema is assumed to exist; queries will handle validation
 
     const cacheKey = `competitions:${status || 'all'}`;
     
@@ -330,13 +321,8 @@ class OmnipotentDataService {
    * Get all entries for a user across all competitions
    */
   async getUserEntries(userIdentifier: string, options: DataFetchOptions = {}): Promise<OmnipotentEntry[]> {
-    // JOURNEY POINT: User viewing their entries
-    // Validate schema before fetching
-    if (hasAdminAccess()) {
-      schemaValidator.validateEntriesSchema().catch(err => {
-        databaseLogger.warn('[OmnipotentData] Schema validation failed', err);
-      });
-    }
+    // SCHEMA VALIDATION DISABLED - was causing 404 errors with exec_sql
+    // The entries schema is assumed to exist; queries will handle validation
 
     const identity = await this.ensureUserIdentity(userIdentifier);
     if (!identity) {
@@ -746,14 +732,8 @@ class OmnipotentDataService {
     competitionId: string,
     ticketNumbers: number[]
   ): Promise<{ success: boolean; reservationId?: string; error?: string }> {
-    // JOURNEY POINT: User reserving tickets (CRITICAL)
-    // Validate reservation schema before attempting to ensure all required
-    // tables, indexes, and constraints are in place
-    if (hasAdminAccess()) {
-      await schemaValidator.validateReservationSchema().catch(err => {
-        databaseLogger.warn('[OmnipotentData] Schema validation failed', err);
-      });
-    }
+    // SCHEMA VALIDATION DISABLED - was causing 404 errors with exec_sql
+    // The reservation schema is assumed to exist; edge function will handle validation
 
     const identity = await this.ensureUserIdentity(userIdentifier);
     if (!identity) {
