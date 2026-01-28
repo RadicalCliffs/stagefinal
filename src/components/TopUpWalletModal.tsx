@@ -591,39 +591,27 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                 <p className="text-white sequel-45 mb-3 text-sm">{textOverrides?.methodSelectionTitle || 'Choose method:'}</p>
                 <div className="grid grid-cols-1 gap-2">
                   {/* Option 1: Pay with Base Account - One-tap USDC payment */}
-                  <div className="relative">
-                    <div className="absolute -top-1.5 -right-1.5 bg-[#DDE404] text-black text-[9px] font-bold px-1.5 py-0.5 rounded-full z-10">
-                      TOP
-                    </div>
-                    <button
-                      onClick={() => handleMethodSelect('base-account')}
-                      className={`flex items-center justify-between gap-3 p-3 rounded-xl transition-all w-full ${
-                        paymentMethod === 'base-account'
-                          ? 'bg-[#0052FF]/20 border-2 border-[#0052FF]'
-                          : 'bg-[#3A3A3A] border-2 border-[#0052FF]/30 hover:border-[#0052FF]/60'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${paymentMethod === 'base-account' ? 'bg-[#0052FF]' : 'bg-[#0052FF]/20'}`}>
-                          <svg className="w-6 h-6 text-white" viewBox="0 0 111 111" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M54.921 110.034C85.359 110.034 110.034 85.402 110.034 55.017C110.034 24.6319 85.359 0 54.921 0C26.0432 0 2.35281 22.1714 0 50.3923H72.8467V59.6416H3.9565e-07C2.35281 87.8625 26.0432 110.034 54.921 110.034Z" fill="currentColor"/>
-                          </svg>
-                        </div>
-                        <div className="text-left">
-                          <p className={`sequel-75 text-sm text-white`}>
-                            Pay With Base
-                          </p>
-                          <p className="text-[#DDE404] sequel-45 text-xs">
-                            Fast USDC payments
-                          </p>
-                        </div>
-                      </div>
-                      <ChevronRight size={18} className="text-[#DDE404] flex-shrink-0" />
-                    </button>
-                  </div>
-
-                  {/* Option 2: Top up with Coinbase (Commerce flow) */}
+                  {/* Updated to match entries modal style - solid blue background */}
                   <button
+                    onClick={() => handleMethodSelect('base-account')}
+                    className="w-full h-[72px] flex items-center justify-between px-4 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+                        <svg className="w-6 h-6 text-white" viewBox="0 0 111 111" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M54.921 110.034C85.359 110.034 110.034 85.402 110.034 55.017C110.034 24.6319 85.359 0 54.921 0C26.0432 0 2.35281 22.1714 0 50.3923H72.8467V59.6416H3.9565e-07C2.35281 87.8625 26.0432 110.034 54.921 110.034Z" fill="currentColor"/>
+                        </svg>
+                      </div>
+                      <div className="text-left">
+                        <p className="text-white sequel-75 text-sm uppercase">Pay With Base</p>
+                        <p className="text-[#DDE404] sequel-45 text-xs">Fast USDC payments</p>
+                      </div>
+                    </div>
+                    <ChevronRight size={20} className="text-white" />
+                  </button>
+
+                  {/* Option 2: Top up with Coinbase (Commerce flow) - HIDDEN */}
+                  {/* <button
                     onClick={() => handleMethodSelect('commerce')}
                     className={`flex items-center justify-between gap-3 p-3 rounded-xl transition-all w-full ${
                       paymentMethod === 'commerce'
@@ -645,10 +633,10 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                       </div>
                     </div>
                     <ChevronRight size={18} className="text-[#DDE404] flex-shrink-0" />
-                  </button>
+                  </button> */}
 
-                  {/* Option 3: Pay with Card - Coming Soon */}
-                  <button
+                  {/* Option 3: Pay with Card - Coming Soon - HIDDEN */}
+                  {/* <button
                     disabled={true}
                     className="flex items-center justify-between gap-3 p-3 rounded-xl w-full bg-[#3A3A3A] border-2 border-gray-600/30 opacity-50 cursor-not-allowed"
                   >
@@ -662,7 +650,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                       </div>
                     </div>
                     <ChevronRight size={18} className="text-gray-600 flex-shrink-0" />
-                  </button>
+                  </button> */}
                 </div>
               </div>
 
