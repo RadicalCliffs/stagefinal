@@ -101,13 +101,18 @@ function transformJoinCompetitionEntry(jc: any, identity: ResolvedIdentity): any
   }
 
   // Check winner using case-insensitive comparison for wallet addresses
+  // SCHEMA: joincompetition has userid, not wallet_address
   const isWinner = identity.walletAddress && comp?.winner_address
-    ? userIdsEqual(jc.wallet_address, comp.winner_address) ||
+    ? userIdsEqual(jc.userid, comp.winner_address) ||
       userIdsEqual(identity.walletAddress, comp.winner_address)
     : false;
 
   // Generate a safe ID - use a combination of fields if uid/id are missing
-  const entryId = jc.uid || jc.id || `entry-${jc.competitionid || 'no-comp'}-${jc.wallet_address?.substring(0, 8) || 'no-wallet'}-${jc.purchasedate || 'unknown'}`;
+  // SCHEMA: Use userid and joinedat (not wallet_address and purchasedate)
+  const entryId = jc.uid || jc.id || `entry-${jc.competitionid || 'no-comp'}-${jc.userid?.substring(0, 8) || 'no-user'}-${jc.joinedat || 'unknown'}`;
+
+  // Calculate number of tickets from ticketnumbers array
+  const ticketCount = Array.isArray(jc.ticketnumbers) ? jc.ticketnumbers.length : 1;
 
   return {
     id: entryId,
@@ -120,11 +125,16 @@ function transformJoinCompetitionEntry(jc: any, identity: ResolvedIdentity): any
     expires_at: null,
     is_winner: isWinner,
     ticket_numbers: jc.ticketnumbers,
-    number_of_tickets: jc.numberoftickets || 1,
-    amount_spent: jc.amountspent,
-    purchase_date: jc.purchasedate || jc.created_at,
-    wallet_address: jc.walletaddress,
-    transaction_hash: jc.transactionhash,
+    // SCHEMA: joincompetition doesn't have numberoftickets - calculate from array
+    number_of_tickets: ticketCount,
+    // SCHEMA: joincompetition doesn't have amountspent - calculate if ticket_price available
+    amount_spent: comp?.ticket_price ? (comp.ticket_price * ticketCount) : undefined,
+    // SCHEMA: Use joinedat instead of purchasedate
+    purchase_date: jc.joinedat || jc.created_at,
+    // SCHEMA: Use userid instead of walletaddress
+    wallet_address: jc.userid,
+    // SCHEMA: joincompetition doesn't have transactionhash
+    transaction_hash: undefined,
     is_instant_win: comp?.is_instant_win || false,
     prize_value: comp?.prize_value,
     competition_status: compStatus,
@@ -2006,11 +2016,12 @@ export const database = {
       if (identity.walletAddress) {
         try {
           // Query joincompetition WITHOUT join to competitions
+          // SCHEMA: joincompetition has: userid, competitionid, ticketnumbers, joinedat, created_at
           const { data, error } = await supabase
             .from('joincompetition')
             .select('*')
-            .ilike('wallet_address', identity.walletAddress)
-            .order('purchasedate', { ascending: false });
+            .ilike('userid', identity.walletAddress)
+            .order('joinedat', { ascending: false });
 
           if (!error && data && data.length > 0) {
             databaseLogger.success('Base joincompetition query (wallet) found entries', { count: data.length });
@@ -2078,11 +2089,12 @@ export const database = {
       // Also try by userid
       if (identity.legacyUserId && allEntries.length === 0) {
         try {
+          // SCHEMA: joincompetition has: userid, competitionid, ticketnumbers, joinedat, created_at
           const { data, error } = await supabase
             .from('joincompetition')
             .select('*')
             .eq('userid', identity.legacyUserId)
-            .order('purchasedate', { ascending: false });
+            .order('joinedat', { ascending: false });
 
           if (!error && data && data.length > 0) {
             // Fetch competition data separately (same logic as above)
