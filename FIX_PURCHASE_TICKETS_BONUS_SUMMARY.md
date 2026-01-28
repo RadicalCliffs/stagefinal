@@ -69,8 +69,10 @@ CREATE TABLE sub_account_balances (
 Created the `debit_sub_account_balance` RPC function with:
 - **Atomic Operations**: Uses `FOR UPDATE` row locking to prevent race conditions
 - **Balance Validation**: Checks for sufficient balance before debit
+- **Amount Validation**: Rejects negative or zero amounts
 - **Transaction Logging**: Records all debits in `balance_ledger` for audit trail
 - **Proper Error Handling**: Returns structured error messages
+- **SECURITY**: Restricted to `service_role` only (prevents unauthorized debits)
 
 ```sql
 CREATE OR REPLACE FUNCTION debit_sub_account_balance(
@@ -89,10 +91,22 @@ RETURNS TABLE(
 **Key Features**:
 - Row-level locking to prevent concurrent balance modifications
 - Validates sufficient balance: `IF v_current_balance < p_amount THEN`
+- Validates positive amounts: `IF p_amount IS NULL OR p_amount <= 0 THEN`
 - Returns detailed error messages for debugging
 - Logs all transactions to `balance_ledger`
+- **Security**: Only callable by `service_role` (edge functions), not by regular users
 
-### 2. Fixed Column Name Mismatches
+### 2. Secured Existing Credit Function
+**File**: `supabase/migrations/20260128152500_secure_credit_sub_account_balance.sql`
+
+Enhanced the existing `credit_sub_account_balance` RPC function with:
+- **Amount Validation**: Rejects negative or zero amounts
+- **SECURITY**: Restricted to `service_role` only (prevents unauthorized credits)
+- **Documentation**: Added comments explaining sign convention for balance_ledger
+
+**Security Issue**: The original function was callable by any authenticated user, allowing them to credit arbitrary accounts. This is now fixed.
+
+### 3. Fixed Column Name Mismatches
 **File**: `supabase/functions/purchase-tickets-with-bonus/index.ts`
 
 Changed all 5 occurrences of `last_updated` to `updated_at`:
@@ -151,11 +165,19 @@ After deployment, test the purchase flow:
 
 1. **New Migration**: `supabase/migrations/20260128152400_add_debit_sub_account_balance.sql`
    - Creates the missing RPC function
-   - 97 lines added
+   - 112 lines added (includes security restrictions and validation)
 
-2. **Fixed Function**: `supabase/functions/purchase-tickets-with-bonus/index.ts`
+2. **New Migration**: `supabase/migrations/20260128152500_secure_credit_sub_account_balance.sql`
+   - Secures existing credit function
+   - 72 lines added (adds validation and access control)
+
+3. **Fixed Function**: `supabase/functions/purchase-tickets-with-bonus/index.ts`
    - Fixed 5 column name references
    - 5 lines changed, 5 lines removed
+
+4. **Documentation**: `FIX_PURCHASE_TICKETS_BONUS_SUMMARY.md`
+   - Complete fix documentation
+   - 250+ lines
 
 ## Impact
 
@@ -163,12 +185,39 @@ After deployment, test the purchase flow:
 - **Data Integrity**: Atomic balance updates prevent race conditions
 - **Audit Trail**: All balance debits are now logged in `balance_ledger`
 - **Error Handling**: Better error messages for debugging
+- **Security**: Protected against unauthorized balance manipulation by restricting RPC access
 
 ## Related Issues
 
-This fix addresses the schema compliance issues mentioned in `SCHEMA_COMPLIANCE_AUDIT.md` regarding:
-- Missing RPC functions for balance operations
-- Column name inconsistencies between code and schema
+This fix addresses:
+1. **Schema Compliance**: Missing RPC functions and column name inconsistencies mentioned in `SCHEMA_COMPLIANCE_AUDIT.md`
+2. **Security Vulnerabilities**: Unauthorized balance manipulation via publicly accessible RPC functions
+3. **Purchase Failures**: The specific "Purchase failed" error from the problem statement
+
+## Security Vulnerabilities Fixed
+
+### Critical: Unauthorized Balance Manipulation
+**Severity**: High
+
+**Issue**: Both `credit_sub_account_balance` and the missing `debit_sub_account_balance` functions were or would have been callable by any authenticated user with SECURITY DEFINER privileges.
+
+**Exploit Scenario**:
+```typescript
+// Any authenticated user could have done this:
+await supabase.rpc('credit_sub_account_balance', {
+  p_canonical_user_id: 'some_other_users_id',
+  p_amount: 1000000,  // Credit themselves with $1M
+  p_currency: 'USD'
+});
+```
+
+**Fix**: Both functions now restricted to `service_role` only:
+```sql
+REVOKE ALL ON FUNCTION credit_sub_account_balance(TEXT, NUMERIC, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION credit_sub_account_balance(TEXT, NUMERIC, TEXT) TO service_role;
+```
+
+**Result**: Only edge functions (running as service_role) can call these functions, preventing user-initiated balance manipulation.
 
 ## Future Improvements
 
