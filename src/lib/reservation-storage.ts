@@ -21,10 +21,37 @@ const STORAGE_KEY = 'theprize:active_reservations';
 const RESERVATION_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 class ReservationStorage {
+  private storageAvailable: boolean;
+
+  constructor() {
+    // Check if sessionStorage is available
+    this.storageAvailable = this.checkStorageAvailable();
+  }
+
+  /**
+   * Check if sessionStorage is available (handles SSR, private browsing, etc.)
+   */
+  private checkStorageAvailable(): boolean {
+    try {
+      const test = '__storage_test__';
+      sessionStorage.setItem(test, test);
+      sessionStorage.removeItem(test);
+      return true;
+    } catch {
+      console.warn('[ReservationStorage] sessionStorage is not available');
+      return false;
+    }
+  }
+
   /**
    * Store a reservation in sessionStorage
    */
   storeReservation(data: Omit<ReservationData, 'timestamp'>): void {
+    if (!this.storageAvailable) {
+      console.warn('[ReservationStorage] Storage not available, cannot store reservation');
+      return;
+    }
+
     try {
       const reservation: ReservationData = {
         ...data,
@@ -50,9 +77,11 @@ class ReservationStorage {
   }
 
   /**
-   * Get all active reservations from sessionStorage
+   * Get all active (non-expired) reservations from sessionStorage
    */
   getAllReservations(): ReservationData[] {
+    if (!this.storageAvailable) return [];
+
     try {
       const stored = sessionStorage.getItem(STORAGE_KEY);
       if (!stored) return [];
@@ -101,6 +130,8 @@ class ReservationStorage {
    * Clear reservation for a specific competition
    */
   clearReservation(competitionId: string): void {
+    if (!this.storageAvailable) return;
+
     try {
       const stored = this.getAllReservations();
       const filtered = stored.filter(r => r.competitionId !== competitionId);
@@ -116,6 +147,8 @@ class ReservationStorage {
    * Clear all reservations
    */
   clearAll(): void {
+    if (!this.storageAvailable) return;
+
     try {
       sessionStorage.removeItem(STORAGE_KEY);
       console.log('[ReservationStorage] Cleared all reservations');
@@ -125,16 +158,27 @@ class ReservationStorage {
   }
 
   /**
-   * Check if a reservation exists and is still valid
+   * Check if a reservation exists and is still valid (not expired)
    */
   hasValidReservation(competitionId: string): boolean {
-    const reservation = this.getReservation(competitionId);
-    if (!reservation) return false;
+    if (!this.storageAvailable) return false;
 
-    const now = Date.now();
-    const isExpired = reservation.expiresAt && reservation.expiresAt < now;
-    
-    return !isExpired;
+    try {
+      const stored = sessionStorage.getItem(STORAGE_KEY);
+      if (!stored) return false;
+
+      const reservations: ReservationData[] = JSON.parse(stored);
+      const reservation = reservations.find(r => r.competitionId === competitionId);
+      
+      if (!reservation) return false;
+
+      const now = Date.now();
+      const isExpired = reservation.expiresAt && reservation.expiresAt < now;
+      
+      return !isExpired;
+    } catch {
+      return false;
+    }
   }
 }
 

@@ -428,10 +428,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               context: 'upsert_canonical_user',
               shouldRetry: (error) => {
                 // Retry on network errors or temporary database issues
-                const errorMsg = String(error);
+                // Handle both Error objects and raw error messages
+                const errorMsg = error instanceof Error ? error.message : String(error);
+                const errorObj = error as any;
+                
                 return errorMsg.includes('network') || 
                        errorMsg.includes('timeout') ||
-                       errorMsg.includes('ECONNRESET');
+                       errorMsg.includes('ECONNRESET') ||
+                       errorMsg.includes('Failed to send') ||
+                       errorMsg.includes('FunctionsFetchError') ||
+                       errorObj?.code === 'ETIMEDOUT' ||
+                       errorObj?.code === 'ECONNRESET';
               }
             }
           );

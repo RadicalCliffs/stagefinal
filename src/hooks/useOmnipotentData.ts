@@ -232,7 +232,7 @@ export function useCompetitionEntries(
  * Features:
  * - Persistent storage across page refreshes (sessionStorage)
  * - Auto-recovery of reservations on mount
- * - Automatic cleanup of expired reservations
+ * - Passive cleanup of expired reservations during retrieval
  */
 export function useTicketReservation(competitionId: string | undefined) {
   const [reserving, setReserving] = useState(false);

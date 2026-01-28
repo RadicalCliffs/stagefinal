@@ -626,6 +626,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
             }));
           }
 
+          // CRITICAL: Clear reservation from storage after successful purchase
+          reservationStorage.clearReservation(competitionId);
+          console.log('[PaymentModal] Cleared reservation after successful purchase');
+
           if (onPaymentSuccess) {
             onPaymentSuccess();
           }
@@ -669,6 +673,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
             detail: { newBalance: rpcResult.balanceAfterPurchase }
           }));
         }
+
+        // CRITICAL: Clear reservation from storage after successful purchase
+        reservationStorage.clearReservation(competitionId);
+        console.log('[PaymentModal] Cleared reservation after successful purchase');
 
         if (onPaymentSuccess) {
           onPaymentSuccess();
@@ -718,6 +726,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
             detail: { newBalance: result.balanceAfterPurchase }
           }));
         }
+
+        // CRITICAL: Clear reservation from storage after successful purchase
+        reservationStorage.clearReservation(competitionId);
+        console.log('[PaymentModal] Cleared reservation after successful purchase');
+
         // Call success callback to refresh entries display
         if (onPaymentSuccess) {
           onPaymentSuccess();
