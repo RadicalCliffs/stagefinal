@@ -597,8 +597,9 @@ class OmnipotentDataService {
 
     } catch (error) {
       databaseLogger.error('[OmnipotentData] Failed to fetch available tickets', { competitionId, error });
-      // Return all tickets as available on error to avoid blocking the UI
-      return Array.from({ length: totalTickets }, (_, i) => i + 1);
+      // Return empty array on error to fail safely - prevents showing sold tickets as available
+      // This is consistent with getUnavailableTickets() which returns empty array on error
+      return [];
     }
   }
 

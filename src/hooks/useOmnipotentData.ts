@@ -356,9 +356,12 @@ export function useTicketReservation(competitionId: string | undefined) {
  * 
  * Features:
  * - Automatic fetching on mount and when parameters change
- * - Caching to prevent redundant queries
+ * - Caching to prevent redundant queries (handled by OmnipotentDataService)
  * - Manual refresh capability
  * - Loading and error states
+ * 
+ * Note: Caching is always enabled by the OmnipotentDataService layer (3s TTL).
+ * The cacheEnabled option is ignored for this hook.
  */
 export function useAvailableTickets(
   competitionId: string | undefined,
@@ -368,7 +371,7 @@ export function useAvailableTickets(
   const [availableTickets, setAvailableTickets] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const { autoFetch = true, refreshInterval, cacheEnabled = true } = options;
+  const { autoFetch = true, refreshInterval } = options;
 
   const fetchAvailableTickets = useCallback(async () => {
     if (!competitionId || !totalTickets) {
