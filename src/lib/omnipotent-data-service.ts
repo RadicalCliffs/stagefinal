@@ -493,7 +493,7 @@ class OmnipotentDataService {
     try {
       // Use Supabase RPC to get ALL unavailable tickets (sold + pending) in one call
       // The RPC function get_unavailable_tickets returns distinct ticket numbers that are not available
-      // Uses pending_tickets.ticket_numbers (array), filters where expires_at > now() and status IN ('pending','confirming')
+      // Queries pending_ticket_items.ticket_number (joined with pending_tickets for expires_at/status check)
       const { data: unavailableTickets, error: rpcError } = await getUnavailableTickets(supabase, competitionId);
 
       if (rpcError) {
@@ -502,40 +502,62 @@ class OmnipotentDataService {
         // Fallback: Query directly if RPC fails
         const unavailableSet = new Set<number>();
 
-        // Get pending (reserved) tickets
-        const { data: pendingData } = await supabase
-          .from('pending_tickets')
-          .select('ticket_numbers, expires_at')
-          .eq('competition_id', competitionId)
-          .in('status', ['pending', 'confirming']);
+        // Get pending (reserved) tickets from pending_ticket_items
+        // SCHEMA: pending_ticket_items has: id, pending_ticket_id, competition_id, ticket_number (INTEGER), created_at
+        // We need to join with pending_tickets to check expires_at and status
+        const { data: pendingItemsData } = await supabase
+          .from('pending_ticket_items')
+          .select(`
+            ticket_number,
+            pending_tickets!inner(
+              expires_at,
+              status
+            )
+          `)
+          .eq('competition_id', competitionId);
 
-        if (pendingData) {
+        if (pendingItemsData) {
           const now = new Date();
-          pendingData.forEach(row => {
-            const isExpired = row.expires_at && new Date(row.expires_at) < now;
-            if (!isExpired && Array.isArray(row.ticket_numbers)) {
-              row.ticket_numbers.forEach((num: any) => unavailableSet.add(num));
+          pendingItemsData.forEach((item: any) => {
+            const pending = item.pending_tickets;
+            // Check if reservation is not expired and has valid status
+            const isExpired = pending?.expires_at && new Date(pending.expires_at) < now;
+            const validStatus = pending?.status && ['pending', 'confirming'].includes(pending.status);
+            
+            if (!isExpired && validStatus && typeof item.ticket_number === 'number') {
+              unavailableSet.add(item.ticket_number);
             }
           });
         }
 
         // Get sold tickets from v_joincompetition_active
+        // SCHEMA: v_joincompetition_active has: competitionid, ticketnumbers (comma-separated string or array)
         const { data: soldData } = await supabase
           .from('v_joincompetition_active')
           .select('ticketnumbers')
           .eq('competitionid', competitionId);
 
         if (soldData) {
-          soldData.forEach(row => {
-            const nums = String(row.ticketnumbers || '')
-              .split(',')
-              .map(x => parseInt(x.trim(), 10))
-              .filter(n => Number.isFinite(n) && n > 0);
-            nums.forEach(n => unavailableSet.add(n));
+          soldData.forEach((row: any) => {
+            // Handle both comma-separated string and array formats
+            let ticketNumbers: number[] = [];
+            
+            if (Array.isArray(row.ticketnumbers)) {
+              // If it's an array (INTEGER[])
+              ticketNumbers = row.ticketnumbers.filter((n: any) => Number.isFinite(n) && n > 0);
+            } else if (typeof row.ticketnumbers === 'string') {
+              // If it's a comma-separated string
+              ticketNumbers = row.ticketnumbers
+                .split(',')
+                .map((x: string) => parseInt(x.trim(), 10))
+                .filter((n: number) => Number.isFinite(n) && n > 0);
+            }
+            
+            ticketNumbers.forEach((n: number) => unavailableSet.add(n));
           });
         }
 
-        const unavailable = Array.from(unavailableSet);
+        const unavailable = Array.from(unavailableSet).sort((a, b) => a - b);
         dataCache.set(cacheKey, unavailable, 5000); // Short cache for ticket availability
         return unavailable;
       }
@@ -547,6 +569,58 @@ class OmnipotentDataService {
 
     } catch (error) {
       databaseLogger.error('[OmnipotentData] Failed to fetch unavailable tickets', { competitionId, error });
+      return [];
+    }
+  }
+
+  /**
+   * Get available tickets for a competition
+   * Returns array of available ticket numbers based on total tickets minus unavailable
+   * Uses caching to prevent redundant queries
+   */
+  async getAvailableTickets(competitionId: string, totalTickets: number): Promise<number[]> {
+    const cacheKey = `available_tickets:${competitionId}:${totalTickets}`;
+    const cached = dataCache.get<number[]>(cacheKey);
+    if (cached) {
+      databaseLogger.debug('[OmnipotentData] Returning cached available tickets', { 
+        competitionId: competitionId.slice(0, 8) + '...', 
+        count: cached.length 
+      });
+      return cached;
+    }
+
+    try {
+      const startTime = Date.now();
+      databaseLogger.debug('[OmnipotentData] Fetching available tickets', {
+        competitionId: competitionId.slice(0, 8) + '...',
+        totalTickets
+      });
+
+      // Get unavailable tickets (this is cached with 5s TTL)
+      const unavailable = await this.getUnavailableTickets(competitionId);
+      const unavailableSet = new Set(unavailable);
+
+      // Calculate available tickets
+      const allTickets = Array.from({ length: totalTickets }, (_, i) => i + 1);
+      const available = allTickets.filter(ticket => !unavailableSet.has(ticket));
+
+      const duration = Date.now() - startTime;
+      databaseLogger.info('[OmnipotentData] Available tickets calculated', {
+        competitionId: competitionId.slice(0, 8) + '...',
+        total: totalTickets,
+        unavailable: unavailable.length,
+        available: available.length,
+        duration: `${duration}ms`
+      });
+
+      // Cache for 3 seconds - short enough to stay fresh, long enough to prevent rapid refetches
+      dataCache.set(cacheKey, available, 3000);
+      return available;
+
+    } catch (error) {
+      databaseLogger.error('[OmnipotentData] Failed to fetch available tickets', { competitionId, error });
+      // Return empty array on error to fail safely - prevents showing sold tickets as available
+      // This is consistent with getUnavailableTickets() which returns empty array on error
       return [];
     }
   }
@@ -578,6 +652,7 @@ class OmnipotentDataService {
       
       // Invalidate cache to ensure fresh data
       dataCache.invalidate(`unavailable_tickets:${competitionId}`);
+      dataCache.invalidate(`available_tickets:${competitionId}`);
     } catch (err) {
       databaseLogger.warn('[OmnipotentData] Exception during cleanup', err);
     }
@@ -805,6 +880,7 @@ class OmnipotentDataService {
 
       // Success - invalidate cache
       dataCache.invalidate(`unavailable_tickets:${competitionId}`);
+      dataCache.invalidate(`available_tickets:${competitionId}`);
 
       return {
         success: true,
@@ -893,6 +969,7 @@ class OmnipotentDataService {
       dataCache.invalidate('competitions:');
       dataCache.invalidate('competition:');
       dataCache.invalidate('unavailable_tickets:');
+      dataCache.invalidate('available_tickets:');
     }
     
     if (type === 'all' || type === 'entries') {

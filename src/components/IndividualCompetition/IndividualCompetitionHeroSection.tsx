@@ -17,6 +17,7 @@ import { useTicketBroadcast, type TicketStats } from "../../hooks/useTicketBroad
 import { ticketReservationLogger, requestTracker, showDebugHintOnError } from "../../lib/debug-console";
 import { canEnterCompetition } from "../CompetitionStatusIndicator";
 import { reserveTicketsWithRedundancy } from "../../lib/reserve-tickets-redundant";
+import { omnipotentData } from "../../lib/omnipotent-data-service";
 
 // Lazy load PaymentModal - only loaded when user initiates payment
 const PaymentModal = lazy(() => import("../PaymentModal"));
@@ -114,13 +115,13 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
         return;
       }
 
-      // RPC returned null or invalid - try fallback
+      // RPC returned null or invalid - try fallback using omnipotent service
       console.log('[HeroSection] RPC returned null, using fallback method');
-      const unavailable = await database.getUnavailableTicketsForCompetition(competition.id);
+      const unavailable = await omnipotentData.getUnavailableTickets(competition.id);
 
       // Validate fallback result against stored tickets_sold
       // If fallback returns 0 unavailable but competition has tickets_sold > 0, use stored value
-      const fallbackSoldCount = unavailable.size;
+      const fallbackSoldCount = unavailable.length;
       const effectiveSoldCount = (fallbackSoldCount === 0 && storedTicketsSold > 0)
         ? storedTicketsSold
         : fallbackSoldCount;
@@ -134,7 +135,7 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
         });
       }
 
-      console.log('[HeroSection] Fallback result:', { unavailableSize: unavailable.size, totalTickets, fallbackAvailableCount, effectiveSoldCount });
+      console.log('[HeroSection] Fallback result:', { unavailableCount: unavailable.length, totalTickets, fallbackAvailableCount, effectiveSoldCount });
 
       setTicketAvailability({
         sold_count: effectiveSoldCount,
@@ -293,8 +294,8 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
     try {
       ticketReservationLogger.info('Fetching available tickets');
 
-      // Get current available tickets - let the server decide final availability
-      const availableTickets = await database.getAvailableTicketsForCompetition(competition.id, competition.total_tickets || 0, baseUser.id);
+      // Use omnipotent data service for consistency and caching
+      const availableTickets = await omnipotentData.getAvailableTickets(competition.id, competition.total_tickets || 0);
 
       ticketReservationLogger.debug('Available tickets fetched', {
         availableCount: availableTickets.length,

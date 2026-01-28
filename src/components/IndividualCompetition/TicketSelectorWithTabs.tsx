@@ -13,6 +13,7 @@ import { getUserFriendlyErrorMessage, parseReservationErrorAsync, SupabaseFuncti
 import { debounce } from "../../utils/util";
 import { reserveTicketsWithRedundancy } from "../../lib/reserve-tickets-redundant";
 import { useProactiveReservationMonitor } from "../../hooks/useProactiveReservationMonitor";
+import { omnipotentData } from "../../lib/omnipotent-data-service";
 
 // Lazy load PaymentModal - only loaded when user initiates payment
 const PaymentModal = lazy(() => import("../PaymentModal"));
@@ -147,23 +148,23 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
         }
         setLoadingError(null);
         try {
-            // IMPORTANT: Always trust the RPC for availability - never rely on client-side checks
-            // The database RPC enforces consistency and handles race conditions atomically
-            const available = await database.getAvailableTicketsForCompetition(competitionId, totalTickets);
+            // IMPORTANT: Use omnipotent data service for consistency and caching
+            // The omnipotent service handles race conditions and ensures data consistency
+            const available = await omnipotentData.getAvailableTickets(competitionId, totalTickets);
 
-            // Validate against ticketsSold prop - if RPC returns more available than expected,
-            // the RPC may have failed to find sold tickets in v_joincompetition_active view
+            // Validate against ticketsSold prop - if service returns more available than expected,
+            // the data may be stale or inconsistent
             const expectedAvailable = totalTickets - ticketsSold;
             let validatedAvailable = available;
 
             if (ticketsSold > 0 && available.length > expectedAvailable) {
-                console.log('[TicketSelector] RPC returned more available than expected, using ticketsSold for validation:', {
-                    rpcAvailableCount: available.length,
+                console.log('[TicketSelector] Service returned more available than expected, using ticketsSold for validation:', {
+                    serviceAvailableCount: available.length,
                     expectedAvailable,
                     ticketsSold
                 });
                 // Limit to expected available count (use first N tickets as available)
-                // This prevents showing sold tickets as available when RPC fails to find v_joincompetition_active entries
+                // This prevents showing sold tickets as available when data is inconsistent
                 validatedAvailable = available.slice(0, expectedAvailable);
             }
 
