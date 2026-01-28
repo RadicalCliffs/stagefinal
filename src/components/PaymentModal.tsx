@@ -17,6 +17,7 @@ import { CoinbaseCommerceService } from "../lib/coinbase-commerce";
 import { useBaseSubAccount } from "../hooks/useBaseSubAccount";
 import { useRealtimeSubscriptions } from "../hooks/useRealtimeSubscriptions";
 import { reservationStorage } from "../lib/reservation-storage";
+import { useProactiveReservationMonitor } from "../hooks/useProactiveReservationMonitor";
 // Wagmi hook for getting the wallet client (provider) for transactions
 import { useWalletClient } from 'wagmi';
 
@@ -241,6 +242,15 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       }
     }, [baseUser?.id, isOpen]),
     debounceMs: 500,
+  });
+
+  // PROACTIVE MONITORING: Auto-cleanup expired reservations during payment flow
+  // Ensures tickets are freed up quickly if payment fails or user abandons
+  useProactiveReservationMonitor({
+    competitionId,
+    enableAutoCleanup: true,
+    cleanupInterval: 3000, // More aggressive during payment (every 3 seconds)
+    enabled: isOpen,
   });
 
   // Memoize treasury address to avoid repeated env var access and toLowerCase() calls
