@@ -9,7 +9,7 @@ import { useAuthUser } from "../contexts/AuthContext";
 import type { UserInfo } from "./UserInfoModal";
 import { BasePaymentService } from "../lib/base-payment";
 import { BaseAccountPaymentService } from "../lib/base-account-payment";
-import { purchaseTicketsWithBalance, getUserBalance, executeBalancePaymentRPC, finalizeBalancePayment } from "../lib/ticketPurchaseService";
+import { purchaseTicketsWithBalance, getUserBalance } from "../lib/ticketPurchaseService";
 import { toCanonicalUserId } from "../lib/canonicalUserId";
 import { isSuccessStatus, isFailureStatus } from "../lib/payment-status";
 import { getPaymentErrorInfo, type PaymentErrorInfo } from "../lib/error-handler";
@@ -567,7 +567,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
   const [balanceLoading, setBalanceLoading] = useState(false);
 
-  // Handle Balance payment
+  // Handle Balance payment - NEW FLOW
+  // Uses the 3-endpoint balance payment system:
+  // 1. Reserve tickets (if not already reserved)
+  // 2. Purchase with balance
+  // 3. Verify status (if needed)
   const handleBalancePayment = async () => {
     setErrorMessage(null);
     if (!baseUser?.id) {
@@ -597,160 +601,93 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     setPurchasedTickets([...selectedTickets]);
 
     try {
-      // PRIMARY: Try finalize_purchase2 RPC first when reservationId is available
-      // This is idempotent and handles edge cases like expired reservations gracefully
-      // Use effectiveReservationId which includes auto-recovered reservations
-      if (effectiveReservationId) {
-        console.log('[PaymentModal] Attempting balance payment via finalize_purchase2 RPC with reservation:', effectiveReservationId);
-        const finalizeResult = await finalizeBalancePayment({
-          reservationId: effectiveReservationId,
-          idempotencyKey: effectiveReservationId, // Use reservationId as idempotency key (recommended)
-          ticketCount,
-          competitionId
+      // Import the new service dynamically
+      const { BalancePaymentService } = await import('../lib/balance-payment-service');
+      const canonicalUserId = toCanonicalUserId(baseUser.id);
+
+      // Step 1: Reserve or use existing reservation
+      let currentReservationId = effectiveReservationId;
+
+      if (!currentReservationId) {
+        console.log('[PaymentModal] No reservation found, creating one...');
+        const reserveResult = await BalancePaymentService.reserveTickets({
+          userId: canonicalUserId,
+          competitionId,
+          ticketNumbers: selectedTickets,
+          ticketCount: selectedTickets.length === 0 ? ticketCount : undefined
         });
 
-        if (finalizeResult.success) {
-          // finalize_purchase2 succeeded!
-          console.log('[PaymentModal] Balance payment succeeded via finalize_purchase2:', finalizeResult);
-          setShowOptimisticSuccess(true);
-          setBalanceTransactionId(finalizeResult.entryId || finalizeResult.ticketsCreated?.length?.toString() || 'success');
-          setPaymentStep('success');
-
-          // Update balance from the response
-          if (finalizeResult.balanceAfterPurchase !== undefined && finalizeResult.balanceAfterPurchase !== null) {
-            setUserBalance(finalizeResult.balanceAfterPurchase);
-            console.log('[PaymentModal] Balance updated from finalize_purchase2 response:', finalizeResult.balanceAfterPurchase);
-          }
-
-          // Store purchased ticket numbers for display
-          if (finalizeResult.ticketsCreated && Array.isArray(finalizeResult.ticketsCreated)) {
-            setPurchasedTickets(finalizeResult.ticketsCreated);
-          }
-
-          await refreshUserData();
-          loadUserBalance().catch(err => console.error('[PaymentModal] Background balance refresh failed:', err));
-
-          if (finalizeResult.balanceAfterPurchase !== undefined && finalizeResult.balanceAfterPurchase !== null) {
-            window.dispatchEvent(new CustomEvent('balance-updated', {
-              detail: { newBalance: finalizeResult.balanceAfterPurchase }
-            }));
-          }
-
-          // CRITICAL: Clear reservation from storage after successful purchase
-          reservationStorage.clearReservation(competitionId);
-          console.log('[PaymentModal] Cleared reservation after successful purchase');
-
-          if (onPaymentSuccess) {
-            onPaymentSuccess();
-          }
-          setShowOptimisticSuccess(false);
+        if (!reserveResult.success || !reserveResult.data) {
+          console.error('[PaymentModal] Reservation failed:', reserveResult.error);
+          setErrorMessage(reserveResult.error || 'Failed to reserve tickets');
           setBalanceLoading(false);
+          setPaymentStep('initial');
           return;
         }
 
-        // finalize_purchase2 failed - log and try other methods
-        console.warn('[PaymentModal] finalize_purchase2 failed, trying execute_balance_payment RPC:', finalizeResult.error);
+        currentReservationId = reserveResult.data.reservation_id;
+        console.log('[PaymentModal] Reservation created:', currentReservationId);
       }
 
-      // SECONDARY: Try the execute_balance_payment RPC - reliable, bypasses Edge Functions
-      console.log('[PaymentModal] Attempting balance payment via execute_balance_payment RPC');
-      const rpcResult = await executeBalancePaymentRPC({
-        userId: toCanonicalUserId(baseUser.id),
-        competitionId,
-        amount,
-        ticketCount,
-        selectedTickets,
-        reservationId
+      // Step 2: Purchase with balance
+      console.log('[PaymentModal] Purchasing with balance, reservation:', currentReservationId);
+      const purchaseResult = await BalancePaymentService.purchaseWithBalance({
+        reservationId: currentReservationId
       });
 
-      if (rpcResult.success) {
-        // RPC succeeded!
-        console.log('[PaymentModal] Balance payment succeeded via RPC:', rpcResult);
-        setShowOptimisticSuccess(true);
-        setBalanceTransactionId(rpcResult.ticketsCreated?.toString() || rpcResult.transactionId || 'success');
-        setPaymentStep('success');
-
-        if (rpcResult.balanceAfterPurchase !== undefined && rpcResult.balanceAfterPurchase !== null) {
-          setUserBalance(rpcResult.balanceAfterPurchase);
-          console.log('[PaymentModal] Balance updated from RPC response:', rpcResult.balanceAfterPurchase);
+      if (!purchaseResult.success || !purchaseResult.data) {
+        console.error('[PaymentModal] Purchase failed:', purchaseResult.error);
+        
+        // Handle specific error types
+        if (purchaseResult.errorDetails?.type === 'expired') {
+          // Clear expired reservation
+          reservationStorage.clearReservation(competitionId);
+          setErrorMessage('Your reservation expired. Please select your tickets again.');
+        } else if (purchaseResult.errorDetails?.type === 'insufficient_balance') {
+          setErrorMessage('Insufficient balance. Please top up your wallet.');
+        } else {
+          setErrorMessage(purchaseResult.error || 'Failed to purchase tickets');
         }
-
-        await refreshUserData();
-        loadUserBalance().catch(err => console.error('[PaymentModal] Background balance refresh failed:', err));
-
-        if (rpcResult.balanceAfterPurchase !== undefined && rpcResult.balanceAfterPurchase !== null) {
-          window.dispatchEvent(new CustomEvent('balance-updated', {
-            detail: { newBalance: rpcResult.balanceAfterPurchase }
-          }));
-        }
-
-        // CRITICAL: Clear reservation from storage after successful purchase
-        reservationStorage.clearReservation(competitionId);
-        console.log('[PaymentModal] Cleared reservation after successful purchase');
-
-        if (onPaymentSuccess) {
-          onPaymentSuccess();
-        }
-        setShowOptimisticSuccess(false);
+        
         setBalanceLoading(false);
+        setPaymentStep('initial');
         return;
       }
 
-      // RPC failed - log and try fallback to Edge Function
-      console.warn('[PaymentModal] RPC failed, trying Edge Function fallback:', rpcResult.error);
+      // Success!
+      const purchaseData = purchaseResult.data;
+      console.log('[PaymentModal] Purchase successful:', purchaseData.payment_id);
+      
+      setShowOptimisticSuccess(true);
+      setBalanceTransactionId(purchaseData.payment_id);
+      setPaymentStep('success');
 
-      // FALLBACK: Try the Edge Function as backup
-      const result = await purchaseTicketsWithBalance({
-        userId: toCanonicalUserId(baseUser.id),
-        competitionId,
-        numberOfTickets: ticketCount,
-        ticketPrice,
-        selectedTickets,
-        reservationId: effectiveReservationId
-      });
-
-      if (result.success) {
-        // ISSUE 9B FIX: Show optimistic success immediately
-        setShowOptimisticSuccess(true);
-        setBalanceTransactionId(result.ticketsCreated || 'success');
-        setPaymentStep('success');
-
-        // CRITICAL FIX: Use the balance returned from the server immediately
-        // This ensures the UI shows the correct balance right away without waiting for a DB query
-        // The server has already debited the balance and returns the new value
-        if (result.balanceAfterPurchase !== undefined && result.balanceAfterPurchase !== null) {
-          setUserBalance(result.balanceAfterPurchase);
-          console.log('[PaymentModal] Balance updated from server response:', result.balanceAfterPurchase);
-        }
-
-        // Refresh user data to show updated entries
-        await refreshUserData();
-        // Also reload balance from DB as a backup verification (non-blocking)
-        loadUserBalance().catch(err => console.error('[PaymentModal] Background balance refresh failed:', err));
-        // Dispatch event to notify other components to refresh balance
-        // CRITICAL: Pass the new balance from server response to avoid stale RPC data
-        // The database write may not be immediately visible to read queries due to replication lag
-        // Only dispatch if we have valid balance data
-        if (result.balanceAfterPurchase !== undefined && result.balanceAfterPurchase !== null) {
-          window.dispatchEvent(new CustomEvent('balance-updated', {
-            detail: { newBalance: result.balanceAfterPurchase }
-          }));
-        }
-
-        // CRITICAL: Clear reservation from storage after successful purchase
-        reservationStorage.clearReservation(competitionId);
-        console.log('[PaymentModal] Cleared reservation after successful purchase');
-
-        // Call success callback to refresh entries display
-        if (onPaymentSuccess) {
-          onPaymentSuccess();
-        }
-        // Clear optimistic state after refresh completes
-        setShowOptimisticSuccess(false);
-      } else {
-        // ISSUE 8B FIX: Use enhanced error handler with guidance
-        setPaymentError(null, result.error || "Payment failed. Please try again.");
+      // Update balance from response
+      if (purchaseData.new_balance !== undefined && purchaseData.new_balance !== null) {
+        const newBalanceNum = parseFloat(purchaseData.new_balance);
+        setUserBalance(newBalanceNum);
+        console.log('[PaymentModal] Balance updated from purchase response:', newBalanceNum);
       }
+
+      // Store purchased ticket numbers for display
+      if (purchaseData.tickets && Array.isArray(purchaseData.tickets)) {
+        setPurchasedTickets(purchaseData.tickets.map(t => t.ticket_number));
+      }
+
+      // Refresh user data
+      await refreshUserData();
+      loadUserBalance().catch(err => console.error('[PaymentModal] Background balance refresh failed:', err));
+
+      // Clear reservation from storage after successful purchase
+      reservationStorage.clearReservation(competitionId);
+      console.log('[PaymentModal] Cleared reservation after successful purchase');
+
+      // Call success callback
+      if (onPaymentSuccess) {
+        onPaymentSuccess();
+      }
+      
+      setShowOptimisticSuccess(false);
     } catch (error) {
       console.error('Balance payment error:', error);
       // ISSUE 8B FIX: Use enhanced error handler with guidance
