@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { omnipotentData, type OmnipotentCompetition, type OmnipotentEntry } from '../lib/omnipotent-data-service';
 import { toPrizePid } from '../utils/userId';
 import { reservationStorage } from '../lib/reservation-storage';
+import { BalancePaymentService } from '../lib/balance-payment-service';
 
 export interface UseOmnipotentDataOptions {
   autoFetch?: boolean;
@@ -227,8 +228,9 @@ export function useCompetitionEntries(
 }
 
 /**
- * Hook for managing ticket reservations
+ * Hook for managing ticket reservations - NEW FLOW
  * 
+ * Uses the new 3-endpoint balance payment system.
  * Features:
  * - Persistent storage across page refreshes (sessionStorage)
  * - Auto-recovery of reservations on mount
@@ -272,7 +274,7 @@ export function useTicketReservation(competitionId: string | undefined) {
     fetchUnavailableTickets();
   }, [fetchUnavailableTickets]);
 
-  // Reserve tickets
+  // Reserve tickets using new endpoint
   const reserveTickets = useCallback(async (
     userIdentifier: string,
     ticketNumbers: number[]
@@ -289,31 +291,38 @@ export function useTicketReservation(competitionId: string | undefined) {
       // Convert to canonical format for consistent reservation
       const canonicalUserId = toPrizePid(userIdentifier);
 
-      const result = await omnipotentData.reserveTickets(
-        canonicalUserId,
+      // Use the new BalancePaymentService
+      const result = await BalancePaymentService.reserveTickets({
+        userId: canonicalUserId,
         competitionId,
         ticketNumbers
-      );
+      });
 
-      if (result.success && result.reservationId) {
-        setReservationId(result.reservationId);
+      if (result.success && result.data) {
+        const resId = result.data.reservation_id;
+        setReservationId(resId);
         
         // CRITICAL: Store reservation in sessionStorage for persistence
         reservationStorage.storeReservation({
-          reservationId: result.reservationId,
+          reservationId: resId,
           competitionId,
-          ticketNumbers,
+          ticketNumbers: result.data.ticket_numbers,
           userId: canonicalUserId,
-          expiresAt: result.expiresAt ? new Date(result.expiresAt).getTime() : undefined
+          expiresAt: new Date(result.data.expires_at).getTime()
         });
         
         // Refresh unavailable tickets after successful reservation
         await fetchUnavailableTickets();
+
+        return { 
+          success: true, 
+          reservationId: resId,
+          expiresAt: result.data.expires_at 
+        };
       } else {
         setError(result.error || 'Reservation failed');
+        return { success: false, error: result.error };
       }
-
-      return result;
 
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to reserve tickets';

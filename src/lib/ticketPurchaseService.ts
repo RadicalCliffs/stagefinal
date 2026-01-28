@@ -1,12 +1,12 @@
 // Ticket Purchase Service
-// NOTE: 50% first-time bonus is now applied on WALLET TOP-UPS, not ticket purchases
-// Users get bonus credits when they top up their wallet, which they can then spend on tickets
+// NOTE: Now uses the new 3-endpoint balance payment flow
+// All balance payments go through: reserve -> purchase -> verify (optional)
 import { supabase } from './supabase';
 import { withRetry, isNetworkError, parseSupabaseFunctionError, getUserFriendlyErrorMessage } from './error-handler';
 import { toPrizePid, isPrizePid } from '../utils/userId';
 import { toCanonicalUserId } from './canonicalUserId';
 import { notificationService } from './notification-service';
-import { executeBalancePayment, finalizePurchase } from './supabase-rpc-helpers';
+import { BalancePaymentService } from './balance-payment-service';
 
 // Re-export supabase for backwards compatibility
 export { supabase };
@@ -44,9 +44,13 @@ export async function checkCompetitionSoldOut(competitionId: string): Promise<bo
 }
 
 /**
- * Purchase tickets using wallet balance
- * NOTE: Bonus credits are now applied on wallet top-ups, not on ticket purchases
- * Includes retry logic for network failures
+ * Purchase tickets using wallet balance - NEW FLOW
+ * Uses the 3-endpoint balance payment system:
+ * 1. Reserve tickets (if not already reserved)
+ * 2. Purchase with balance
+ * 3. Verify status (if needed)
+ * 
+ * This replaces all previous balance payment logic.
  */
 export async function purchaseTicketsWithBalance({
   userId,
@@ -63,8 +67,7 @@ export async function purchaseTicketsWithBalance({
   selectedTickets?: number[];
   reservationId?: string | null;
 }) {
-  // CRITICAL: Validate userId before making the request
-  // This prevents the "userIdentifier is required" error
+  // Validate userId
   if (!userId || typeof userId !== 'string' || userId.trim() === '') {
     console.error('[purchaseTicketsWithBalance] Invalid userId provided:', userId);
     return {
@@ -73,147 +76,94 @@ export async function purchaseTicketsWithBalance({
     };
   }
 
-  // NOTE: 'type' field is NOT sent - the server infers type from competitionId:
-  //   - competitionId IS NOT NULL → entry purchase
-  //   - competitionId IS NULL → wallet top-up
-  // Ensure userId is always in canonical format
-  const canonicalUserId = toCanonicalUserId(userId);
-
-  const purchaseBody = {
-    userId: canonicalUserId,
-    idempotencyKey: `${userId}-${competitionId}-${numberOfTickets}-${Date.now()}`,
-    competitionId,
-    numberOfTickets,
-    ticketPrice,
-    selectedTickets: selectedTickets || [],
-    reservationId: reservationId || null, // Pass reservation for atomic ticket allocation
-  };
-
   try {
-    // Use retry logic for network failures
-    const { data, error } = await withRetry(
-      async () => {
-        const result = await supabase.functions.invoke('purchase-tickets-with-bonus', {
-          body: purchaseBody
-        });
+    const canonicalUserId = toCanonicalUserId(userId);
+    let currentReservationId = reservationId;
+    let reservationData;
 
-        // Check for network-level errors that should trigger retry
-        if (result.error) {
-          const errorMessage = result.error?.message || String(result.error);
-          if (errorMessage.includes('Failed to send a request') ||
-              errorMessage.includes('FunctionsFetchError') ||
-              isNetworkError(result.error)) {
-            // Network error - throw to trigger retry
-            console.warn('Purchase tickets network error, will retry:', errorMessage);
-            throw new Error(`Network error during purchase: ${errorMessage}`);
-          }
-        }
-
-        return result;
-      },
-      {
-        maxRetries: 3,
-        delayMs: 1500,
-        context: 'purchase-tickets-with-bonus',
-        shouldRetry: (error) => {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          return errorMessage.includes('Network error') ||
-                 errorMessage.includes('Failed to send') ||
-                 errorMessage.includes('FunctionsFetchError') ||
-                 isNetworkError(error);
-        }
-      }
-    );
-
-    if (error) {
-      // Parse the Supabase function error for better error messages
-      const parsedError = parseSupabaseFunctionError(error);
-      const friendlyMessage = getUserFriendlyErrorMessage(parsedError.statusCode, parsedError.message);
-
-      console.error('Purchase tickets error:', {
-        originalMessage: error.message,
-        statusCode: parsedError.statusCode,
-        friendlyMessage
+    // If no reservation provided, create one first
+    if (!currentReservationId) {
+      console.log('[purchaseTicketsWithBalance] No reservation provided, creating one...');
+      
+      const reserveResult = await BalancePaymentService.reserveTickets({
+        userId: canonicalUserId,
+        competitionId,
+        ticketNumbers: selectedTickets,
+        ticketCount: !selectedTickets || selectedTickets.length === 0 ? numberOfTickets : undefined
       });
 
+      if (!reserveResult.success || !reserveResult.data) {
+        console.error('[purchaseTicketsWithBalance] Reservation failed:', reserveResult.error);
+        return {
+          success: false,
+          error: reserveResult.error || 'Failed to reserve tickets'
+        };
+      }
+
+      currentReservationId = reserveResult.data.reservation_id;
+      reservationData = reserveResult.data;
+      console.log('[purchaseTicketsWithBalance] Reservation created:', currentReservationId);
+    }
+
+    // Purchase with balance using the reservation
+    console.log('[purchaseTicketsWithBalance] Purchasing with reservation:', currentReservationId);
+    
+    const purchaseResult = await BalancePaymentService.purchaseWithBalance({
+      reservationId: currentReservationId
+    });
+
+    if (!purchaseResult.success || !purchaseResult.data) {
+      console.error('[purchaseTicketsWithBalance] Purchase failed:', purchaseResult.error);
       return {
         success: false,
-        error: friendlyMessage
+        error: purchaseResult.error || 'Failed to purchase tickets'
       };
     }
 
-    // Handle response based on edge function format
-    if (data?.success === false) {
-      // The edge function returned an error - provide user-friendly message
-      const errorMsg = data.error || 'Failed to purchase tickets';
-      return {
-        success: false,
-        error: getUserFriendlyErrorMessage(data.statusCode, errorMsg)
-      };
-    }
+    const purchaseData = purchaseResult.data;
+    console.log('[purchaseTicketsWithBalance] Purchase successful:', purchaseData.payment_id);
 
-    // Dispatch balance-updated event so dashboard components refresh
-    // This ensures entries and orders appear immediately after purchase
-    // Only dispatch if we have valid balance data
-    if (typeof window !== 'undefined' && data?.balanceAfterPurchase !== undefined) {
-      window.dispatchEvent(new CustomEvent('balance-updated', {
-        detail: {
-          newBalance: data.balanceAfterPurchase,
-          purchaseAmount: data.totalCost,
-          ticketsCreated: data.ticketsCreated,
-          competitionId
-        }
-      }));
-
-      // Trigger in-app notification for the successful purchase
-      // Do this asynchronously so it doesn't block the return
-      try {
-        const ticketNumbers = data.tickets?.map((t: { ticket_number: number }) => t.ticket_number) || [];
-        // Get competition title if available (we need to fetch it)
-        supabase
-          .from('competitions')
-          .select('title')
-          .eq('uid', competitionId)
-          .maybeSingle()
-          .then(({ data: compData }) => {
-            const competitionTitle = compData?.title || 'Competition';
-            // Send entry notification
-            notificationService.notifyEntry(userId, competitionTitle, ticketNumbers, competitionId).catch(err => {
-              console.warn('[purchaseTicketsWithBalance] Failed to send entry notification:', err);
-            });
+    // Trigger in-app notification for the successful purchase
+    try {
+      const ticketNumbers = purchaseData.tickets?.map(t => t.ticket_number) || [];
+      supabase
+        .from('competitions')
+        .select('title')
+        .eq('id', competitionId)
+        .maybeSingle()
+        .then(({ data: compData }) => {
+          const competitionTitle = compData?.title || 'Competition';
+          notificationService.notifyEntry(userId, competitionTitle, ticketNumbers, competitionId).catch(err => {
+            console.warn('[purchaseTicketsWithBalance] Failed to send entry notification:', err);
           });
-      } catch (notifyErr) {
-        console.warn('[purchaseTicketsWithBalance] Notification error (non-blocking):', notifyErr);
-      }
-
-      // Check if competition is now sold out and mark for drawing if so
-      // This is done asynchronously so it doesn't block the response
-      checkCompetitionSoldOut(competitionId).then(() => {}).catch((err: any) => {
-        console.log('[purchaseTicketsWithBalance] Sold-out check (non-blocking):', err);
-      });
+        });
+    } catch (notifyErr) {
+      console.warn('[purchaseTicketsWithBalance] Notification error (non-blocking):', notifyErr);
     }
 
+    // Check if competition is now sold out
+    checkCompetitionSoldOut(competitionId).catch((err: any) => {
+      console.log('[purchaseTicketsWithBalance] Sold-out check (non-blocking):', err);
+    });
+
+    // Return in expected format
     return {
       success: true,
-      ticketsCreated: data.ticketsCreated,
-      ticketsPurchased: data.ticketsPurchased,
-      totalCost: data.totalCost,
-      balanceAfterPurchase: data.balanceAfterPurchase,
-      message: data.message,
-      tickets: data.tickets,
-      entryId: data.entryId,
-      transactionId: data.transactionId,
-      transactionRef: data.transactionRef
+      ticketsCreated: purchaseData.tickets.length,
+      ticketsPurchased: purchaseData.tickets.length,
+      totalCost: parseFloat(purchaseData.amount),
+      balanceAfterPurchase: parseFloat(purchaseData.new_balance),
+      message: 'Tickets purchased successfully',
+      tickets: purchaseData.tickets,
+      paymentId: purchaseData.payment_id,
+      reservationId: currentReservationId
     };
   } catch (err) {
-    // Parse any caught errors for better messages
+    console.error('[purchaseTicketsWithBalance] Exception:', err);
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-    const parsedError = parseSupabaseFunctionError(err);
-    const friendlyMessage = getUserFriendlyErrorMessage(parsedError.statusCode, errorMessage);
-
     return {
       success: false,
-      error: friendlyMessage
+      error: errorMessage
     };
   }
 }
