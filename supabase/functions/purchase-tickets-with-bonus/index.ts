@@ -1069,7 +1069,7 @@ Deno.serve(async (req: Request) => {
           .from("sub_account_balances")
           .update({
             available_balance: newBalance,
-            last_updated: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
           })
           .eq("id", userBalanceRecord.record_id)
           .gte("available_balance", totalCost)
@@ -1146,7 +1146,7 @@ Deno.serve(async (req: Request) => {
               currency: "USD",
               available_balance: newBalance,
               pending_balance: 0,
-              last_updated: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
             }, {
               onConflict: "canonical_user_id,currency",
             });
@@ -1242,7 +1242,7 @@ Deno.serve(async (req: Request) => {
               currency: "USD",
               available_balance: newBalance,
               pending_balance: 0,
-              last_updated: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
             }, {
               onConflict: "canonical_user_id,currency",
             });
@@ -1598,7 +1598,7 @@ Deno.serve(async (req: Request) => {
           .from("sub_account_balances")
           .update({
             available_balance: userBalance,
-            last_updated: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
           })
           .eq("id", userBalanceRecord.record_id);
         rbErr = error;
@@ -1618,7 +1618,7 @@ Deno.serve(async (req: Request) => {
             currency: "USD",
             available_balance: userBalance,
             pending_balance: 0,
-            last_updated: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
           }, {
             onConflict: "canonical_user_id,currency",
           });
