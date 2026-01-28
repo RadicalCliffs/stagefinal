@@ -3,6 +3,7 @@
  * 
  * Centralized service for managing Supabase realtime subscriptions.
  * Provides utilities for subscribing to table changes and handling broadcasts.
+ * Enhanced with channel state tracking and versioning for reliability.
  * 
  * Usage:
  * ```typescript
@@ -18,6 +19,7 @@
  */
 
 import { supabase } from './supabase';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 /**
  * Realtime event payload types
@@ -333,4 +335,206 @@ export interface SubAccountBalanceRow {
   bonus_balance: number;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * ============================================================================
+ * Channel State Tracking and Versioning
+ * ============================================================================
+ */
+
+export type ChannelState = 'IDLE' | 'CONNECTING' | 'SUBSCRIBED' | 'CHANNEL_ERROR' | 'TIMED_OUT' | 'CLOSED';
+
+export interface ChannelStateTracker {
+  balances: ChannelState;
+  purchases: ChannelState;
+  entries: ChannelState;
+  tickets: ChannelState;
+}
+
+export interface VersionedEvent<T = any> {
+  data: T;
+  version?: number;
+  updated_at?: string;
+}
+
+// Global channel state tracker
+const channelStates: Map<string, ChannelState> = new Map();
+const eventVersions: Map<string, number | string> = new Map();
+
+/**
+ * Get the current state of a channel
+ */
+export function getChannelState(channelName: string): ChannelState {
+  return channelStates.get(channelName) || 'IDLE';
+}
+
+/**
+ * Set the state of a channel
+ */
+export function setChannelState(channelName: string, state: ChannelState): void {
+  channelStates.set(channelName, state);
+}
+
+/**
+ * Check if a channel is ready (SUBSCRIBED)
+ */
+export function isChannelReady(channelName: string): boolean {
+  return getChannelState(channelName) === 'SUBSCRIBED';
+}
+
+/**
+ * Get the last event version for a topic
+ */
+export function getEventVersion(topic: string): number | string | undefined {
+  return eventVersions.get(topic);
+}
+
+/**
+ * Set the last event version for a topic
+ */
+export function setEventVersion(topic: string, version: number | string): void {
+  eventVersions.set(topic, version);
+}
+
+/**
+ * Check if an event version is newer than the last accepted version
+ */
+export function isNewerVersion(
+  topic: string,
+  eventVersion?: number | string
+): boolean {
+  if (!eventVersion) return true; // Accept events without version
+  const lastVersion = eventVersions.get(topic);
+  if (!lastVersion) return true; // Accept if no previous version
+  
+  if (typeof eventVersion === 'number' && typeof lastVersion === 'number') {
+    return eventVersion > lastVersion;
+  }
+  
+  if (typeof eventVersion === 'string' && typeof lastVersion === 'string') {
+    // Compare as ISO timestamps
+    return new Date(eventVersion) > new Date(lastVersion);
+  }
+  
+  return true; // Accept if types don't match (shouldn't happen)
+}
+
+/**
+ * Subscribe to a channel with state tracking
+ */
+export function subscribeToTableWithState<T = any>(
+  tableName: SubscribableTable,
+  handlers: RealtimeHandlers<T>,
+  filter?: string,
+  options?: {
+    channelKey?: string;
+    enableVersioning?: boolean;
+    onStateChange?: (state: ChannelState) => void;
+  }
+): () => void {
+  const channelKey = options?.channelKey || (filter 
+    ? `${tableName}-${filter.replace(/[^a-zA-Z0-9]/g, '_')}`
+    : `${tableName}-all`);
+
+  setChannelState(channelKey, 'CONNECTING');
+  options?.onStateChange?.('CONNECTING');
+
+  const channel = supabase.channel(channelKey);
+
+  // Wrap handlers with version checking if enabled
+  const wrappedHandlers: RealtimeHandlers<T> = {};
+  
+  if (handlers.onInsert) {
+    const original = handlers.onInsert;
+    wrappedHandlers.onInsert = (payload) => {
+      if (options?.enableVersioning) {
+        const version = (payload.new as any)?.version || (payload.new as any)?.updated_at;
+        if (version && !isNewerVersion(`${tableName}:${channelKey}`, version)) {
+          console.log(`[Realtime] Discarding out-of-order INSERT for ${tableName}, version ${version}`);
+          return;
+        }
+        if (version) {
+          setEventVersion(`${tableName}:${channelKey}`, version);
+        }
+      }
+      original(payload);
+    };
+  }
+
+  if (handlers.onUpdate) {
+    const original = handlers.onUpdate;
+    wrappedHandlers.onUpdate = (payload) => {
+      if (options?.enableVersioning) {
+        const version = (payload.new as any)?.version || (payload.new as any)?.updated_at;
+        if (version && !isNewerVersion(`${tableName}:${channelKey}`, version)) {
+          console.log(`[Realtime] Discarding out-of-order UPDATE for ${tableName}, version ${version}`);
+          return;
+        }
+        if (version) {
+          setEventVersion(`${tableName}:${channelKey}`, version);
+        }
+      }
+      original(payload);
+    };
+  }
+
+  if (handlers.onDelete) {
+    wrappedHandlers.onDelete = handlers.onDelete;
+  }
+
+  // Subscribe using the existing subscribeToTable logic with wrapped handlers
+  const baseUnsubscribe = subscribeToTable(tableName, wrappedHandlers, filter);
+
+  // Track subscription status
+  channel.subscribe((status) => {
+    setChannelState(channelKey, status as ChannelState);
+    options?.onStateChange?.(status as ChannelState);
+  });
+
+  // Return enhanced unsubscribe function
+  return () => {
+    baseUnsubscribe();
+    setChannelState(channelKey, 'CLOSED');
+    options?.onStateChange?.('CLOSED');
+  };
+}
+
+/**
+ * Subscribe to broadcast events (for purchase events, etc.)
+ */
+export function subscribeToBroadcast<T = any>(
+  channelName: string,
+  eventName: string,
+  handler: (payload: T) => void,
+  options?: {
+    onStateChange?: (state: ChannelState) => void;
+  }
+): () => void {
+  setChannelState(channelName, 'CONNECTING');
+  options?.onStateChange?.('CONNECTING');
+
+  const channel = supabase.channel(channelName);
+
+  channel.on('broadcast', { event: eventName }, (payload: any) => {
+    handler(payload.payload as T);
+  });
+
+  channel.subscribe((status) => {
+    setChannelState(channelName, status as ChannelState);
+    options?.onStateChange?.(status as ChannelState);
+    
+    if (status === 'SUBSCRIBED') {
+      console.log(`[Realtime] Subscribed to broadcast ${channelName}:${eventName}`);
+    } else if (status === 'CHANNEL_ERROR') {
+      console.error(`[Realtime] Error subscribing to broadcast ${channelName}:${eventName}`);
+    }
+  });
+
+  return () => {
+    console.log(`[Realtime] Unsubscribing from broadcast ${channelName}:${eventName}`);
+    supabase.removeChannel(channel);
+    setChannelState(channelName, 'CLOSED');
+    options?.onStateChange?.('CLOSED');
+  };
 }

@@ -114,3 +114,237 @@ export function useSupabaseRealtimeRefresh(
     };
   }, [tableName, onAnyChange, filter, enabled]);
 }
+
+/**
+ * ============================================================================
+ * Enhanced Hooks with Ready States and Guards
+ * ============================================================================
+ */
+
+import { useState, useCallback } from 'react';
+import {
+  subscribeToTableWithState,
+  subscribeToBroadcast,
+  isChannelReady,
+  type ChannelState,
+} from '../lib/supabase-realtime';
+import { BalanceGuard } from '../lib/guards/BalanceGuard';
+import { ReservationGuard } from '../lib/guards/ReservationGuard';
+import type { BalanceSnapshot, PurchaseEvent, ReservationRow } from '../lib/guards/types';
+import { supabase } from '../lib/supabase';
+
+export interface RealtimeReadyStates {
+  balances: boolean;
+  purchases: boolean;
+  entries: boolean;
+  tickets: boolean;
+}
+
+export interface RealtimeLatestData {
+  balances: BalanceSnapshot | null;
+  reservation: any | null;
+  payment: any | null;
+  tickets: any[] | null;
+  user_transactions: any[] | null;
+}
+
+export interface RealtimeGuards {
+  requireAvailable: (amount: number) => void;
+  requirePending: (amount: number, reservationId?: string) => Promise<void>;
+}
+
+/**
+ * Enhanced hook for managing realtime subscriptions with ready states and guards
+ * 
+ * Usage:
+ * ```typescript
+ * const { isReady, latest, guards } = useRealtimeWithGuards(userId);
+ * 
+ * // Wait for channels to be ready before showing UI
+ * if (!isReady.balances) return <Loading />;
+ * 
+ * // Use guards before operations
+ * try {
+ *   guards.requireAvailable(totalAmount);
+ *   await reserveTickets();
+ * } catch (err) {
+ *   console.error('Guard check failed:', err);
+ * }
+ * ```
+ */
+export function useRealtimeWithGuards(userId: string | null) {
+  const [isReady, setIsReady] = useState<RealtimeReadyStates>({
+    balances: false,
+    purchases: false,
+    entries: false,
+    tickets: false,
+  });
+
+  const [latest, setLatest] = useState<RealtimeLatestData>({
+    balances: null,
+    reservation: null,
+    payment: null,
+    tickets: null,
+    user_transactions: null,
+  });
+
+  // Balance guard instance
+  const balanceGuard = useMemo(() => {
+    return new BalanceGuard({
+      getLatest: () => latest.balances,
+      subscribe: (handler) => {
+        const interval = setInterval(() => {
+          if (latest.balances) {
+            handler(latest.balances);
+          }
+        }, 100);
+        return () => clearInterval(interval);
+      },
+    });
+  }, [latest.balances]);
+
+  // Reservation guard instance
+  const reservationGuard = useMemo(() => {
+    return new ReservationGuard({
+      balances: balanceGuard,
+      events: {
+        subscribe: (handler) => {
+          // This will be connected to purchase broadcast events
+          const unsubscribe = subscribeToBroadcast<PurchaseEvent>(
+            `user:${userId}:purchases`,
+            'purchase_event',
+            handler
+          );
+          return unsubscribe;
+        },
+      },
+      repo: {
+        fetchReservation: async (reservationId: string) => {
+          const { data, error } = await supabase
+            .from('pending_tickets')
+            .select('*')
+            .eq('id', reservationId)
+            .single();
+          
+          if (error || !data) return null;
+          
+          return {
+            id: data.id,
+            status: data.status as 'pending' | 'confirmed' | 'failed' | 'expired',
+            competition_id: data.competition_id,
+            canonical_user_id: data.canonical_user_id,
+            total_amount: data.total_amount,
+            expires_at: data.expires_at,
+            created_at: data.created_at,
+          } as ReservationRow;
+        },
+      },
+    });
+  }, [balanceGuard, userId]);
+
+  // Guards interface
+  const guards: RealtimeGuards = useMemo(
+    () => ({
+      requireAvailable: (amount: number) => {
+        balanceGuard.requireAvailable(amount);
+      },
+      requirePending: async (amount: number, reservationId?: string) => {
+        if (reservationId) {
+          await reservationGuard.assertPendingFor(reservationId, amount);
+        } else {
+          balanceGuard.requirePending(amount);
+        }
+      },
+    }),
+    [balanceGuard, reservationGuard]
+  );
+
+  // Subscribe to balances channel
+  useEffect(() => {
+    if (!userId) return;
+
+    const channelKey = `user-balances-${userId}`;
+    
+    const handleStateChange = (state: ChannelState) => {
+      setIsReady((prev) => ({ ...prev, balances: state === 'SUBSCRIBED' }));
+    };
+
+    const unsubscribe = subscribeToTableWithState<any>(
+      'sub_account_balances',
+      {
+        onInsert: (payload) => {
+          const balance = payload.new;
+          setLatest((prev) => ({
+            ...prev,
+            balances: {
+              user_id: balance.canonical_user_id,
+              available: balance.available_balance || 0,
+              pending: balance.pending_balance || 0,
+              currency: balance.currency,
+              updated_at: balance.updated_at,
+            },
+          }));
+        },
+        onUpdate: (payload) => {
+          const balance = payload.new;
+          setLatest((prev) => ({
+            ...prev,
+            balances: {
+              user_id: balance.canonical_user_id,
+              available: balance.available_balance || 0,
+              pending: balance.pending_balance || 0,
+              currency: balance.currency,
+              updated_at: balance.updated_at,
+            },
+          }));
+        },
+      },
+      undefined,
+      {
+        channelKey,
+        enableVersioning: true,
+        onStateChange: handleStateChange,
+      }
+    );
+
+    return unsubscribe;
+  }, [userId]);
+
+  // Subscribe to purchases/reservations channel
+  useEffect(() => {
+    if (!userId) return;
+
+    const channelKey = `user-purchases-${userId}`;
+    
+    const handleStateChange = (state: ChannelState) => {
+      setIsReady((prev) => ({ ...prev, purchases: state === 'SUBSCRIBED' }));
+    };
+
+    const unsubscribe = subscribeToBroadcast<any>(
+      `user:${userId}:purchases`,
+      'purchase_event',
+      (event) => {
+        console.log('[useRealtimeWithGuards] Purchase event:', event);
+        
+        if (event.type === 'reservation_created') {
+          setLatest((prev) => ({ ...prev, reservation: event }));
+        } else if (event.type === 'payment_authorized') {
+          setLatest((prev) => ({ ...prev, payment: event }));
+        }
+      },
+      {
+        onStateChange: handleStateChange,
+      }
+    );
+
+    return unsubscribe;
+  }, [userId]);
+
+  return {
+    isReady,
+    latest,
+    guards,
+    balanceGuard,
+    reservationGuard,
+  };
+}
