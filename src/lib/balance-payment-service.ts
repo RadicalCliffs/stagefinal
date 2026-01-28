@@ -66,10 +66,10 @@ export interface BalancePaymentError {
 // ============================================================================
 
 /**
- * Generate a unique idempotency key
+ * Generate a unique idempotency key using cryptographically secure random
  */
 function generateIdempotencyKey(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+  return `${prefix}-${Date.now()}-${crypto.randomUUID()}`;
 }
 
 /**
@@ -134,6 +134,12 @@ export class BalancePaymentService {
    * 
    * Creates a hold via pending_tickets and pending_ticket_items.
    * Returns a reservation_id that expires after expires_at.
+   * 
+   * @param params.userId - User identifier (will be converted to canonical format)
+   * @param params.competitionId - Competition UUID
+   * @param params.ticketNumbers - Optional: Specific ticket numbers to reserve (e.g., [1, 5, 10])
+   * @param params.ticketCount - Optional: Number of tickets to auto-select (cannot use with ticketNumbers)
+   * @returns Promise with reservation data or error
    */
   static async reserveTickets(params: {
     userId: string;
@@ -167,6 +173,14 @@ export class BalancePaymentService {
       return {
         success: false,
         error: 'Send either ticket_numbers or ticket_count, not both'
+      };
+    }
+
+    // Validate ticketCount is positive
+    if (ticketCount !== undefined && (ticketCount <= 0 || !Number.isFinite(ticketCount))) {
+      return {
+        success: false,
+        error: 'Ticket count must be a positive number'
       };
     }
 
@@ -231,6 +245,9 @@ export class BalancePaymentService {
    * 
    * Deducts balance, marks tickets as paid, and finalizes reservation.
    * Must be called before reservation expires_at.
+   * 
+   * @param params.reservationId - Reservation UUID from the reserve step
+   * @returns Promise with purchase data including tickets, new balance, and payment ID
    */
   static async purchaseWithBalance(params: {
     reservationId: string;

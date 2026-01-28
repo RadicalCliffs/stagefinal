@@ -6,7 +6,6 @@ import { withRetry, isNetworkError, parseSupabaseFunctionError, getUserFriendlyE
 import { toPrizePid, isPrizePid } from '../utils/userId';
 import { toCanonicalUserId } from './canonicalUserId';
 import { notificationService } from './notification-service';
-import { executeBalancePayment, finalizePurchase } from './supabase-rpc-helpers';
 import { BalancePaymentService } from './balance-payment-service';
 
 // Re-export supabase for backwards compatibility

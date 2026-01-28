@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { omnipotentData, type OmnipotentCompetition, type OmnipotentEntry } from '../lib/omnipotent-data-service';
 import { toPrizePid } from '../utils/userId';
 import { reservationStorage } from '../lib/reservation-storage';
+import { BalancePaymentService } from '../lib/balance-payment-service';
 
 export interface UseOmnipotentDataOptions {
   autoFetch?: boolean;
@@ -291,8 +292,6 @@ export function useTicketReservation(competitionId: string | undefined) {
       const canonicalUserId = toPrizePid(userIdentifier);
 
       // Use the new BalancePaymentService
-      const { BalancePaymentService } = await import('../lib/balance-payment-service');
-      
       const result = await BalancePaymentService.reserveTickets({
         userId: canonicalUserId,
         competitionId,

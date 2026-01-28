@@ -10,6 +10,7 @@ import type { UserInfo } from "./UserInfoModal";
 import { BasePaymentService } from "../lib/base-payment";
 import { BaseAccountPaymentService } from "../lib/base-account-payment";
 import { purchaseTicketsWithBalance, getUserBalance } from "../lib/ticketPurchaseService";
+import { BalancePaymentService } from "../lib/balance-payment-service";
 import { toCanonicalUserId } from "../lib/canonicalUserId";
 import { isSuccessStatus, isFailureStatus } from "../lib/payment-status";
 import { getPaymentErrorInfo, type PaymentErrorInfo } from "../lib/error-handler";
@@ -601,8 +602,6 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     setPurchasedTickets([...selectedTickets]);
 
     try {
-      // Import the new service dynamically
-      const { BalancePaymentService } = await import('../lib/balance-payment-service');
       const canonicalUserId = toCanonicalUserId(baseUser.id);
 
       // Step 1: Reserve or use existing reservation
@@ -677,6 +676,18 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       // Refresh user data
       await refreshUserData();
       loadUserBalance().catch(err => console.error('[PaymentModal] Background balance refresh failed:', err));
+
+      // Dispatch balance-updated event for other components
+      if (purchaseData.new_balance !== undefined) {
+        window.dispatchEvent(new CustomEvent('balance-updated', {
+          detail: { 
+            newBalance: parseFloat(purchaseData.new_balance),
+            purchaseAmount: parseFloat(purchaseData.amount),
+            ticketsCreated: purchaseData.tickets.length,
+            competitionId 
+          }
+        }));
+      }
 
       // Clear reservation from storage after successful purchase
       reservationStorage.clearReservation(competitionId);
