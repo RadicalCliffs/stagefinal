@@ -299,6 +299,11 @@ function isValidUUID(str: string | null | undefined): boolean {
  * - reservationId: optional UUID of existing ticket reservation
  * - referenceId: optional transaction reference for idempotency
  *
+ * NEW: RESERVATION-ONLY MODE:
+ * If only reservationId is provided (and it's a valid UUID), the function will automatically
+ * derive userId, competitionId, numberOfTickets, and ticketPrice from the pending_tickets table.
+ * This simplifies the client-side implementation for crypto (Base Account) flows.
+ *
  * THIS FUNCTION ACCEPTS ALTERNATIVE PARAMETER NAMES:
  * - walletAddress → translated to userId via canonical_users lookup
  * - userIdentifier → alias for userId
@@ -459,17 +464,164 @@ Deno.serve(async (req: Request) => {
     // Extract parsed values
     let { userId, walletAddress, competitionId, numberOfTickets, ticketPrice, referenceId, selectedTickets, reservationId } = params;
 
+    // Create supabase client early - needed for reservation lookups and wallet-to-user lookups
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      throw new Error("Supabase configuration missing");
+    }
+
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+    // NEW: If reservationId is provided and valid, derive missing fields from pending_tickets
+    // This allows the function to work with just reservationId
+    let derivedFromReservation = false;
+    if (reservationId && isValidUUID(reservationId)) {
+      console.log(`[purchase-tickets-with-bonus] Attempting to derive fields from reservationId: ${reservationId}`);
+      
+      // First check if this reservation was already confirmed (idempotency check)
+      const { data: existingReservation, error: checkError } = await supabase
+        .from("pending_tickets")
+        .select("*")
+        .eq("id", reservationId)
+        .maybeSingle();
+
+      if (checkError) {
+        console.error(`[purchase-tickets-with-bonus] Error querying reservation:`, checkError);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "Error validating reservation",
+            errorCode: "reservation_error",
+            details: checkError.message
+          }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // If reservation already confirmed, return success (idempotent response)
+      if (existingReservation && existingReservation.status === "confirmed") {
+        console.log(`[purchase-tickets-with-bonus] Reservation ${reservationId} already confirmed - returning success (idempotent)`);
+        
+        // Get the tickets that were assigned to this reservation
+        const { data: confirmedTickets } = await supabase
+          .from("tickets")
+          .select("ticket_number")
+          .eq("reservation_id", reservationId)
+          .order("ticket_number");
+
+        const ticketNumbers = confirmedTickets ? confirmedTickets.map(t => t.ticket_number) : [];
+        
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message: "Tickets already purchased (idempotent response)",
+            alreadyConfirmed: true,
+            ticketNumbers,
+            competitionId: existingReservation.competition_id,
+            reservationId: reservationId,
+            userId: existingReservation.user_id,
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Query pending_tickets to get reservation details
+      const reservation = existingReservation;
+
+      if (reservation && reservation.status === "pending") {
+        // Check if reservation is still valid (not expired)
+        if (reservation.expires_at && new Date(reservation.expires_at) < new Date()) {
+          // Mark as expired
+          await supabase
+            .from("pending_tickets")
+            .update({ status: "expired", updated_at: new Date().toISOString() })
+            .eq("id", reservationId);
+
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: "Your ticket reservation has expired. Please select tickets again.",
+              errorCode: "reservation_expired",
+              expiredAt: reservation.expires_at
+            }),
+            { status: 410, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Derive missing fields from reservation
+        if (!userId && !walletAddress) {
+          userId = reservation.user_id;
+          console.log(`[purchase-tickets-with-bonus] Derived userId from reservation: ${userId.substring(0, 20)}...`);
+          derivedFromReservation = true;
+        }
+        if (!competitionId) {
+          competitionId = reservation.competition_id;
+          console.log(`[purchase-tickets-with-bonus] Derived competitionId from reservation: ${competitionId}`);
+          derivedFromReservation = true;
+        }
+        if (!numberOfTickets) {
+          numberOfTickets = reservation.ticket_count || (reservation.ticket_numbers ? reservation.ticket_numbers.length : 0);
+          console.log(`[purchase-tickets-with-bonus] Derived numberOfTickets from reservation: ${numberOfTickets}`);
+          derivedFromReservation = true;
+        }
+        if (!ticketPrice) {
+          // Try to get ticket_price from reservation first, otherwise derive from total_amount
+          ticketPrice = reservation.ticket_price || (reservation.total_amount && numberOfTickets ? Number(reservation.total_amount) / numberOfTickets : null);
+          
+          // If still no price, fetch from competition
+          if (!ticketPrice) {
+            const { data: comp } = await supabase
+              .from("competitions")
+              .select("ticket_price")
+              .eq("id", competitionId)
+              .maybeSingle();
+            if (comp) {
+              ticketPrice = comp.ticket_price;
+              console.log(`[purchase-tickets-with-bonus] Derived ticketPrice from competition: ${ticketPrice}`);
+            }
+          } else {
+            console.log(`[purchase-tickets-with-bonus] Derived ticketPrice from reservation: ${ticketPrice}`);
+          }
+          derivedFromReservation = true;
+        }
+        
+        console.log(`[purchase-tickets-with-bonus] Successfully derived fields from reservation`);
+      } else {
+        console.log(`[purchase-tickets-with-bonus] Reservation ${reservationId} not found or not pending`);
+        // If reservationId was provided but not found, this is an error
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "Reservation not found or has already been confirmed/expired",
+            errorCode: "reservation_not_found",
+            details: { reservationId }
+          }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     // If no userId but have walletAddress, we'll resolve it after creating supabase client
     // For now, validate what we have
     const hasUserIdentifier = !!userId || !!walletAddress;
 
-    // Validate inputs
+    // Validate inputs - now only required if not derived from reservation
     if (!hasUserIdentifier || !competitionId || !numberOfTickets || !ticketPrice) {
       return new Response(
         JSON.stringify({
           success: false,
-          error: "Missing required parameters. Required: (userId or walletAddress), competitionId (or competition_id), numberOfTickets (or quantity), ticketPrice (or price)",
-          hint: "Accepted user fields: userId, userIdentifier, user_id, canonical_user_id, walletAddress, wallet_address",
+          error: derivedFromReservation 
+            ? "Could not derive all required fields from reservation"
+            : "Missing required parameters. Required: (userId or walletAddress), competitionId (or competition_id), numberOfTickets (or quantity), ticketPrice (or price). OR provide a valid reservationId to derive fields automatically.",
+          hint: "Accepted user fields: userId, userIdentifier, user_id, canonical_user_id, walletAddress, wallet_address. OR provide reservationId to derive all fields.",
+          missingFields: {
+            userId: !userId && !walletAddress,
+            competitionId: !competitionId,
+            numberOfTickets: !numberOfTickets,
+            ticketPrice: !ticketPrice
+          }
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -489,16 +641,6 @@ Deno.serve(async (req: Request) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    // Create supabase client early - needed for wallet-to-user lookups
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-    if (!supabaseUrl || !serviceRoleKey) {
-      throw new Error("Supabase configuration missing");
-    }
-
-    const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     // If walletAddress provided instead of userId, look up the canonical_user_id
     // This allows callers to just pass a wallet address and have it resolved
