@@ -63,19 +63,19 @@ const WinnerDetails = ({ competitionId }: WinnerDetailsProps) => {
                     });
                 }
 
-                // Also try to fetch from competition_winners table for winning ticket and winner address
+                // Also try to fetch from winners table for winning ticket and winner address
                 if (!compData?.vrf_pregenerated_tx_hash) {
                     const { data: winnerRow } = await supabase
-                        .from('competition_winners')
-                        .select('txhash, ticket_number, Winner')
-                        .eq('competitionid', competitionId)
+                        .from('winners')
+                        .select('distribution_hash, ticket_number, wallet_address')
+                        .eq('competition_id', competitionId)
                         .maybeSingle();
 
                     if (winnerRow) {
                         setWinnerData(prev => ({
-                            winnerAddress: prev?.winnerAddress || winnerRow.Winner,
+                            winnerAddress: prev?.winnerAddress || winnerRow.wallet_address,
                             winningTicket: prev?.winningTicket || winnerRow.ticket_number,
-                            txHash: prev?.txHash || winnerRow.txhash,
+                            txHash: prev?.txHash || winnerRow.distribution_hash,
                             vrfSeed: prev?.vrfSeed || null,
                             ticketsSold: prev?.ticketsSold || 0,
                         }));

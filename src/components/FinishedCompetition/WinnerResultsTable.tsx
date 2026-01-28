@@ -51,12 +51,6 @@ const WinnerResultsTable = ({ competitionId }: WinnerResultsTableProps) => {
           console.error('Error fetching competition:', compError);
         }
 
-        // Also try to get from competition_winners view
-        const { data: compWinnersView } = await supabase
-          .from('competition_winners')
-          .select('ticket_number, Winner, txhash')
-          .eq('competitionid', competitionId);
-
         // Build the results data
         const results: WinnerData[] = [];
 
@@ -71,21 +65,6 @@ const WinnerResultsTable = ({ competitionId }: WinnerResultsTableProps) => {
               result: winner.ticket_number || 0,
               username: winner.username,
               walletAddress: winner.wallet_address,
-            });
-          }
-        }
-
-        // Add data from competition_winners view if not already present
-        if (compWinnersView && compWinnersView.length > 0 && results.length === 0) {
-          for (const winner of compWinnersView) {
-            results.push({
-              txHash: winner.txhash || compData?.vrf_pregenerated_tx_hash || null,
-              min: 1,
-              max: compData?.tickets_sold || compData?.total_tickets || 1000,
-              winningNumber: winner.ticket_number || 0,
-              result: winner.ticket_number || 0,
-              username: null,
-              walletAddress: winner.Winner,
             });
           }
         }
