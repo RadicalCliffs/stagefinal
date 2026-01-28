@@ -379,8 +379,8 @@ export const database = {
           )
         `)
         .not('wallet_address', 'is', null)
-        .order('won_at', { ascending: false })
-        .limit(100);
+        .order('won_at', { ascending: false, nullsLast: true })
+        .limit(150); // Query more to account for filtered test data
 
       if (error) {
         handleDatabaseError(error, 'getAllWinners');
@@ -461,18 +461,38 @@ export const database = {
         const winner = filteredWinners[i];
         const competition = winner.competitions;
         
-        // Determine prize display - use competition title or prize description
-        let prizeDisplay = competition?.title || '';
+        // Determine prize display - prioritize prize info over competition title
+        let prizeDisplay = '';
         
-        // If no title, try to construct from prize_value and prize_type
-        if (!prizeDisplay && winner.prize_value) {
-          const prizeType = competition?.prize_type || 'Prize';
-          prizeDisplay = `$${winner.prize_value} ${prizeType}`;
+        // First try: Use prize_description from winner or competition
+        if (winner.prize_description) {
+          prizeDisplay = winner.prize_description;
+        } else if (competition?.prize_description) {
+          prizeDisplay = competition.prize_description;
         }
         
-        // Fallback to prize_description if available
-        if (!prizeDisplay) {
-          prizeDisplay = winner.prize_description || competition?.prize_description || '';
+        // Second try: Construct from prize_value and prize_type
+        if (!prizeDisplay && winner.prize_value) {
+          const prizeType = competition?.prize_type || '';
+          // Check if prize type indicates crypto currency
+          if (prizeType.toLowerCase().includes('btc') || prizeType.toLowerCase().includes('bitcoin')) {
+            prizeDisplay = `${winner.prize_value} BTC`;
+          } else if (prizeType.toLowerCase().includes('eth') || prizeType.toLowerCase().includes('ethereum')) {
+            prizeDisplay = `${winner.prize_value} ETH`;
+          } else if (prizeType.toLowerCase().includes('sol') || prizeType.toLowerCase().includes('solana')) {
+            prizeDisplay = `${winner.prize_value} SOL`;
+          } else if (prizeType.toLowerCase().includes('crypto') || prizeType.toLowerCase().includes('usdt') || prizeType.toLowerCase().includes('usdc')) {
+            // For generic crypto or stablecoins, use $ prefix
+            prizeDisplay = `$${winner.prize_value} ${prizeType}`;
+          } else {
+            // Default to $ prefix for monetary prizes
+            prizeDisplay = `$${winner.prize_value}` + (prizeType ? ` ${prizeType}` : '');
+          }
+        }
+        
+        // Last resort: Use competition title
+        if (!prizeDisplay && competition?.title) {
+          prizeDisplay = competition.title;
         }
         
         // Skip if we still don't have a prize to display
@@ -539,8 +559,8 @@ export const database = {
         )
       `)
       .not('wallet_address', 'is', null)
-      .order('won_at', { ascending: false })
-      .limit(100);
+      .order('won_at', { ascending: false, nullsLast: true })
+      .limit(150); // Query more to account for filtered test data
 
     if (error) {
       console.error('Error fetching winners from winners table:', error);
@@ -616,18 +636,38 @@ export const database = {
       const winner = filteredWinners[i];
       const competition = winner.competitions;
       
-      // Determine prize display - use competition title or prize description
-      let prizeDisplay = competition?.title || '';
+      // Determine prize display - prioritize prize info over competition title
+      let prizeDisplay = '';
       
-      // If no title, try to construct from prize_value and prize_type
-      if (!prizeDisplay && winner.prize_value) {
-        const prizeType = competition?.prize_type || 'Prize';
-        prizeDisplay = `$${winner.prize_value} ${prizeType}`;
+      // First try: Use prize_description from winner or competition
+      if (winner.prize_description) {
+        prizeDisplay = winner.prize_description;
+      } else if (competition?.prize_description) {
+        prizeDisplay = competition.prize_description;
       }
       
-      // Fallback to prize_description if available
-      if (!prizeDisplay) {
-        prizeDisplay = winner.prize_description || competition?.prize_description || '';
+      // Second try: Construct from prize_value and prize_type
+      if (!prizeDisplay && winner.prize_value) {
+        const prizeType = competition?.prize_type || '';
+        // Check if prize type indicates crypto currency
+        if (prizeType.toLowerCase().includes('btc') || prizeType.toLowerCase().includes('bitcoin')) {
+          prizeDisplay = `${winner.prize_value} BTC`;
+        } else if (prizeType.toLowerCase().includes('eth') || prizeType.toLowerCase().includes('ethereum')) {
+          prizeDisplay = `${winner.prize_value} ETH`;
+        } else if (prizeType.toLowerCase().includes('sol') || prizeType.toLowerCase().includes('solana')) {
+          prizeDisplay = `${winner.prize_value} SOL`;
+        } else if (prizeType.toLowerCase().includes('crypto') || prizeType.toLowerCase().includes('usdt') || prizeType.toLowerCase().includes('usdc')) {
+          // For generic crypto or stablecoins, use $ prefix
+          prizeDisplay = `$${winner.prize_value} ${prizeType}`;
+        } else {
+          // Default to $ prefix for monetary prizes
+          prizeDisplay = `$${winner.prize_value}` + (prizeType ? ` ${prizeType}` : '');
+        }
+      }
+      
+      // Last resort: Use competition title
+      if (!prizeDisplay && competition?.title) {
+        prizeDisplay = competition.title;
       }
       
       // Skip if we still don't have a prize to display

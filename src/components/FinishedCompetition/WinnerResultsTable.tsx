@@ -33,7 +33,7 @@ const WinnerResultsTable = ({ competitionId }: WinnerResultsTableProps) => {
         // Fetch winners from the winners table
         const { data: winnersData, error: winnersError } = await supabase
           .from('winners')
-          .select('ticket_number, wallet_address, username')
+          .select('ticket_number, wallet_address')
           .eq('competition_id', competitionId);
 
         if (winnersError) {
@@ -51,19 +51,43 @@ const WinnerResultsTable = ({ competitionId }: WinnerResultsTableProps) => {
           console.error('Error fetching competition:', compError);
         }
 
+        // Fetch usernames for winner wallet addresses
+        let usernameMap = new Map<string, string>();
+        if (winnersData && winnersData.length > 0) {
+          const walletAddresses = winnersData.map(w => w.wallet_address).filter(Boolean);
+          if (walletAddresses.length > 0) {
+            const { data: usersData } = await supabase
+              .from('canonical_users')
+              .select('username, wallet_address')
+              .in('wallet_address', walletAddresses);
+            
+            if (usersData) {
+              for (const user of usersData) {
+                if (user.wallet_address) {
+                  usernameMap.set(user.wallet_address.toLowerCase(), user.username || '');
+                }
+              }
+            }
+          }
+        }
+
         // Build the results data
         const results: WinnerData[] = [];
 
         // Add data from winners table
         if (winnersData && winnersData.length > 0) {
           for (const winner of winnersData) {
+            const username = winner.wallet_address 
+              ? usernameMap.get(winner.wallet_address.toLowerCase()) 
+              : null;
+            
             results.push({
               txHash: compData?.vrf_pregenerated_tx_hash || null,
               min: 1,
               max: compData?.tickets_sold || compData?.total_tickets || 1000,
               winningNumber: winner.ticket_number || 0,
               result: winner.ticket_number || 0,
-              username: winner.username,
+              username: username || null,
               walletAddress: winner.wallet_address,
             });
           }
