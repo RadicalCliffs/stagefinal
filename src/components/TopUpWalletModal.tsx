@@ -604,7 +604,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                       </div>
                       <div className="text-left">
                         <p className="text-white sequel-75 text-sm uppercase">Pay With Base</p>
-                        <p className="text-[#DDE404] sequel-45 text-xs">Fast USDC payments</p>
+                        <p className="text-[#DDE404] sequel-45 text-xs">Fast USDC payments on Base</p>
                       </div>
                     </div>
                     <ChevronRight size={20} className="text-white" />
