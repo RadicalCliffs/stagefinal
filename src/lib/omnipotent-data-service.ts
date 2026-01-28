@@ -552,6 +552,57 @@ class OmnipotentDataService {
   }
 
   /**
+   * Get available tickets for a competition
+   * Returns array of available ticket numbers based on total tickets minus unavailable
+   * Uses caching to prevent redundant queries
+   */
+  async getAvailableTickets(competitionId: string, totalTickets: number): Promise<number[]> {
+    const cacheKey = `available_tickets:${competitionId}:${totalTickets}`;
+    const cached = dataCache.get<number[]>(cacheKey);
+    if (cached) {
+      databaseLogger.debug('[OmnipotentData] Returning cached available tickets', { 
+        competitionId: competitionId.slice(0, 8) + '...', 
+        count: cached.length 
+      });
+      return cached;
+    }
+
+    try {
+      const startTime = Date.now();
+      databaseLogger.debug('[OmnipotentData] Fetching available tickets', {
+        competitionId: competitionId.slice(0, 8) + '...',
+        totalTickets
+      });
+
+      // Get unavailable tickets (this is cached with 5s TTL)
+      const unavailable = await this.getUnavailableTickets(competitionId);
+      const unavailableSet = new Set(unavailable);
+
+      // Calculate available tickets
+      const allTickets = Array.from({ length: totalTickets }, (_, i) => i + 1);
+      const available = allTickets.filter(ticket => !unavailableSet.has(ticket));
+
+      const duration = Date.now() - startTime;
+      databaseLogger.info('[OmnipotentData] Available tickets calculated', {
+        competitionId: competitionId.slice(0, 8) + '...',
+        total: totalTickets,
+        unavailable: unavailable.length,
+        available: available.length,
+        duration: `${duration}ms`
+      });
+
+      // Cache for 3 seconds - short enough to stay fresh, long enough to prevent rapid refetches
+      dataCache.set(cacheKey, available, 3000);
+      return available;
+
+    } catch (error) {
+      databaseLogger.error('[OmnipotentData] Failed to fetch available tickets', { competitionId, error });
+      // Return all tickets as available on error to avoid blocking the UI
+      return Array.from({ length: totalTickets }, (_, i) => i + 1);
+    }
+  }
+
+  /**
    * Aggressively clean up expired reservations
    * This runs automatically before ticket reservation attempts to free up tickets
    */

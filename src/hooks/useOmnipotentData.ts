@@ -352,6 +352,70 @@ export function useTicketReservation(competitionId: string | undefined) {
 }
 
 /**
+ * Hook for fetching available tickets for a competition
+ * 
+ * Features:
+ * - Automatic fetching on mount and when parameters change
+ * - Caching to prevent redundant queries
+ * - Manual refresh capability
+ * - Loading and error states
+ */
+export function useAvailableTickets(
+  competitionId: string | undefined,
+  totalTickets: number,
+  options: UseOmnipotentDataOptions = {}
+) {
+  const [availableTickets, setAvailableTickets] = useState<number[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const { autoFetch = true, refreshInterval, cacheEnabled = true } = options;
+
+  const fetchAvailableTickets = useCallback(async () => {
+    if (!competitionId || !totalTickets) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Use omnipotent data service which handles caching automatically
+      const tickets = await omnipotentData.getAvailableTickets(competitionId, totalTickets);
+      setAvailableTickets(tickets);
+      
+    } catch (err) {
+      setError(err as Error);
+      console.error('[useAvailableTickets] Error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [competitionId, totalTickets]);
+
+  useEffect(() => {
+    if (autoFetch) {
+      fetchAvailableTickets();
+    }
+  }, [autoFetch, fetchAvailableTickets]);
+
+  // Set up refresh interval if specified
+  useEffect(() => {
+    if (refreshInterval && refreshInterval > 0 && competitionId && totalTickets) {
+      const interval = setInterval(fetchAvailableTickets, refreshInterval);
+      return () => clearInterval(interval);
+    }
+  }, [refreshInterval, competitionId, totalTickets, fetchAvailableTickets]);
+
+  return {
+    availableTickets,
+    availableCount: availableTickets.length,
+    loading,
+    error,
+    refetch: fetchAvailableTickets
+  };
+}
+
+/**
  * Hook for general data operations (cache management, etc.)
  */
 export function useOmnipotentData() {
