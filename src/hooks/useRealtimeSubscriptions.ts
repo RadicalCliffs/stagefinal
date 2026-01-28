@@ -91,12 +91,33 @@ export function useRealtimeSubscriptions(options: RealtimeSubscriptionOptions = 
   const { baseUser } = useAuthUser();
   const debounceRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const subscriptionStatusRef = useRef<'connecting' | 'subscribed' | 'error'>('connecting');
+  // Store the latest options in a ref to avoid re-subscribing when callbacks change
+  const optionsRef = useRef(options);
+  
+  // Update the ref whenever options change, but don't trigger re-subscription
+  useEffect(() => {
+    optionsRef.current = options;
+  }, [options]);
 
   const userId = baseUser?.id;
   const canonicalUserId = userId ? toPrizePid(userId) : '';
+  
+  // Store userId and canonicalUserId in refs for stable access in callbacks
+  const userIdRef = useRef(userId);
+  const canonicalUserIdRef = useRef(canonicalUserId);
+  useEffect(() => {
+    userIdRef.current = userId;
+    canonicalUserIdRef.current = canonicalUserId;
+  }, [userId, canonicalUserId]);
+
   const debounceMs = options.debounceMs ?? 300;
 
-  // Debounced callback executor
+  // Debounced callback executor - store debounceMs in a ref to avoid recreating this function
+  const debounceMsRef = useRef(debounceMs);
+  useEffect(() => {
+    debounceMsRef.current = debounceMs;
+  }, [debounceMs]);
+
   const executeWithDebounce = useCallback(
     (key: string, callback: () => void) => {
       const existing = debounceRef.current.get(key);
@@ -107,21 +128,24 @@ export function useRealtimeSubscriptions(options: RealtimeSubscriptionOptions = 
       const timer = setTimeout(() => {
         callback();
         debounceRef.current.delete(key);
-      }, debounceMs);
+      }, debounceMsRef.current);
 
       debounceRef.current.set(key, timer);
     },
-    [debounceMs]
+    [] // No dependencies - uses refs instead
   );
 
-  // Process incoming realtime payload
+  // Process incoming realtime payload - use refs to avoid re-creating on every render
   const processPayload = useCallback(
     (table: string, eventType: string, newData: any, oldData: any) => {
-      if (!userId) return;
+      const currentUserId = userIdRef.current;
+      const currentCanonicalUserId = canonicalUserIdRef.current;
+      
+      if (!currentUserId) return;
 
       // Check if this event is for the current user
       const dataToCheck = newData || oldData;
-      if (!recordMatchesUser(dataToCheck, userId, canonicalUserId)) {
+      if (!recordMatchesUser(dataToCheck, currentUserId, currentCanonicalUserId)) {
         return;
       }
 
@@ -133,57 +157,58 @@ export function useRealtimeSubscriptions(options: RealtimeSubscriptionOptions = 
       };
 
       console.log(`[RealtimeSubscriptions] ${table} ${eventType}:`, {
-        userId: userId?.substring(0, 15) + '...',
+        userId: currentUserId?.substring(0, 15) + '...',
       });
 
-      // Execute specific callbacks with debouncing
+      // Execute specific callbacks with debouncing - use optionsRef.current to get latest callbacks
       const callbackKey = `${table}-${eventType}`;
+      const currentOptions = optionsRef.current;
 
       switch (table) {
         case 'balance_ledger':
-          if (options.onBalanceLedgerChange) {
-            executeWithDebounce(callbackKey, () => options.onBalanceLedgerChange!(payload));
+          if (currentOptions.onBalanceLedgerChange) {
+            executeWithDebounce(callbackKey, () => currentOptions.onBalanceLedgerChange!(payload));
           }
           break;
         case 'user_transactions':
-          if (options.onUserTransactionChange) {
-            executeWithDebounce(callbackKey, () => options.onUserTransactionChange!(payload));
+          if (currentOptions.onUserTransactionChange) {
+            executeWithDebounce(callbackKey, () => currentOptions.onUserTransactionChange!(payload));
           }
           break;
         case 'joincompetition':
         case 'v_joincompetition_active':
-          if (options.onJoinCompetitionChange) {
-            executeWithDebounce(callbackKey, () => options.onJoinCompetitionChange!(payload));
+          if (currentOptions.onJoinCompetitionChange) {
+            executeWithDebounce(callbackKey, () => currentOptions.onJoinCompetitionChange!(payload));
           }
           break;
         case 'tickets':
-          if (options.onTicketsChange) {
-            executeWithDebounce(callbackKey, () => options.onTicketsChange!(payload));
+          if (currentOptions.onTicketsChange) {
+            executeWithDebounce(callbackKey, () => currentOptions.onTicketsChange!(payload));
           }
           break;
         case 'pending_tickets':
-          if (options.onPendingTicketsChange) {
-            executeWithDebounce(callbackKey, () => options.onPendingTicketsChange!(payload));
+          if (currentOptions.onPendingTicketsChange) {
+            executeWithDebounce(callbackKey, () => currentOptions.onPendingTicketsChange!(payload));
           }
           break;
         case 'competition_entries':
-          if (options.onCompetitionEntriesChange) {
-            executeWithDebounce(callbackKey, () => options.onCompetitionEntriesChange!(payload));
+          if (currentOptions.onCompetitionEntriesChange) {
+            executeWithDebounce(callbackKey, () => currentOptions.onCompetitionEntriesChange!(payload));
           }
           break;
         case 'sub_account_balances':
-          if (options.onSubAccountBalanceChange) {
-            executeWithDebounce(callbackKey, () => options.onSubAccountBalanceChange!(payload));
+          if (currentOptions.onSubAccountBalanceChange) {
+            executeWithDebounce(callbackKey, () => currentOptions.onSubAccountBalanceChange!(payload));
           }
           break;
       }
 
       // Execute generic callback
-      if (options.onAnyChange) {
-        executeWithDebounce(`any-${callbackKey}`, () => options.onAnyChange!(payload));
+      if (currentOptions.onAnyChange) {
+        executeWithDebounce(`any-${callbackKey}`, () => currentOptions.onAnyChange!(payload));
       }
     },
-    [userId, canonicalUserId, options, executeWithDebounce]
+    [executeWithDebounce] // Only depends on executeWithDebounce, which itself has no dependencies
   );
 
   useEffect(() => {
@@ -286,7 +311,7 @@ export function useRealtimeSubscriptions(options: RealtimeSubscriptionOptions = 
       }
     });
 
-    // Cleanup on unmount
+    // Cleanup on unmount OR user change only - NOT on option changes
     return () => {
       console.log('[RealtimeSubscriptions] Cleaning up subscriptions');
 
@@ -297,7 +322,9 @@ export function useRealtimeSubscriptions(options: RealtimeSubscriptionOptions = 
       // Remove channel
       supabase.removeChannel(channel);
     };
-  }, [userId, canonicalUserId, processPayload]);
+    // CRITICAL: Only depend on userId and canonicalUserId - NOT on processPayload or options
+    // This ensures subscriptions are set up once per user session and only cleaned up when user changes
+  }, [userId, canonicalUserId]);
 
   return {
     isSubscribed: subscriptionStatusRef.current === 'subscribed',
