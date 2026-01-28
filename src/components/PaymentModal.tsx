@@ -16,6 +16,7 @@ import { getPaymentErrorInfo, type PaymentErrorInfo } from "../lib/error-handler
 import { CoinbaseCommerceService } from "../lib/coinbase-commerce";
 import { useBaseSubAccount } from "../hooks/useBaseSubAccount";
 import { useRealtimeSubscriptions } from "../hooks/useRealtimeSubscriptions";
+import { reservationStorage } from "../lib/reservation-storage";
 // Wagmi hook for getting the wallet client (provider) for transactions
 import { useWalletClient } from 'wagmi';
 
@@ -477,6 +478,34 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     }
   }, [baseUser?.id]);
 
+  // CRITICAL FIX: Auto-recover reservation from sessionStorage on mount
+  // This fixes the bug where refreshing the page loses the reservation
+  const [recoveredReservationId, setRecoveredReservationId] = useState<string | null>(null);
+  
+  useEffect(() => {
+    // Only attempt recovery if no reservationId prop was provided
+    if (reservationId || !competitionId || !isOpen) {
+      return;
+    }
+
+    console.log('[PaymentModal] Attempting to recover reservation from storage...');
+    const stored = reservationStorage.getReservation(competitionId);
+    
+    if (stored && stored.reservationId) {
+      console.log('[PaymentModal] ✅ Recovered reservation:', {
+        reservationId: stored.reservationId,
+        ticketCount: stored.ticketNumbers?.length || 0,
+        age: Math.round((Date.now() - stored.timestamp) / 1000) + 's'
+      });
+      setRecoveredReservationId(stored.reservationId);
+    } else {
+      console.log('[PaymentModal] No stored reservation found for competition:', competitionId);
+    }
+  }, [reservationId, competitionId, isOpen]);
+
+  // Use recovered reservation if available
+  const effectiveReservationId = reservationId || recoveredReservationId;
+
   useEffect(() => {
     if (isOpen && !hasInitialized) {
       // Only reset state when modal first opens
@@ -560,11 +589,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     try {
       // PRIMARY: Try finalize_purchase2 RPC first when reservationId is available
       // This is idempotent and handles edge cases like expired reservations gracefully
-      if (reservationId) {
-        console.log('[PaymentModal] Attempting balance payment via finalize_purchase2 RPC');
+      // Use effectiveReservationId which includes auto-recovered reservations
+      if (effectiveReservationId) {
+        console.log('[PaymentModal] Attempting balance payment via finalize_purchase2 RPC with reservation:', effectiveReservationId);
         const finalizeResult = await finalizeBalancePayment({
-          reservationId,
-          idempotencyKey: reservationId, // Use reservationId as idempotency key (recommended)
+          reservationId: effectiveReservationId,
+          idempotencyKey: effectiveReservationId, // Use reservationId as idempotency key (recommended)
           ticketCount,
           competitionId
         });
@@ -658,7 +688,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         numberOfTickets: ticketCount,
         ticketPrice,
         selectedTickets,
-        reservationId
+        reservationId: effectiveReservationId
       });
 
       if (result.success) {
