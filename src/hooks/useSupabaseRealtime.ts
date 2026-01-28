@@ -37,7 +37,7 @@ import {
  * Hook to subscribe to a single table's realtime changes
  * 
  * @param tableName - Name of the table to subscribe to
- * @param handlers - Object with onInsert, onUpdate, onDelete handlers
+ * @param handlers - Object with onInsert, onUpdate, onDelete handlers (should be memoized with useMemo or useCallback)
  * @param filter - Optional filter string
  * @param enabled - Whether subscription is enabled (default: true)
  */
@@ -47,28 +47,21 @@ export function useSupabaseRealtime<T = any>(
   filter?: string,
   enabled: boolean = true
 ): void {
-  // Memoize handlers to avoid re-subscribing on every render
-  const memoizedHandlers = useMemo(() => handlers, [
-    handlers.onInsert,
-    handlers.onUpdate,
-    handlers.onDelete
-  ]);
-
   useEffect(() => {
     if (!enabled) return;
 
-    const unsubscribe = subscribeToTable(tableName, memoizedHandlers, filter);
+    const unsubscribe = subscribeToTable(tableName, handlers, filter);
 
     return () => {
       unsubscribe();
     };
-  }, [tableName, filter, enabled, memoizedHandlers]);
+  }, [tableName, filter, enabled, handlers]);
 }
 
 /**
  * Hook to subscribe to multiple tables' realtime changes
  * 
- * @param subscriptions - Array of subscription configurations
+ * @param subscriptions - Array of subscription configurations (should be memoized with useMemo)
  * @param enabled - Whether subscriptions are enabled (default: true)
  */
 export function useSupabaseRealtimeMultiple(
@@ -80,14 +73,16 @@ export function useSupabaseRealtimeMultiple(
   enabled: boolean = true
 ): void {
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !subscriptions.length) return;
 
     const unsubscribe = subscribeToMultipleTables(subscriptions);
 
     return () => {
       unsubscribe();
     };
-  }, [subscriptions, enabled]);
+    // Note: subscriptions array should be memoized by caller to prevent unnecessary re-subscriptions
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, JSON.stringify(subscriptions.map(s => ({ table: s.table, filter: s.filter })))]);
 }
 
 /**
@@ -95,7 +90,7 @@ export function useSupabaseRealtimeMultiple(
  * Useful when you just want to refresh data on any change
  * 
  * @param tableName - Name of the table to subscribe to
- * @param onAnyChange - Function to call on any change
+ * @param onAnyChange - Function to call on any change (should be memoized with useCallback)
  * @param filter - Optional filter string
  * @param enabled - Whether subscription is enabled (default: true)
  */
