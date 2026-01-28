@@ -112,12 +112,7 @@ export function useRealtimeSubscriptions(options: RealtimeSubscriptionOptions = 
 
   const debounceMs = options.debounceMs ?? 300;
 
-  // Debounced callback executor - store debounceMs in a ref to avoid recreating this function
-  const debounceMsRef = useRef(debounceMs);
-  useEffect(() => {
-    debounceMsRef.current = debounceMs;
-  }, [debounceMs]);
-
+  // Stable debounced callback executor - uses refs to access current values at execution time
   const executeWithDebounce = useCallback(
     (key: string, callback: () => void) => {
       const existing = debounceRef.current.get(key);
@@ -128,14 +123,14 @@ export function useRealtimeSubscriptions(options: RealtimeSubscriptionOptions = 
       const timer = setTimeout(() => {
         callback();
         debounceRef.current.delete(key);
-      }, debounceMsRef.current);
+      }, optionsRef.current.debounceMs ?? 300);
 
       debounceRef.current.set(key, timer);
     },
-    [] // No dependencies - uses refs instead
+    [] // Stable function - uses refs to access current values at execution time
   );
 
-  // Process incoming realtime payload - use refs to avoid re-creating on every render
+  // Process incoming realtime payload - stable function that uses refs to access latest values
   const processPayload = useCallback(
     (table: string, eventType: string, newData: any, oldData: any) => {
       const currentUserId = userIdRef.current;
@@ -208,7 +203,7 @@ export function useRealtimeSubscriptions(options: RealtimeSubscriptionOptions = 
         executeWithDebounce(`any-${callbackKey}`, () => currentOptions.onAnyChange!(payload));
       }
     },
-    [executeWithDebounce] // Only depends on executeWithDebounce, which itself has no dependencies
+    [executeWithDebounce] // Stable function - uses refs to access latest values at execution time
   );
 
   useEffect(() => {
@@ -324,6 +319,8 @@ export function useRealtimeSubscriptions(options: RealtimeSubscriptionOptions = 
     };
     // CRITICAL: Only depend on userId and canonicalUserId - NOT on processPayload or options
     // This ensures subscriptions are set up once per user session and only cleaned up when user changes
+    // Note: processPayload is intentionally omitted - it's stable and uses refs to access latest values
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, canonicalUserId]);
 
   return {
