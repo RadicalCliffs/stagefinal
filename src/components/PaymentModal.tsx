@@ -1394,7 +1394,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                 </div>
               )}
 
-              {/* === PAYMENT OPTIONS - 4 Uniform Buttons === */}
+              {/* === PAYMENT OPTIONS - Pay With Base and Pay With Balance === */}
               <div className="space-y-3">
                 {/* A. Pay With Balance - Only shown if user has sufficient balance */}
                 {(() => {
@@ -1446,8 +1446,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                   </button>
                 )}
 
-                {/* D. Pay With Crypto - Coinbase Commerce checkout */}
-                <button
+                {/* D. Pay With Crypto - Coinbase Commerce checkout - HIDDEN */}
+                {/* <button
                   onClick={handleCommercePayment}
                   disabled={commerceLoading}
                   className="w-full h-[72px] flex items-center justify-between px-4 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
@@ -1462,10 +1462,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                     </div>
                   </div>
                   <ChevronRight size={20} className="text-white" />
-                </button>
+                </button> */}
 
-                {/* E. Pay With Card - Coming Soon */}
-                <button
+                {/* E. Pay With Card - Coming Soon - HIDDEN */}
+                {/* <button
                   disabled
                   className="w-full h-[72px] flex items-center justify-between px-4 bg-gray-600 rounded-xl cursor-not-allowed"
                 >
@@ -1479,7 +1479,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                     </div>
                   </div>
                   <span className="text-[#DDE404] sequel-45 text-xs uppercase">Coming Soon</span>
-                </button>
+                </button> */}
               </div>
 
               {/* Cancel button */}
