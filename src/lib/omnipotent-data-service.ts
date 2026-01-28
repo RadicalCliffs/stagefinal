@@ -629,6 +629,7 @@ class OmnipotentDataService {
       
       // Invalidate cache to ensure fresh data
       dataCache.invalidate(`unavailable_tickets:${competitionId}`);
+      dataCache.invalidate(`available_tickets:${competitionId}`);
     } catch (err) {
       databaseLogger.warn('[OmnipotentData] Exception during cleanup', err);
     }
@@ -856,6 +857,7 @@ class OmnipotentDataService {
 
       // Success - invalidate cache
       dataCache.invalidate(`unavailable_tickets:${competitionId}`);
+      dataCache.invalidate(`available_tickets:${competitionId}`);
 
       return {
         success: true,
@@ -944,6 +946,7 @@ class OmnipotentDataService {
       dataCache.invalidate('competitions:');
       dataCache.invalidate('competition:');
       dataCache.invalidate('unavailable_tickets:');
+      dataCache.invalidate('available_tickets:');
     }
     
     if (type === 'all' || type === 'entries') {
