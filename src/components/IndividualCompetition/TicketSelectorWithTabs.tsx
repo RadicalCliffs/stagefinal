@@ -12,6 +12,7 @@ import { useAuthUser } from "../../contexts/AuthContext";
 import { getUserFriendlyErrorMessage, parseReservationErrorAsync, SupabaseFunctionError } from "../../lib/error-handler";
 import { debounce } from "../../utils/util";
 import { reserveTicketsWithRedundancy } from "../../lib/reserve-tickets-redundant";
+import { useProactiveReservationMonitor } from "../../hooks/useProactiveReservationMonitor";
 
 // Lazy load PaymentModal - only loaded when user initiates payment
 const PaymentModal = lazy(() => import("../PaymentModal"));
@@ -96,6 +97,15 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
     const [reserving, setReserving] = useState(false);
     const [reservationError, setReservationError] = useState<string | null>(null);
     const [reservationSuccess, setReservationSuccess] = useState<string | null>(null);
+
+    // PROACTIVE MONITORING: Auto-cleanup expired reservations and handle issues
+    // This is the "all powerful and watching eye" that ensures smooth user experience
+    useProactiveReservationMonitor({
+        competitionId,
+        enableAutoCleanup: true,
+        cleanupInterval: 5000, // Check every 5 seconds
+        enabled: true,
+    });
 
     const startRangeIndex = (currentRangePage - 1) * RANGES_PER_PAGE;
     const endRangeIndex = Math.min(startRangeIndex + RANGES_PER_PAGE, filterOptions.length);
@@ -476,7 +486,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
             // Success - set reservation ID and success message
             const resId = response.reservationId || null;
             setReservationId(resId);
-            setReservationSuccess("Tickets reserved! Complete payment within 15 minutes.");
+            setReservationSuccess("Tickets reserved! Complete payment within 30 seconds.");
             return resId;
         } catch (err) {
             // Enhanced error handling with user-friendly messages

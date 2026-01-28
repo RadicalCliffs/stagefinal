@@ -86,6 +86,9 @@ async function invokeReserveFunction(
  * and handles errors appropriately. On HTTP 409 (conflict), it extracts
  * unavailable tickets for the caller to handle.
  *
+ * Now uses the aggressive reservation method from omnipotent-data-service
+ * for improved reliability with automatic retries and cleanup.
+ *
  * @param params - The reservation parameters
  * @returns Result object with data and error
  */
@@ -106,33 +109,68 @@ export async function reserveTicketsWithRedundancy(
     };
   }
 
-  console.log('[ReserveTickets] Starting reservation');
+  console.log('[ReserveTickets] Starting aggressive reservation');
   console.log('[ReserveTickets] Params:', {
     userId: params.userId.substring(0, 15) + '...',
     competitionId: params.competitionId,
     ticketCount: params.selectedTickets.length,
   });
 
-  const { data, error } = await invokeReserveFunction(params);
+  // Import omnipotent data service dynamically to avoid circular dependencies
+  const { omnipotentData } = await import('./omnipotent-data-service');
 
-  // Check for successful response (HTTP 200 with success: true)
-  if (!error && data && data.success === true) {
-    console.log('[ReserveTickets] Reservation succeeded!');
+  try {
+    // Use aggressive reservation with automatic retry and cleanup
+    const result = await omnipotentData.reserveTicketsAggressive(
+      params.userId,
+      params.competitionId,
+      params.selectedTickets,
+      3 // max 3 retries
+    );
+
+    if (result.success) {
+      console.log('[ReserveTickets] Aggressive reservation succeeded!', {
+        reservationId: result.reservationId,
+        retried: result.retried
+      });
+      
+      return {
+        data: {
+          success: true,
+          reservationId: result.reservationId,
+          competitionId: params.competitionId,
+          selectedTickets: params.selectedTickets,
+          ticketNumbers: params.selectedTickets,
+          ticketCount: params.selectedTickets.length,
+          message: result.retried 
+            ? 'Tickets reserved successfully after retry' 
+            : 'Tickets reserved successfully',
+          expiresAt: new Date(Date.now() + 30 * 1000).toISOString(), // 30 seconds
+        },
+        error: null,
+      };
+    } else {
+      console.error('[ReserveTickets] Aggressive reservation failed:', result.error);
+      return {
+        data: {
+          success: false,
+          error: result.error || 'Failed to reserve tickets',
+          errorCode: 500,
+          retryable: true,
+        },
+        error: new Error(result.error || 'Failed to reserve tickets'),
+      };
+    }
+  } catch (err) {
+    console.error('[ReserveTickets] Exception during reservation:', err);
     return {
-      data,
-      error: null,
+      data: {
+        success: false,
+        error: err instanceof Error ? err.message : 'Network error during reservation',
+        errorCode: 500,
+        retryable: true,
+      },
+      error: err instanceof Error ? err : new Error(String(err)),
     };
   }
-
-  // Handle errors - log and return
-  if (error) {
-    console.error('[ReserveTickets] Function error:', error);
-  } else if (data) {
-    console.error('[ReserveTickets] Function returned error response:', data);
-  }
-
-  return {
-    data: data || null,
-    error: error instanceof Error ? error : new Error(String(error || 'Failed to reserve tickets')),
-  };
 }

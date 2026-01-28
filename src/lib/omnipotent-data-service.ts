@@ -24,7 +24,7 @@ import { resolveUserIdentity, type ResolvedIdentity } from './identity';
 import { databaseLogger } from './debug-console';
 import { getDashboardEntries, getCompetitionEntries, getUnavailableTickets } from './supabase-rpc-helpers';
 import { aggressiveCRUD } from './aggressive-crud';
-import { hasAdminAccess } from './supabase-admin';
+import { hasAdminAccess, getAdminClient } from './supabase-admin';
 
 // Get Supabase URL from environment for image URL normalization
 // This is required for fixing malformed image URLs in the database
@@ -529,6 +529,115 @@ class OmnipotentDataService {
   }
 
   /**
+   * Aggressively clean up expired reservations
+   * This runs automatically before ticket reservation attempts to free up tickets
+   */
+  private async cleanupExpiredReservations(competitionId: string): Promise<void> {
+    try {
+      const now = new Date().toISOString();
+      
+      // Use admin client if available for aggressive cleanup
+      const client = hasAdminAccess() ? getAdminClient() : supabase;
+      
+      // Delete expired pending reservations
+      const { error } = await client
+        .from('pending_tickets')
+        .delete()
+        .eq('competition_id', competitionId)
+        .eq('status', 'pending')
+        .lt('expires_at', now);
+      
+      if (error) {
+        databaseLogger.warn('[OmnipotentData] Failed to cleanup expired reservations', { error, competitionId });
+      } else {
+        databaseLogger.info('[OmnipotentData] Cleaned up expired reservations', { competitionId });
+      }
+      
+      // Invalidate cache to ensure fresh data
+      dataCache.invalidate(`unavailable_tickets:${competitionId}`);
+    } catch (err) {
+      databaseLogger.warn('[OmnipotentData] Exception during cleanup', err);
+    }
+  }
+
+  /**
+   * Reserve tickets for a user with aggressive retry logic
+   *
+   * Uses direct database operations with automatic retry and cleanup.
+   * Implements exponential backoff and proactive error recovery.
+   */
+  async reserveTicketsAggressive(
+    userIdentifier: string,
+    competitionId: string,
+    ticketNumbers: number[],
+    maxRetries: number = 3
+  ): Promise<{ success: boolean; reservationId?: string; error?: string; retried?: boolean }> {
+    databaseLogger.info('[OmnipotentData] Aggressive ticket reservation started', {
+      competitionId,
+      ticketCount: ticketNumbers.length,
+      maxRetries
+    });
+
+    // Proactively clean up expired reservations before attempting
+    await this.cleanupExpiredReservations(competitionId);
+
+    let lastError: string = '';
+    let retried = false;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      if (attempt > 1) {
+        retried = true;
+        // Exponential backoff: 100ms, 200ms, 400ms
+        const delay = Math.min(100 * Math.pow(2, attempt - 1), 1000);
+        databaseLogger.info('[OmnipotentData] Retrying reservation', { attempt, delay });
+        await new Promise(resolve => setTimeout(resolve, delay));
+        
+        // Clean up again before retry
+        await this.cleanupExpiredReservations(competitionId);
+      }
+
+      const result = await this.reserveTickets(userIdentifier, competitionId, ticketNumbers);
+      
+      if (result.success) {
+        databaseLogger.info('[OmnipotentData] Reservation succeeded', { 
+          attempt, 
+          retried,
+          reservationId: result.reservationId 
+        });
+        return { ...result, retried };
+      }
+
+      lastError = result.error || 'Unknown error';
+      
+      // Don't retry on certain errors
+      if (lastError.includes('not found') || 
+          lastError.includes('not active') || 
+          lastError.includes('ended') ||
+          lastError.includes('out of range')) {
+        databaseLogger.warn('[OmnipotentData] Non-retryable error', { error: lastError });
+        return result;
+      }
+
+      databaseLogger.warn('[OmnipotentData] Reservation attempt failed', { 
+        attempt, 
+        error: lastError,
+        willRetry: attempt < maxRetries 
+      });
+    }
+
+    databaseLogger.error('[OmnipotentData] All reservation attempts failed', { 
+      maxRetries, 
+      lastError 
+    });
+    
+    return {
+      success: false,
+      error: `Failed to reserve tickets after ${maxRetries} attempts: ${lastError}`,
+      retried
+    };
+  }
+
+  /**
    * Reserve tickets for a user
    *
    * Uses direct database operations (same approach as edge functions)
@@ -546,7 +655,7 @@ class OmnipotentDataService {
 
     try {
       const reservationId = crypto.randomUUID();
-      const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+      const expiresAt = new Date(Date.now() + 30 * 1000); // 30 seconds
       const userId = identity.canonicalUserId;
       const normalizedUserId = userId.toLowerCase();
 
