@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import FilterTabs from "./FilterButtons";
 import ActivityTable from "./ActivityTable";
 import WinsCompetitionCard from "./WinsCompetitionCard";
 import type { TableRow } from "../models/models";
 import { database } from "../lib/database";
 import Loader from "./Loader";
+import { useSupabaseRealtimeMultiple } from "../hooks/useSupabaseRealtime";
 
 const OPTIONS = [
   { label: "Live Activity", key: "live" },
@@ -16,27 +17,68 @@ const TableWithFilters = () => {
   const [tableData, setTableData] = useState<TableRow[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchActivity = async () => {
-      setLoading(true);
-      // Fetch more data to ensure we have enough of each type after filtering
-      const limit = 50;
-      const data = await database.getRecentActivity(limit);
+  // Fetch activity data
+  const fetchActivity = useCallback(async () => {
+    setLoading(true);
+    // Fetch more data to ensure we have enough of each type after filtering
+    const limit = 50;
+    const data = await database.getRecentActivity(limit);
 
-      // Filter based on active tab:
-      // - "live" tab shows ENTRIES only (ticket purchases) - this is "Live Activity"
-      // - "wins" tab shows WINS only
-      const filteredData =
-        activeTab.key === "wins"
-          ? data.filter((row) => row.action === "Win")
-          : data.filter((row) => row.action === "Entry");
+    // Filter based on active tab:
+    // - "live" tab shows ENTRIES only (ticket purchases) - this is "Live Activity"
+    // - "wins" tab shows WINS only
+    const filteredData =
+      activeTab.key === "wins"
+        ? data.filter((row) => row.action === "Win")
+        : data.filter((row) => row.action === "Entry");
 
-      setTableData(filteredData);
-      setLoading(false);
-    };
-
-    fetchActivity();
+    setTableData(filteredData);
+    setLoading(false);
   }, [activeTab]);
+
+  useEffect(() => {
+    fetchActivity();
+  }, [fetchActivity]);
+
+  // Subscribe to realtime updates for tickets, user_transactions, balance_ledger, and winners
+  useSupabaseRealtimeMultiple([
+    {
+      table: 'tickets',
+      handlers: {
+        onInsert: () => {
+          console.log('[TableWithFilters] New ticket detected, refreshing activity');
+          fetchActivity();
+        }
+      }
+    },
+    {
+      table: 'user_transactions',
+      handlers: {
+        onInsert: () => {
+          console.log('[TableWithFilters] New transaction detected, refreshing activity');
+          fetchActivity();
+        }
+      }
+    },
+    {
+      table: 'balance_ledger',
+      handlers: {
+        onInsert: () => {
+          console.log('[TableWithFilters] New balance ledger entry, refreshing activity');
+          fetchActivity();
+        }
+      }
+    },
+    {
+      table: 'winners',
+      handlers: {
+        onInsert: () => {
+          console.log('[TableWithFilters] New winner detected, refreshing activity');
+          fetchActivity();
+        }
+      }
+    }
+  ]);
 
   if (loading) {
     return (

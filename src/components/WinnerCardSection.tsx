@@ -33,11 +33,24 @@ const WinnersV2 = () => {
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'competition_winners'
+          table: 'winners'
         },
         (payload) => {
-          console.log('New winner detected on home page:', payload.new);
+          console.log('[WinnersV2] New winner detected:', payload.new);
           // Refresh winners list when new winner is added
+          fetchWinners();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'winners'
+        },
+        (payload) => {
+          console.log('[WinnersV2] Winner updated:', payload.new);
+          // Refresh on updates (e.g., claimed status change)
           fetchWinners();
         }
       )
