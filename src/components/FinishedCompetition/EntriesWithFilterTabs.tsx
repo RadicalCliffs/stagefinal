@@ -609,8 +609,10 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
         setLoading(false);
         entriesLogger.groupEnd();
       }
-    };
+    }, [competitionId, competitionUid]);
 
+  // Initial fetch
+  useEffect(() => {
     fetchEntries();
   }, [fetchEntries]);
 
@@ -651,10 +653,6 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
       }
     }
   ], shouldSubscribe);
-
-  useEffect(() => {
-    fetchEntries();
-  }, [competitionId, competitionUid]);
 
   // Dynamically determine filter ranges based on entries
   const maxTicketNumber = useMemo(() => {

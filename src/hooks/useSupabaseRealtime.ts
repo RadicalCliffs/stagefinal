@@ -24,7 +24,7 @@
  * ```
  */
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   subscribeToTable,
   subscribeToMultipleTables,
@@ -47,15 +47,22 @@ export function useSupabaseRealtime<T = any>(
   filter?: string,
   enabled: boolean = true
 ): void {
+  // Memoize handlers to avoid re-subscribing on every render
+  const memoizedHandlers = useMemo(() => handlers, [
+    handlers.onInsert,
+    handlers.onUpdate,
+    handlers.onDelete
+  ]);
+
   useEffect(() => {
     if (!enabled) return;
 
-    const unsubscribe = subscribeToTable(tableName, handlers, filter);
+    const unsubscribe = subscribeToTable(tableName, memoizedHandlers, filter);
 
     return () => {
       unsubscribe();
     };
-  }, [tableName, filter, enabled, handlers.onInsert, handlers.onUpdate, handlers.onDelete]);
+  }, [tableName, filter, enabled, memoizedHandlers]);
 }
 
 /**

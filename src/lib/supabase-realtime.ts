@@ -18,7 +18,6 @@
  */
 
 import { supabase } from './supabase';
-import type { RealtimeChannel } from '@supabase/supabase-js';
 
 /**
  * Realtime event payload types
