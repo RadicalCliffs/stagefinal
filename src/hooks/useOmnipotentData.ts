@@ -8,6 +8,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { omnipotentData, type OmnipotentCompetition, type OmnipotentEntry } from '../lib/omnipotent-data-service';
 import { toPrizePid } from '../utils/userId';
+import { reservationStorage } from '../lib/reservation-storage';
 
 export interface UseOmnipotentDataOptions {
   autoFetch?: boolean;
@@ -227,6 +228,11 @@ export function useCompetitionEntries(
 
 /**
  * Hook for managing ticket reservations
+ * 
+ * Features:
+ * - Persistent storage across page refreshes (sessionStorage)
+ * - Auto-recovery of reservations on mount
+ * - Passive cleanup of expired reservations during retrieval
  */
 export function useTicketReservation(competitionId: string | undefined) {
   const [reserving, setReserving] = useState(false);
@@ -234,6 +240,17 @@ export function useTicketReservation(competitionId: string | undefined) {
   const [reservationId, setReservationId] = useState<string | null>(null);
   const [unavailableTickets, setUnavailableTickets] = useState<number[]>([]);
   const [loadingTickets, setLoadingTickets] = useState(false);
+
+  // Auto-recover reservation from storage on mount
+  useEffect(() => {
+    if (!competitionId) return;
+
+    const stored = reservationStorage.getReservation(competitionId);
+    if (stored && stored.reservationId) {
+      console.log('[useTicketReservation] Auto-recovered reservation:', stored.reservationId);
+      setReservationId(stored.reservationId);
+    }
+  }, [competitionId]);
 
   // Fetch unavailable tickets
   const fetchUnavailableTickets = useCallback(async () => {
@@ -278,8 +295,18 @@ export function useTicketReservation(competitionId: string | undefined) {
         ticketNumbers
       );
 
-      if (result.success) {
-        setReservationId(result.reservationId || null);
+      if (result.success && result.reservationId) {
+        setReservationId(result.reservationId);
+        
+        // CRITICAL: Store reservation in sessionStorage for persistence
+        reservationStorage.storeReservation({
+          reservationId: result.reservationId,
+          competitionId,
+          ticketNumbers,
+          userId: canonicalUserId,
+          expiresAt: result.expiresAt ? new Date(result.expiresAt).getTime() : undefined
+        });
+        
         // Refresh unavailable tickets after successful reservation
         await fetchUnavailableTickets();
       } else {
@@ -297,6 +324,15 @@ export function useTicketReservation(competitionId: string | undefined) {
     }
   }, [competitionId, fetchUnavailableTickets]);
 
+  // Clear reservation (call this after successful purchase)
+  const clearReservation = useCallback(() => {
+    if (competitionId) {
+      reservationStorage.clearReservation(competitionId);
+      setReservationId(null);
+      console.log('[useTicketReservation] Cleared reservation');
+    }
+  }, [competitionId]);
+
   // Check if specific tickets are available
   const areTicketsAvailable = useCallback((ticketNumbers: number[]) => {
     return ticketNumbers.every(num => !unavailableTickets.includes(num));
@@ -310,7 +346,8 @@ export function useTicketReservation(competitionId: string | undefined) {
     unavailableTickets,
     loadingTickets,
     refetchUnavailable: fetchUnavailableTickets,
-    areTicketsAvailable
+    areTicketsAvailable,
+    clearReservation
   };
 }
 

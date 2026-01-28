@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import { userDataService } from '../services/userDataService';
 import { toPrizePid } from '../utils/userId';
 import { toCanonicalUserId } from '../lib/canonicalUserId';
+import { withRetry } from '../lib/error-handler';
 
 interface LinkedWallet {
   address: string;
@@ -393,40 +394,75 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       // CRITICAL: Call upsert_canonical_user RPC after auth sign-in/signup
       // This ensures canonical_users table is up-to-date with auth data
+      // Uses retry logic to handle transient failures
       if (userProfile) {
         try {
           console.log('[AuthContext] Calling upsert_canonical_user RPC after auth');
           const canonicalUserId = toPrizePid(effectiveWalletAddress);
-          // NOTE: Parameters must match the database function signature exactly:
-          // p_uid, p_canonical_user_id, p_email, p_username, p_wallet_address,
-          // p_base_wallet_address, p_eth_wallet_address, p_privy_user_id,
-          // p_first_name, p_last_name, p_telegram_handle, p_wallet_linked
-          const { data: rpcData, error: rpcError } = await supabase.rpc('upsert_canonical_user', {
-            p_uid: userProfile.uid || userProfile.id,
-            p_canonical_user_id: canonicalUserId,
-            p_email: effectiveEmail || null,
-            p_username: userProfile.username || null,
-            p_wallet_address: effectiveWalletAddress.toLowerCase(),
-            p_base_wallet_address: effectiveWalletAddress.toLowerCase(),
-            p_eth_wallet_address: effectiveWalletAddress.toLowerCase(),
-            p_privy_user_id: effectiveWalletAddress,
-            p_first_name: userProfile.first_name || null,
-            p_last_name: userProfile.last_name || null,
-            p_telegram_handle: userProfile.telegram_handle || null,
-            p_wallet_linked: false, // Not a wallet link event, just auth
-          });
+          
+          // Use retry logic for robustness
+          const result = await withRetry(
+            async () => {
+              // NOTE: Parameters must match the database function signature exactly:
+              // p_uid, p_canonical_user_id, p_email, p_username, p_wallet_address,
+              // p_base_wallet_address, p_eth_wallet_address, p_privy_user_id,
+              // p_first_name, p_last_name, p_telegram_handle, p_wallet_linked
+              return await supabase.rpc('upsert_canonical_user', {
+                p_uid: userProfile.uid || userProfile.id,
+                p_canonical_user_id: canonicalUserId,
+                p_email: effectiveEmail || null,
+                p_username: userProfile.username || effectiveEmail?.split('@')[0] || null,
+                p_wallet_address: effectiveWalletAddress.toLowerCase(),
+                p_base_wallet_address: effectiveWalletAddress.toLowerCase(),
+                p_eth_wallet_address: effectiveWalletAddress.toLowerCase(),
+                p_privy_user_id: effectiveWalletAddress,
+                p_first_name: userProfile.first_name || null,
+                p_last_name: userProfile.last_name || null,
+                p_telegram_handle: userProfile.telegram_handle || null,
+                p_wallet_linked: false, // Not a wallet link event, just auth
+              });
+            },
+            {
+              maxRetries: 3,
+              delayMs: 1000,
+              context: 'upsert_canonical_user',
+              shouldRetry: (error) => {
+                // Retry on network errors or temporary database issues
+                // Handle both Error objects and raw error messages
+                const errorMsg = error instanceof Error ? error.message : String(error);
+                const errorObj = error as any;
+                
+                return errorMsg.includes('network') || 
+                       errorMsg.includes('timeout') ||
+                       errorMsg.includes('ECONNRESET') ||
+                       errorMsg.includes('Failed to send') ||
+                       errorMsg.includes('FunctionsFetchError') ||
+                       errorObj?.code === 'ETIMEDOUT' ||
+                       errorObj?.code === 'ECONNRESET';
+              }
+            }
+          );
+
+          const { data: rpcData, error: rpcError } = result;
 
           if (rpcError) {
-            console.warn('[AuthContext] upsert_canonical_user RPC warning:', rpcError);
+            console.error('[AuthContext] upsert_canonical_user RPC failed after retries:', rpcError);
+            // Don't block the user - log error but continue
+          } else if (rpcData?.success === false) {
+            console.error('[AuthContext] upsert_canonical_user returned failure:', rpcData.error);
           } else {
-            console.log('[AuthContext] upsert_canonical_user RPC success');
+            console.log('[AuthContext] upsert_canonical_user RPC success:', {
+              user_id: rpcData?.user_id,
+              is_new_user: rpcData?.is_new_user,
+              wallet_linked: rpcData?.wallet_linked
+            });
 
             // Send welcome email for new users
             // The RPC returns { success: true, is_new_user: boolean, ... }
             if (rpcData && typeof rpcData === 'object' && 'is_new_user' in rpcData && rpcData.is_new_user === true) {
               console.log('[AuthContext] New user detected, sending welcome email');
               const emailToSend = effectiveEmail || userProfile.email;
-              const usernameToSend = userProfile.username || 'Player';
+              const usernameToSend = userProfile.username || effectiveEmail?.split('@')[0] || 'Player';
 
               if (emailToSend) {
                 try {
@@ -446,7 +482,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     console.warn('[AuthContext] Welcome email failed:', await emailResponse.text());
                   }
                 } catch (emailErr) {
-                  console.warn('[AuthContext] Welcome email error:', emailErr);
+                  console.warn('[AuthContext] Welcome email error (non-blocking):', emailErr);
                 }
               } else {
                 console.log('[AuthContext] No email available for welcome email');
@@ -454,7 +490,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             }
           }
         } catch (rpcErr) {
-          console.warn('[AuthContext] upsert_canonical_user RPC exception:', rpcErr);
+          console.error('[AuthContext] upsert_canonical_user RPC exception:', rpcErr);
+          // Don't block user experience - log and continue
         }
       }
 
