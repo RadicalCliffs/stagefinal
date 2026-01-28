@@ -1412,7 +1412,7 @@ export const database = {
 
       // Use Supabase RPC to get ALL unavailable tickets (sold + pending) in one call
       // The RPC function get_unavailable_tickets returns distinct ticket numbers that are not available
-      // Uses pending_tickets.ticket_numbers (array), filters where expires_at > now() and status IN ('pending','confirming')
+      // Queries pending_ticket_items.ticket_number (joined with pending_tickets for expires_at/status check)
       databaseLogger.request('rpc/get_unavailable_tickets', {
         competition_id: competitionId.slice(0, 8) + '...'
       });
