@@ -55,7 +55,7 @@ const WinnersPage = () => {
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'competition_winners'
+          table: 'winners'
         },
         (payload) => {
           console.log('New winner detected:', payload.new);

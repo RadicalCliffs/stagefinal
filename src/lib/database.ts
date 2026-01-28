@@ -354,12 +354,32 @@ export const database = {
 
   async getAllWinners(limit: number = 50): Promise<WinnerCardProps[]>{
     try {
-      // Fetch all winners with extended fields including competition and user data
+      // Fetch all winners from the actual winners table
       const { data: winners, error } = await supabase
-        .from('competition_winners')
-        .select('competitionprize, Winner, crDate, competitionname, imageurl, competitionid, txhash')
-        .not('Winner', 'is', null as any)
-        .order('crDate', { ascending: false, nullsFirst: false } as any)
+        .from('winners')
+        .select(`
+          id,
+          wallet_address,
+          prize_value,
+          prize_description,
+          won_at,
+          created_at,
+          ticket_number,
+          competition_id,
+          distribution_hash,
+          competitions (
+            id,
+            title,
+            image_url,
+            end_date,
+            draw_date,
+            prize_description,
+            prize_value,
+            prize_type
+          )
+        `)
+        .not('wallet_address', 'is', null)
+        .order('won_at', { ascending: false })
         .limit(100);
 
       if (error) {
@@ -380,53 +400,25 @@ export const database = {
         if (cleanAddr.includes('test') || cleanAddr.includes('fake')) return false;
         // Reject did:priv patterns which are test identifiers
         if (cleanAddr.startsWith('did:priv')) return false;
+        // Reject prize:pid patterns which are pseudo-identifiers (not real wallets)
+        if (cleanAddr.startsWith('prize:pid:')) return false;
         return true;
       };
 
-      // Filter for only monetary ($) or crypto prizes (BTC, ETH, SOL, USDT, USDC, etc.)
-      // Also include numeric prizes (treat any prize with a valid value as displayable)
-      // AND filter out test/fake winner addresses
+      // Filter for valid winners with real wallet addresses
       const filteredWinners = (winners || []).filter((winner) => {
-        // First, filter out fake/test wallet addresses
-        if (!isValidWinnerAddress(winner.Winner)) return false;
-
-        const prize = winner.competitionprize || '';
-        // Show if prize starts with $
-        const isMonetary = prize.startsWith('$');
-        // Show if prize contains crypto keywords
-        const isCrypto = /\b(BTC|ETH|SOL|USDT|USDC|BITCOIN|ETHEREUM|SOLANA)\b/i.test(prize);
-        // Show if prize is a numeric value (stored as number)
-        const isNumeric = !isNaN(parseFloat(prize)) && parseFloat(prize) > 0;
-        // Show if prize contains any amount indicators
-        const hasAmount = /\d/.test(prize);
-        return isMonetary || isCrypto || isNumeric || hasAmount;
+        // Filter out fake/test wallet addresses
+        return isValidWinnerAddress(winner.wallet_address);
       });
 
       // Batch fetch user data for winners
-      const winnerAddresses = [...new Set(filteredWinners.slice(0, limit).map(w => w.Winner).filter(Boolean))];
+      const winnerAddresses = [...new Set(filteredWinners.slice(0, limit).map(w => w.wallet_address).filter(Boolean))];
       const { data: usersData } = winnerAddresses.length > 0
         ? await supabase
             .from('canonical_users')
             .select('username, avatar_url, wallet_address, country')
             .in('wallet_address', winnerAddresses)
         : { data: [] };
-
-      // Batch fetch competition end_dates for draw dates
-      const competitionIds = [...new Set(filteredWinners.slice(0, limit).map(w => w.competitionid).filter(Boolean))];
-      const { data: competitionsData } = competitionIds.length > 0
-        ? await supabase
-            .from('competitions')
-            .select('id, end_date')
-            .in('id', competitionIds as string[])
-        : { data: [] };
-
-      // Create competition lookup map for end_dates
-      const competitionEndDateMap = new Map<string, string | null>();
-      for (const comp of competitionsData || []) {
-        if (comp.id) {
-          competitionEndDateMap.set(comp.id, comp.end_date);
-        }
-      }
 
       // Create user lookup map
       const userMap = new Map<string, { username: string | null; avatar_url: string | null; country: string | null }>();
@@ -467,10 +459,26 @@ export const database = {
       const mappedWinners: WinnerCardProps[] = [];
       for (let i = 0; i < Math.min(filteredWinners.length, limit); i++) {
         const winner = filteredWinners[i];
-        // Skip winners without a valid prize - don't show placeholder data
-        if (!winner.competitionprize) continue;
+        const competition = winner.competitions;
+        
+        // Determine prize display - use competition title or prize description
+        let prizeDisplay = competition?.title || '';
+        
+        // If no title, try to construct from prize_value and prize_type
+        if (!prizeDisplay && winner.prize_value) {
+          const prizeType = competition?.prize_type || 'Prize';
+          prizeDisplay = `$${winner.prize_value} ${prizeType}`;
+        }
+        
+        // Fallback to prize_description if available
+        if (!prizeDisplay) {
+          prizeDisplay = winner.prize_description || competition?.prize_description || '';
+        }
+        
+        // Skip if we still don't have a prize to display
+        if (!prizeDisplay) continue;
 
-        const winnerAddress = winner.Winner;
+        const winnerAddress = winner.wallet_address;
         const userData = winnerAddress ? userMap.get(winnerAddress.toLowerCase()) : null;
 
         // Format wallet address for display
@@ -481,20 +489,19 @@ export const database = {
         // Use real username if available, otherwise truncated wallet
         const displayName = userData?.username || walletDisplay;
 
-        // Use actual competition end_date as the draw date, fallback to crDate if not available
-        const competitionEndDate = winner.competitionid ? competitionEndDateMap.get(winner.competitionid) : null;
-        const drawDate = formatDate(competitionEndDate || winner.crDate);
+        // Use won_at date for display, or competition end_date/draw_date as fallback
+        const drawDate = formatDate(winner.won_at || competition?.draw_date || competition?.end_date || winner.created_at);
 
         mappedWinners.push({
-          prize: winner.competitionprize,
+          prize: prizeDisplay,
           username: displayName,
           country: userData?.country || 'International',
           wallet: walletDisplay,
           date: drawDate,
           showInstantWin: false,
           avatarUrl: userData?.avatar_url || getRandomAvatar(),
-          competitionId: winner.competitionid || '',
-          txHash: winner.txhash || '',
+          competitionId: winner.competition_id || '',
+          txHash: winner.distribution_hash || '',
         });
       }
 
@@ -507,16 +514,36 @@ export const database = {
 
 
   async getWinners(limit: number = 50): Promise<WinnerCardProps[]> {
-    // Fetch all winners with extended fields including competition and user data
+    // Fetch all winners from the actual winners table
     const { data: winners, error } = await supabase
-      .from('competition_winners')
-      .select('competitionprize, Winner, crDate, competitionname, imageurl, competitionid, txhash')
-      .not('Winner', 'is', null as any)
-      .order('crDate', { ascending: false, nullsFirst: false } as any)
+      .from('winners')
+      .select(`
+        id,
+        wallet_address,
+        prize_value,
+        prize_description,
+        won_at,
+        created_at,
+        ticket_number,
+        competition_id,
+        distribution_hash,
+        competitions (
+          id,
+          title,
+          image_url,
+          end_date,
+          draw_date,
+          prize_description,
+          prize_value,
+          prize_type
+        )
+      `)
+      .not('wallet_address', 'is', null)
+      .order('won_at', { ascending: false })
       .limit(100);
 
     if (error) {
-      console.error('Error fetching winners from competition_winners:', error);
+      console.error('Error fetching winners from winners table:', error);
       return [];
     }
 
@@ -528,53 +555,25 @@ export const database = {
       if (cleanAddr.length < 10) return false;
       if (cleanAddr.includes('test') || cleanAddr.includes('fake')) return false;
       if (cleanAddr.startsWith('did:priv')) return false;
+      // Reject prize:pid patterns which are pseudo-identifiers (not real wallets)
+      if (cleanAddr.startsWith('prize:pid:')) return false;
       return true;
     };
 
-    // Filter for only monetary ($) or crypto prizes (BTC, ETH, SOL, USDT, USDC, etc.)
-    // Also include numeric prizes (treat any prize with a valid value as displayable)
-    // AND filter out test/fake winner addresses
+    // Filter for valid winners with real wallet addresses
     const filteredWinners = (winners || []).filter((winner) => {
-      // First, filter out fake/test wallet addresses
-      if (!isValidWinnerAddress(winner.Winner)) return false;
-
-      const prize = winner.competitionprize || '';
-      // Show if prize starts with $
-      const isMonetary = prize.startsWith('$');
-      // Show if prize contains crypto keywords
-      const isCrypto = /\b(BTC|ETH|SOL|USDT|USDC|BITCOIN|ETHEREUM|SOLANA)\b/i.test(prize);
-      // Show if prize is a numeric value (stored as number)
-      const isNumeric = !isNaN(parseFloat(prize)) && parseFloat(prize) > 0;
-      // Show if prize contains any amount indicators
-      const hasAmount = /\d/.test(prize);
-      return isMonetary || isCrypto || isNumeric || hasAmount;
+      // Filter out fake/test wallet addresses
+      return isValidWinnerAddress(winner.wallet_address);
     });
 
     // Batch fetch user data for winners
-    const winnerAddresses = [...new Set(filteredWinners.slice(0, limit).map(w => w.Winner).filter(Boolean))];
+    const winnerAddresses = [...new Set(filteredWinners.slice(0, limit).map(w => w.wallet_address).filter(Boolean))];
     const { data: usersData } = winnerAddresses.length > 0
       ? await supabase
           .from('canonical_users')
           .select('username, avatar_url, wallet_address, country')
           .in('wallet_address', winnerAddresses)
       : { data: [] };
-
-    // Batch fetch competition end_dates for draw dates
-    const competitionIds = [...new Set(filteredWinners.slice(0, limit).map(w => w.competitionid).filter(Boolean))];
-    const { data: competitionsData } = competitionIds.length > 0
-      ? await supabase
-          .from('competitions')
-          .select('id, end_date')
-          .in('id', competitionIds as string[])
-      : { data: [] };
-
-    // Create competition lookup map for end_dates
-    const competitionEndDateMap = new Map<string, string | null>();
-    for (const comp of competitionsData || []) {
-      if (comp.id) {
-        competitionEndDateMap.set(comp.id, comp.end_date);
-      }
-    }
 
     // Create user lookup map
     const userMap = new Map<string, { username: string | null; avatar_url: string | null; country: string | null }>();
@@ -615,10 +614,26 @@ export const database = {
     const mappedWinners: WinnerCardProps[] = [];
     for (let i = 0; i < Math.min(filteredWinners.length, limit); i++) {
       const winner = filteredWinners[i];
-      // Skip winners without a valid prize - don't show placeholder data
-      if (!winner.competitionprize) continue;
+      const competition = winner.competitions;
+      
+      // Determine prize display - use competition title or prize description
+      let prizeDisplay = competition?.title || '';
+      
+      // If no title, try to construct from prize_value and prize_type
+      if (!prizeDisplay && winner.prize_value) {
+        const prizeType = competition?.prize_type || 'Prize';
+        prizeDisplay = `$${winner.prize_value} ${prizeType}`;
+      }
+      
+      // Fallback to prize_description if available
+      if (!prizeDisplay) {
+        prizeDisplay = winner.prize_description || competition?.prize_description || '';
+      }
+      
+      // Skip if we still don't have a prize to display
+      if (!prizeDisplay) continue;
 
-      const winnerAddress = winner.Winner;
+      const winnerAddress = winner.wallet_address;
       const userData = winnerAddress ? userMap.get(winnerAddress.toLowerCase()) : null;
 
       // Format wallet address for display
@@ -629,20 +644,19 @@ export const database = {
       // Use real username if available, otherwise truncated wallet
       const displayName = userData?.username || walletDisplay;
 
-      // Use actual competition end_date as the draw date, fallback to crDate if not available
-      const competitionEndDate = winner.competitionid ? competitionEndDateMap.get(winner.competitionid) : null;
-      const drawDate = formatDate(competitionEndDate || winner.crDate);
+      // Use won_at date for display, or competition end_date/draw_date as fallback
+      const drawDate = formatDate(winner.won_at || competition?.draw_date || competition?.end_date || winner.created_at);
 
       mappedWinners.push({
-        prize: winner.competitionprize,
+        prize: prizeDisplay,
         username: displayName,
         country: userData?.country || 'International',
         wallet: walletDisplay,
         date: drawDate,
         showInstantWin: false,
         avatarUrl: userData?.avatar_url || getRandomAvatar(),
-        competitionId: winner.competitionid || '',
-        txHash: winner.txhash || '',
+        competitionId: winner.competition_id || '',
+        txHash: winner.distribution_hash || '',
       });
     }
 
