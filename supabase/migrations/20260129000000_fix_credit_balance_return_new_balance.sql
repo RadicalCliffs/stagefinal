@@ -96,3 +96,7 @@ BEGIN
   );
 END;
 $$;
+
+-- Grant execute permission to service_role only (this is a sensitive operation)
+REVOKE ALL ON FUNCTION credit_balance_with_first_deposit_bonus(TEXT, NUMERIC, TEXT, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION credit_balance_with_first_deposit_bonus(TEXT, NUMERIC, TEXT, TEXT) TO service_role;
