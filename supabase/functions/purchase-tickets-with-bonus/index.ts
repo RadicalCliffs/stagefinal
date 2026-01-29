@@ -574,12 +574,13 @@ Deno.serve(async (req: Request) => {
           cachedResponse.status = 'succeeded';
         }
         
+        // Spread cached response first, then override critical fields that must be set
         return new Response(
           JSON.stringify({
+            ...cachedResponse,
             idempotent: true,
             message: "Purchase already processed (idempotent response)",
             cachedAt: existingPurchase.created_at,
-            ...cachedResponse,
           }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
@@ -627,9 +628,17 @@ Deno.serve(async (req: Request) => {
 
         const ticketNumbers = confirmedTickets ? confirmedTickets.map(t => t.ticket_number) : [];
         const tickets = confirmedTickets ? confirmedTickets.map(t => ({
-          id: t.id || crypto.randomUUID(),
+          id: t.id || (() => {
+            console.warn(`[purchase-tickets-with-bonus] Ticket missing ID for ticket_number ${t.ticket_number}, using fallback UUID`);
+            return crypto.randomUUID();
+          })(),
           ticket_number: t.ticket_number
         })) : [];
+
+        // Warn if transaction_hash is missing for an already-confirmed reservation
+        if (!existingReservation.transaction_hash) {
+          console.warn(`[purchase-tickets-with-bonus] Already-confirmed reservation ${reservationId} is missing transaction_hash, using fallback UUID for payment_id`);
+        }
 
         return new Response(
           JSON.stringify({
@@ -1302,7 +1311,7 @@ Deno.serve(async (req: Request) => {
     if (referenceId) {
       const { data: existing } = await supabase
         .from("joincompetition")
-        .select("id, ticketnumbers")
+        .select("id, ticketnumbers, amountspent")
         .eq("userid", normalizedUserId)
         .eq("competitionid", competitionId)
         .eq("transactionhash", referenceId)
@@ -1312,17 +1321,25 @@ Deno.serve(async (req: Request) => {
         const existingTickets = existing.ticketnumbers
           ? existing.ticketnumbers.split(",").map((n: string) => parseInt(n.trim())).filter((n: number) => !isNaN(n))
           : [];
+        const actualAmount = existing.amountspent || 0;
+        
+        // Create deterministic ticket IDs based on transaction hash and ticket number
+        // This ensures idempotent responses return the same IDs
+        const deterministicTicketId = (ticketNumber: number) => {
+          // Use a simple hash of referenceId + ticketNumber for determinism
+          return `ticket-${referenceId.substring(0, 8)}-${ticketNumber}`;
+        };
         
         return new Response(
           JSON.stringify({
             status: 'succeeded',  // CRITICAL: Frontend expects this field
             payment_id: referenceId,
-            amount: '0',
+            amount: String(actualAmount),
             currency: 'USD',
             new_balance: String(userBalance), // Return original balance since nothing changed
             competition_id: competitionId,
             tickets: existingTickets.map((ticketNumber: number) => ({
-              id: crypto.randomUUID(),
+              id: deterministicTicketId(ticketNumber),
               ticket_number: ticketNumber
             })),
             // Legacy fields
@@ -1330,8 +1347,8 @@ Deno.serve(async (req: Request) => {
             idempotent: true,
             message: "Already processed",
             ticketsCreated: 0,
-            ticketsPurchased: 0,
-            totalCost: 0,
+            ticketsPurchased: existingTickets.length,
+            totalCost: actualAmount,
             balanceAfterPurchase: userBalance,
             ticketNumbers: existingTickets,
           }),
@@ -1896,6 +1913,14 @@ Deno.serve(async (req: Request) => {
       // STEP 11: Store idempotency record and return success
       // CRITICAL: Match the response format expected by balance-payment-service.ts
       // Frontend expects: { status: 'succeeded', payment_id, amount, currency, new_balance, competition_id, tickets: [...] }
+      
+      // Create deterministic ticket IDs based on transaction hash and ticket number
+      // This ensures idempotent responses return the same IDs
+      const deterministicTicketId = (ticketNumber: number) => {
+        // Use a simple hash of txRef + ticketNumber for determinism
+        return `ticket-${txRef.substring(0, 8)}-${ticketNumber}`;
+      };
+      
       const responseData = {
         status: 'succeeded',  // CRITICAL: Frontend checks for this field
         payment_id: transactionId,
@@ -1904,7 +1929,7 @@ Deno.serve(async (req: Request) => {
         new_balance: String(newBalance),
         competition_id: competitionId,
         tickets: assignedNumbers.map((ticketNumber: number) => ({
-          id: crypto.randomUUID(), // Generate ticket ID for consistency
+          id: deterministicTicketId(ticketNumber),
           ticket_number: ticketNumber
         })),
         // Legacy fields for backwards compatibility
@@ -2100,7 +2125,7 @@ Deno.serve(async (req: Request) => {
             errorDetails: errorMessage,
           }
         }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } } // Return 200 since payment succeeded
+        { status: 207, headers: { ...corsHeaders, "Content-Type": "application/json" } } // 207 Multi-Status accurately represents partial success
       );
 
     }
