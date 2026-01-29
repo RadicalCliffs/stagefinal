@@ -341,6 +341,8 @@ export class BasePaymentService {
       console.log(`[VERBOSE][BasePayment] Sender address: ${senderAddress}`);
       console.log(`[VERBOSE][BasePayment] Amount: ${amount} USDC`);
       
+      // CRITICAL: Treasury address is the business wallet where all payments are sent
+      // Expected value: 0xFf5680F0938B01b07952eF075B23082eB136E8Af (from VITE_TREASURY_ADDRESS env var)
       const treasuryAddress = import.meta.env.VITE_TREASURY_ADDRESS;
       console.log(`[VERBOSE][BasePayment] Treasury address (from env): ${treasuryAddress}`);
       

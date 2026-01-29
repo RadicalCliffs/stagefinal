@@ -290,7 +290,6 @@ export default async (request: Request, context: Context): Promise<Response> => 
 
     if (!treasuryAddress) {
       console.error(`[VERBOSE][instant-topup] ❌ Treasury address not configured in environment!`);
-      console.error("Service configuration error", 500);
       return errorResponse("Service configuration error", 500);
     }
     
