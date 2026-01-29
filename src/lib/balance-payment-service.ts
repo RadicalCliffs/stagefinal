@@ -38,6 +38,12 @@ export interface ReservationResponse {
 export interface PurchaseRequest {
   reservation_id: string;
   idempotency_key: string;
+  // Best practice: include all required data directly, don't rely on lookups
+  competition_id?: string;
+  canonical_user_id?: string;
+  ticket_numbers?: number[];
+  ticket_count?: number;
+  ticket_price?: number;
 }
 
 export interface PurchaseResponse {
@@ -244,20 +250,30 @@ export class BalancePaymentService {
    * Step 2: Purchase with balance
    * 
    * Deducts balance, marks tickets as paid, and finalizes reservation.
-   * Must be called before reservation expires_at.
+   * Best practice: Pass all required data directly to avoid backend lookups.
    * 
    * @param params.reservationId - Reservation UUID from the reserve step
+   * @param params.competitionId - Competition UUID (recommended for reliability)
+   * @param params.userId - User identifier (recommended for reliability)
+   * @param params.ticketNumbers - Specific ticket numbers (recommended for reliability)
+   * @param params.ticketCount - Number of tickets (recommended for reliability)
+   * @param params.ticketPrice - Price per ticket (recommended for reliability)
    * @returns Promise with purchase data including tickets, new balance, and payment ID
    */
   static async purchaseWithBalance(params: {
     reservationId: string;
+    competitionId?: string;
+    userId?: string;
+    ticketNumbers?: number[];
+    ticketCount?: number;
+    ticketPrice?: number;
   }): Promise<{
     success: boolean;
     data?: PurchaseResponse;
     error?: string;
     errorDetails?: BalancePaymentError;
   }> {
-    const { reservationId } = params;
+    const { reservationId, competitionId, userId, ticketNumbers, ticketCount, ticketPrice } = params;
 
     if (!reservationId) {
       return {
@@ -269,12 +285,35 @@ export class BalancePaymentService {
     try {
       const idempotencyKey = generateIdempotencyKey(`purchase-${reservationId}`);
 
+      // Best practice: include all required data directly in the request
       const requestBody: PurchaseRequest = {
         reservation_id: reservationId,
         idempotency_key: idempotencyKey
       };
 
-      console.log('[BalancePayment] Purchasing with balance:', { reservationId });
+      // Add optional but recommended fields for reliability
+      if (competitionId) {
+        requestBody.competition_id = competitionId;
+      }
+      if (userId) {
+        requestBody.canonical_user_id = toCanonicalUserId(userId);
+      }
+      if (ticketNumbers && ticketNumbers.length > 0) {
+        requestBody.ticket_numbers = ticketNumbers;
+      }
+      if (ticketCount !== undefined && ticketCount > 0) {
+        requestBody.ticket_count = ticketCount;
+      }
+      if (ticketPrice !== undefined && ticketPrice > 0) {
+        requestBody.ticket_price = ticketPrice;
+      }
+
+      console.log('[BalancePayment] Purchasing with balance:', { 
+        reservationId,
+        hasCompetitionId: !!competitionId,
+        hasUserId: !!userId,
+        ticketCount: ticketNumbers?.length || ticketCount
+      });
 
       const { data, error } = await supabase.functions.invoke('purchase-tickets-with-bonus', {
         body: requestBody
