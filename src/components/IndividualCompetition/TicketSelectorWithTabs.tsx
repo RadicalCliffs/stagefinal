@@ -13,7 +13,6 @@ import { getUserFriendlyErrorMessage, parseReservationErrorAsync, SupabaseFuncti
 import { debounce } from "../../utils/util";
 import { reserveTicketsWithRedundancy } from "../../lib/reserve-tickets-redundant";
 import { useProactiveReservationMonitor } from "../../hooks/useProactiveReservationMonitor";
-import { omnipotentData } from "../../lib/omnipotent-data-service";
 
 // Lazy load PaymentModal - only loaded when user initiates payment
 const PaymentModal = lazy(() => import("../PaymentModal"));
@@ -148,9 +147,22 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
         }
         setLoadingError(null);
         try {
-            // IMPORTANT: Use omnipotent data service for consistency and caching
-            // The omnipotent service handles race conditions and ensures data consistency
-            const available = await omnipotentData.getAvailableTickets(competitionId, totalTickets);
+            // Fetch unavailable tickets directly using RPC
+            const { data: unavailableData, error: unavailableError } = await supabase
+                .rpc('get_unavailable_tickets', { p_competition_id: competitionId });
+
+            if (unavailableError) {
+                console.error('[TicketSelector] Error fetching unavailable tickets:', unavailableError);
+                throw unavailableError;
+            }
+
+            const unavailableSet = new Set<number>(unavailableData || []);
+            const available: number[] = [];
+            for (let i = 1; i <= totalTickets; i++) {
+                if (!unavailableSet.has(i)) {
+                    available.push(i);
+                }
+            }
 
             // Validate against ticketsSold prop - if service returns more available than expected,
             // the data may be stale or inconsistent
