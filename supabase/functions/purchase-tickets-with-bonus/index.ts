@@ -1839,7 +1839,6 @@ Deno.serve(async (req: Request) => {
             status: "requires_manual_allocation",
             transaction_hash: txRef,
             payment_provider: "balance",
-            notes: `Allocation failed: ${errorMessage}`,
             updated_at: new Date().toISOString(),
           })
           .eq("id", reservationRecord.id);
@@ -1855,12 +1854,13 @@ Deno.serve(async (req: Request) => {
           ticketsPurchased: numberOfTickets,
           totalCost,
           balanceAfterPurchase: newBalance,
-          message: `Payment successful! Your balance has been debited $${totalCost.toFixed(2)}. However, ticket allocation failed. Please contact support with this reference: ${txRef}`,
+          message: `Payment successful! Your balance has been debited $${totalCost.toFixed(2)}. However, ticket allocation encountered an issue. Our support team has been notified. Please contact us at support@theprize.io with this reference: ${txRef}`,
           warning: `Ticket allocation failed: ${errorMessage}`,
           tickets: [],
           transactionRef: txRef,
           transactionId: transactionId,
           supportRequired: true,
+          supportEmail: 'support@theprize.io',
           allocationError: errorMessage,
           debugInfo: {
             reservationId: reservationId || null,
@@ -1869,7 +1869,7 @@ Deno.serve(async (req: Request) => {
             errorDetails: errorMessage,
           }
         }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 207, headers: { ...corsHeaders, "Content-Type": "application/json" } } // 207 Multi-Status for partial success
       );
 
     }

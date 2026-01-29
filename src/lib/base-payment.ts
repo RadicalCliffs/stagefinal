@@ -352,7 +352,6 @@ export class BasePaymentService {
       }
       
       console.log(`[VERBOSE][BasePayment] ✅ Treasury address validated: ${treasuryAddress}`);
-      console.log(`[VERBOSE][BasePayment] Expected business wallet: 0xFf5680F0938B01b07952eF075B23082eB136E8Af`);
 
       // USDC contract addresses - use mainnet or testnet based on environment
       const isMainnet = import.meta.env.VITE_BASE_MAINNET === 'true';

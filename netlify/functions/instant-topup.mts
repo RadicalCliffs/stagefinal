@@ -284,7 +284,6 @@ export default async (request: Request, context: Context): Promise<Response> => 
     console.log(`[VERBOSE][instant-topup] Validating transaction details`);
     console.log(`[VERBOSE][instant-topup] User wallet (normalized): ${normalizedWallet}`);
     console.log(`[VERBOSE][instant-topup] Treasury address (from env): ${treasuryAddress}`);
-    console.log(`[VERBOSE][instant-topup] Expected business wallet: 0xFf5680F0938B01b07952eF075B23082eB136E8Af`);
     console.log(`[VERBOSE][instant-topup] Transaction hash: ${transactionHash}`);
     console.log(`[VERBOSE][instant-topup] Amount: ${amount} USDC`);
 
