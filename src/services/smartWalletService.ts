@@ -47,7 +47,12 @@ export async function linkSmartWalletToParent(
       .from('canonical_users')
       .select('id, wallet_address, smart_wallet_address')
       .eq('canonical_user_id', canonicalId)
-      .maybeSingle();
+      .maybeSingle<{
+        id: string;
+        wallet_address?: string | null;
+        smart_wallet_address?: string | null;
+        [key: string]: any;
+      }>();
     
     if (findError) {
       console.error('[SmartWallet] Error finding user:', findError);
@@ -61,7 +66,7 @@ export async function linkSmartWalletToParent(
     
     // Update the smart_wallet_address if not already set or different
     if (user.smart_wallet_address !== normalizedSmart) {
-      const { error: updateError } = await supabase
+      const { error: updateError } = await (supabase as any)
         .from('canonical_users')
         .update({ smart_wallet_address: normalizedSmart })
         .eq('id', user.id);
@@ -102,7 +107,11 @@ export async function resolveToParentWallet(walletAddress: string): Promise<stri
       .from('canonical_users')
       .select('wallet_address, canonical_user_id')
       .eq('smart_wallet_address', normalized)
-      .maybeSingle();
+      .maybeSingle<{
+        wallet_address?: string | null;
+        canonical_user_id?: string | null;
+        [key: string]: any;
+      }>();
     
     if (error) {
       console.error('[SmartWallet] Error resolving smart wallet:', error);
@@ -142,7 +151,10 @@ export async function isSmartContractWallet(walletAddress: string): Promise<bool
       .from('canonical_users')
       .select('id')
       .eq('smart_wallet_address', normalized)
-      .maybeSingle();
+      .maybeSingle<{
+        id: string;
+        [key: string]: any;
+      }>();
     
     if (error) {
       console.error('[SmartWallet] Error checking if smart contract:', error);
