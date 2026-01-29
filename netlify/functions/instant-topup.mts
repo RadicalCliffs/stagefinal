@@ -281,10 +281,20 @@ export default async (request: Request, context: Context): Promise<Response> => 
     const normalizedWallet = normalizeWalletAddress(walletAddress);
     const treasuryAddress = Netlify.env.get("VITE_TREASURY_ADDRESS");
 
+    console.log(`[VERBOSE][instant-topup] Validating transaction details`);
+    console.log(`[VERBOSE][instant-topup] User wallet (normalized): ${normalizedWallet}`);
+    console.log(`[VERBOSE][instant-topup] Treasury address (from env): ${treasuryAddress}`);
+    console.log(`[VERBOSE][instant-topup] Expected business wallet: 0xFf5680F0938B01b07952eF075B23082eB136E8Af`);
+    console.log(`[VERBOSE][instant-topup] Transaction hash: ${transactionHash}`);
+    console.log(`[VERBOSE][instant-topup] Amount: ${amount} USDC`);
+
     if (!treasuryAddress) {
-      console.error("Treasury address not configured");
+      console.error(`[VERBOSE][instant-topup] ❌ Treasury address not configured in environment!`);
+      console.error("Service configuration error", 500);
       return errorResponse("Service configuration error", 500);
     }
+    
+    console.log(`[VERBOSE][instant-topup] ✅ Treasury address validated`);
 
     // Check for duplicate transaction (idempotency)
     const { data: existingTx } = await supabase
@@ -307,6 +317,12 @@ export default async (request: Request, context: Context): Promise<Response> => 
     }
 
     // Verify the transaction on-chain
+    console.log(`[VERBOSE][instant-topup] Verifying transaction on-chain...`);
+    console.log(`[VERBOSE][instant-topup] Verifying against:`);
+    console.log(`[VERBOSE][instant-topup]   - Expected recipient: ${treasuryAddress}`);
+    console.log(`[VERBOSE][instant-topup]   - Expected amount: ${amount} USDC`);
+    console.log(`[VERBOSE][instant-topup]   - Expected sender: ${walletAddress}`);
+    
     const verification = await verifyTransaction(
       transactionHash,
       treasuryAddress,
@@ -314,9 +330,16 @@ export default async (request: Request, context: Context): Promise<Response> => 
       walletAddress
     );
 
+    console.log(`[VERBOSE][instant-topup] Verification result:`, verification);
+    
     if (!verification.verified) {
+      console.error(`[VERBOSE][instant-topup] ❌ Transaction verification failed!`);
+      console.error(`[VERBOSE][instant-topup] Error: ${verification.error}`);
       return errorResponse(verification.error || "Transaction verification failed", 400);
     }
+    
+    console.log(`[VERBOSE][instant-topup] ✅ Transaction verified successfully!`);
+    console.log(`[VERBOSE][instant-topup] Actual amount transferred: ${verification.actualAmount} USDC`);
 
     const creditAmount = verification.actualAmount || amount;
 
@@ -355,6 +378,12 @@ export default async (request: Request, context: Context): Promise<Response> => 
 
     // Credit user's balance using the bonus-aware function for first deposit
     // This applies 50% bonus on the first topup automatically
+    console.log(`[VERBOSE][instant-topup] Crediting user balance with bonus check`);
+    console.log(`[VERBOSE][instant-topup] User canonical ID: ${user.canonicalUserId}`);
+    console.log(`[VERBOSE][instant-topup] Amount to credit: ${creditAmount} USDC`);
+    console.log(`[VERBOSE][instant-topup] Transaction hash: ${transactionHash}`);
+    console.log(`[VERBOSE][instant-topup] Treasury address used: ${treasuryAddress}`);
+    
     const { data: creditResult, error: creditError } = await supabase.rpc(
       "credit_balance_with_first_deposit_bonus",
       {
@@ -365,15 +394,26 @@ export default async (request: Request, context: Context): Promise<Response> => 
       }
     );
 
+    console.log(`[VERBOSE][instant-topup] Credit RPC result:`, creditResult);
+    if (creditError) {
+      console.error(`[VERBOSE][instant-topup] ❌ Credit RPC error:`, creditError);
+    }
+
     // Check if bonus function succeeded
     if (!creditError && creditResult?.success) {
       const bonusAmount = creditResult.bonus_amount || 0;
       const bonusApplied = creditResult.bonus_applied || false;
       const newBalance = creditResult.new_balance;
       
-      console.log(`[instant-topup] Credited ${creditAmount} to user ${user.canonicalUserId.substring(0, 20)}... ` +
-                  `bonus=${bonusAmount}, total=${creditResult.total_credited}, new_balance=${newBalance}`);
-
+      console.log(`[VERBOSE][instant-topup] ✅ Balance credit successful!`);
+      console.log(`[VERBOSE][instant-topup] Credited amount: ${creditAmount}`);
+      console.log(`[VERBOSE][instant-topup] Bonus applied: ${bonusApplied}`);
+      console.log(`[VERBOSE][instant-topup] Bonus amount: ${bonusAmount}`);
+      console.log(`[VERBOSE][instant-topup] Total credited: ${creditResult.total_credited}`);
+      console.log(`[VERBOSE][instant-topup] New balance: ${newBalance}`);
+      console.log(`[VERBOSE][instant-topup] User ID (canonical): ${user.canonicalUserId.substring(0, 20)}...`);
+      console.log(`[VERBOSE][instant-topup] Balance should be visible in sub_account_balances table`);
+      
       // Mark transaction as wallet_credited
       await supabase
         .from("user_transactions")
@@ -384,6 +424,8 @@ export default async (request: Request, context: Context): Promise<Response> => 
             : "Wallet topup completed",
         })
         .eq("id", transactionId);
+
+      console.log(`[VERBOSE][instant-topup] Transaction marked as wallet_credited`);
 
       return jsonResponse({
         success: true,

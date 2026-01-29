@@ -336,10 +336,21 @@ export class BasePaymentService {
     walletProvider: any
   ): Promise<BasePaymentResult> {
     try {
+      console.log(`[VERBOSE][BasePayment] Processing Privy wallet payment`);
+      console.log(`[VERBOSE][BasePayment] Transaction ID: ${transactionId}`);
+      console.log(`[VERBOSE][BasePayment] Sender address: ${senderAddress}`);
+      console.log(`[VERBOSE][BasePayment] Amount: ${amount} USDC`);
+      
       const treasuryAddress = import.meta.env.VITE_TREASURY_ADDRESS;
+      console.log(`[VERBOSE][BasePayment] Treasury address (from env): ${treasuryAddress}`);
+      
       if (!treasuryAddress) {
+        console.error(`[VERBOSE][BasePayment] ❌ Treasury address not configured!`);
         throw new Error('Treasury address not configured');
       }
+      
+      console.log(`[VERBOSE][BasePayment] ✅ Treasury address validated: ${treasuryAddress}`);
+      console.log(`[VERBOSE][BasePayment] Expected business wallet: 0xFf5680F0938B01b07952eF075B23082eB136E8Af`);
 
       // USDC contract addresses - use mainnet or testnet based on environment
       const isMainnet = import.meta.env.VITE_BASE_MAINNET === 'true';
@@ -347,8 +358,12 @@ export class BasePaymentService {
       const USDC_TESTNET = '0x036CbD53842c5426634e7929541eC2318f3dCF7e'; // USDC on Base Sepolia
       const USDC_ADDRESS = import.meta.env.VITE_USDC_CONTRACT_ADDRESS || (isMainnet ? USDC_MAINNET : USDC_TESTNET);
 
+      console.log(`[VERBOSE][BasePayment] Network: ${isMainnet ? 'MAINNET' : 'TESTNET'}`);
+      console.log(`[VERBOSE][BasePayment] USDC contract address: ${USDC_ADDRESS}`);
+      
       // Convert amount to USDC units (6 decimals)
       const amountInUnits = BigInt(Math.floor(amount * 1_000_000));
+      console.log(`[VERBOSE][BasePayment] Amount in USDC units (6 decimals): ${amountInUnits.toString()}`);
 
       // ERC20 transfer function signature: transfer(address,uint256)
       // Function selector: 0xa9059cbb
@@ -360,6 +375,17 @@ export class BasePaymentService {
 
       const data = `${transferFunctionSelector}${paddedAddress}${paddedAmount}`;
 
+      console.log(`[VERBOSE][BasePayment] Transaction data prepared:`);
+      console.log(`[VERBOSE][BasePayment]   - Function selector: ${transferFunctionSelector}`);
+      console.log(`[VERBOSE][BasePayment]   - Recipient (padded): ${paddedAddress}`);
+      console.log(`[VERBOSE][BasePayment]   - Amount (padded hex): ${paddedAmount}`);
+      console.log(`[VERBOSE][BasePayment]   - Full data: ${data.substring(0, 50)}...`);
+      
+      console.log(`[VERBOSE][BasePayment] Sending transaction through wallet provider...`);
+      console.log(`[VERBOSE][BasePayment]   FROM: ${senderAddress}`);
+      console.log(`[VERBOSE][BasePayment]   TO (USDC contract): ${USDC_ADDRESS}`);
+      console.log(`[VERBOSE][BasePayment]   RECIPIENT (in data): ${treasuryAddress}`);
+      
       // Send the transaction through the Privy wallet provider
       const txHash = await walletProvider.request({
         method: 'eth_sendTransaction',
@@ -370,6 +396,10 @@ export class BasePaymentService {
           // Gas will be estimated automatically
         }],
       });
+
+      console.log(`[VERBOSE][BasePayment] ✅ Transaction sent successfully!`);
+      console.log(`[VERBOSE][BasePayment] Transaction hash: ${txHash}`);
+      console.log(`[VERBOSE][BasePayment] Updating transaction status to completed...`);
 
       // Update transaction with the blockchain transaction hash via Netlify function
       await this.updateTransactionStatus(transactionId, 'completed', {
