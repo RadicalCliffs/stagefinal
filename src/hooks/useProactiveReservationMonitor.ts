@@ -15,7 +15,6 @@
  */
 
 import { useEffect, useRef, useCallback } from 'react';
-import { omnipotentData } from '../lib/omnipotent-data-service';
 import { supabase } from '../lib/supabase';
 import { databaseLogger } from '../lib/debug-console';
 import { hasAdminAccess, getAdminClient } from '../lib/supabase-admin';
@@ -86,8 +85,7 @@ export function useProactiveReservationMonitor(options: ProactiveMonitorOptions 
           competitionId 
         });
         
-        // Invalidate cache to ensure fresh data
-        omnipotentData.clearCache(`unavailable_tickets:${competitionId}`);
+        // Note: Cache invalidation removed as omnipotent data service is disabled
       }
     } catch (err) {
       databaseLogger.warn('[ProactiveMonitor] Exception during cleanup', err);

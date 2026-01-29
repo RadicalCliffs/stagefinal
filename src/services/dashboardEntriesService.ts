@@ -131,15 +131,18 @@ export interface PendingTransaction {
  * const entries = await fetchUserDashboardEntries('prize:pid:0x2137af5047526a1180...');
  */
 export async function fetchUserDashboardEntries(identifier: string): Promise<DashboardEntry[]> {
-  const { data, error } = await supabase.rpc(
+  const { data, error } = await (supabase.rpc as any)(
     'get_comprehensive_user_dashboard_entries',
     { user_identifier: identifier }
   );
 
   if (error) throw error;
 
+  // Cast RPC result from Json to expected type
+  const typedData = (data as ComprehensiveDashboardEntryResponse[] | null) ?? [];
+
   // Map to UI model with competition URL
-  const entries = (data ?? []).map((row: ComprehensiveDashboardEntryResponse) => {
+  const entries = typedData.map((row: ComprehensiveDashboardEntryResponse) => {
     const competitionUrl = `/competitions/${row.competition_id}`; // change if you have slugs
 
     return {
@@ -167,14 +170,17 @@ export async function fetchUserDashboardEntries(identifier: string): Promise<Das
  * const entries = await fetchUserEntriesDetailed('prize:pid:0x2137af5047526a1180...');
  */
 export async function fetchUserEntriesDetailed(identifier: string): Promise<DetailedEntry[]> {
-  const { data, error } = await supabase.rpc(
+  const { data, error } = await (supabase.rpc as any)(
     'get_user_competition_entries',
     { p_user_identifier: identifier }
   );
 
   if (error) throw error;
 
-  const entries = (data ?? []).map((row: UserCompetitionEntryResponse) => {
+  // Cast RPC result from Json to expected type
+  const typedData = (data as UserCompetitionEntryResponse[] | null) ?? [];
+
+  const entries = typedData.map((row: UserCompetitionEntryResponse) => {
     const competitionUrl = `/competitions/${row.competition_id}`;
     
     // Extract first ticket number if ticket_numbers is an array
@@ -212,23 +218,32 @@ export async function fetchUserEntriesDetailed(identifier: string): Promise<Deta
 export async function fetchCompetitionAvailability(
   competitionId: string
 ): Promise<CompetitionAvailability | null> {
-  const { data, error } = await supabase.rpc(
+  const { data, error } = await (supabase.rpc as any)(
     'get_competition_ticket_availability',
     { p_competition_id: competitionId }
   );
 
   if (error) throw error;
 
-  // Function returns JSON object directly
+  // Function returns JSON object directly - cast to expected type
   if (!data) return null;
 
+  // Type assertion for the RPC result
+  const typedData = data as {
+    competition_id: string;
+    total_tickets: number;
+    sold_count: number;
+    available_count: number;
+    available_tickets: number[];
+  };
+
   return {
-    competitionId: data.competition_id as string,
-    totalTickets: data.total_tickets as number,
-    soldCount: data.sold_count as number,
+    competitionId: typedData.competition_id,
+    totalTickets: typedData.total_tickets,
+    soldCount: typedData.sold_count,
     pendingCount: 0, // Not returned by this RPC, calculate if needed
-    availableCount: data.available_count as number,
-    availableTickets: data.available_tickets as number[],
+    availableCount: typedData.available_count,
+    availableTickets: typedData.available_tickets,
   };
 }
 

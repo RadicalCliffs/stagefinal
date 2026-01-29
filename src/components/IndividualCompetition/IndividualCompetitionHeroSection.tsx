@@ -17,7 +17,6 @@ import { useTicketBroadcast, type TicketStats } from "../../hooks/useTicketBroad
 import { ticketReservationLogger, requestTracker, showDebugHintOnError } from "../../lib/debug-console";
 import { canEnterCompetition } from "../CompetitionStatusIndicator";
 import { reserveTicketsWithRedundancy } from "../../lib/reserve-tickets-redundant";
-import { omnipotentData } from "../../lib/omnipotent-data-service";
 
 // Lazy load PaymentModal - only loaded when user initiates payment
 const PaymentModal = lazy(() => import("../PaymentModal"));
@@ -115,9 +114,14 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
         return;
       }
 
-      // RPC returned null or invalid - try fallback using omnipotent service
+      // RPC returned null or invalid - use direct fallback query
       console.log('[HeroSection] RPC returned null, using fallback method');
-      const unavailable = await omnipotentData.getUnavailableTickets(competition.id);
+      
+      // Fetch unavailable tickets directly
+      const { data: unavailableData } = await supabase
+        .rpc('get_unavailable_tickets', { p_competition_id: competition.id });
+      
+      const unavailable = unavailableData || [];
 
       // Validate fallback result against stored tickets_sold
       // If fallback returns 0 unavailable but competition has tickets_sold > 0, use stored value
@@ -294,8 +298,21 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
     try {
       ticketReservationLogger.info('Fetching available tickets');
 
-      // Use omnipotent data service for consistency and caching
-      const availableTickets = await omnipotentData.getAvailableTickets(competition.id, competition.total_tickets || 0);
+      // Fetch unavailable tickets directly using RPC
+      const { data: unavailableData, error: unavailableError } = await supabase
+        .rpc('get_unavailable_tickets', { p_competition_id: competition.id });
+
+      if (unavailableError) {
+        throw unavailableError;
+      }
+
+      const unavailableSet = new Set<number>(unavailableData || []);
+      const availableTickets: number[] = [];
+      for (let i = 1; i <= (competition.total_tickets || 0); i++) {
+        if (!unavailableSet.has(i)) {
+          availableTickets.push(i);
+        }
+      }
 
       ticketReservationLogger.debug('Available tickets fetched', {
         availableCount: availableTickets.length,

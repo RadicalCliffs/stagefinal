@@ -457,6 +457,53 @@ async function lookupUserByWallet(
   return { canonical_user_id: null, uid: null };
 }
 
+/**
+ * Quick balance fetch for early-return paths
+ * Fetches current balance from sub_account_balances (primary) or wallet_balances (fallback)
+ */
+async function getCurrentBalance(
+  supabase: SupabaseClient,
+  canonicalUserId: string,
+  normalizedUserId: string
+): Promise<number> {
+  try {
+    // Try sub_account_balances first
+    const { data: subAccountData } = await supabase
+      .from("sub_account_balances")
+      .select("available_balance")
+      .eq("currency", "USD")
+      .or(`canonical_user_id.eq.${canonicalUserId},user_id.eq.${normalizedUserId}`)
+      .maybeSingle();
+
+    if (subAccountData && subAccountData.available_balance !== null) {
+      return Number(subAccountData.available_balance || 0);
+    }
+
+    // Fallback to wallet_balances
+    const { data: walletData } = await supabase
+      .from("wallet_balances")
+      .select("balance")
+      .or(`canonical_user_id.eq.${canonicalUserId},wallet_address.ilike.${normalizedUserId}`)
+      .maybeSingle();
+
+    if (walletData && walletData.balance !== null) {
+      return Number(walletData.balance || 0);
+    }
+
+    // Last resort: canonical_users
+    const { data: canonicalData } = await supabase
+      .from("canonical_users")
+      .select("usdc_balance")
+      .or(`canonical_user_id.eq.${canonicalUserId},wallet_address.ilike.${normalizedUserId},privy_user_id.eq.${normalizedUserId}`)
+      .maybeSingle();
+
+    return Number(canonicalData?.usdc_balance || 0);
+  } catch (err) {
+    console.warn('[getCurrentBalance] Error fetching balance:', err);
+    return 0;
+  }
+}
+
 Deno.serve(async (req: Request) => {
   // Handle CORS preflight - no auth required
   if (req.method === "OPTIONS") {
@@ -640,13 +687,19 @@ Deno.serve(async (req: Request) => {
           console.warn(`[purchase-tickets-with-bonus] Already-confirmed reservation ${reservationId} is missing transaction_hash, using fallback UUID for payment_id`);
         }
 
+        // Fetch current balance for idempotent response
+        const reservationUserId = existingReservation.user_id;
+        const canonicalId = toPrizePid(reservationUserId);
+        const normalizedId = isPrizePid(reservationUserId) ? reservationUserId : (isWalletAddress(reservationUserId) ? reservationUserId.toLowerCase() : reservationUserId);
+        const currentBalance = await getCurrentBalance(supabase, canonicalId, normalizedId);
+
         return new Response(
           JSON.stringify({
             status: 'succeeded',  // CRITICAL: Frontend expects this field
             payment_id: existingReservation.transaction_hash || crypto.randomUUID(),
             amount: String(existingReservation.total_amount || 0),
             currency: 'USD',
-            new_balance: String(userBalance),  // Return current balance
+            new_balance: String(currentBalance),  // Return current balance
             competition_id: existingReservation.competition_id,
             tickets: tickets,
             // Legacy fields
@@ -1323,6 +1376,9 @@ Deno.serve(async (req: Request) => {
           : [];
         const actualAmount = existing.amountspent || 0;
         
+        // Fetch current balance for idempotent response
+        const currentBalance = await getCurrentBalance(supabase, canonicalUserId, normalizedUserId);
+        
         // Create deterministic ticket IDs based on transaction hash and ticket number
         // This ensures idempotent responses return the same IDs
         const deterministicTicketId = (ticketNumber: number) => {
@@ -1336,7 +1392,7 @@ Deno.serve(async (req: Request) => {
             payment_id: referenceId,
             amount: String(actualAmount),
             currency: 'USD',
-            new_balance: String(userBalance), // Return original balance since nothing changed
+            new_balance: String(currentBalance), // Return current balance
             competition_id: competitionId,
             tickets: existingTickets.map((ticketNumber: number) => ({
               id: deterministicTicketId(ticketNumber),
@@ -1349,7 +1405,7 @@ Deno.serve(async (req: Request) => {
             ticketsCreated: 0,
             ticketsPurchased: existingTickets.length,
             totalCost: actualAmount,
-            balanceAfterPurchase: userBalance,
+            balanceAfterPurchase: currentBalance,
             ticketNumbers: existingTickets,
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }

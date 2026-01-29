@@ -141,7 +141,7 @@ export const userDataService = {
       }
 
       // Use RPC function to bypass RLS - handles case-insensitive matching
-      const { data, error } = await supabase.rpc('update_user_avatar', {
+      const { data, error } = await (supabase.rpc as any)('update_user_avatar', {
         user_identifier: canonicalUserId,
         new_avatar_url: avatarUrl
       });
@@ -153,11 +153,12 @@ export const userDataService = {
 
       // Check the result from the RPC function
       if (data && typeof data === 'object' && 'success' in data) {
-        if (data.success) {
+        const typedData = data as { success?: boolean; error?: string };
+        if (typedData.success) {
           console.log('[userDataService] Avatar updated successfully:', data);
           return true;
         } else {
-          console.error('[userDataService] Avatar update failed:', data.error);
+          console.error('[userDataService] Avatar update failed:', typedData.error);
           return false;
         }
       }
@@ -185,8 +186,10 @@ export const userDataService = {
       let tickets: any[] = [];
       try {
         // First try the standard RPC (if EXECUTE granted to anon)
-        const { data: rpcData, error: rpcError } = await supabase
-          .rpc('get_user_tickets', { user_identifier: canonicalId });
+        const { data: rpcData, error: rpcError } = await (supabase.rpc as any)(
+          'get_user_tickets', 
+          { user_identifier: canonicalId }
+        );
 
         if (!rpcError && rpcData) {
           tickets = rpcData;
@@ -212,7 +215,7 @@ export const userDataService = {
       }
 
       // Get user balance using get_user_balance RPC for consistent lookups
-      const { data: rpcBalance, error: rpcError } = await supabase.rpc('get_user_balance', {
+      const { data: rpcBalance, error: rpcError } = await (supabase.rpc as any)('get_user_balance', {
         p_canonical_user_id: canonicalId
       });
 
@@ -234,7 +237,7 @@ export const userDataService = {
           .from('wallet_balances')
           .select('balance')
           .eq('canonical_user_id', canonicalId)
-          .single();
+          .single<{ balance?: number | null }>();
 
         if (balanceError) {
           console.error('Error fetching user balance:', balanceError);
@@ -246,8 +249,10 @@ export const userDataService = {
       let recentEntries = 0;
       try {
         // First try standard RPC (if available)
-        const { data: rpcRecentData, error: rpcRecentError } = await supabase
-          .rpc('get_recent_entries_count', { user_identifier: canonicalId });
+        const { data: rpcRecentData, error: rpcRecentError } = await (supabase.rpc as any)(
+          'get_recent_entries_count', 
+          { user_identifier: canonicalId }
+        );
 
         if (!rpcRecentError && rpcRecentData !== null) {
           recentEntries = Number(rpcRecentData || 0);
@@ -302,11 +307,14 @@ export const userDataService = {
       const normalizedWallet = this.isWalletAddress(userId) ? userId.toLowerCase() : userId;
 
       // Try standard RPC first
-      const { data: rpcData, error: rpcError } = await supabase
-        .rpc('get_user_tickets', { user_identifier: canonicalId });
+      const { data: rpcData, error: rpcError } = await (supabase.rpc as any)(
+        'get_user_tickets', 
+        { user_identifier: canonicalId }
+      );
 
       if (!rpcError && rpcData) {
-        return rpcData.length || 0;
+        const typedData = rpcData as any[];
+        return typedData.length || 0;
       }
 
       // Fallback: Direct query
@@ -335,11 +343,14 @@ export const userDataService = {
       const normalizedWallet = this.isWalletAddress(userId) ? userId.toLowerCase() : userId;
 
       // Try standard RPC first
-      const { data: rpcData, error: rpcError } = await supabase
-        .rpc('get_user_tickets', { user_identifier: canonicalId });
+      const { data: rpcData, error: rpcError } = await (supabase.rpc as any)(
+        'get_user_tickets', 
+        { user_identifier: canonicalId }
+      );
 
       if (!rpcError && rpcData) {
-        return rpcData.filter((t: any) => t.is_active !== false).length || 0;
+        const typedData = rpcData as any[];
+        return typedData.filter((t: any) => t.is_active !== false).length || 0;
       }
 
       // Fallback: Direct query - uses v_joincompetition_active which only includes active entries

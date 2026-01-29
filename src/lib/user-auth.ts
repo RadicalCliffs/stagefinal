@@ -106,7 +106,25 @@ export const userAuth = {
       .select('*')
       .eq('canonical_user_id', canonicalUserId)
       .limit(1)
-      .maybeSingle();
+      .maybeSingle<{
+        id: string;
+        uid?: string | null;
+        canonical_user_id?: string | null;
+        email?: string | null;
+        wallet_address?: string | null;
+        eth_wallet_address?: string | null;
+        base_wallet_address?: string | null;
+        username?: string | null;
+        telegram_handle?: string | null;
+        telephone_number?: string | null;
+        avatar_url?: string | null;
+        created_at?: string | null;
+        first_name?: string | null;
+        last_name?: string | null;
+        country?: string | null;
+        usdc_balance?: number | null;
+        [key: string]: any;
+      }>();
 
     if (byCanonical) {
       console.log('[user-auth] ✅ Found existing user by CANONICAL ID:', {
@@ -131,7 +149,7 @@ export const userAuth = {
       }
 
       if (Object.keys(updates).length > 0) {
-        await supabase
+        await (supabase as any)
           .from('canonical_users')
           .update(updates)
           .eq('id', byCanonical.id);
@@ -148,8 +166,8 @@ export const userAuth = {
         username: byCanonical.username,
         telegram_handle: byCanonical.telegram_handle,
         telephone_number: byCanonical.telephone_number,
-        avatar_url: byCanonical.avatar_url || updates.avatar_url,
-        created_at: byCanonical.created_at,
+        avatar_url: byCanonical.avatar_url || updates.avatar_url || null,
+        created_at: byCanonical.created_at || null,
         first_name: byCanonical.first_name,
         last_name: byCanonical.last_name,
         country: byCanonical.country,
@@ -167,7 +185,24 @@ export const userAuth = {
         .select('*')
         .or(`wallet_address.ilike.${walletAddress.toLowerCase()},base_wallet_address.ilike.${walletAddress.toLowerCase()}`)
         .order('created_at', { ascending: false })
-        .limit(1);
+        .limit(1) as { data: Array<{
+          id: string;
+          uid?: string | null;
+          canonical_user_id?: string | null;
+          email?: string | null;
+          wallet_address?: string | null;
+          eth_wallet_address?: string | null;
+          base_wallet_address?: string | null;
+          username?: string | null;
+          telegram_handle?: string | null;
+          telephone_number?: string | null;
+          avatar_url?: string | null;
+          created_at?: string | null;
+          first_name?: string | null;
+          last_name?: string | null;
+          country?: string | null;
+          [key: string]: any;
+        }> | null };
 
       const byWallet = byWalletArray?.[0] || null;
 
@@ -186,7 +221,7 @@ export const userAuth = {
           updates.avatar_url = userDataService.getDefaultAvatar();
         }
 
-        await supabase
+        await (supabase as any)
           .from('canonical_users')
           .update(updates)
           .eq('id', byWallet.id);
@@ -202,8 +237,8 @@ export const userAuth = {
           username: byWallet.username,
           telegram_handle: byWallet.telegram_handle,
           telephone_number: byWallet.telephone_number,
-          avatar_url: byWallet.avatar_url || updates.avatar_url,
-          created_at: byWallet.created_at,
+          avatar_url: byWallet.avatar_url || updates.avatar_url || null,
+          created_at: byWallet.created_at || null,
           first_name: byWallet.first_name,
           last_name: byWallet.last_name,
           country: byWallet.country,
@@ -221,7 +256,24 @@ export const userAuth = {
       .from('canonical_users')
       .select('*')
       .eq('privy_user_id', inputUserId)
-      .limit(1);
+      .limit(1) as { data: Array<{
+        id: string;
+        uid?: string | null;
+        canonical_user_id?: string | null;
+        email?: string | null;
+        wallet_address?: string | null;
+        eth_wallet_address?: string | null;
+        base_wallet_address?: string | null;
+        username?: string | null;
+        telegram_handle?: string | null;
+        telephone_number?: string | null;
+        avatar_url?: string | null;
+        created_at?: string | null;
+        first_name?: string | null;
+        last_name?: string | null;
+        country?: string | null;
+        [key: string]: any;
+      }> | null; error: any };
 
     const existingById = existingByIdArray?.[0] || null;
 
@@ -253,7 +305,7 @@ export const userAuth = {
       }
 
       if (Object.keys(updates).length > 0) {
-        await supabase
+        await (supabase as any)
           .from('canonical_users')
           .update(updates)
           .eq('id', existingById.id);
@@ -270,8 +322,8 @@ export const userAuth = {
         username: existingById.username,
         telegram_handle: existingById.telegram_handle,
         telephone_number: existingById.telephone_number,
-        avatar_url: existingById.avatar_url || updates.avatar_url,
-        created_at: existingById.created_at,
+        avatar_url: existingById.avatar_url || updates.avatar_url || null,
+        created_at: existingById.created_at || null,
         first_name: existingById.first_name,
         last_name: existingById.last_name,
         country: existingById.country,
@@ -293,7 +345,25 @@ export const userAuth = {
         .select('*')
         .ilike('email', normalizedEmail)
         .order('created_at', { ascending: false })
-        .limit(1);
+        .limit(1) as { data: Array<{
+          id: string;
+          uid?: string | null;
+          canonical_user_id?: string | null;
+          email?: string | null;
+          wallet_address?: string | null;
+          eth_wallet_address?: string | null;
+          base_wallet_address?: string | null;
+          username?: string | null;
+          telegram_handle?: string | null;
+          telephone_number?: string | null;
+          avatar_url?: string | null;
+          created_at?: string | null;
+          first_name?: string | null;
+          last_name?: string | null;
+          country?: string | null;
+          usdc_balance?: number | null;
+          [key: string]: any;
+        }> | null };
 
       const byEmail = byEmailArray?.[0] || null;
 
@@ -330,7 +400,7 @@ export const userAuth = {
           updates.avatar_url = userDataService.getDefaultAvatar();
         }
 
-        const { error: updateError } = await supabase
+        const { error: updateError } = await (supabase as any)
           .from('canonical_users')
           .update(updates)
           .eq('id', byEmail.id);
@@ -349,7 +419,7 @@ export const userAuth = {
           // Migrate balance from wallet address to canonical user ID
           if (walletAddress) {
             try {
-              await supabase.rpc('migrate_user_balance', {
+              await (supabase.rpc as any)('migrate_user_balance', {
                 p_user_identifier: toCanonicalUserId(inputUserId)
               });
               console.log('[user-auth] Balance migration completed for wallet:', walletAddress.substring(0, 10) + '...');
@@ -370,8 +440,8 @@ export const userAuth = {
           username: byEmail.username,
           telegram_handle: byEmail.telegram_handle,
           telephone_number: byEmail.telephone_number,
-          avatar_url: byEmail.avatar_url || updates.avatar_url,
-          created_at: byEmail.created_at,
+          avatar_url: byEmail.avatar_url || updates.avatar_url || null,
+          created_at: byEmail.created_at || null,
           first_name: byEmail.first_name,
           last_name: byEmail.last_name,
           country: byEmail.country,
@@ -399,7 +469,24 @@ export const userAuth = {
         .select('*')
         .or(`wallet_address.ilike.${walletAddress.toLowerCase()},base_wallet_address.ilike.${walletAddress.toLowerCase()},canonical_user_id.eq.${canonicalUserId}`)
         .order('created_at', { ascending: false })
-        .limit(1);
+        .limit(1) as { data: Array<{
+          id: string;
+          uid?: string | null;
+          canonical_user_id?: string | null;
+          email?: string | null;
+          wallet_address?: string | null;
+          eth_wallet_address?: string | null;
+          base_wallet_address?: string | null;
+          username?: string | null;
+          telegram_handle?: string | null;
+          telephone_number?: string | null;
+          avatar_url?: string | null;
+          created_at?: string | null;
+          first_name?: string | null;
+          last_name?: string | null;
+          country?: string | null;
+          [key: string]: any;
+        }> | null };
       
       const finalWalletCheck = finalWalletCheckArray?.[0] || null;
       
@@ -419,7 +506,7 @@ export const userAuth = {
         }
         
         if (Object.keys(updates).length > 0) {
-          await supabase
+          await (supabase as any)
             .from('canonical_users')
             .update(updates)
             .eq('id', finalWalletCheck.id);
@@ -436,8 +523,8 @@ export const userAuth = {
           username: finalWalletCheck.username,
           telegram_handle: finalWalletCheck.telegram_handle,
           telephone_number: finalWalletCheck.telephone_number,
-          avatar_url: finalWalletCheck.avatar_url || updates.avatar_url,
-          created_at: finalWalletCheck.created_at,
+          avatar_url: finalWalletCheck.avatar_url || updates.avatar_url || null,
+          created_at: finalWalletCheck.created_at || null,
           first_name: finalWalletCheck.first_name,
           last_name: finalWalletCheck.last_name,
           country: finalWalletCheck.country,
@@ -461,7 +548,7 @@ export const userAuth = {
       created_at: new Date().toISOString(),
     };
 
-    const { data: createdUser, error: createError } = await supabase
+    const { data: createdUser, error: createError } = await (supabase as any)
       .from('canonical_users')
       .insert(newUser)
       .select()
@@ -482,7 +569,24 @@ export const userAuth = {
             .select('*')
             .ilike('email', email.toLowerCase().trim())
             .order('created_at', { ascending: false })
-            .limit(1);
+            .limit(1) as { data: Array<{
+              id: string;
+              uid?: string | null;
+              canonical_user_id?: string | null;
+              email?: string | null;
+              wallet_address?: string | null;
+              eth_wallet_address?: string | null;
+              base_wallet_address?: string | null;
+              username?: string | null;
+              telegram_handle?: string | null;
+              telephone_number?: string | null;
+              avatar_url?: string | null;
+              created_at?: string | null;
+              first_name?: string | null;
+              last_name?: string | null;
+              country?: string | null;
+              [key: string]: any;
+            }> | null };
 
           const existingByEmail = existingByEmailArray?.[0] || null;
 
@@ -500,7 +604,7 @@ export const userAuth = {
               recoveryUpdates.avatar_url = userDataService.getDefaultAvatar();
             }
 
-            await supabase
+            await (supabase as any)
               .from('canonical_users')
               .update(recoveryUpdates)
               .eq('id', existingByEmail.id);
@@ -518,8 +622,8 @@ export const userAuth = {
               username: existingByEmail.username,
               telegram_handle: existingByEmail.telegram_handle,
               telephone_number: existingByEmail.telephone_number,
-              avatar_url: existingByEmail.avatar_url || recoveryUpdates.avatar_url,
-              created_at: existingByEmail.created_at,
+              avatar_url: existingByEmail.avatar_url || recoveryUpdates.avatar_url || null,
+              created_at: existingByEmail.created_at || null,
               first_name: existingByEmail.first_name,
               last_name: existingByEmail.last_name,
               country: existingByEmail.country,
@@ -533,7 +637,24 @@ export const userAuth = {
           .from('canonical_users')
           .select('*')
           .eq('privy_user_id', inputUserId)
-          .limit(1);
+          .limit(1) as { data: Array<{
+            id: string;
+            uid?: string | null;
+            canonical_user_id?: string | null;
+            email?: string | null;
+            wallet_address?: string | null;
+            eth_wallet_address?: string | null;
+            base_wallet_address?: string | null;
+            username?: string | null;
+            telegram_handle?: string | null;
+            telephone_number?: string | null;
+            avatar_url?: string | null;
+            created_at?: string | null;
+            first_name?: string | null;
+            last_name?: string | null;
+            country?: string | null;
+            [key: string]: any;
+          }> | null };
 
         const existingById = existingByIdArray?.[0] || null;
 
@@ -544,7 +665,7 @@ export const userAuth = {
           let avatarUrl = existingById.avatar_url;
           if (!avatarUrl) {
             avatarUrl = userDataService.getDefaultAvatar();
-            await supabase
+            await (supabase as any)
               .from('canonical_users')
               .update({ avatar_url: avatarUrl })
               .eq('id', existingById.id);
@@ -560,8 +681,8 @@ export const userAuth = {
             username: existingById.username,
             telegram_handle: existingById.telegram_handle,
             telephone_number: existingById.telephone_number,
-            avatar_url: avatarUrl,
-            created_at: existingById.created_at,
+            avatar_url: avatarUrl || null,
+            created_at: existingById.created_at || null,
             first_name: existingById.first_name,
             last_name: existingById.last_name,
             country: existingById.country,
@@ -575,7 +696,7 @@ export const userAuth = {
 
     // Update uid to match id
     if (createdUser.id) {
-      await supabase
+      await (supabase as any)
         .from('canonical_users')
         .update({ uid: createdUser.id })
         .eq('id', createdUser.id);
@@ -593,8 +714,8 @@ export const userAuth = {
       username: createdUser.username,
       telegram_handle: createdUser.telegram_handle,
       telephone_number: createdUser.telephone_number,
-      avatar_url: createdUser.avatar_url,
-      created_at: createdUser.created_at,
+      avatar_url: createdUser.avatar_url || null,
+      created_at: createdUser.created_at || null,
       first_name: createdUser.first_name,
       last_name: createdUser.last_name,
       country: createdUser.country,
@@ -629,7 +750,24 @@ export const userAuth = {
     }
 
     // Use limit(1) instead of maybeSingle() to avoid PGRST116 error
-    const { data: dataArray, error } = await query.limit(1);
+    const { data: dataArray, error } = await query.limit(1) as { data: Array<{
+      id: string;
+      uid?: string | null;
+      canonical_user_id?: string | null;
+      email?: string | null;
+      wallet_address?: string | null;
+      eth_wallet_address?: string | null;
+      base_wallet_address?: string | null;
+      username?: string | null;
+      telegram_handle?: string | null;
+      telephone_number?: string | null;
+      avatar_url?: string | null;
+      created_at?: string | null;
+      first_name?: string | null;
+      last_name?: string | null;
+      country?: string | null;
+      [key: string]: any;
+    }> | null; error: any };
 
     const data = dataArray?.[0] || null;
 
@@ -651,8 +789,8 @@ export const userAuth = {
       username: data.username,
       telegram_handle: data.telegram_handle,
       telephone_number: data.telephone_number,
-      avatar_url: data.avatar_url,
-      created_at: data.created_at,
+      avatar_url: data.avatar_url || null,
+      created_at: data.created_at || null,
       first_name: data.first_name,
       last_name: data.last_name,
       country: data.country,
@@ -660,7 +798,7 @@ export const userAuth = {
   },
 
   async updateUserProfile(userId: string, updates: Partial<UserProfile>): Promise<boolean> {
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('canonical_users')
       .update(updates)
       .eq('id', userId);
@@ -736,12 +874,12 @@ export const userAuth = {
         .from('canonical_users')
         .select('id, email')
         .eq('privy_user_id', userId)
-        .limit(1);
+        .limit(1) as { data: Array<{ id: string; email?: string | null }> | null };
 
       const existing = existingArray?.[0] || null;
 
       if (existing && existing.email !== email) {
-        await supabase
+        await (supabase as any)
           .from('canonical_users')
           .update({ email })
           .eq('id', existing.id);

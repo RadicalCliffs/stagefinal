@@ -312,11 +312,27 @@ export class BalancePaymentService {
         reservationId,
         hasCompetitionId: !!competitionId,
         hasUserId: !!userId,
-        ticketCount: ticketNumbers?.length || ticketCount
+        ticketCount: ticketNumbers?.length || ticketCount,
+        requestBody: {
+          ...requestBody,
+          canonical_user_id: requestBody.canonical_user_id?.substring(0, 20) + '...'
+        }
       });
 
       const { data, error } = await supabase.functions.invoke('purchase-tickets-with-bonus', {
         body: requestBody
+      });
+
+      // CRITICAL: Log the full response for debugging
+      console.log('[BalancePayment] Edge function response:', {
+        hasData: !!data,
+        hasError: !!error,
+        dataKeys: data ? Object.keys(data) : [],
+        dataStatus: data?.status,
+        dataError: data?.error,
+        errorMessage: error?.message,
+        fullData: data,
+        fullError: error
       });
 
       if (error) {
@@ -330,6 +346,13 @@ export class BalancePaymentService {
       }
 
       if (!data || data.status !== 'succeeded') {
+        console.error('[BalancePayment] Purchase failed - invalid response:', {
+          hasData: !!data,
+          status: data?.status,
+          error: data?.error,
+          errorCode: data?.errorCode,
+          fullResponse: data
+        });
         return {
           success: false,
           error: data?.error || 'Purchase failed'
