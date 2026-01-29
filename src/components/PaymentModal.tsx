@@ -629,9 +629,15 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       }
 
       // Step 2: Purchase with balance
+      // Best practice: Pass all required data directly for immediate processing
       console.log('[PaymentModal] Purchasing with balance, reservation:', currentReservationId);
       const purchaseResult = await BalancePaymentService.purchaseWithBalance({
-        reservationId: currentReservationId
+        reservationId: currentReservationId,
+        competitionId: competitionId,
+        userId: canonicalUserId,
+        ticketNumbers: selectedTickets.length > 0 ? selectedTickets : undefined,
+        ticketCount: selectedTickets.length > 0 ? selectedTickets.length : ticketCount,
+        ticketPrice: ticketPrice
       });
 
       if (!purchaseResult.success || !purchaseResult.data) {
