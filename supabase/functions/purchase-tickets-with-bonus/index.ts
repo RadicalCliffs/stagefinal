@@ -566,14 +566,20 @@ Deno.serve(async (req: Request) => {
         console.log(`[purchase-tickets-with-bonus] Found existing purchase for idempotency key, returning cached result`);
 
         // Parse the stored response and return it
+        // Ensure it has the required status field for frontend compatibility
         const cachedResponse = existingPurchase.response_data || {};
+        
+        // If the cached response doesn't have status field, add it based on success field
+        if (!cachedResponse.status && cachedResponse.success) {
+          cachedResponse.status = 'succeeded';
+        }
+        
         return new Response(
           JSON.stringify({
-            success: true,
             idempotent: true,
             message: "Purchase already processed (idempotent response)",
-            ...cachedResponse,
             cachedAt: existingPurchase.created_at,
+            ...cachedResponse,
           }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
@@ -615,20 +621,31 @@ Deno.serve(async (req: Request) => {
         // Get the tickets that were assigned to this reservation
         const { data: confirmedTickets } = await supabase
           .from("tickets")
-          .select("ticket_number")
+          .select("ticket_number, id")
           .eq("reservation_id", reservationId)
           .order("ticket_number");
 
         const ticketNumbers = confirmedTickets ? confirmedTickets.map(t => t.ticket_number) : [];
+        const tickets = confirmedTickets ? confirmedTickets.map(t => ({
+          id: t.id || crypto.randomUUID(),
+          ticket_number: t.ticket_number
+        })) : [];
 
         return new Response(
           JSON.stringify({
+            status: 'succeeded',  // CRITICAL: Frontend expects this field
+            payment_id: existingReservation.transaction_hash || crypto.randomUUID(),
+            amount: String(existingReservation.total_amount || 0),
+            currency: 'USD',
+            new_balance: String(userBalance),  // Return current balance
+            competition_id: existingReservation.competition_id,
+            tickets: tickets,
+            // Legacy fields
             success: true,
             message: "Tickets already purchased (idempotent response)",
             idempotent: true,
             alreadyConfirmed: true,
             ticketNumbers,
-            competitionId: existingReservation.competition_id,
             reservationId: reservationId,
             userId: existingReservation.user_id,
           }),
@@ -1285,22 +1302,38 @@ Deno.serve(async (req: Request) => {
     if (referenceId) {
       const { data: existing } = await supabase
         .from("joincompetition")
-        .select("id")
+        .select("id, ticketnumbers")
         .eq("userid", normalizedUserId)
         .eq("competitionid", competitionId)
         .eq("transactionhash", referenceId)
         .maybeSingle();
       if (existing) {
         // Already processed; return success with current balance (no deduction)
+        const existingTickets = existing.ticketnumbers
+          ? existing.ticketnumbers.split(",").map((n: string) => parseInt(n.trim())).filter((n: number) => !isNaN(n))
+          : [];
+        
         return new Response(
           JSON.stringify({
+            status: 'succeeded',  // CRITICAL: Frontend expects this field
+            payment_id: referenceId,
+            amount: '0',
+            currency: 'USD',
+            new_balance: String(userBalance), // Return original balance since nothing changed
+            competition_id: competitionId,
+            tickets: existingTickets.map((ticketNumber: number) => ({
+              id: crypto.randomUUID(),
+              ticket_number: ticketNumber
+            })),
+            // Legacy fields
             success: true,
+            idempotent: true,
+            message: "Already processed",
             ticketsCreated: 0,
             ticketsPurchased: 0,
             totalCost: 0,
-            balanceAfterPurchase: userBalance, // Return original balance since nothing changed
-            message: "Already processed",
-            tickets: [],
+            balanceAfterPurchase: userBalance,
+            ticketNumbers: existingTickets,
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
@@ -1861,14 +1894,27 @@ Deno.serve(async (req: Request) => {
       }
 
       // STEP 11: Store idempotency record and return success
+      // CRITICAL: Match the response format expected by balance-payment-service.ts
+      // Frontend expects: { status: 'succeeded', payment_id, amount, currency, new_balance, competition_id, tickets: [...] }
       const responseData = {
+        status: 'succeeded',  // CRITICAL: Frontend checks for this field
+        payment_id: transactionId,
+        amount: String(totalCost),
+        currency: 'USD',
+        new_balance: String(newBalance),
+        competition_id: competitionId,
+        tickets: assignedNumbers.map((ticketNumber: number) => ({
+          id: crypto.randomUUID(), // Generate ticket ID for consistency
+          ticket_number: ticketNumber
+        })),
+        // Legacy fields for backwards compatibility
         success: true,
         ticketsCreated: totalTickets,
         ticketsPurchased: numberOfTickets,
         totalCost,
         balanceAfterPurchase: newBalance,
         message: `Successfully purchased ${totalTickets} tickets!`,
-        tickets: assignedNumbers,
+        ticketNumbers: assignedNumbers,
         entryCreated: jcEntryCreated,
         entryId: jcEntryCreated ? (jcData?.uid || entryUid) : null,
         transactionId: transactionId,
@@ -2022,9 +2068,18 @@ Deno.serve(async (req: Request) => {
       }
       
       // Return partial success - payment succeeded but allocation failed
+      // CRITICAL: Match the response format expected by balance-payment-service.ts
       console.log(`[VERBOSE][purchase-tickets-with-bonus] Returning partial success response`);
       return new Response(
         JSON.stringify({
+          status: 'succeeded',  // CRITICAL: Frontend checks for this field
+          payment_id: transactionId,
+          amount: String(totalCost),
+          currency: 'USD',
+          new_balance: String(newBalance),
+          competition_id: competitionId,
+          tickets: [],  // Empty array since allocation failed
+          // Additional fields for partial success
           success: true,  // Payment succeeded
           partial: true,  // But allocation failed
           ticketsCreated: 0,
@@ -2033,7 +2088,6 @@ Deno.serve(async (req: Request) => {
           balanceAfterPurchase: newBalance,
           message: `Payment successful! Your balance has been debited $${totalCost.toFixed(2)}. However, ticket allocation encountered an issue. Our support team has been notified. Please contact us at support@theprize.io with this reference: ${txRef}`,
           warning: `Ticket allocation failed: ${errorMessage}`,
-          tickets: [],
           transactionRef: txRef,
           transactionId: transactionId,
           supportRequired: true,
@@ -2046,7 +2100,7 @@ Deno.serve(async (req: Request) => {
             errorDetails: errorMessage,
           }
         }),
-        { status: 207, headers: { ...corsHeaders, "Content-Type": "application/json" } } // 207 Multi-Status for partial success
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } } // Return 200 since payment succeeded
       );
 
     }
