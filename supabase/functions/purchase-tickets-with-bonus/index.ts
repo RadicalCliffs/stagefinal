@@ -290,6 +290,16 @@ function isValidUUID(str: string | null | undefined): boolean {
 /**
  * Tolerant parameter parser for purchase-tickets-with-bonus
  *
+ * AGGRESSIVE, IDEMPOTENT, SELF-HEALING VERSION
+ *
+ * NEW FEATURES:
+ * - idempotency_key: Optional but recommended; using the same key returns the same response on retry
+ * - ticket_numbers: Required if reservation is missing/ambiguous; allows direct purchase without reservation
+ * - Proceeds even if the reservation is missing/expired (as long as requested ticket_numbers are still available)
+ * - Treats canonical_user_id as TEXT and normalizes wallet casing
+ * - Auto-ensures minimal schema: purchase_idempotency, pending_tickets columns, and minimal tickets table/indexes
+ * - Is idempotent using idempotency_key. If key is reused, it returns the same result
+ *
  * FRONTEND IDENTITY FIELDS CURRENTLY SENT:
  * - userId: primary identifier (wallet address like "0x..." or legacy privy DID like "did:privy:...")
  * - competitionId: UUID of the competition
@@ -299,10 +309,9 @@ function isValidUUID(str: string | null | undefined): boolean {
  * - reservationId: optional UUID of existing ticket reservation
  * - referenceId: optional transaction reference for idempotency
  *
- * NEW: RESERVATION-ONLY MODE:
- * If only reservationId is provided (and it's a valid UUID), the function will automatically
- * derive userId, competitionId, numberOfTickets, and ticketPrice from the pending_tickets table.
- * This simplifies the client-side implementation for crypto (Base Account) flows.
+ * NEW: RESERVATION-LESS MODE:
+ * If reservation is missing/expired, the function will proceed with the purchase
+ * as long as the requested ticket_numbers are still available.
  *
  * THIS FUNCTION ACCEPTS ALTERNATIVE PARAMETER NAMES:
  * - walletAddress → translated to userId via canonical_users lookup
@@ -312,9 +321,9 @@ function isValidUUID(str: string | null | undefined): boolean {
  * - competition_id → alias for competitionId
  * - quantity / ticketCount / ticket_count / numberOfTickets / number_of_tickets → numberOfTickets
  * - price / ticket_price → alias for ticketPrice
- * - tickets / selected_tickets → alias for selectedTickets
+ * - tickets / selected_tickets / ticket_numbers → alias for selectedTickets
  * - reservation_id → alias for reservationId
- * - reference_id / txRef / transactionRef → alias for referenceId
+ * - reference_id / txRef / transactionRef / idempotency_key → alias for referenceId
  */
 interface ParsedPurchaseParams {
   userId: string | null;
@@ -325,6 +334,7 @@ interface ParsedPurchaseParams {
   referenceId: string | null;
   selectedTickets: number[];
   reservationId: string | null;
+  idempotencyKey: string | null;
 }
 
 function parseTolerantParams(body: Record<string, unknown>): ParsedPurchaseParams {
@@ -366,19 +376,27 @@ function parseTolerantParams(body: Record<string, unknown>): ParsedPurchaseParam
     null;
   const ticketPrice = rawPrice !== null ? Number(rawPrice) : null;
 
-  // Reference ID for idempotency
+  // Idempotency key - NEW parameter for aggressive idempotency
+  const idempotencyKey =
+    body.idempotency_key as string | null ||
+    body.idempotencyKey as string | null ||
+    null;
+
+  // Reference ID for idempotency (legacy) - also accept idempotency_key as fallback
   const referenceId =
     body.referenceId as string | null ||
     body.reference_id as string | null ||
     body.txRef as string | null ||
     body.transactionRef as string | null ||
+    idempotencyKey ||
     null;
 
-  // Selected tickets array
+  // Selected tickets array - also accept ticket_numbers for reservation-less mode
   const rawSelectedTickets =
     body.selectedTickets ||
     body.selected_tickets ||
     body.tickets ||
+    body.ticket_numbers ||
     [];
   const selectedTickets = Array.isArray(rawSelectedTickets)
     ? rawSelectedTickets.map((n: unknown) => Number(n)).filter((n: number) => Number.isFinite(n) && n > 0)
@@ -399,6 +417,7 @@ function parseTolerantParams(body: Record<string, unknown>): ParsedPurchaseParam
     referenceId,
     selectedTickets,
     reservationId,
+    idempotencyKey,
   };
 }
 
@@ -474,12 +493,108 @@ Deno.serve(async (req: Request) => {
 
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
+    // SCHEMA AUTO-ENSURE (best-effort DDL)
+    // This function attempts to ensure minimal schema exists for operation
+    // If DDL fails due to permissions, the function still proceeds with existing schema
+    const ensureSchema = async () => {
+      try {
+        // Ensure purchase_idempotency table exists for idempotent purchases
+        const { error: idempotencyTableErr } = await supabase.rpc('exec_ddl', {
+          ddl_statement: `
+            CREATE TABLE IF NOT EXISTS purchase_idempotency (
+              idempotency_key TEXT PRIMARY KEY,
+              canonical_user_id TEXT,
+              competition_id UUID,
+              response_data JSONB,
+              created_at TIMESTAMPTZ DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_purchase_idempotency_user ON purchase_idempotency(canonical_user_id);
+            CREATE INDEX IF NOT EXISTS idx_purchase_idempotency_created ON purchase_idempotency(created_at);
+          `
+        });
+        if (idempotencyTableErr && !idempotencyTableErr.message?.includes('already exists')) {
+          console.warn(`[schema-ensure] Could not ensure purchase_idempotency table:`, idempotencyTableErr.message);
+        }
+
+        // Ensure pending_tickets has necessary columns for self-healing mode
+        const { error: pendingColumnsErr } = await supabase.rpc('exec_ddl', {
+          ddl_statement: `
+            ALTER TABLE pending_tickets ADD COLUMN IF NOT EXISTS ticket_price DECIMAL(10,2);
+            ALTER TABLE pending_tickets ADD COLUMN IF NOT EXISTS payment_provider TEXT;
+            ALTER TABLE pending_tickets ADD COLUMN IF NOT EXISTS confirmed_at TIMESTAMPTZ;
+          `
+        });
+        if (pendingColumnsErr && !pendingColumnsErr.message?.includes('already exists')) {
+          console.warn(`[schema-ensure] Could not add pending_tickets columns:`, pendingColumnsErr.message);
+        }
+
+        // Ensure tickets table has minimal required columns/indexes
+        const { error: ticketsIndexErr } = await supabase.rpc('exec_ddl', {
+          ddl_statement: `
+            CREATE INDEX IF NOT EXISTS idx_tickets_competition_user ON tickets(competition_id, user_id);
+            CREATE INDEX IF NOT EXISTS idx_tickets_reservation ON tickets(reservation_id) WHERE reservation_id IS NOT NULL;
+          `
+        });
+        if (ticketsIndexErr && !ticketsIndexErr.message?.includes('already exists')) {
+          console.warn(`[schema-ensure] Could not ensure tickets indexes:`, ticketsIndexErr.message);
+        }
+
+        console.log(`[schema-ensure] Schema verification completed`);
+      } catch (schemaErr) {
+        // Schema ensure is best-effort - don't block purchase on DDL failures
+        // Common reasons: exec_ddl RPC doesn't exist, permission denied, etc.
+        console.warn(`[schema-ensure] Schema ensure skipped (RPC may not exist):`, schemaErr);
+      }
+    };
+
+    // Run schema ensure in background (don't await, don't block purchase flow)
+    ensureSchema().catch(() => {});
+
+    // IDEMPOTENCY CHECK: If idempotency_key provided, check purchase_idempotency table first
+    // If a matching record exists, return the cached result immediately
+    const effectiveIdempotencyKey = params.idempotencyKey || params.referenceId;
+    if (effectiveIdempotencyKey) {
+      console.log(`[purchase-tickets-with-bonus] Checking idempotency for key: ${effectiveIdempotencyKey.substring(0, 20)}...`);
+
+      const { data: existingPurchase, error: idempotencyErr } = await supabase
+        .from("purchase_idempotency")
+        .select("*")
+        .eq("idempotency_key", effectiveIdempotencyKey)
+        .maybeSingle();
+
+      if (!idempotencyErr && existingPurchase) {
+        console.log(`[purchase-tickets-with-bonus] Found existing purchase for idempotency key, returning cached result`);
+
+        // Parse the stored response and return it
+        const cachedResponse = existingPurchase.response_data || {};
+        return new Response(
+          JSON.stringify({
+            success: true,
+            idempotent: true,
+            message: "Purchase already processed (idempotent response)",
+            ...cachedResponse,
+            cachedAt: existingPurchase.created_at,
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // If table doesn't exist, the query will fail - that's OK, we'll proceed without idempotency cache
+      if (idempotencyErr && !idempotencyErr.message?.includes('does not exist')) {
+        console.warn(`[purchase-tickets-with-bonus] Error checking idempotency:`, idempotencyErr.message);
+      }
+    }
+
     // NEW: If reservationId is provided and valid, derive missing fields from pending_tickets
     // This allows the function to work with just reservationId
+    // AGGRESSIVE MODE: If reservation is missing/expired, proceed with ticket_numbers if provided
     let derivedFromReservation = false;
+    let reservationMissingOrExpired = false;
+    let reservationExpiredTickets: number[] = [];
+
     if (reservationId && isValidUUID(reservationId)) {
       console.log(`[purchase-tickets-with-bonus] Attempting to derive fields from reservationId: ${reservationId}`);
-      
+
       // First check if this reservation was already confirmed (idempotency check)
       const { data: existingReservation, error: checkError } = await supabase
         .from("pending_tickets")
@@ -488,22 +603,15 @@ Deno.serve(async (req: Request) => {
         .maybeSingle();
 
       if (checkError) {
-        console.error(`[purchase-tickets-with-bonus] Error querying reservation:`, checkError);
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: "Error validating reservation",
-            errorCode: "reservation_error",
-            details: checkError.message
-          }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      // If reservation already confirmed, return success (idempotent response)
-      if (existingReservation && existingReservation.status === "confirmed") {
+        console.warn(`[purchase-tickets-with-bonus] Error querying reservation (proceeding without):`, checkError.message);
+        reservationMissingOrExpired = true;
+      } else if (!existingReservation) {
+        console.log(`[purchase-tickets-with-bonus] Reservation not found - proceeding with ticket_numbers if available`);
+        reservationMissingOrExpired = true;
+      } else if (existingReservation.status === "confirmed") {
+        // If reservation already confirmed, return success (idempotent response)
         console.log(`[purchase-tickets-with-bonus] Reservation ${reservationId} already confirmed - returning success (idempotent)`);
-        
+
         // Get the tickets that were assigned to this reservation
         const { data: confirmedTickets } = await supabase
           .from("tickets")
@@ -512,11 +620,12 @@ Deno.serve(async (req: Request) => {
           .order("ticket_number");
 
         const ticketNumbers = confirmedTickets ? confirmedTickets.map(t => t.ticket_number) : [];
-        
+
         return new Response(
           JSON.stringify({
             success: true,
             message: "Tickets already purchased (idempotent response)",
+            idempotent: true,
             alreadyConfirmed: true,
             ticketNumbers,
             competitionId: existingReservation.competition_id,
@@ -525,81 +634,67 @@ Deno.serve(async (req: Request) => {
           }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
-      }
-
-      // Query pending_tickets to get reservation details
-      const reservation = existingReservation;
-
-      if (reservation && reservation.status === "pending") {
+      } else if (existingReservation.status === "pending") {
         // Check if reservation is still valid (not expired)
-        if (reservation.expires_at && new Date(reservation.expires_at) < new Date()) {
-          // Mark as expired
+        if (existingReservation.expires_at && new Date(existingReservation.expires_at) < new Date()) {
+          // AGGRESSIVE MODE: Don't fail on expired reservation, just note it and proceed
+          console.log(`[purchase-tickets-with-bonus] Reservation expired - proceeding with ticket_numbers if available`);
+          reservationMissingOrExpired = true;
+          reservationExpiredTickets = (existingReservation.ticket_numbers || [])
+            .map((n: any) => Number(n))
+            .filter((n: number) => Number.isFinite(n));
+
+          // Mark as expired (best effort, don't block on failure)
           await supabase
             .from("pending_tickets")
             .update({ status: "expired", updated_at: new Date().toISOString() })
             .eq("id", reservationId);
+        } else {
+          // Valid pending reservation - derive missing fields
+          const reservation = existingReservation;
 
-          return new Response(
-            JSON.stringify({
-              success: false,
-              error: "Your ticket reservation has expired. Please select tickets again.",
-              errorCode: "reservation_expired",
-              expiredAt: reservation.expires_at
-            }),
-            { status: 410, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-
-        // Derive missing fields from reservation
-        if (!userId && !walletAddress) {
-          userId = reservation.user_id;
-          console.log(`[purchase-tickets-with-bonus] Derived userId from reservation: ${userId.substring(0, 20)}...`);
-          derivedFromReservation = true;
-        }
-        if (!competitionId) {
-          competitionId = reservation.competition_id;
-          console.log(`[purchase-tickets-with-bonus] Derived competitionId from reservation: ${competitionId}`);
-          derivedFromReservation = true;
-        }
-        if (!numberOfTickets) {
-          numberOfTickets = reservation.ticket_count || (reservation.ticket_numbers ? reservation.ticket_numbers.length : 0);
-          console.log(`[purchase-tickets-with-bonus] Derived numberOfTickets from reservation: ${numberOfTickets}`);
-          derivedFromReservation = true;
-        }
-        if (!ticketPrice) {
-          // Try to get ticket_price from reservation first, otherwise derive from total_amount
-          ticketPrice = reservation.ticket_price || (reservation.total_amount && numberOfTickets ? Number(reservation.total_amount) / numberOfTickets : null);
-          
-          // If still no price, fetch from competition
-          if (!ticketPrice) {
-            const { data: comp } = await supabase
-              .from("competitions")
-              .select("ticket_price")
-              .eq("id", competitionId)
-              .maybeSingle();
-            if (comp) {
-              ticketPrice = comp.ticket_price;
-              console.log(`[purchase-tickets-with-bonus] Derived ticketPrice from competition: ${ticketPrice}`);
-            }
-          } else {
-            console.log(`[purchase-tickets-with-bonus] Derived ticketPrice from reservation: ${ticketPrice}`);
+          if (!userId && !walletAddress) {
+            userId = reservation.user_id;
+            console.log(`[purchase-tickets-with-bonus] Derived userId from reservation: ${userId?.substring(0, 20)}...`);
+            derivedFromReservation = true;
           }
-          derivedFromReservation = true;
+          if (!competitionId) {
+            competitionId = reservation.competition_id;
+            console.log(`[purchase-tickets-with-bonus] Derived competitionId from reservation: ${competitionId}`);
+            derivedFromReservation = true;
+          }
+          if (!numberOfTickets) {
+            numberOfTickets = reservation.ticket_count || (reservation.ticket_numbers ? reservation.ticket_numbers.length : 0);
+            console.log(`[purchase-tickets-with-bonus] Derived numberOfTickets from reservation: ${numberOfTickets}`);
+            derivedFromReservation = true;
+          }
+          if (!ticketPrice) {
+            // Try to get ticket_price from reservation first, otherwise derive from total_amount
+            ticketPrice = reservation.ticket_price || (reservation.total_amount && numberOfTickets ? Number(reservation.total_amount) / numberOfTickets : null);
+
+            // If still no price, fetch from competition
+            if (!ticketPrice && competitionId) {
+              const { data: comp } = await supabase
+                .from("competitions")
+                .select("ticket_price")
+                .eq("id", competitionId)
+                .maybeSingle();
+              if (comp) {
+                ticketPrice = comp.ticket_price;
+                console.log(`[purchase-tickets-with-bonus] Derived ticketPrice from competition: ${ticketPrice}`);
+              }
+            } else if (ticketPrice) {
+              console.log(`[purchase-tickets-with-bonus] Derived ticketPrice from reservation: ${ticketPrice}`);
+            }
+            derivedFromReservation = true;
+          }
+
+          console.log(`[purchase-tickets-with-bonus] Successfully derived fields from reservation`);
         }
-        
-        console.log(`[purchase-tickets-with-bonus] Successfully derived fields from reservation`);
       } else {
-        console.log(`[purchase-tickets-with-bonus] Reservation ${reservationId} not found or not pending`);
-        // If reservationId was provided but not found, this is an error
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: "Reservation not found or has already been confirmed/expired",
-            errorCode: "reservation_not_found",
-            details: { reservationId }
-          }),
-          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        // Unknown status - treat as missing
+        console.log(`[purchase-tickets-with-bonus] Reservation has unknown status (${existingReservation.status}) - proceeding with ticket_numbers if available`);
+        reservationMissingOrExpired = true;
       }
     }
 
@@ -607,24 +702,83 @@ Deno.serve(async (req: Request) => {
     // For now, validate what we have
     const hasUserIdentifier = !!userId || !!walletAddress;
 
-    // Validate inputs - now only required if not derived from reservation
-    if (!hasUserIdentifier || !competitionId || !numberOfTickets || !ticketPrice) {
+    // AGGRESSIVE MODE VALIDATION:
+    // - competition_id is required unless resolvable from reservation
+    // - ticket_numbers are required if reservation is missing/ambiguous
+    // Return 422 status for missing_competition or missing_ticket_numbers
+
+    if (!competitionId) {
       return new Response(
         JSON.stringify({
           success: false,
-          error: derivedFromReservation 
-            ? "Could not derive all required fields from reservation"
-            : "Missing required parameters. Required: (userId or walletAddress), competitionId (or competition_id), numberOfTickets (or quantity), ticketPrice (or price). OR provide a valid reservationId to derive fields automatically.",
-          hint: "Accepted user fields: userId, userIdentifier, user_id, canonical_user_id, walletAddress, wallet_address. OR provide reservationId to derive all fields.",
+          error: "Missing competition_id. Either provide competition_id directly or via a valid reservation.",
+          errorCode: "missing_competition",
+        }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // If reservation is missing/expired, we need ticket_numbers to proceed
+    if (reservationMissingOrExpired && selectedTickets.length === 0) {
+      // Try to use expired reservation's tickets if available
+      if (reservationExpiredTickets.length > 0) {
+        console.log(`[purchase-tickets-with-bonus] Using expired reservation's tickets: [${reservationExpiredTickets.join(', ')}]`);
+        selectedTickets.push(...reservationExpiredTickets);
+      } else {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "Missing ticket_numbers. Since no valid reservation exists, you must specify which ticket numbers to purchase.",
+            errorCode: "missing_ticket_numbers",
+            hint: "Provide ticket_numbers array with the specific ticket numbers you want to purchase.",
+          }),
+          { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // Derive numberOfTickets from selectedTickets if not provided
+    if (!numberOfTickets && selectedTickets.length > 0) {
+      numberOfTickets = selectedTickets.length;
+      console.log(`[purchase-tickets-with-bonus] Derived numberOfTickets from selectedTickets: ${numberOfTickets}`);
+    }
+
+    // Validate other required fields
+    if (!hasUserIdentifier || !numberOfTickets) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Missing required parameters.",
+          hint: "Required: (userId or walletAddress), numberOfTickets (or ticket_numbers array).",
           missingFields: {
             userId: !userId && !walletAddress,
-            competitionId: !competitionId,
             numberOfTickets: !numberOfTickets,
-            ticketPrice: !ticketPrice
           }
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Derive ticketPrice from competition if not provided
+    if (!ticketPrice) {
+      const { data: compPrice } = await supabase
+        .from("competitions")
+        .select("ticket_price")
+        .eq("id", competitionId)
+        .maybeSingle();
+      if (compPrice?.ticket_price) {
+        ticketPrice = compPrice.ticket_price;
+        console.log(`[purchase-tickets-with-bonus] Derived ticketPrice from competition: ${ticketPrice}`);
+      } else {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "Could not determine ticket price. Please provide ticketPrice.",
+            errorCode: "missing_ticket_price",
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     if (numberOfTickets <= 0) {
@@ -1706,22 +1860,45 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      // STEP 11: Return success
+      // STEP 11: Store idempotency record and return success
+      const responseData = {
+        success: true,
+        ticketsCreated: totalTickets,
+        ticketsPurchased: numberOfTickets,
+        totalCost,
+        balanceAfterPurchase: newBalance,
+        message: `Successfully purchased ${totalTickets} tickets!`,
+        tickets: assignedNumbers,
+        entryCreated: jcEntryCreated,
+        entryId: jcEntryCreated ? (jcData?.uid || entryUid) : null,
+        transactionId: transactionId,
+        transactionRef: txRef,
+        instantWins: instantWins.length > 0 ? instantWins : undefined,
+      };
+
+      // Store idempotency record for future duplicate requests (best effort)
+      if (effectiveIdempotencyKey) {
+        const { error: idempotencyInsertErr } = await supabase
+          .from("purchase_idempotency")
+          .insert({
+            idempotency_key: effectiveIdempotencyKey,
+            canonical_user_id: canonicalUserId,
+            competition_id: competitionId,
+            response_data: responseData,
+            created_at: new Date().toISOString(),
+          });
+
+        if (idempotencyInsertErr) {
+          // Log but don't fail - idempotency is a convenience, not critical path
+          // Table might not exist yet, or there could be a constraint violation
+          console.warn(`[purchase-tickets-with-bonus] Failed to store idempotency record:`, idempotencyInsertErr.message);
+        } else {
+          console.log(`[purchase-tickets-with-bonus] Stored idempotency record for key: ${effectiveIdempotencyKey.substring(0, 20)}...`);
+        }
+      }
+
       return new Response(
-        JSON.stringify({
-          success: true,
-          ticketsCreated: totalTickets,
-          ticketsPurchased: numberOfTickets,
-          totalCost,
-          balanceAfterPurchase: newBalance,
-          message: `Successfully purchased ${totalTickets} tickets!`,
-          tickets: assignedNumbers,
-          entryCreated: jcEntryCreated,  // Flag to indicate if dashboard entry was created
-          entryId: jcEntryCreated ? (jcData?.uid || entryUid) : null,
-          transactionId: transactionId,  // Transaction record ID for tracking in user_transactions
-          transactionRef: txRef,  // Transaction reference/hash
-          instantWins: instantWins.length > 0 ? instantWins : undefined,
-        }),
+        JSON.stringify(responseData),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     } catch (assignErr) {
