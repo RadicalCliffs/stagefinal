@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X, Check, AlertCircle, ExternalLink, CreditCard, Gift, Coins, ChevronRight } from 'lucide-react';
+import { X, Check, AlertCircle, ExternalLink, CreditCard, Gift, Coins, ChevronRight, Wallet } from 'lucide-react';
 import { useAuthUser } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { toCanonicalUserId } from '../lib/canonicalUserId';
@@ -284,152 +284,119 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
       return;
     }
 
+    // Validate wallet address is available for sender identification
+    if (!walletAddress) {
+      console.error('[TopUpWalletModal] No wallet address available for top-up');
+      setError('No wallet connected. Please connect a wallet first.');
+      setStep('error');
+      setBaseAccountLoading(false);
+      return;
+    }
+
     try {
       const treasuryAddress = import.meta.env.VITE_TREASURY_ADDRESS;
       if (!treasuryAddress) {
+        console.error('[TopUpWalletModal] VITE_TREASURY_ADDRESS not configured');
         throw new Error('Payment system configuration error. Please contact support.');
       }
 
       // Validate treasury address format
       if (!treasuryAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
-        console.error('[TopUpWalletModal] Invalid treasury address format:', treasuryAddress);
+        console.error('[TopUpWalletModal] Invalid treasury address format');
         throw new Error('Payment system configuration error. Please contact support.');
       }
 
-      console.log('[TopUpWalletModal] Starting Base Account top-up flow');
-
-      // Create transaction record via API to avoid RLS issues
-      // The API uses service role which bypasses RLS
-      const canonicalUserId = toCanonicalUserId(baseUser.id);
-
-      // Get auth token for API call
-      const { data: sessionData } = await supabase.auth.getSession();
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (sessionData.session?.access_token) {
-        headers['Authorization'] = `Bearer ${sessionData.session.access_token}`;
-      }
-
-      // Use the create-charge API to create the transaction record
-      // This bypasses RLS by going through the edge function with service role
-      const createResponse = await fetch('/api/create-charge', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          userId: canonicalUserId,
-          totalAmount: amount,
-          type: 'topup',
-          paymentMethod: 'base_account',
-        }),
+      console.log('[TopUpWalletModal] Starting Base Account top-up flow', {
+        amount,
+        senderWallet: walletAddress.substring(0, 10) + '...',
+        treasuryConfigured: !!treasuryAddress,
       });
-
-      const createResult = await createResponse.json();
-
-      if (!createResponse.ok || !createResult.success) {
-        console.error('[TopUpWalletModal] Failed to create transaction via API:', createResult);
-        throw new Error(createResult.error?.message || createResult.error || 'Failed to initialize payment');
-      }
-
-      const txId = createResult.data?.transactionId || '';
-      if (!txId) {
-        throw new Error('No transaction ID returned from server');
-      }
-
-      setTransactionId(txId);
-      console.log('[TopUpWalletModal] Transaction record created via API:', txId);
 
       // Determine if using testnet
       const isTestnet = import.meta.env.VITE_BASE_MAINNET !== 'true';
 
-      // Process payment via Base Account SDK
-      // Use 'to' field as per SDK documentation (not 'recipient')
-      // Amount must be a string with proper decimal formatting
+      // Process payment via Base Account SDK first
+      // This sends USDC from user's wallet to treasury on-chain
       const paymentOptions: PaymentOptions = {
         to: treasuryAddress as `0x${string}`,
         amount: amount.toFixed(2),
         testnet: isTestnet,
       };
 
-      console.log('[TopUpWalletModal] Calling Base Account SDK pay():', paymentOptions);
+      console.log('[TopUpWalletModal] Calling Base Account SDK pay()');
 
       const paymentResult = await pay(paymentOptions);
 
-      console.log('[TopUpWalletModal] Base Account payment result:', paymentResult);
+      console.log('[TopUpWalletModal] Base Account payment result:', {
+        success: (paymentResult as any).success,
+        hasTransactionHash: !!(paymentResult as any).transactionHash,
+      });
 
       if (!(paymentResult as any).success) {
         throw new Error((paymentResult as any).error || 'Payment failed');
       }
 
-      // Update transaction with payment hash
-      await supabase
-        .from('user_transactions')
-        .update({
-          tx_hash: (paymentResult as any).transactionHash,
-          status: 'completed',
-          payment_status: 'confirmed',
-          wallet_credited: true,
-          completed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', txId);
+      const transactionHash = (paymentResult as any).transactionHash;
+      if (!transactionHash) {
+        throw new Error('Payment succeeded but no transaction hash returned');
+      }
 
-      // Credit user's balance using the bonus-aware function
-      const { data: creditResult, error: creditError } = await supabase.rpc(
-        'credit_balance_with_first_deposit_bonus',
-        {
-          p_canonical_user_id: toCanonicalUserId(baseUser.id),
-          p_amount: amount,
-          p_reason: 'base_account_topup',
-          p_reference_id: (paymentResult as any).transactionHash || txId,
-        }
-      );
+      // After successful on-chain payment, call instant-topup to verify and credit balance
+      // This verifies the transaction on-chain before crediting the user's internal balance
+      console.log('[TopUpWalletModal] Calling instant-topup to verify and credit balance');
 
-      if (creditError) {
-        console.error('[TopUpWalletModal] Error crediting balance:', creditError);
-        // Try fallback
-        const { error: fallbackError } = await supabase.rpc(
-          'credit_sub_account_balance',
-          {
-            p_canonical_user_id: toCanonicalUserId(baseUser.id),
-            p_amount: amount,
-            p_currency: 'USD',
-          }
+      // Get auth token for API call - prefer wallet-based auth
+      const walletToken = `wallet:${walletAddress}`;
+      const { data: sessionData } = await supabase.auth.getSession();
+      const authToken = sessionData.session?.access_token || walletToken;
+
+      const topupResponse = await fetch('/api/instant-topup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          transactionHash,
+          amount,
+          walletAddress, // Sender wallet address for verification
+        }),
+      });
+
+      const topupResult = await topupResponse.json();
+
+      if (!topupResponse.ok || !topupResult.success) {
+        // Transaction was sent but verification/crediting failed
+        console.error('[TopUpWalletModal] instant-topup failed:', topupResult);
+        throw new Error(
+          topupResult.error ||
+          `Payment sent but balance credit failed. Please contact support with tx: ${transactionHash.substring(0, 10)}...`
         );
-
-        if (fallbackError) {
-          throw new Error(`Payment succeeded but failed to credit balance. Please contact support with transaction ID: ${txId}`);
-        }
       }
 
-      const bonusAmount = creditResult?.bonus_amount || 0;
-      const bonusApplied = creditResult?.bonus_applied || false;
-      const newBalance = creditResult?.new_balance;
+      console.log('[TopUpWalletModal] Balance credited successfully:', {
+        creditedAmount: topupResult.creditedAmount,
+        bonusApplied: topupResult.bonusApplied,
+        bonusAmount: topupResult.bonusAmount,
+        newBalance: topupResult.newBalance,
+      });
 
-      console.log(`[TopUpWalletModal] Credited ${amount} to user balance, bonus=${bonusAmount}, new_balance=${newBalance}`);
-
-      // Update transaction notes with bonus info
-      if (bonusApplied && bonusAmount > 0) {
-        await supabase
-          .from('user_transactions')
-          .update({
-            notes: `Base Account top-up completed with 50% bonus (+$${bonusAmount.toFixed(2)})`,
-          })
-          .eq('id', txId);
-      }
+      setTransactionId(topupResult.transactionId || '');
 
       // Success!
       setStep('success');
       await refreshUserData();
 
       // Dispatch balance update event
-      if (newBalance !== undefined && newBalance !== null) {
+      if (topupResult.newBalance !== undefined && topupResult.newBalance !== null) {
         window.dispatchEvent(new CustomEvent('balance-updated', {
-          detail: { newBalance }
+          detail: { newBalance: topupResult.newBalance }
         }));
       }
 
       // Send in-app notification
       if (baseUser?.id) {
-        notificationService.notifyTopUp(baseUser.id, amount, newBalance).catch(err => {
+        notificationService.notifyTopUp(baseUser.id, amount, topupResult.newBalance).catch(err => {
           console.warn('[TopUpWalletModal] Failed to send top-up notification:', err);
         });
       }
@@ -444,6 +411,8 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
         setError('Payment was rejected');
       } else if (errorMessage.includes('insufficient')) {
         setError('Insufficient balance in your Base Account');
+      } else if (errorMessage.includes('contact support')) {
+        setError(errorMessage);
       } else {
         setError(errorMessage);
       }
