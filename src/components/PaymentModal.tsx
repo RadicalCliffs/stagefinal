@@ -492,6 +492,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   // CRITICAL FIX: Auto-recover reservation from sessionStorage on mount
   // This fixes the bug where refreshing the page loses the reservation
   const [recoveredReservationId, setRecoveredReservationId] = useState<string | null>(null);
+  const [recoveredTicketNumbers, setRecoveredTicketNumbers] = useState<number[]>([]);
   
   useEffect(() => {
     // Only attempt recovery if no reservationId prop was provided
@@ -509,6 +510,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         age: Math.round((Date.now() - stored.timestamp) / 1000) + 's'
       });
       setRecoveredReservationId(stored.reservationId);
+      setRecoveredTicketNumbers(stored.ticketNumbers || []);
     } else {
       console.log('[PaymentModal] No stored reservation found for competition:', competitionId);
     }
@@ -606,7 +608,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
       // Step 1: Reserve or use existing reservation
       let currentReservationId = effectiveReservationId;
-      let reservedTicketNumbers: number[] = selectedTickets.length > 0 ? selectedTickets : [];
+      let reservedTicketNumbers: number[] = selectedTickets.length > 0 ? selectedTickets : recoveredTicketNumbers;
 
       if (!currentReservationId) {
         console.log('[PaymentModal] No reservation found, creating one...');
@@ -667,11 +669,18 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       setBalanceTransactionId(purchaseData.payment_id);
       setPaymentStep('success');
 
-      // Update balance from response
-      if (purchaseData.new_balance !== undefined && purchaseData.new_balance !== null) {
+      // Update balance from response (only if available from rolled-back contract)
+      // Rolled-back contract returns empty strings for amount and new_balance
+      if (purchaseData.new_balance && purchaseData.new_balance !== '') {
         const newBalanceNum = parseFloat(purchaseData.new_balance);
-        setUserBalance(newBalanceNum);
-        console.log('[PaymentModal] Balance updated from purchase response:', newBalanceNum);
+        if (!isNaN(newBalanceNum)) {
+          setUserBalance(newBalanceNum);
+          console.log('[PaymentModal] Balance updated from purchase response:', newBalanceNum);
+        }
+      } else {
+        // Balance not available in response, refresh from backend
+        console.log('[PaymentModal] Balance not in response, refreshing from backend...');
+        loadUserBalance().catch(err => console.error('[PaymentModal] Balance refresh failed:', err));
       }
 
       // Store purchased ticket numbers for display
@@ -681,18 +690,21 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
       // Refresh user data
       await refreshUserData();
-      loadUserBalance().catch(err => console.error('[PaymentModal] Background balance refresh failed:', err));
 
-      // Dispatch balance-updated event for other components
-      if (purchaseData.new_balance !== undefined) {
-        window.dispatchEvent(new CustomEvent('balance-updated', {
-          detail: { 
-            newBalance: parseFloat(purchaseData.new_balance),
-            purchaseAmount: parseFloat(purchaseData.amount),
-            ticketsCreated: purchaseData.tickets.length,
-            competitionId 
-          }
-        }));
+      // Dispatch balance-updated event for other components (only if we have balance data)
+      if (purchaseData.new_balance && purchaseData.new_balance !== '') {
+        const newBalanceNum = parseFloat(purchaseData.new_balance);
+        const amountNum = purchaseData.amount ? parseFloat(purchaseData.amount) : 0;
+        if (!isNaN(newBalanceNum)) {
+          window.dispatchEvent(new CustomEvent('balance-updated', {
+            detail: { 
+              newBalance: newBalanceNum,
+              purchaseAmount: amountNum,
+              ticketsCreated: purchaseData.tickets.length,
+              competitionId 
+            }
+          }));
+        }
       }
 
       // Clear reservation from storage after successful purchase

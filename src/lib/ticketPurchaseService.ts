@@ -109,6 +109,15 @@ export async function purchaseTicketsWithBalance({
     // Need to get ticket numbers from reservation or use selectedTickets
     const ticketsToSend = reservationData ? reservationData.ticket_numbers : (selectedTickets || []);
     
+    // Validate we have ticket numbers to send
+    if (!ticketsToSend || ticketsToSend.length === 0) {
+      console.error('[purchaseTicketsWithBalance] No ticket numbers available for purchase');
+      return {
+        success: false,
+        error: 'No ticket numbers available. Please select tickets again.'
+      };
+    }
+    
     console.log('[purchaseTicketsWithBalance] Purchasing with rolled-back contract:', {
       competitionId: competitionId.substring(0, 10) + '...',
       ticketCount: ticketsToSend.length
@@ -154,12 +163,13 @@ export async function purchaseTicketsWithBalance({
     });
 
     // Return in expected format
+    // Note: With rolled-back contract, amount and new_balance may not be available (empty strings)
     return {
       success: true,
       ticketsCreated: purchaseData.tickets.length,
       ticketsPurchased: purchaseData.tickets.length,
-      totalCost: parseFloat(purchaseData.amount),
-      balanceAfterPurchase: parseFloat(purchaseData.new_balance),
+      totalCost: purchaseData.amount ? parseFloat(purchaseData.amount) : 0,
+      balanceAfterPurchase: purchaseData.new_balance ? parseFloat(purchaseData.new_balance) : 0,
       message: 'Tickets purchased successfully',
       tickets: purchaseData.tickets,
       paymentId: purchaseData.payment_id,

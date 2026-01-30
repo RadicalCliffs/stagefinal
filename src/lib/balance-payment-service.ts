@@ -366,24 +366,26 @@ export class BalancePaymentService {
       // Transform response to match PurchaseResponse interface
       // The rolled-back contract returns tickets as Array<{ ticket_number, status? }>
       const transformedData: PurchaseResponse = {
-        payment_id: 'legacy-' + Date.now(), // No payment_id in rolled-back response
+        payment_id: 'legacy-' + Date.now() + '-' + crypto.randomUUID(), // Generate unique ID for rolled-back response
         status: 'succeeded',
-        amount: '0', // Not provided in rolled-back response
+        amount: '', // Not provided in rolled-back response - empty string indicates unavailable
         currency: 'USD',
-        new_balance: '0', // Not provided in rolled-back response
+        new_balance: '', // Not provided in rolled-back response - empty string indicates unavailable
         competition_id: data.competition_id,
         tickets: (data.tickets || []).map((t: any, index: number) => ({
           id: `ticket-${index}`,
-          ticket_number: typeof t === 'object' ? t.ticket_number : t
+          ticket_number: t.ticket_number // Rolled-back contract always returns objects with ticket_number
         }))
       };
 
-      // Dispatch balance-updated event for UI refresh (even without balance data)
-      if (typeof window !== 'undefined') {
+      // Dispatch balance-updated event for UI refresh only if we have balance data
+      // The rolled-back contract doesn't provide balance data, so we skip this event
+      // Components should refresh balance separately if needed
+      if (typeof window !== 'undefined' && data.new_balance !== undefined) {
         window.dispatchEvent(new CustomEvent('balance-updated', {
           detail: {
-            newBalance: undefined,
-            purchaseAmount: undefined,
+            newBalance: data.new_balance,
+            purchaseAmount: data.amount,
             tickets: transformedData.tickets,
             competitionId: data.competition_id
           }
