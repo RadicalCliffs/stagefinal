@@ -1,13 +1,17 @@
 /**
  * Balance Payment Service
  * 
- * Implements the new 3-endpoint flow for balance-funded ticket purchases:
- * 1. Reserve tickets via POST /functions/v1/reserve-tickets
+ * Simplified balance payment system that uses the straightforward RPC flow:
+ * 1. Optional: Reserve tickets via POST /functions/v1/reserve-tickets (for frontend UX)
  * 2. Purchase with balance via POST /functions/v1/purchase-tickets-with-bonus
- * 3. Verify status (optional) via POST /functions/v1/process-balance-payments
+ *    - This calls purchase_tickets_with_balance RPC which:
+ *      - Checks sub_account_balances for available_balance
+ *      - Matches by canonical_user_id or wallet_address
+ *      - Deducts balance atomically
+ *      - Allocates tickets (selected or lucky dip)
+ *      - Returns success with balance and ticket info
  * 
- * This replaces all previous balance payment logic and omnipotent data service checks.
- * Keep it simple, use the exact flow.
+ * This replaces all previous complex balance payment logic.
  */
 
 import { supabase } from './supabase';
@@ -247,20 +251,22 @@ export class BalancePaymentService {
   }
 
   /**
-   * Step 2: Purchase with balance (ROLLED BACK CONTRACT)
+   * Step 2: Purchase with balance (SIMPLIFIED SYSTEM)
    * 
-   * Uses the rolled-back purchase-tickets-with-bonus contract:
-   * - Request: { competition_id, tickets: [{ticket_number}], idempotent }
-   * - Success: { status: 'ok', competition_id, tickets, idempotent }
-   * - Error: { status: 'error', error, errorCode }
+   * Uses the simplified purchase-tickets-with-bonus edge function which calls
+   * the purchase_tickets_with_balance RPC that:
+   * - Checks sub_account_balances for available_balance
+   * - Matches user by canonical_user_id or wallet_address
+   * - Atomically deducts balance and creates tickets
+   * - Returns: { status: 'ok', competition_id, tickets, entry_id, total_cost, new_balance }
    * 
    * @param params.competitionId - Competition UUID (REQUIRED)
    * @param params.ticketNumbers - Specific ticket numbers to purchase (REQUIRED)
-   * @param params.reservationId - Optional reservation ID (ignored, for backwards compatibility)
-   * @param params.userId - Optional user identifier (ignored, for backwards compatibility)
-   * @param params.ticketCount - Optional count (ignored, for backwards compatibility)
-   * @param params.ticketPrice - Optional price (ignored, for backwards compatibility)
-   * @returns Promise with purchase data
+   * @param params.reservationId - Optional reservation ID (for backwards compatibility)
+   * @param params.userId - Optional user identifier (for backwards compatibility)
+   * @param params.ticketCount - Optional count (for backwards compatibility)
+   * @param params.ticketPrice - Optional price (for backwards compatibility)
+   * @returns Promise with purchase data including new balance
    */
   static async purchaseWithBalance(params: {
     competitionId: string;
@@ -301,7 +307,7 @@ export class BalancePaymentService {
         idempotent: true
       };
 
-      console.log('[BalancePayment] Purchasing with balance (rolled-back contract):', { 
+      console.log('[BalancePayment] Purchasing with balance (simplified system):', { 
         competitionId: competitionId.substring(0, 10) + '...',
         ticketCount: ticketNumbers.length,
         tickets: ticketNumbers
@@ -364,28 +370,26 @@ export class BalancePaymentService {
       });
 
       // Transform response to match PurchaseResponse interface
-      // The rolled-back contract returns tickets as Array<{ ticket_number, status? }>
+      // The simplified system returns: { status: 'ok', competition_id, tickets, entry_id, total_cost, new_balance }
       const transformedData: PurchaseResponse = {
-        payment_id: 'legacy-' + Date.now() + '-' + crypto.randomUUID(), // Generate unique ID for rolled-back response
+        payment_id: data.entry_id || 'purchase-' + Date.now() + '-' + crypto.randomUUID(),
         status: 'succeeded',
-        amount: '', // Not provided in rolled-back response - empty string indicates unavailable
+        amount: String(data.total_cost || ''),
         currency: 'USD',
-        new_balance: '', // Not provided in rolled-back response - empty string indicates unavailable
+        new_balance: String(data.new_balance || ''),
         competition_id: data.competition_id,
         tickets: (data.tickets || []).map((t: any, index: number) => ({
-          id: `ticket-${index}`,
-          ticket_number: t.ticket_number // Rolled-back contract always returns objects with ticket_number
+          id: data.entry_id ? `${data.entry_id}-${index}` : `ticket-${index}`,
+          ticket_number: t.ticket_number
         }))
       };
 
-      // Dispatch balance-updated event for UI refresh only if we have balance data
-      // The rolled-back contract doesn't provide balance data, so we skip this event
-      // Components should refresh balance separately if needed
-      if (typeof window !== 'undefined' && data.new_balance !== undefined) {
+      // Dispatch balance-updated event for UI refresh with balance data
+      if (typeof window !== 'undefined' && data.new_balance !== undefined && data.new_balance !== null) {
         window.dispatchEvent(new CustomEvent('balance-updated', {
           detail: {
-            newBalance: data.new_balance,
-            purchaseAmount: data.amount,
+            newBalance: Number(data.new_balance),
+            purchaseAmount: Number(data.total_cost || 0),
             tickets: transformedData.tickets,
             competitionId: data.competition_id
           }
