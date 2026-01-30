@@ -1,4 +1,4 @@
-import { lazy } from "react";
+import { lazy, Suspense } from "react";
 import { useNavigate } from "react-router";
 import { supabase } from "../lib/supabase";
 import { footerLogo, applePay, visaLogo, masterCardLogo } from "../assets/images";
