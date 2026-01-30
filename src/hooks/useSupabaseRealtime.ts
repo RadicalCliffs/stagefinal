@@ -24,7 +24,7 @@
  * ```
  */
 
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import {
   subscribeToTable,
   subscribeToMultipleTables,
