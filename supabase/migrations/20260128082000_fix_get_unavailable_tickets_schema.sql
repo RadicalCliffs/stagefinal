@@ -14,7 +14,7 @@
 DROP FUNCTION IF EXISTS get_unavailable_tickets(TEXT) CASCADE;
 DROP FUNCTION IF EXISTS get_unavailable_tickets(UUID) CASCADE;
 
-CREATE OR REPLACE FUNCTION get_unavailable_tickets(competition_id TEXT)
+CREATE OR REPLACE FUNCTION get_unavailable_tickets(p_competition_id TEXT)
 RETURNS INT4[]
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -30,17 +30,17 @@ DECLARE
   v_pending INTEGER[] := ARRAY[]::INTEGER[];
 BEGIN
   -- Handle NULL or empty input
-  IF competition_id IS NULL OR TRIM(competition_id) = '' THEN
+  IF p_competition_id IS NULL OR TRIM(p_competition_id) = '' THEN
     RETURN ARRAY[]::INTEGER[];
   END IF;
 
   -- Parse UUID
   BEGIN
-    v_competition_uuid := competition_id::UUID;
+    v_competition_uuid := p_competition_id::UUID;
   EXCEPTION WHEN invalid_text_representation THEN
     SELECT c.id, c.uid INTO v_competition_uuid, v_comp_uid
     FROM competitions c
-    WHERE c.uid = competition_id
+    WHERE c.uid = p_competition_id
     LIMIT 1;
 
     IF v_competition_uuid IS NULL THEN
@@ -65,7 +65,7 @@ BEGIN
     WHERE (
       competitionid = v_competition_uuid::TEXT
       OR (v_comp_uid IS NOT NULL AND competitionid = v_comp_uid)
-      OR competitionid = competition_id
+      OR competitionid = p_competition_id
     )
       AND ticketnumbers IS NOT NULL
       AND TRIM(ticketnumbers::TEXT) != ''
@@ -80,7 +80,7 @@ BEGIN
     SELECT COALESCE(array_agg(DISTINCT t.ticket_number), ARRAY[]::INTEGER[])
     INTO v_sold_tickets
     FROM tickets t
-    WHERE t.competition_id = competition_id
+    WHERE t.competition_id = p_competition_id
       OR t.competition_id = v_competition_uuid::TEXT
       OR (v_comp_uid IS NOT NULL AND t.competition_id = v_comp_uid);
   EXCEPTION WHEN OTHERS THEN
@@ -97,7 +97,7 @@ BEGIN
     INTO v_pending
     FROM pending_ticket_items pti
     INNER JOIN pending_tickets pt ON pti.pending_ticket_id = pt.id
-    WHERE pti.competition_id = competition_id
+    WHERE pti.competition_id = p_competition_id
       AND pt.status IN ('pending', 'confirming')
       AND pt.expires_at > NOW()
       AND pti.ticket_number IS NOT NULL;

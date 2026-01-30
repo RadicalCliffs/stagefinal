@@ -145,7 +145,7 @@ export const getAvailability = (
 /**
  * Get unavailable tickets (used in availability calc)
  * 
- * SQL Function: public.get_unavailable_tickets(competition_id TEXT)
+ * SQL Function: public.get_unavailable_tickets(p_competition_id TEXT)
  * 
  * @param supabaseClient - Supabase client instance
  * @param compIdOrUid - Competition UUID or UID
@@ -163,7 +163,7 @@ export const getUnavailableTickets = (
   }
   
   return supabaseClient.rpc('get_unavailable_tickets', {
-    competition_id: compIdOrUid
+    p_competition_id: compIdOrUid
   });
 };
 
