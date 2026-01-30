@@ -24,7 +24,7 @@
  * ```
  */
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import {
   subscribeToTable,
   subscribeToMultipleTables,
@@ -121,7 +121,6 @@ export function useSupabaseRealtimeRefresh(
  * ============================================================================
  */
 
-import { useState, useCallback } from 'react';
 import {
   subscribeToTableWithState,
   subscribeToBroadcast,
