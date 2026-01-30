@@ -18,7 +18,13 @@ This was the last commit on January 28th before changes were made on January 29t
 - **After (Jan 28):** 1836 lines - Full implementation with reservation logic and ticket assignment
 - **Reason:** The simplified version relies on an RPC function (`purchase_tickets_with_balance`) that doesn't exist in the January 28th database
 
-### 2. Documentation Files Removed
+### 2. Frontend Payment Component Restored
+**File:** `src/components/PaymentModal.tsx`
+- **Before (Jan 30):** 1751 lines - Adapted for rolled-back contract with balance handling changes
+- **After (Jan 28):** 1732 lines - Original version compatible with January 28th backend
+- **Reason:** The January 30th version had specific adaptations for the simplified payment flow that are incompatible with the January 28th backend
+
+### 3. Documentation Files Removed
 The following documentation files were added after January 28th and have been removed:
 - `BALANCE_PAYMENT_FIX_SUMMARY.md` - Documents balance payment system changes
 - `BEFORE_AFTER_COMPARISON.md` - Visual comparison of payment flow changes
