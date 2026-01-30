@@ -606,6 +606,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
       // Step 1: Reserve or use existing reservation
       let currentReservationId = effectiveReservationId;
+      let reservedTicketNumbers: number[] = selectedTickets.length > 0 ? selectedTickets : [];
 
       if (!currentReservationId) {
         console.log('[PaymentModal] No reservation found, creating one...');
@@ -625,19 +626,18 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         }
 
         currentReservationId = reserveResult.data.reservation_id;
-        console.log('[PaymentModal] Reservation created:', currentReservationId);
+        reservedTicketNumbers = reserveResult.data.ticket_numbers;
+        console.log('[PaymentModal] Reservation created:', currentReservationId, 'with tickets:', reservedTicketNumbers);
       }
 
-      // Step 2: Purchase with balance
-      // Best practice: Pass all required data directly for immediate processing
-      console.log('[PaymentModal] Purchasing with balance, reservation:', currentReservationId);
+      // Step 2: Purchase with balance using rolled-back contract
+      console.log('[PaymentModal] Purchasing with rolled-back contract:', {
+        competitionId: competitionId.substring(0, 10) + '...',
+        ticketCount: reservedTicketNumbers.length
+      });
       const purchaseResult = await BalancePaymentService.purchaseWithBalance({
-        reservationId: currentReservationId,
         competitionId: competitionId,
-        userId: canonicalUserId,
-        ticketNumbers: selectedTickets.length > 0 ? selectedTickets : undefined,
-        ticketCount: selectedTickets.length > 0 ? selectedTickets.length : ticketCount,
-        ticketPrice: ticketPrice
+        ticketNumbers: reservedTicketNumbers
       });
 
       if (!purchaseResult.success || !purchaseResult.data) {

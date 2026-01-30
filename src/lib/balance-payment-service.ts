@@ -247,24 +247,26 @@ export class BalancePaymentService {
   }
 
   /**
-   * Step 2: Purchase with balance
+   * Step 2: Purchase with balance (ROLLED BACK CONTRACT)
    * 
-   * Deducts balance, marks tickets as paid, and finalizes reservation.
-   * Best practice: Pass all required data directly to avoid backend lookups.
+   * Uses the rolled-back purchase-tickets-with-bonus contract:
+   * - Request: { competition_id, tickets: [{ticket_number}], idempotent }
+   * - Success: { status: 'ok', competition_id, tickets, idempotent }
+   * - Error: { status: 'error', error, errorCode }
    * 
-   * @param params.reservationId - Reservation UUID from the reserve step
-   * @param params.competitionId - Competition UUID (recommended for reliability)
-   * @param params.userId - User identifier (recommended for reliability)
-   * @param params.ticketNumbers - Specific ticket numbers (recommended for reliability)
-   * @param params.ticketCount - Number of tickets (recommended for reliability)
-   * @param params.ticketPrice - Price per ticket (recommended for reliability)
-   * @returns Promise with purchase data including tickets, new balance, and payment ID
+   * @param params.competitionId - Competition UUID (REQUIRED)
+   * @param params.ticketNumbers - Specific ticket numbers to purchase (REQUIRED)
+   * @param params.reservationId - Optional reservation ID (ignored, for backwards compatibility)
+   * @param params.userId - Optional user identifier (ignored, for backwards compatibility)
+   * @param params.ticketCount - Optional count (ignored, for backwards compatibility)
+   * @param params.ticketPrice - Optional price (ignored, for backwards compatibility)
+   * @returns Promise with purchase data
    */
   static async purchaseWithBalance(params: {
-    reservationId: string;
-    competitionId?: string;
+    competitionId: string;
+    ticketNumbers: number[];
+    reservationId?: string;
     userId?: string;
-    ticketNumbers?: number[];
     ticketCount?: number;
     ticketPrice?: number;
   }): Promise<{
@@ -273,50 +275,36 @@ export class BalancePaymentService {
     error?: string;
     errorDetails?: BalancePaymentError;
   }> {
-    const { reservationId, competitionId, userId, ticketNumbers, ticketCount, ticketPrice } = params;
+    const { competitionId, ticketNumbers } = params;
 
-    if (!reservationId) {
+    // Validate required parameters for rolled-back contract
+    if (!competitionId) {
       return {
         success: false,
-        error: 'Reservation ID is required'
+        error: 'Competition ID is required'
+      };
+    }
+
+    if (!ticketNumbers || ticketNumbers.length === 0) {
+      return {
+        success: false,
+        error: 'Ticket numbers are required'
       };
     }
 
     try {
-      const idempotencyKey = generateIdempotencyKey(`purchase-${reservationId}`);
-
-      // Best practice: include all required data directly in the request
-      const requestBody: PurchaseRequest = {
-        reservation_id: reservationId,
-        idempotency_key: idempotencyKey
+      // Build request body matching rolled-back contract
+      // { competition_id: string, tickets: Array<{ ticket_number: string | number }>, idempotent?: boolean }
+      const requestBody = {
+        competition_id: competitionId,
+        tickets: ticketNumbers.map(num => ({ ticket_number: num })),
+        idempotent: true
       };
 
-      // Add optional but recommended fields for reliability
-      if (competitionId) {
-        requestBody.competition_id = competitionId;
-      }
-      if (userId) {
-        requestBody.canonical_user_id = toCanonicalUserId(userId);
-      }
-      if (ticketNumbers && ticketNumbers.length > 0) {
-        requestBody.ticket_numbers = ticketNumbers;
-      }
-      if (ticketCount !== undefined && ticketCount > 0) {
-        requestBody.ticket_count = ticketCount;
-      }
-      if (ticketPrice !== undefined && ticketPrice > 0) {
-        requestBody.ticket_price = ticketPrice;
-      }
-
-      console.log('[BalancePayment] Purchasing with balance:', { 
-        reservationId,
-        hasCompetitionId: !!competitionId,
-        hasUserId: !!userId,
-        ticketCount: ticketNumbers?.length || ticketCount,
-        requestBody: {
-          ...requestBody,
-          canonical_user_id: requestBody.canonical_user_id?.substring(0, 20) + '...'
-        }
+      console.log('[BalancePayment] Purchasing with balance (rolled-back contract):', { 
+        competitionId: competitionId.substring(0, 10) + '...',
+        ticketCount: ticketNumbers.length,
+        tickets: ticketNumbers
       });
 
       const { data, error } = await supabase.functions.invoke('purchase-tickets-with-bonus', {
@@ -345,29 +333,58 @@ export class BalancePaymentService {
         };
       }
 
-      if (!data || data.status !== 'succeeded') {
+      // Check for error response format: { status: 'error', error, errorCode }
+      if (data && data.status === 'error') {
+        console.error('[BalancePayment] Purchase failed - error response:', {
+          error: data.error,
+          errorCode: data.errorCode
+        });
+        return {
+          success: false,
+          error: data.error || 'Purchase failed'
+        };
+      }
+
+      // Check for success response format: { status: 'ok', competition_id, tickets, idempotent }
+      if (!data || data.status !== 'ok') {
         console.error('[BalancePayment] Purchase failed - invalid response:', {
           hasData: !!data,
           status: data?.status,
-          error: data?.error,
-          errorCode: data?.errorCode,
           fullResponse: data
         });
         return {
           success: false,
-          error: data?.error || 'Purchase failed'
+          error: 'Invalid response from server'
         };
       }
 
-      console.log('[BalancePayment] Purchase successful:', data.payment_id);
+      console.log('[BalancePayment] Purchase successful:', {
+        competitionId: data.competition_id,
+        ticketCount: data.tickets?.length
+      });
 
-      // Dispatch balance-updated event for UI refresh
+      // Transform response to match PurchaseResponse interface
+      // The rolled-back contract returns tickets as Array<{ ticket_number, status? }>
+      const transformedData: PurchaseResponse = {
+        payment_id: 'legacy-' + Date.now(), // No payment_id in rolled-back response
+        status: 'succeeded',
+        amount: '0', // Not provided in rolled-back response
+        currency: 'USD',
+        new_balance: '0', // Not provided in rolled-back response
+        competition_id: data.competition_id,
+        tickets: (data.tickets || []).map((t: any, index: number) => ({
+          id: `ticket-${index}`,
+          ticket_number: typeof t === 'object' ? t.ticket_number : t
+        }))
+      };
+
+      // Dispatch balance-updated event for UI refresh (even without balance data)
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('balance-updated', {
           detail: {
-            newBalance: data.new_balance,
-            purchaseAmount: data.amount,
-            tickets: data.tickets,
+            newBalance: undefined,
+            purchaseAmount: undefined,
+            tickets: transformedData.tickets,
             competitionId: data.competition_id
           }
         }));
@@ -375,7 +392,7 @@ export class BalancePaymentService {
 
       return {
         success: true,
-        data: data as PurchaseResponse
+        data: transformedData
       };
     } catch (error) {
       console.error('[BalancePayment] Purchase exception:', error);
@@ -478,9 +495,10 @@ export class BalancePaymentService {
 
     const reservationData = reserveResult.data;
 
-    // Step 2: Purchase
+    // Step 2: Purchase using rolled-back contract
     const purchaseResult = await this.purchaseWithBalance({
-      reservationId: reservationData.reservation_id
+      competitionId: params.competitionId,
+      ticketNumbers: reservationData.ticket_numbers
     });
 
     if (!purchaseResult.success) {

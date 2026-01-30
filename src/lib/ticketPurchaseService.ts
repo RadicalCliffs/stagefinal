@@ -105,11 +105,18 @@ export async function purchaseTicketsWithBalance({
       console.log('[purchaseTicketsWithBalance] Reservation created:', currentReservationId);
     }
 
-    // Purchase with balance using the reservation
-    console.log('[purchaseTicketsWithBalance] Purchasing with reservation:', currentReservationId);
+    // Purchase with balance using rolled-back contract
+    // Need to get ticket numbers from reservation or use selectedTickets
+    const ticketsToSend = reservationData ? reservationData.ticket_numbers : (selectedTickets || []);
+    
+    console.log('[purchaseTicketsWithBalance] Purchasing with rolled-back contract:', {
+      competitionId: competitionId.substring(0, 10) + '...',
+      ticketCount: ticketsToSend.length
+    });
     
     const purchaseResult = await BalancePaymentService.purchaseWithBalance({
-      reservationId: currentReservationId
+      competitionId: competitionId,
+      ticketNumbers: ticketsToSend
     });
 
     if (!purchaseResult.success || !purchaseResult.data) {
