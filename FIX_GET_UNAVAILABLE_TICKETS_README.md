@@ -28,13 +28,13 @@ The function has been updated in two places:
 
 ### Option 2: Via Supabase CLI
 ```bash
-cd /home/runner/work/theprize.io/theprize.io
+# Run from the project root directory
 supabase db execute -f supabase/HOTFIX_get_unavailable_tickets.sql
 ```
 
 ### Option 3: Apply Migration
 ```bash
-cd /home/runner/work/theprize.io/theprize.io
+# Run from the project root directory
 supabase db push
 ```
 

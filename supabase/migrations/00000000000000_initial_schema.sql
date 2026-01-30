@@ -2016,7 +2016,9 @@ BEGIN
     WHERE t.competition_id = p_competition_id
       OR t.competition_id = v_competition_uuid::TEXT
       OR (v_comp_uid IS NOT NULL AND t.competition_id = v_comp_uid);
-  EXCEPTION WHEN OTHERS THEN
+  EXCEPTION WHEN undefined_table THEN
+    v_sold_tickets := ARRAY[]::INTEGER[];
+  WHEN undefined_column THEN
     v_sold_tickets := ARRAY[]::INTEGER[];
   END;
 
@@ -2028,7 +2030,11 @@ BEGIN
     INTO v_pending
     FROM pending_ticket_items pti
     INNER JOIN pending_tickets pt ON pti.pending_ticket_id = pt.id
-    WHERE pti.competition_id = p_competition_id
+    WHERE (
+      pti.competition_id = p_competition_id
+      OR pti.competition_id = v_competition_uuid::TEXT
+      OR (v_comp_uid IS NOT NULL AND pti.competition_id = v_comp_uid)
+    )
       AND pt.status IN ('pending', 'confirming')
       AND pt.expires_at > NOW()
       AND pti.ticket_number IS NOT NULL;
