@@ -26,8 +26,9 @@
  * // CDP MFA
  * import { useGetMfaConfig, useInitiateMfaEnrollment } from '@/hooks';
  * 
- * // Base SDK
- * import { useBaseAccountSDK, useBaseProvider, useBaseSubAccount } from '@/hooks';
+ * // Base SDK (use comprehensive version from useBaseSubAccount.ts)
+ * import { useBaseAccountSDK, useBaseProvider, useBaseSession } from '@/hooks';
+ * import useBaseSubAccount from '@/hooks/useBaseSubAccount';
  * 
  * // Custom Application Hooks
  * import { useAuthUser, useSpendPermission, useRealTimeBalance } from '@/hooks';
@@ -150,7 +151,9 @@ export { default as useVRFDebug } from './useVRFDebug';
  * 
  * Base SDK:
  * - useBaseAccountSDK, useBaseProvider, useBaseSession
- * - useBaseSubAccount, useBasePayments
+ * - useBaseSubAccount (from useBaseSubAccount.ts - comprehensive with spend permissions)
+ * - useBaseAccountSubAccount (from useBaseAccount.ts - basic sub-account creation only)
+ * - useBasePayments
  * 
  * Custom Application:
  * - useAuthUser - User authentication state

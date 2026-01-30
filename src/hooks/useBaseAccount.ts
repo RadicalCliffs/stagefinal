@@ -37,8 +37,12 @@ import type { Address } from 'viem';
 /**
  * Hook to access the Base Account SDK
  * 
+ * This is a convenience re-export of the context hook for easy importing.
  * Provides the SDK instance, provider, and session state from the context.
  * Throws an error if used outside of BaseAccountSDKProvider.
+ * 
+ * Note: This is the same as importing from '../contexts/BaseAccountSDKContext'
+ * but allows importing from '@/hooks' for consistency.
  * 
  * @returns SDK instance, provider, session state, and utility functions
  * 
@@ -152,7 +156,14 @@ export function useBaseSession() {
 }
 
 /**
- * Hook to manage sub-accounts
+ * Hook to manage sub-accounts (lightweight version)
+ * 
+ * This is a simplified sub-account management hook for basic use cases.
+ * For full sub-account functionality with spend permissions, use the hook
+ * from '@/hooks/useBaseSubAccount' instead (default export).
+ * 
+ * Note: This function has a naming conflict with the separate useBaseSubAccount file.
+ * The comprehensive version from useBaseSubAccount.ts is recommended for most use cases.
  * 
  * Sub-accounts enable frictionless in-app transactions without repeated signing.
  * They're ideal for gaming, social apps, and any use case where UX is critical.
@@ -162,7 +173,7 @@ export function useBaseSession() {
  * @example
  * ```tsx
  * function SubAccountManager() {
- *   const { createSubAccount, isReady, hasSession } = useBaseSubAccount();
+ *   const { createSubAccount, isReady, hasSession } = useBaseAccountSubAccount();
  *   const [subAccountAddress, setSubAccountAddress] = useState<string | null>(null);
  *   
  *   const handleCreate = async () => {
@@ -186,7 +197,7 @@ export function useBaseSession() {
  * }
  * ```
  */
-export function useBaseSubAccount() {
+export function useBaseAccountSubAccount() {
   const { sdk, isReady, hasSession } = useSDKContext();
   
   /**
@@ -222,6 +233,11 @@ export function useBaseSubAccount() {
     hasSession,
   };
 }
+
+// Note: There is a more comprehensive useBaseSubAccount hook in a separate file.
+// Export this with a different name to avoid conflicts when importing from index.
+// The separate file version is recommended for most use cases as it includes
+// spend permission integration and more features.
 
 /**
  * Hook to work with Base Account payment features

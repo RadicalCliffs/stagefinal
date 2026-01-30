@@ -360,6 +360,7 @@ Hooks for enabling and managing 2FA via TOTP authenticator apps.
 #### MFA Enrollment
 
 ```tsx
+import { useState, useEffect } from 'react';
 import { useGetMfaConfig, useInitiateMfaEnrollment, useSubmitMfaEnrollment } from '@/hooks/cdp';
 
 function MFASetup() {
@@ -413,6 +414,7 @@ function MFASetup() {
 #### MFA Verification (Login)
 
 ```tsx
+import { useState } from 'react';
 import { useInitiateMfaVerification, useSubmitMfaVerification } from '@/hooks/cdp';
 
 function MFALogin() {
