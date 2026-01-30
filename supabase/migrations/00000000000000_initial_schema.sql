@@ -1948,22 +1948,118 @@ $$;
 -- =====================================================
 
 -- get_unavailable_tickets: Get list of unavailable ticket numbers
+-- Includes sold tickets from tickets_sold, joincompetition, tickets, and pending reservations
 CREATE OR REPLACE FUNCTION get_unavailable_tickets(p_competition_id TEXT)
-RETURNS INTEGER[]
+RETURNS INT4[]
 LANGUAGE plpgsql
 SECURITY DEFINER
+STABLE
 SET search_path = public
 AS $$
 DECLARE
-  v_unavailable INTEGER[];
+  v_competition_uuid UUID;
+  v_comp_uid TEXT;
+  v_unavailable INTEGER[] := ARRAY[]::INTEGER[];
+  v_sold_jc INTEGER[] := ARRAY[]::INTEGER[];
+  v_sold_tickets INTEGER[] := ARRAY[]::INTEGER[];
+  v_pending INTEGER[] := ARRAY[]::INTEGER[];
 BEGIN
-  SELECT ARRAY_AGG(ticket_number) INTO v_unavailable
-  FROM tickets_sold
-  WHERE competition_id = p_competition_id;
+  -- Handle NULL or empty input
+  IF p_competition_id IS NULL OR TRIM(p_competition_id) = '' THEN
+    RETURN ARRAY[]::INTEGER[];
+  END IF;
 
-  RETURN COALESCE(v_unavailable, ARRAY[]::INTEGER[]);
+  -- Parse UUID
+  BEGIN
+    v_competition_uuid := p_competition_id::UUID;
+  EXCEPTION WHEN invalid_text_representation THEN
+    SELECT c.id, c.uid INTO v_competition_uuid, v_comp_uid
+    FROM competitions c
+    WHERE c.uid = p_competition_id
+    LIMIT 1;
+
+    IF v_competition_uuid IS NULL THEN
+      RETURN ARRAY[]::INTEGER[];
+    END IF;
+  END;
+
+  -- Get uid if not already set
+  IF v_comp_uid IS NULL THEN
+    SELECT c.uid INTO v_comp_uid
+    FROM competitions c
+    WHERE c.id = v_competition_uuid;
+  END IF;
+
+  -- Get sold tickets from joincompetition (competitionid is TEXT)
+  SELECT COALESCE(array_agg(DISTINCT ticket_num), ARRAY[]::INTEGER[])
+  INTO v_sold_jc
+  FROM (
+    SELECT CAST(TRIM(unnest(string_to_array(ticketnumbers::TEXT, ','))) AS INTEGER) AS ticket_num
+    FROM joincompetition
+    WHERE (
+      competitionid = v_competition_uuid::TEXT
+      OR (v_comp_uid IS NOT NULL AND competitionid = v_comp_uid)
+      OR competitionid = p_competition_id
+    )
+      AND ticketnumbers IS NOT NULL
+      AND TRIM(ticketnumbers::TEXT) != ''
+  ) AS jc_tickets
+  WHERE ticket_num IS NOT NULL;
+
+  v_sold_jc := COALESCE(v_sold_jc, ARRAY[]::INTEGER[]);
+
+  -- Get sold tickets from tickets table (competition_id is TEXT in schema)
+  BEGIN
+    SELECT COALESCE(array_agg(DISTINCT t.ticket_number), ARRAY[]::INTEGER[])
+    INTO v_sold_tickets
+    FROM tickets t
+    WHERE t.competition_id = p_competition_id
+      OR t.competition_id = v_competition_uuid::TEXT
+      OR (v_comp_uid IS NOT NULL AND t.competition_id = v_comp_uid);
+  EXCEPTION WHEN OTHERS THEN
+    v_sold_tickets := ARRAY[]::INTEGER[];
+  END;
+
+  v_sold_tickets := COALESCE(v_sold_tickets, ARRAY[]::INTEGER[]);
+
+  -- Get pending tickets from pending_ticket_items (NOT pending_tickets!)
+  BEGIN
+    SELECT COALESCE(array_agg(DISTINCT pti.ticket_number), ARRAY[]::INTEGER[])
+    INTO v_pending
+    FROM pending_ticket_items pti
+    INNER JOIN pending_tickets pt ON pti.pending_ticket_id = pt.id
+    WHERE pti.competition_id = p_competition_id
+      AND pt.status IN ('pending', 'confirming')
+      AND pt.expires_at > NOW()
+      AND pti.ticket_number IS NOT NULL;
+  EXCEPTION WHEN undefined_table THEN
+    -- If tables don't exist, return empty array
+    v_pending := ARRAY[]::INTEGER[];
+  END;
+
+  v_pending := COALESCE(v_pending, ARRAY[]::INTEGER[]);
+
+  -- Combine all unavailable tickets
+  v_unavailable := v_sold_jc || v_sold_tickets || v_pending;
+
+  -- Remove duplicates and sort
+  IF array_length(v_unavailable, 1) IS NOT NULL AND array_length(v_unavailable, 1) > 0 THEN
+    SELECT COALESCE(array_agg(DISTINCT u ORDER BY u), ARRAY[]::INTEGER[])
+    INTO v_unavailable
+    FROM unnest(v_unavailable) AS u
+    WHERE u IS NOT NULL;
+  ELSE
+    v_unavailable := ARRAY[]::INTEGER[];
+  END IF;
+
+  RETURN v_unavailable;
 END;
 $$;
+
+-- Grant permissions
+GRANT EXECUTE ON FUNCTION get_unavailable_tickets(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_unavailable_tickets(TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION get_unavailable_tickets(TEXT) TO service_role;
 
 -- get_competition_unavailable_tickets: Alias for get_unavailable_tickets
 CREATE OR REPLACE FUNCTION get_competition_unavailable_tickets(p_competition_id TEXT)
