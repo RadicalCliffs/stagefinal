@@ -9,7 +9,7 @@ import { useAuthUser } from '../../../contexts/AuthContext';
 import { useToast } from '../../Toast';
 import { Ticket, Trophy, AlertCircle, Clock, Zap, RefreshCw } from 'lucide-react';
 
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 20;
 
 /**
  * Normalizes a wallet address to lowercase for consistent comparison.

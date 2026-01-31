@@ -4,6 +4,12 @@ import { useAuthUser } from '../contexts/AuthContext';
 import { toPrizePid, userIdsEqual, isWalletAddress, normalizeWalletAddress } from '../utils/userId';
 import { parseBalanceResponse } from '../utils/balanceParser';
 
+interface PendingTopUp {
+  amount: number;
+  timestamp: number;
+  id: string;
+}
+
 interface RealTimeBalanceState {
   balance: number;
   bonusBalance: number;
@@ -13,6 +19,9 @@ interface RealTimeBalanceState {
   isLoading: boolean;
   error: string | null;
   lastUpdate: Date | null;
+  optimisticBalance: number | null;
+  displayBalance: number;
+  pendingTopUps: PendingTopUp[];
 }
 
 /**
@@ -28,6 +37,8 @@ interface RealTimeBalanceState {
  */
 export function useRealTimeBalance(): RealTimeBalanceState & {
   refresh: () => Promise<void>;
+  addPendingTopUp: (amount: number, id: string) => void;
+  removePendingTopUp: (id: string) => void;
 } {
   const { baseUser } = useAuthUser();
   const [balance, setBalance] = useState(0);
@@ -43,8 +54,15 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
   const lastEventUpdateRef = useRef<number>(0);
   // Cooldown period (10 seconds) to let DB replicate before allowing DB reads
   const EVENT_COOLDOWN_MS = 10000;
+  
+  // Optimistic UI state for pending top-ups
+  const [optimisticBalance, setOptimisticBalance] = useState<number | null>(null);
+  const [pendingTopUps, setPendingTopUps] = useState<PendingTopUp[]>([]);
 
   const userId = baseUser?.id;
+  
+  // Calculate display balance (optimistic if pending, otherwise actual)
+  const displayBalance = optimisticBalance ?? balance;
 
   const fetchBalance = useCallback(async (options?: { bypassCooldown?: boolean }) => {
     if (!userId) {
@@ -489,6 +507,43 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
     return fetchBalance({ bypassCooldown: true });
   }, [fetchBalance]);
 
+  // Add pending top-up to optimistic state
+  const addPendingTopUp = useCallback((amount: number, id: string) => {
+    const newPending: PendingTopUp = {
+      amount,
+      timestamp: Date.now(),
+      id,
+    };
+    setPendingTopUps(prev => [...prev, newPending]);
+    setOptimisticBalance(prev => (prev ?? balance) + amount);
+    console.log('[RealTimeBalance] Added optimistic top-up:', amount, 'new optimistic balance:', (optimisticBalance ?? balance) + amount);
+  }, [balance, optimisticBalance]);
+
+  // Remove pending top-up (on confirmation or rollback)
+  const removePendingTopUp = useCallback((id: string) => {
+    setPendingTopUps(prev => {
+      const filtered = prev.filter(p => p.id !== id);
+      const totalPending = filtered.reduce((sum, p) => sum + p.amount, 0);
+      setOptimisticBalance(totalPending > 0 ? balance + totalPending : null);
+      return filtered;
+    });
+    console.log('[RealTimeBalance] Removed pending top-up:', id);
+  }, [balance]);
+
+  // Clear optimistic state when balance is confirmed
+  useEffect(() => {
+    if (balance > 0 && pendingTopUps.length > 0) {
+      // Check if any pending top-ups should be cleared (older than 60 seconds)
+      const now = Date.now();
+      const stale = pendingTopUps.filter(p => now - p.timestamp > 60000);
+      if (stale.length > 0) {
+        console.log('[RealTimeBalance] Clearing stale pending top-ups:', stale.length);
+        setPendingTopUps(prev => prev.filter(p => now - p.timestamp <= 60000));
+        setOptimisticBalance(null);
+      }
+    }
+  }, [balance, pendingTopUps]);
+
   return {
     balance,
     bonusBalance,
@@ -498,7 +553,12 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
     isLoading,
     error,
     lastUpdate,
+    optimisticBalance,
+    displayBalance,
+    pendingTopUps,
     refresh: userInitiatedRefresh,
+    addPendingTopUp,
+    removePendingTopUp,
   };
 }
 
