@@ -506,7 +506,7 @@ export const notificationService = {
 
       // Fetch user transactions using RPC
       const { data: transactions, error: txError } = await supabase.rpc('get_user_transactions', {
-        user_identifier: toPrizePid(userId),
+        p_user_identifier: toPrizePid(userId),
       });
 
       if (txError) {

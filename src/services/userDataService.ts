@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { toPrizePid, isPrizePid } from '../utils/userId';
 import { VALID_AVATAR_FILENAMES, SUPABASE_AVATAR_BASE_URL, getAvatarUrl, getRandomAvatarUrl } from '../lib/avatarConstants';
+import { parseBalanceResponse } from '../utils/balanceParser';
 
 export interface UserDataAggregation {
   totalTickets: number;
@@ -227,7 +228,9 @@ export const userDataService = {
 
       let walletBalance = 0;
       if (!rpcError && rpcBalance !== null) {
-        walletBalance = Number(rpcBalance) || 0;
+        // get_user_balance returns JSONB object: { success, balance, bonus_balance, total_balance }
+        const balanceData = parseBalanceResponse(rpcBalance);
+        walletBalance = balanceData.balance;
       } else {
         if (isTypeMismatchError) {
           console.warn('[userDataService] RPC type mismatch error - database migration may need to be applied. Falling back to direct query.');

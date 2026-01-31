@@ -7,6 +7,7 @@ import { toPrizePid, isPrizePid } from '../utils/userId';
 import { toCanonicalUserId } from './canonicalUserId';
 import { notificationService } from './notification-service';
 import { BalancePaymentService } from './balance-payment-service';
+import { parseBalanceResponse } from '../utils/balanceParser';
 
 // Re-export supabase for backwards compatibility
 export { supabase };
@@ -329,13 +330,18 @@ export async function getUserBalance(userId: string) {
       rpcError?.code === '42883' ||
       rpcError?.code === '42846';
 
-    if (!rpcError && rpcBalance !== null && Number(rpcBalance) > 0) {
-      return {
-        success: true,
-        data: {
-          usdc_balance: Number(rpcBalance) || 0
-        }
-      };
+    if (!rpcError && rpcBalance !== null) {
+      // get_user_balance returns JSONB object: { success, balance, bonus_balance, total_balance }
+      const balanceData = parseBalanceResponse(rpcBalance);
+      
+      if (balanceData.balance > 0) {
+        return {
+          success: true,
+          data: {
+            usdc_balance: balanceData.balance
+          }
+        };
+      }
     }
 
     // Fallback 1: Direct query to sub_account_balances if RPC fails or returns 0

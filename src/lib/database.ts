@@ -1604,7 +1604,7 @@ export const database = {
       // Use standard RPC function (not bypass_rls) for staging compatibility with anon key
       const { data, error } = await supabase
         .rpc('get_user_transactions', {
-          user_identifier: userId.trim()
+          p_user_identifier: userId.trim()
         });
 
       if (error) {
