@@ -281,7 +281,7 @@ export class BalancePaymentService {
     error?: string;
     errorDetails?: BalancePaymentError;
   }> {
-    const { competitionId, ticketNumbers, userId, ticketPrice } = params;
+    const { competitionId, ticketNumbers, userId, ticketPrice, reservationId } = params;
 
     // Validate required parameters
     if (!competitionId) {
@@ -318,7 +318,8 @@ export class BalancePaymentService {
       
       // Build request body with all required parameters
       // The edge function expects: userId/walletAddress, competitionId, numberOfTickets, ticketPrice, tickets
-      const requestBody = {
+      // Include reservationId if provided to enable reservation-based purchase flow
+      const requestBody: any = {
         userId: canonicalUserId,
         competition_id: competitionId,
         numberOfTickets: ticketNumbers.length,
@@ -327,12 +328,18 @@ export class BalancePaymentService {
         idempotent: true
       };
 
+      // Include reservation_id if provided - critical for bypassing availability checks
+      if (reservationId) {
+        requestBody.reservation_id = reservationId;
+      }
+
       console.log('[BalancePayment] Purchasing with balance (simplified system):', { 
         userId: canonicalUserId.length > 20 ? canonicalUserId.substring(0, 20) + '...' : canonicalUserId,
         competitionId: competitionId.substring(0, 10) + '...',
         ticketCount: ticketNumbers.length,
         ticketPrice: ticketPrice,
-        tickets: ticketNumbers
+        tickets: ticketNumbers,
+        reservationId: reservationId || 'none'
       });
 
       const { data, error } = await supabase.functions.invoke('purchase-tickets-with-bonus', {
