@@ -54,7 +54,7 @@ const LiveCompetitionCard: React.FC<CompetitionCardProps> = ({
   >) => (
     <div>
       <p className="sequel-45 md:text-xs text-[11px] uppercase text-center text-white font-semibold md:mb-3 mb-2">
-        {ticketsSold !== undefined && totalTickets !== undefined 
+        {ticketsSold !== undefined && totalTickets !== undefined && totalTickets > 0
           ? `${ticketsSold} / ${totalTickets} Tickets Sold`
           : `${entriesSold}% Entries Sold`}
       </p>
