@@ -382,10 +382,11 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
       
       if (!isReturningUser) {
         try {
-          // Generate a unique temporary user ID to avoid collisions
-          // Format: email_timestamp_randomhex to ensure uniqueness
+          // Generate a unique temporary user ID using crypto.randomUUID for guaranteed uniqueness
+          // Format: email_prefix_uuid to ensure no collisions
           const emailPrefix = profileData.email.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 20);
-          const tempUserId = `${emailPrefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+          const uniqueId = crypto.randomUUID().replace(/-/g, '').slice(0, 16); // 16 chars of hex
+          const tempUserId = `${emailPrefix}_${uniqueId}`;
           const partialCanonicalId = `prize:pid:${tempUserId}`;
           
           console.log('[NewAuthModal] Creating canonical_users record with partial ID:', partialCanonicalId);

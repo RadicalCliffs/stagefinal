@@ -85,6 +85,8 @@ interface ProfileData {
 // Constants for timing
 const AUTO_CLOSE_DELAY_MS = 2000; // 2 seconds before auto-closing success screen
 const EVENT_PROCESSING_DELAY_MS = 100; // Small delay to ensure event listeners process before modal closes
+const PENDING_DATA_RETRY_DELAY_MS = 200; // Delay between retries when waiting for pendingSignupData
+const PENDING_DATA_MAX_RETRIES = 3; // Maximum number of retries for pendingSignupData
 
 // Request deduplication tracking with automatic cleanup
 // Note: This Map is bounded by setTimeout cleanup after each request
@@ -789,13 +791,12 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
         if (!pendingData && !pendingDataStr) {
           // Check if this is a resumeSignup flow that should have pendingData
           // We can detect this by checking if cdp-signin was opened with resumeSignup flag
-          // For now, do a few quick retries (max 3) for new signups
+          // For now, do a few quick retries for new signups
           let retryCount = 0;
-          const maxRetries = 3;
           
           console.log('[BaseWallet] No pending signup data found initially, attempting quick retries...');
-          while (!pendingDataStr && retryCount < maxRetries) {
-            await new Promise(resolve => setTimeout(resolve, 200));
+          while (!pendingDataStr && retryCount < PENDING_DATA_MAX_RETRIES) {
+            await new Promise(resolve => setTimeout(resolve, PENDING_DATA_RETRY_DELAY_MS));
             pendingDataStr = localStorage.getItem('pendingSignupData');
             retryCount++;
           }
