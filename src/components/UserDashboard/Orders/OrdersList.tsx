@@ -10,6 +10,7 @@ import PaymentStatus from "../../PaymentStatus";
 import { footerLogo } from "../../../assets/images";
 import { CircleX, RefreshCw } from "lucide-react";
 import { userIdsEqual } from "../../../utils/userId";
+import ExportButton from "./ExportButton";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -228,6 +229,13 @@ export default function OrdersList() {
 
   return (
     <>
+      {/* Export button */}
+      {baseUser?.id && data.length > 0 && (
+        <div className="mb-4 flex justify-end">
+          <ExportButton userId={baseUser.id} />
+        </div>
+      )}
+
       {/* Refreshing indicator for background data updates */}
       {isRefreshing && (
         <div className="mb-4 flex items-center justify-center gap-2 py-2 px-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">

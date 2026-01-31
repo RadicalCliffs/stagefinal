@@ -106,7 +106,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
   // Get real-time balance info including bonus eligibility
   // Use balance from useRealTimeBalance for real-time updates instead of walletBalance from AuthContext
   // walletBalance from AuthContext only updates on refresh, while useRealTimeBalance has Supabase subscriptions
-  const { balance: realTimeBalance, hasUsedBonus, isLoading: realTimeLoading, refresh: refreshRealTimeBalance } = useRealTimeBalance();
+  const { displayBalance: realTimeBalance, hasUsedBonus, isLoading: realTimeLoading, refresh: refreshRealTimeBalance } = useRealTimeBalance();
 
   // Fetch the linked external wallet and transactions on mount
   useEffect(() => {

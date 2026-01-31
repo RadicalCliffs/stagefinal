@@ -20,7 +20,7 @@ const LoggedInUserBtn = ({ fullWidth = false }: LoggedInUserBtnProps) => {
   const { profile, entryCount, linkedWallets, isLoading, refreshUserData, logout, baseUser } = useAuthUser();
   // Use real-time balance from useRealTimeBalance for live updates instead of walletBalance from AuthContext
   // walletBalance from AuthContext only updates on refresh, while useRealTimeBalance has Supabase subscriptions
-  const { balance: realTimeBalance, isLoading: realTimeLoading, refresh: refreshRealTimeBalance } = useRealTimeBalance();
+  const { displayBalance: realTimeBalance, isLoading: realTimeLoading, refresh: refreshRealTimeBalance } = useRealTimeBalance();
   const navigate = useNavigate();
   const [showDropdown, setShowDropdown] = useState(false);
   const [showTopUpModal, setShowTopUpModal] = useState(false);

@@ -81,7 +81,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
   textOverrides,
 }) => {
   const { baseUser, linkedWallets, refreshUserData } = useAuthUser();
-  const { hasUsedBonus, refresh: refreshBalance } = useRealTimeBalance();
+  const { hasUsedBonus, refresh: refreshBalance, addPendingTopUp, removePendingTopUp } = useRealTimeBalance();
   const [step, setStep] = useState<PaymentStep>('method');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('base-account');
   const [amount, setAmount] = useState<number>(50);
@@ -91,6 +91,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
   const [cryptoChargeId, setCryptoChargeId] = useState<string>('');
   const [onrampUrl, setOnrampUrl] = useState<string>('');
   const [baseAccountLoading, setBaseAccountLoading] = useState<boolean>(false);
+  const [optimisticTopUpId, setOptimisticTopUpId] = useState<string | null>(null);
 
   // Real-time subscriptions for balance and transaction updates
   // Auto-refreshes balance when changes are detected in the database
@@ -341,6 +342,12 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
         throw new Error('Payment succeeded but no transaction hash returned');
       }
 
+      // OPTIMISTIC UI: Add pending balance immediately after successful on-chain payment
+      const topUpId = `topup_${Date.now()}`;
+      setOptimisticTopUpId(topUpId);
+      addPendingTopUp(amount, topUpId);
+      console.log('[TopUpWalletModal] Added optimistic balance update:', amount);
+
       // After successful on-chain payment, call instant-topup to verify and credit balance
       // This verifies the transaction on-chain before crediting the user's internal balance
       console.log('[TopUpWalletModal] Calling instant-topup to verify and credit balance');
@@ -383,6 +390,12 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
 
       setTransactionId(topupResult.transactionId || '');
 
+      // Clear optimistic update now that balance is confirmed
+      if (optimisticTopUpId) {
+        removePendingTopUp(optimisticTopUpId);
+        setOptimisticTopUpId(null);
+      }
+
       // Success!
       setStep('success');
       await refreshUserData();
@@ -405,6 +418,13 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
     } catch (err) {
       console.error('[TopUpWalletModal] Base Account top-up error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Payment failed';
+
+      // Rollback optimistic update on error
+      if (optimisticTopUpId) {
+        removePendingTopUp(optimisticTopUpId);
+        setOptimisticTopUpId(null);
+        console.log('[TopUpWalletModal] Rolled back optimistic balance update');
+      }
 
       // Provide user-friendly error messages
       if (errorMessage.includes('rejected') || errorMessage.includes('denied')) {

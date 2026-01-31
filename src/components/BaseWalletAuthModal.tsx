@@ -139,6 +139,19 @@ async function linkWalletToExistingUser(
     const normalizedEmail = email.toLowerCase().trim();
     const canonicalUserId = toPrizePid(walletAddress);
     
+    // Check if this wallet is already linked to a different user account
+    const { data: walletUser, error: walletCheckError } = await supabase
+      .from('canonical_users')
+      .select('email, canonical_user_id, username')
+      .or(`base_wallet_address.ilike.${walletAddress},wallet_address.ilike.${walletAddress},eth_wallet_address.ilike.${walletAddress}`)
+      .maybeSingle() as { data: any; error: any };
+    
+    if (!walletCheckError && walletUser && walletUser.email && walletUser.email.toLowerCase() !== normalizedEmail) {
+      // Wallet is already linked to a different email account
+      console.error('[BaseWallet] Wallet already linked to different account:', walletUser.email);
+      throw new Error(`This wallet is already linked to ${walletUser.email}. Please use a different wallet or log in with that account.`);
+    }
+    
     // Request deduplication: Check if there's already a pending request for this email+wallet
     const requestKey = `${normalizedEmail}:${walletAddress.toLowerCase()}`;
     const existingRequest = pendingLinkRequests.get(requestKey);
@@ -164,7 +177,7 @@ async function linkWalletToExistingUser(
       .from('canonical_users')
       .select('id, username, email, country, first_name, last_name')
       .ilike('email', normalizedEmail)
-      .maybeSingle();
+      .maybeSingle() as { data: any; error: any };
 
     if (fetchError) {
       console.error('[BaseWallet] Error finding user by email:', fetchError);

@@ -3,9 +3,12 @@ import { useEffect } from "react"
 import { useAuthUser } from "../contexts/AuthContext"
 import DashboardTabs from "../components/UserDashboard/DashboardTabs"
 import Loader from "../components/Loader"
+import PendingTransactionsBanner from "../components/UserDashboard/PendingTransactionsBanner"
+import BalanceHealthIndicator from "../components/UserDashboard/BalanceHealthIndicator"
+import BalanceSyncIndicator from "../components/UserDashboard/BalanceSyncIndicator"
 
 const UserDashboard = () => {
-    const { authenticated, ready } = useAuthUser()
+    const { authenticated, ready, baseUser } = useAuthUser()
     const navigate = useNavigate()
 
     useEffect(() => {
@@ -33,6 +36,12 @@ const UserDashboard = () => {
             </div>
             {/* Content For Each Tab */}
             <div className="max-w-7xl mx-auto my-4 sm:my-6 p-3 sm:p-4 lg:p-6">
+                {/* Pending Transactions Banner */}
+                {baseUser?.id && <PendingTransactionsBanner userId={baseUser.id} />}
+                {/* Balance Health Indicator */}
+                {baseUser?.id && <BalanceHealthIndicator />}
+                {/* Balance Sync Indicator */}
+                {baseUser?.id && <BalanceSyncIndicator />}
                 <Outlet />
             </div>
         </div>
