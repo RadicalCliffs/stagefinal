@@ -589,7 +589,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     // CRITICAL FIX: Ensure userBalance is a valid number before comparison
     const safeBalance = typeof userBalance === 'number' && Number.isFinite(userBalance) ? userBalance : 0;
     if (safeBalance < amount) {
-      setErrorMessage(`Insufficient balance. You need $${amount.toFixed(2)} but only have $${safeBalance.toFixed(2)} available.`);
+      const shortfall = amount - safeBalance;
+      setErrorMessage(`Insufficient balance. You need $${amount.toFixed(2)} but only have $${safeBalance.toFixed(2)} available. Please top up your wallet with at least $${shortfall.toFixed(2)} to continue.`);
+      // Open the top-up modal to help user add funds
+      setShowTopUpModal(true);
       return;
     }
 
@@ -1359,30 +1362,27 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
               {/* === PAYMENT OPTIONS - Pay With Base and Pay With Balance === */}
               <div className="space-y-3">
-                {/* A. Pay With Balance - Only shown if user has sufficient balance */}
-                {(() => {
-                  const canUseBalance = authenticated && userBalance >= amount;
-                  return canUseBalance && (
-                    <button
-                      onClick={handleBalancePayment}
-                      disabled={balanceLoading || loadingBalance}
-                      className="w-full h-[72px] flex items-center justify-between px-4 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
-                          <DollarSign className="text-white" size={22} />
-                        </div>
-                        <div className="text-left">
-                          <p className="text-white sequel-75 text-sm uppercase">Pay With Balance</p>
-                          <p className="text-[#DDE404] sequel-45 text-xs">
-                            {loadingBalance ? 'Loading...' : `Available: $${userBalance.toFixed(2)}`}
-                          </p>
-                        </div>
+                {/* A. Pay With Balance - Always shown when authenticated */}
+                {authenticated && (
+                  <button
+                    onClick={handleBalancePayment}
+                    disabled={balanceLoading || loadingBalance}
+                    className="w-full h-[72px] flex items-center justify-between px-4 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+                        <DollarSign className="text-white" size={22} />
                       </div>
-                      <ChevronRight size={20} className="text-white" />
-                    </button>
-                  );
-                })()}
+                      <div className="text-left">
+                        <p className="text-white sequel-75 text-sm uppercase">Pay With Balance</p>
+                        <p className="text-[#DDE404] sequel-45 text-xs">
+                          {loadingBalance ? 'Loading...' : `Available: $${userBalance.toFixed(2)}`}
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight size={20} className="text-white" />
+                  </button>
+                )}
 
                 {/* B. Pay With Wallet - DISABLED: OnchainKit checkout removed due to contract fetching errors */}
                 {/* Users should use "Pay With Balance" or "Pay With Base Account" instead */}
