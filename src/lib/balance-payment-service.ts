@@ -50,6 +50,19 @@ export interface PurchaseRequest {
   ticket_price?: number;
 }
 
+/**
+ * Edge function request body for purchase-tickets-with-bonus
+ */
+export interface EdgeFunctionPurchaseRequest {
+  userId: string;
+  competition_id: string;
+  numberOfTickets: number;
+  ticketPrice: number;
+  tickets: Array<{ ticket_number: number }>;
+  idempotent: boolean;
+  reservation_id?: string;
+}
+
 export interface PurchaseResponse {
   payment_id: string;
   status: 'succeeded';
@@ -319,7 +332,7 @@ export class BalancePaymentService {
       // Build request body with all required parameters
       // The edge function expects: userId/walletAddress, competitionId, numberOfTickets, ticketPrice, tickets
       // Include reservationId if provided to enable reservation-based purchase flow
-      const requestBody: any = {
+      const requestBody: EdgeFunctionPurchaseRequest = {
         userId: canonicalUserId,
         competition_id: competitionId,
         numberOfTickets: ticketNumbers.length,
