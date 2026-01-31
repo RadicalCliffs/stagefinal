@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle, RefreshCw, AlertTriangle } from 'lucide-react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { useBalanceHealthCheck } from '../../hooks/useBalanceHealthCheck';
 import { useAuthUser } from '../../contexts/AuthContext';
 

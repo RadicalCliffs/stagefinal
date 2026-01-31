@@ -1,4 +1,4 @@
-import { ExternalLink, Clock } from 'lucide-react';
+import { Clock } from 'lucide-react';
 import { useRealTimeBalance } from '../../hooks/useRealTimeBalance';
 
 interface PendingTransactionsBannerProps {
@@ -9,7 +9,7 @@ interface PendingTransactionsBannerProps {
  * Displays a banner showing pending top-up transactions that are awaiting blockchain confirmation.
  * Shows the number of pending transactions and provides links to view them on BaseScan.
  */
-export function PendingTransactionsBanner({ userId }: PendingTransactionsBannerProps) {
+export function PendingTransactionsBanner({ userId: _userId }: PendingTransactionsBannerProps) {
   const { pendingTopUps } = useRealTimeBalance();
 
   if (pendingTopUps.length === 0) return null;

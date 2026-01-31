@@ -22,10 +22,12 @@ export function ExportButton({ userId }: ExportButtonProps) {
       const canonicalUserId = toPrizePid(userId);
       
       // Fetch user transactions from balance_ledger
+      // Filter to show only user-relevant transaction types, avoiding internal debit/entry pairs
       const { data, error } = await supabase
         .from('balance_ledger')
         .select('*')
         .eq('canonical_user_id', canonicalUserId)
+        .in('transaction_type', ['deposit', 'purchase', 'bonus', 'withdrawal', 'refund'])
         .order('created_at', { ascending: false });
 
       if (error) throw error;
