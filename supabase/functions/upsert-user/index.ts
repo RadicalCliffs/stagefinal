@@ -110,19 +110,34 @@ Deno.serve(async (req) => {
     let data, error;
 
     if (existingUser) {
-      // User exists - UPDATE with all fields including wallet fields
+      // User exists - UPDATE with wallet fields and preserve existing username
       console.log('[upsert-user] Updating existing user:', existingUser.id);
       
+      // CRITICAL: Query existing username to preserve it
+      const { data: existingUserData } = await supabase
+        .from('canonical_users')
+        .select('username, first_name, last_name, country, telegram_handle, avatar_url')
+        .eq('id', existingUser.id)
+        .single();
+      
       const updateData = {
-        username: normalizedUsername,
-        first_name: firstName || null,
-        last_name: lastName || null,
-        country: country || null,
-        telegram_handle: telegram || null,
-        avatar_url: avatar || getRandomAvatarUrl(),
+        // CRITICAL: Preserve existing username if it exists, otherwise use provided username
+        // This prevents overwriting the username from the signup form
+        username: existingUserData?.username || normalizedUsername,
+        first_name: existingUserData?.first_name || firstName || null,
+        last_name: existingUserData?.last_name || lastName || null,
+        country: existingUserData?.country || country || null,
+        telegram_handle: existingUserData?.telegram_handle || telegram || null,
+        avatar_url: existingUserData?.avatar_url || avatar || getRandomAvatarUrl(),
         // CRITICAL: Include wallet fields if wallet address is provided
         ...buildWalletFields(),
       };
+
+      console.log('[upsert-user] Preserving username:', {
+        existing: existingUserData?.username,
+        provided: normalizedUsername,
+        using: updateData.username
+      });
 
       const result = await supabase
         .from('canonical_users')

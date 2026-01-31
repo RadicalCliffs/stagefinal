@@ -770,19 +770,37 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
         setWaitingForWallet(false);
         profileCheckedRef.current = true;
 
+        // CRITICAL FIX: Add delay to ensure NewAuthModal has time to save user to canonical_users
+        // This prevents race condition where Base auth creates user before signup form does
+        console.log('[BaseWallet] Waiting for signup data to be saved...');
+        await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay
+
         // Check if we have pending signup data from NewAuthModal FIRST
         // This data contains the verified email from the OTP step
-        const pendingDataStr = localStorage.getItem('pendingSignupData');
+        let pendingDataStr = localStorage.getItem('pendingSignupData');
         let pendingData = null;
+        let retryCount = 0;
+        const maxRetries = 5;
+        
+        // CRITICAL: Retry reading pendingSignupData if not found immediately
+        // The NewAuthModal might still be saving it asynchronously
+        while (!pendingDataStr && retryCount < maxRetries) {
+          console.log(`[BaseWallet] Pending signup data not found, retrying... (${retryCount + 1}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, 200));
+          pendingDataStr = localStorage.getItem('pendingSignupData');
+          retryCount++;
+        }
+        
         if (pendingDataStr) {
           try {
             pendingData = JSON.parse(pendingDataStr);
             console.log('[BaseWallet] Found pending signup data:', pendingData);
-            // Clear it so it's not used again
-            localStorage.removeItem('pendingSignupData');
+            // DON'T clear it yet - keep it until we successfully create/update the user
           } catch (e) {
             console.error('[BaseWallet] Failed to parse pending signup data:', e);
           }
+        } else {
+          console.warn('[BaseWallet] No pending signup data found after retries');
         }
 
         // Get email from CDP currentUser (multiple possible locations)
@@ -804,6 +822,15 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
           if (pendingData?.profileData) {
             console.log('[BaseWallet] Creating user with profile data from NewAuthModal + wallet');
             const formProfileData = pendingData.profileData;
+
+            // CRITICAL VALIDATION: Ensure username exists from the signup form
+            // If no username, FAIL FAST - do not create user with random username
+            if (!formProfileData.username || !formProfileData.username.trim()) {
+              console.error('[BaseWallet] CRITICAL: No username found in signup data!');
+              setEmailError('Username missing from signup data. Please start over.');
+              profileCheckedRef.current = false;
+              return;
+            }
 
             // CRITICAL: Use the email from the form data (which was verified via OTP in NewAuthModal)
             // rather than the CDP email, to ensure the user account is created with the correct email
@@ -865,6 +892,8 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                 if (directResult.success) {
                   savedToDbRef.current = true;
                   localStorage.setItem('cdp:wallet_address', evmAddress);
+                  // CRITICAL: Clear pendingSignupData after successful creation
+                  localStorage.removeItem('pendingSignupData');
                   window.dispatchEvent(new CustomEvent('auth-complete', {
                     detail: { walletAddress: evmAddress, email: userEmail }
                   }));
@@ -898,6 +927,9 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               // Mark as saved and proceed to success
               savedToDbRef.current = true;
               localStorage.setItem('cdp:wallet_address', evmAddress);
+              
+              // CRITICAL: Clear pendingSignupData after successful creation
+              localStorage.removeItem('pendingSignupData');
 
               // Dispatch auth-complete event for AuthContext to refresh user data
               window.dispatchEvent(new CustomEvent('auth-complete', {
