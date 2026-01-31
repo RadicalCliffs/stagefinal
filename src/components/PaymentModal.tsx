@@ -644,7 +644,9 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       const purchaseResult = await BalancePaymentService.purchaseWithBalance({
         reservationId: currentReservationId,
         competitionId: competitionId,
-        ticketNumbers: ticketNumbersToPurchase
+        ticketNumbers: ticketNumbersToPurchase,
+        userId: baseUser.id,
+        ticketPrice: ticketPrice
       });
 
       if (!purchaseResult.success || !purchaseResult.data) {
