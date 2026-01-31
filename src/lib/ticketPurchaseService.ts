@@ -7,6 +7,7 @@ import { toPrizePid, isPrizePid } from '../utils/userId';
 import { toCanonicalUserId } from './canonicalUserId';
 import { notificationService } from './notification-service';
 import { BalancePaymentService } from './balance-payment-service';
+import { parseBalanceResponse } from '../utils/balanceParser';
 
 // Re-export supabase for backwards compatibility
 export { supabase };
@@ -331,16 +332,13 @@ export async function getUserBalance(userId: string) {
 
     if (!rpcError && rpcBalance !== null) {
       // get_user_balance returns JSONB object: { success, balance, bonus_balance, total_balance }
-      const rpcData = typeof rpcBalance === 'object' && rpcBalance !== null 
-        ? rpcBalance 
-        : { balance: 0, bonus_balance: 0 };
-      const balanceValue = Number(rpcData.balance) || 0;
+      const balanceData = parseBalanceResponse(rpcBalance);
       
-      if (balanceValue > 0) {
+      if (balanceData.balance > 0) {
         return {
           success: true,
           data: {
-            usdc_balance: balanceValue
+            usdc_balance: balanceData.balance
           }
         };
       }

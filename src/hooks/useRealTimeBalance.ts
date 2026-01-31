@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuthUser } from '../contexts/AuthContext';
 import { toPrizePid, userIdsEqual, isWalletAddress, normalizeWalletAddress } from '../utils/userId';
+import { parseBalanceResponse } from '../utils/balanceParser';
 
 interface RealTimeBalanceState {
   balance: number;
@@ -86,17 +87,13 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
 
       if (!rpcError && rpcBalance !== null) {
         // get_user_balance returns JSONB object: { success, balance, bonus_balance, total_balance }
-        const rpcData = typeof rpcBalance === 'object' && rpcBalance !== null 
-          ? rpcBalance 
-          : { balance: 0, bonus_balance: 0 };
-        const balanceValue = Number(rpcData.balance) || 0;
-        const bonusValue = Number(rpcData.bonus_balance) || 0;
+        const balanceData = parseBalanceResponse(rpcBalance);
         
-        setBalance(balanceValue);
-        setBonusBalance(bonusValue);
+        setBalance(balanceData.balance);
+        setBonusBalance(balanceData.bonus_balance);
         setLastUpdate(new Date());
         setError(null);
-        console.log('[RealTimeBalance] Balance fetched via RPC from sub_account_balances:', balanceValue, 'bonus:', bonusValue);
+        console.log('[RealTimeBalance] Balance fetched via RPC from sub_account_balances:', balanceData.balance, 'bonus:', balanceData.bonus_balance);
 
         // Also fetch pending balance and user metadata from sub_account_balances
         const { data: subAccountData } = await supabase

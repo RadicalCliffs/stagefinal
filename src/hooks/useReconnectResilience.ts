@@ -8,6 +8,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { getChannelState } from '../lib/supabase-realtime';
+import { parseBalanceResponse } from '../utils/balanceParser';
 
 export type ConnectionState = 'connected' | 'connecting' | 'disconnected' | 'error';
 
@@ -178,10 +179,8 @@ export async function reconcileBalance(
     if (error) throw error;
 
     // get_user_balance returns JSONB object: { success, balance, bonus_balance, total_balance }
-    const rpcData = typeof data === 'object' && data !== null 
-      ? data 
-      : { balance: 0, bonus_balance: 0 };
-    const currentBalance = Number(rpcData.balance) || 0;
+    const balanceData = parseBalanceResponse(data);
+    const currentBalance = balanceData.balance;
     const changed = lastKnownBalance !== null && currentBalance !== lastKnownBalance;
 
     if (changed) {
