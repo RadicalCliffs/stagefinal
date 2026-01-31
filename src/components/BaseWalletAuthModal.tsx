@@ -770,37 +770,46 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
         setWaitingForWallet(false);
         profileCheckedRef.current = true;
 
-        // CRITICAL FIX: Add delay to ensure NewAuthModal has time to save user to canonical_users
-        // This prevents race condition where Base auth creates user before signup form does
-        console.log('[BaseWallet] Waiting for signup data to be saved...');
-        await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay
-
         // Check if we have pending signup data from NewAuthModal FIRST
         // This data contains the verified email from the OTP step
         let pendingDataStr = localStorage.getItem('pendingSignupData');
         let pendingData = null;
-        let retryCount = 0;
-        const maxRetries = 5;
-        
-        // CRITICAL: Retry reading pendingSignupData if not found immediately
-        // The NewAuthModal might still be saving it asynchronously
-        while (!pendingDataStr && retryCount < maxRetries) {
-          console.log(`[BaseWallet] Pending signup data not found, retrying... (${retryCount + 1}/${maxRetries})`);
-          await new Promise(resolve => setTimeout(resolve, 200));
-          pendingDataStr = localStorage.getItem('pendingSignupData');
-          retryCount++;
-        }
         
         if (pendingDataStr) {
           try {
             pendingData = JSON.parse(pendingDataStr);
             console.log('[BaseWallet] Found pending signup data:', pendingData);
-            // DON'T clear it yet - keep it until we successfully create/update the user
           } catch (e) {
             console.error('[BaseWallet] Failed to parse pending signup data:', e);
           }
-        } else {
-          console.warn('[BaseWallet] No pending signup data found after retries');
+        }
+        
+        // CRITICAL: Only retry if we expect pending data (new user signup flow)
+        // For returning users or direct wallet connections, skip retries
+        if (!pendingData && !pendingDataStr) {
+          // Check if this is a resumeSignup flow that should have pendingData
+          // We can detect this by checking if cdp-signin was opened with resumeSignup flag
+          // For now, do a few quick retries (max 3) for new signups
+          let retryCount = 0;
+          const maxRetries = 3;
+          
+          console.log('[BaseWallet] No pending signup data found initially, attempting quick retries...');
+          while (!pendingDataStr && retryCount < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, 200));
+            pendingDataStr = localStorage.getItem('pendingSignupData');
+            retryCount++;
+          }
+          
+          if (pendingDataStr) {
+            try {
+              pendingData = JSON.parse(pendingDataStr);
+              console.log('[BaseWallet] Found pending signup data after retry:', pendingData);
+            } catch (e) {
+              console.error('[BaseWallet] Failed to parse pending signup data after retry:', e);
+            }
+          } else {
+            console.log('[BaseWallet] No pending signup data after retries - likely returning user or direct wallet connection');
+          }
         }
 
         // Get email from CDP currentUser (multiple possible locations)

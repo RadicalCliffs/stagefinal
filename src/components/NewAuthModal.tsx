@@ -382,15 +382,18 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
       
       if (!isReturningUser) {
         try {
-          // Generate a temporary user ID based on email for now
-          // This will be updated to prize:pid:walletaddress when wallet connects
-          const tempUserId = `email_${profileData.email.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+          // Generate a unique temporary user ID to avoid collisions
+          // Format: email_timestamp_randomhex to ensure uniqueness
+          const emailPrefix = profileData.email.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 20);
+          const tempUserId = `${emailPrefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
           const partialCanonicalId = `prize:pid:${tempUserId}`;
           
           console.log('[NewAuthModal] Creating canonical_users record with partial ID:', partialCanonicalId);
           
           // Insert user into canonical_users with username set
           // Base wallet will UPDATE this record, not create a new one
+          // NOTE: uid and canonical_user_id use same temporary ID until wallet connects
+          // Then canonical_user_id becomes prize:pid:walletaddress while uid stays the same
           const { data: insertData, error: insertError } = await supabase
             .from('canonical_users')
             .insert({
