@@ -231,31 +231,44 @@ export const database = {
         return [];
       }
 
+      if (!data || data.length === 0) {
+        return [];
+      }
+
+      // Get accurate ticket counts for all competitions in a single batch query
+      // This avoids N+1 queries and ensures landing page counters match individual pages
+      const competitionIds = data.map(comp => comp.id || comp.uid).filter(Boolean);
+      
+      // Fetch ticket counts for all competitions at once using aggregation
+      const { data: ticketCounts, error: countError } = await supabase
+        .from('tickets')
+        .select('competition_id')
+        .in('competition_id', competitionIds);
+
+      if (countError) {
+        console.warn('Failed to fetch ticket counts, using fallback:', countError);
+      }
+
+      // Build a map of competition_id -> ticket count
+      const ticketCountMap = new Map<string, number>();
+      if (ticketCounts) {
+        ticketCounts.forEach(ticket => {
+          const compId = ticket.competition_id;
+          ticketCountMap.set(compId, (ticketCountMap.get(compId) || 0) + 1);
+        });
+      }
+
       // Process image URLs and hydrate ticket progress
-      const processedData = await Promise.all(
-        (data || []).map(async comp => {
-          const competitionId = comp.id || comp.uid;
-          let ticketsSold = 0;
+      const processedData = data.map(comp => {
+        const competitionId = comp.id || comp.uid;
+        const ticketsSold = competitionId ? (ticketCountMap.get(competitionId) || 0) : 0;
 
-          // Always derive accurate tickets sold count from tickets table
-          // This ensures landing page ticket counters match individual competition pages
-          // which use the same approach in useRealTimeCompetition hook
-          if (competitionId) {
-            const { count } = await supabase
-              .from('tickets')
-              .select('id', { count: 'exact', head: true })
-              .eq('competition_id', competitionId);
-            
-            ticketsSold = count || 0;
-          }
-
-          return {
-            ...comp,
-            tickets_sold: ticketsSold,
-            image_url: getImageUrl(comp.image_url || comp.imageurl),
-          };
-        })
-      );
+        return {
+          ...comp,
+          tickets_sold: ticketsSold,
+          image_url: getImageUrl(comp.image_url || comp.imageurl),
+        };
+      });
 
       return processedData;
     } catch (error) {
