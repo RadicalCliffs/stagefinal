@@ -305,7 +305,7 @@ export class BalancePaymentService {
       };
     }
 
-    if (ticketPrice === null || ticketPrice === undefined || ticketPrice <= 0) {
+    if (ticketPrice <= 0) {
       return {
         success: false,
         error: 'Valid ticket price is required'
