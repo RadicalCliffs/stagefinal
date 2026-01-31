@@ -5,7 +5,7 @@ import { toPrizePid } from "../_shared/userId.ts";
 // CORS configuration - allow all origins since Netlify proxy handles origin validation
 // Production calls go through the Netlify proxy function which adds proper CORS headers
 const ALLOWED_METHODS = 'GET,POST,PUT,DELETE,OPTIONS';
-const ALLOWED_HEADERS = 'authorization,content-type,x-client-info,apikey';
+const ALLOWED_HEADERS = 'authorization,content-type,x-client-info,apikey,cache-control,pragma,expires';
 const MAX_AGE = '86400';
 
 function corsHeaders(req: Request) {

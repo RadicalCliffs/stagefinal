@@ -44,7 +44,7 @@ function corsHeaders(req: Request) {
   return {
     'Access-Control-Allow-Origin': allowOrigin,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'authorization, content-type, x-client-info, apikey, x-hook0-signature',
+    'Access-Control-Allow-Headers': 'authorization, content-type, x-client-info, apikey, x-hook0-signature, cache-control, pragma, expires',
     'Access-Control-Max-Age': '86400',
     'Vary': 'Origin',
   };

@@ -24,7 +24,7 @@ const ALLOWED_ORIGINS = [
   'http://localhost:5173',
 ];
 const ALLOWED_METHODS = 'GET,POST,PUT,DELETE,OPTIONS';
-const ALLOWED_HEADERS = 'authorization,content-type,x-client-info,apikey,x-forwarded-for,x-real-ip';
+const ALLOWED_HEADERS = 'authorization,content-type,x-client-info,apikey,x-forwarded-for,x-real-ip,cache-control,pragma,expires';
 const MAX_AGE = '86400';
 
 function corsHeaders(req: Request) {

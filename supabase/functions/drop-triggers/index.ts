@@ -4,7 +4,7 @@ import postgres from "https://deno.land/x/postgresjs@v3.4.4/mod.js";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, cache-control, pragma, expires',
 };
 
 Deno.serve(async (req) => {

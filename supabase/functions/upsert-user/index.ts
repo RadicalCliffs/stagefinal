@@ -4,7 +4,7 @@ import { toPrizePid } from "../_shared/userId.ts";
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Cache-Control, Pragma, Expires',
 };
 
 // Avatar URLs from Supabase public storage bucket "Avatars"
