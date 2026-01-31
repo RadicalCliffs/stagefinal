@@ -22,7 +22,7 @@ const READ_ABI = parseAbi([
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, cache-control, pragma, expires",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
