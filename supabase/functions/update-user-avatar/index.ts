@@ -1,3 +1,4 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 // Inlined CORS configuration (bundler doesn't support shared module imports)
 import { toPrizePid, isPrizePid } from "../_shared/userId.ts";
 
