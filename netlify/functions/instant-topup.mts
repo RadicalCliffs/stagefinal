@@ -163,7 +163,7 @@ async function verifyTransaction(
     const receipt = receiptData.result;
 
     if (!receipt) {
-      return { verified: false, error: "Transaction not found or not yet mined" };
+      return { verified: false, error: "Transaction not found or not yet confirmed on the blockchain. Please wait a few moments and try again." };
     }
 
     // Check if transaction was successful
