@@ -231,25 +231,44 @@ export const database = {
         return [];
       }
 
+      if (!data || data.length === 0) {
+        return [];
+      }
+
+      // Get accurate ticket counts for all competitions in a single batch query
+      // This avoids N+1 queries and ensures landing page counters match individual pages
+      const competitionIds = data.map(comp => comp.id || comp.uid).filter(Boolean);
+      
+      // Fetch ticket counts for all competitions at once using aggregation
+      const { data: ticketCounts, error: countError } = await supabase
+        .from('tickets')
+        .select('competition_id')
+        .in('competition_id', competitionIds);
+
+      if (countError) {
+        console.warn('Failed to fetch ticket counts, using fallback:', countError);
+      }
+
+      // Build a map of competition_id -> ticket count
+      const ticketCountMap = new Map<string, number>();
+      if (ticketCounts) {
+        ticketCounts.forEach(ticket => {
+          const compId = ticket.competition_id;
+          ticketCountMap.set(compId, (ticketCountMap.get(compId) || 0) + 1);
+        });
+      }
+
       // Process image URLs and hydrate ticket progress
-      const processedData = await Promise.all(
-        (data || []).map(async comp => {
-          const competitionId = comp.id || comp.uid;
-          let ticketsSold = comp.tickets_sold;
+      const processedData = data.map(comp => {
+        const competitionId = comp.id || comp.uid;
+        const ticketsSold = ticketCountMap.get(competitionId) || 0;
 
-          // Derive tickets sold (including active reservations) when not already present
-          if (!Number.isFinite(ticketsSold) && competitionId) {
-            const unavailable = await this.getUnavailableTicketsForCompetition(competitionId);
-            ticketsSold = unavailable.size;
-          }
-
-          return {
-            ...comp,
-            tickets_sold: ticketsSold,
-            image_url: getImageUrl(comp.image_url || comp.imageurl),
-          };
-        })
-      );
+        return {
+          ...comp,
+          tickets_sold: ticketsSold,
+          image_url: getImageUrl(comp.image_url || comp.imageurl),
+        };
+      });
 
       return processedData;
     } catch (error) {
