@@ -1686,17 +1686,21 @@ Deno.serve(async (req: Request) => {
       }
 
       // STEP 11: Return success
+      // CRITICAL: Frontend expects { status: 'ok', competition_id, tickets, entry_id, total_cost, new_balance }
+      // tickets should be array of objects with ticket_number property
       return new Response(
         JSON.stringify({
-          success: true,
-          ticketsCreated: totalTickets,
-          ticketsPurchased: numberOfTickets,
-          totalCost,
-          balanceAfterPurchase: newBalance,
+          status: 'ok',  // Frontend checks for status === 'ok'
+          success: true,  // Keep for backwards compatibility
+          competition_id: competitionId,  // Frontend requires competition_id
+          tickets: assignedNumbers.map(num => ({ ticket_number: num })),  // Frontend expects objects with ticket_number
+          entry_id: jcEntryCreated ? (jcData?.uid || entryUid) : entryUid,  // Frontend uses entry_id
+          total_cost: totalCost,  // Frontend expects total_cost (not totalCost)
+          new_balance: newBalance,  // Frontend expects new_balance (not balanceAfterPurchase)
+          ticketsCreated: totalTickets,  // Keep for backwards compatibility
+          ticketsPurchased: numberOfTickets,  // Keep for backwards compatibility
           message: `Successfully purchased ${totalTickets} tickets!`,
-          tickets: assignedNumbers,
           entryCreated: jcEntryCreated,  // Flag to indicate if dashboard entry was created
-          entryId: jcEntryCreated ? (jcData?.uid || entryUid) : null,
           transactionId: transactionId,  // Transaction record ID for tracking in user_transactions
           transactionRef: txRef,  // Transaction reference/hash
           instantWins: instantWins.length > 0 ? instantWins : undefined,
