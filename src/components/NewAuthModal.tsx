@@ -374,9 +374,59 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
         throw new Error(data.error || 'Invalid verification code');
       }
 
-      // DO NOT create user here - wait until CDP wallet is successfully created
-      // User creation will happen in BaseWalletAuthModal after wallet is linked
-      console.log('[NewAuthModal] Email verified successfully, proceeding to wallet connection');
+      // CRITICAL FIX: Create user in canonical_users NOW, before Base wallet connects
+      // This prevents race condition where Base creates random username
+      // We create with partial prize:pid: identifier (without wallet address)
+      // which will be updated to prize:pid:walletaddress when Base completes
+      console.log('[NewAuthModal] Email verified successfully, creating user record before wallet connection');
+      
+      if (!isReturningUser) {
+        try {
+          // Generate a unique temporary user ID using crypto.randomUUID for guaranteed uniqueness
+          // Format: email_prefix_uuid16 (16 hex chars from 32-char UUID without dashes)
+          const emailPrefix = profileData.email.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 20);
+          const uniqueId = crypto.randomUUID().replace(/-/g, '').slice(0, 16); // First 16 chars of 32-char hex
+          const tempUserId = `${emailPrefix}_${uniqueId}`;
+          const partialCanonicalId = `prize:pid:${tempUserId}`;
+          
+          console.log('[NewAuthModal] Creating canonical_users record with partial ID:', partialCanonicalId);
+          
+          // Insert user into canonical_users with username set
+          // Base wallet will UPDATE this record, not create a new one
+          // NOTE: uid and canonical_user_id use same temporary ID until wallet connects
+          // Then canonical_user_id becomes prize:pid:walletaddress while uid stays the same
+          const { data: insertData, error: insertError } = await supabase
+            .from('canonical_users')
+            .insert({
+              uid: tempUserId,
+              canonical_user_id: partialCanonicalId,
+              email: profileData.email.toLowerCase(),
+              username: profileData.username.toLowerCase(),
+              first_name: profileData.firstName || null,
+              last_name: profileData.lastName || null,
+              country: profileData.country || null,
+              telegram_handle: profileData.telegram || null,
+              avatar_url: profileData.avatar || null,
+            })
+            .select('id, canonical_user_id')
+            .single();
+          
+          if (insertError) {
+            console.error('[NewAuthModal] Failed to create user record:', insertError);
+            throw new Error('Failed to save user data. Please try again.');
+          }
+          
+          console.log('[NewAuthModal] User record created successfully:', {
+            id: insertData.id,
+            canonical_user_id: insertData.canonical_user_id,
+          });
+        } catch (userCreateErr) {
+          console.error('[NewAuthModal] Error creating user record:', userCreateErr);
+          setError('Failed to save your profile. Please try again.');
+          setIsLoading(false);
+          return;
+        }
+      }
 
       // OTP verified, open BaseWalletAuthModal directly
       // For new users: go to wallet-choice so they can connect an existing wallet OR create new

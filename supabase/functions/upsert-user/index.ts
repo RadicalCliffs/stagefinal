@@ -94,9 +94,10 @@ Deno.serve(async (req) => {
     // Check if user already exists by email (case-insensitive)
     // CRITICAL: Use ilike for case-insensitive matching to ensure we find
     // pre-created users regardless of how their email was stored
+    // Fetch all needed fields in one query to avoid duplicate database calls
     const { data: existingUser } = await supabase
       .from('canonical_users')
-      .select('id, email, canonical_user_id, wallet_address')
+      .select('id, email, canonical_user_id, wallet_address, username, first_name, last_name, country, telegram_handle, avatar_url')
       .ilike('email', normalizedEmail)
       .maybeSingle();
 
@@ -105,24 +106,34 @@ Deno.serve(async (req) => {
       userId: existingUser?.id,
       hasCanonicalId: !!existingUser?.canonical_user_id,
       hasWallet: !!existingUser?.wallet_address,
+      hasUsername: !!existingUser?.username,
     });
 
     let data, error;
 
     if (existingUser) {
-      // User exists - UPDATE with all fields including wallet fields
+      // User exists - UPDATE with wallet fields and preserve existing data
       console.log('[upsert-user] Updating existing user:', existingUser.id);
       
       const updateData = {
-        username: normalizedUsername,
-        first_name: firstName || null,
-        last_name: lastName || null,
-        country: country || null,
-        telegram_handle: telegram || null,
-        avatar_url: avatar || getRandomAvatarUrl(),
+        // CRITICAL: Preserve existing username if it exists, otherwise use provided username
+        // This prevents overwriting the username from the signup form
+        // Use nullish coalescing to preserve intentional empty strings
+        username: existingUser.username ?? normalizedUsername,
+        first_name: existingUser.first_name ?? firstName ?? null,
+        last_name: existingUser.last_name ?? lastName ?? null,
+        country: existingUser.country ?? country ?? null,
+        telegram_handle: existingUser.telegram_handle ?? telegram ?? null,
+        avatar_url: existingUser.avatar_url ?? avatar ?? getRandomAvatarUrl(),
         // CRITICAL: Include wallet fields if wallet address is provided
         ...buildWalletFields(),
       };
+
+      console.log('[upsert-user] Preserving username:', {
+        existing: existingUser.username,
+        provided: normalizedUsername,
+        using: updateData.username
+      });
 
       const result = await supabase
         .from('canonical_users')

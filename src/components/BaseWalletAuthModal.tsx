@@ -85,6 +85,8 @@ interface ProfileData {
 // Constants for timing
 const AUTO_CLOSE_DELAY_MS = 2000; // 2 seconds before auto-closing success screen
 const EVENT_PROCESSING_DELAY_MS = 100; // Small delay to ensure event listeners process before modal closes
+const PENDING_DATA_RETRY_DELAY_MS = 200; // Delay between retries when waiting for pendingSignupData
+const PENDING_DATA_MAX_RETRIES = 3; // Maximum number of retries for pendingSignupData
 
 // Request deduplication tracking with automatic cleanup
 // Note: This Map is bounded by setTimeout cleanup after each request
@@ -772,16 +774,42 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
         // Check if we have pending signup data from NewAuthModal FIRST
         // This data contains the verified email from the OTP step
-        const pendingDataStr = localStorage.getItem('pendingSignupData');
+        let pendingDataStr = localStorage.getItem('pendingSignupData');
         let pendingData = null;
+        
         if (pendingDataStr) {
           try {
             pendingData = JSON.parse(pendingDataStr);
             console.log('[BaseWallet] Found pending signup data:', pendingData);
-            // Clear it so it's not used again
-            localStorage.removeItem('pendingSignupData');
           } catch (e) {
             console.error('[BaseWallet] Failed to parse pending signup data:', e);
+          }
+        }
+        
+        // CRITICAL: Only retry if we expect pending data (new user signup flow)
+        // For returning users or direct wallet connections, skip retries
+        if (!pendingData && !pendingDataStr) {
+          // Check if this is a resumeSignup flow that should have pendingData
+          // We can detect this by checking if cdp-signin was opened with resumeSignup flag
+          // For now, do a few quick retries for new signups
+          let retryCount = 0;
+          
+          console.log('[BaseWallet] No pending signup data found initially, attempting quick retries...');
+          while (!pendingDataStr && retryCount < PENDING_DATA_MAX_RETRIES) {
+            await new Promise(resolve => setTimeout(resolve, PENDING_DATA_RETRY_DELAY_MS));
+            pendingDataStr = localStorage.getItem('pendingSignupData');
+            retryCount++;
+          }
+          
+          if (pendingDataStr) {
+            try {
+              pendingData = JSON.parse(pendingDataStr);
+              console.log('[BaseWallet] Found pending signup data after retry:', pendingData);
+            } catch (e) {
+              console.error('[BaseWallet] Failed to parse pending signup data after retry:', e);
+            }
+          } else {
+            console.log('[BaseWallet] No pending signup data after retries - likely returning user or direct wallet connection');
           }
         }
 
@@ -804,6 +832,15 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
           if (pendingData?.profileData) {
             console.log('[BaseWallet] Creating user with profile data from NewAuthModal + wallet');
             const formProfileData = pendingData.profileData;
+
+            // CRITICAL VALIDATION: Ensure username exists from the signup form
+            // If no username, FAIL FAST - do not create user with random username
+            if (!formProfileData.username?.trim()) {
+              console.error('[BaseWallet] CRITICAL: No username found in signup data!');
+              setEmailError('Username missing from signup data. Please start over.');
+              profileCheckedRef.current = false;
+              return;
+            }
 
             // CRITICAL: Use the email from the form data (which was verified via OTP in NewAuthModal)
             // rather than the CDP email, to ensure the user account is created with the correct email
@@ -865,6 +902,8 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                 if (directResult.success) {
                   savedToDbRef.current = true;
                   localStorage.setItem('cdp:wallet_address', evmAddress);
+                  // CRITICAL: Clear pendingSignupData after successful creation
+                  localStorage.removeItem('pendingSignupData');
                   window.dispatchEvent(new CustomEvent('auth-complete', {
                     detail: { walletAddress: evmAddress, email: userEmail }
                   }));
@@ -898,6 +937,9 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               // Mark as saved and proceed to success
               savedToDbRef.current = true;
               localStorage.setItem('cdp:wallet_address', evmAddress);
+              
+              // CRITICAL: Clear pendingSignupData after successful creation
+              localStorage.removeItem('pendingSignupData');
 
               // Dispatch auth-complete event for AuthContext to refresh user data
               window.dispatchEvent(new CustomEvent('auth-complete', {
