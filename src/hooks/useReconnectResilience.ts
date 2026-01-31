@@ -177,7 +177,11 @@ export async function reconcileBalance(
 
     if (error) throw error;
 
-    const currentBalance = Number(data) || 0;
+    // get_user_balance returns JSONB object: { success, balance, bonus_balance, total_balance }
+    const rpcData = typeof data === 'object' && data !== null 
+      ? data 
+      : { balance: 0, bonus_balance: 0 };
+    const currentBalance = Number(rpcData.balance) || 0;
     const changed = lastKnownBalance !== null && currentBalance !== lastKnownBalance;
 
     if (changed) {

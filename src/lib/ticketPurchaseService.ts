@@ -329,13 +329,21 @@ export async function getUserBalance(userId: string) {
       rpcError?.code === '42883' ||
       rpcError?.code === '42846';
 
-    if (!rpcError && rpcBalance !== null && Number(rpcBalance) > 0) {
-      return {
-        success: true,
-        data: {
-          usdc_balance: Number(rpcBalance) || 0
-        }
-      };
+    if (!rpcError && rpcBalance !== null) {
+      // get_user_balance returns JSONB object: { success, balance, bonus_balance, total_balance }
+      const rpcData = typeof rpcBalance === 'object' && rpcBalance !== null 
+        ? rpcBalance 
+        : { balance: 0, bonus_balance: 0 };
+      const balanceValue = Number(rpcData.balance) || 0;
+      
+      if (balanceValue > 0) {
+        return {
+          success: true,
+          data: {
+            usdc_balance: balanceValue
+          }
+        };
+      }
     }
 
     // Fallback 1: Direct query to sub_account_balances if RPC fails or returns 0
