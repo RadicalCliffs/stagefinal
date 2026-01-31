@@ -20,7 +20,7 @@ const DashboardTabs = () => {
     return (
         <>
             <div className='max-w-7xl mx-auto custom-box-shadow'>
-                <div id='live-competition-tabs' className='xl:bg-[#3B3B3B] bg-[#202020] rounded-lg overflow-hidden'>
+                <div id='live-competition-tabs' className='xl:bg-[#3B3B3B] bg-[#202020] rounded-lg'>
                     {/* Top section with profile - full width for larger avatar */}
                     <div className='p-3 sm:p-4 md:p-5'>
                         {/* User Profile */}
