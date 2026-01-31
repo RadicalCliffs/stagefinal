@@ -343,7 +343,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
       }
 
       // OPTIMISTIC UI: Add pending balance immediately after successful on-chain payment
-      const topUpId = `topup_${Date.now()}`;
+      const topUpId = `topup_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
       setOptimisticTopUpId(topUpId);
       addPendingTopUp(amount, topUpId);
       console.log('[TopUpWalletModal] Added optimistic balance update:', amount);

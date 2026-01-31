@@ -4,6 +4,9 @@ import { supabase } from '../../../lib/supabase';
 import { exportTransactionsToCSV } from '../../../lib/export-utils';
 import { toPrizePid } from '../../../utils/userId';
 
+// Transaction types to include in export (excludes internal debit/entry pairs)
+const EXPORT_TRANSACTION_TYPES = ['deposit', 'purchase', 'bonus', 'withdrawal', 'refund'] as const;
+
 interface ExportButtonProps {
   userId: string;
 }
@@ -27,7 +30,7 @@ export function ExportButton({ userId }: ExportButtonProps) {
         .from('balance_ledger')
         .select('*')
         .eq('canonical_user_id', canonicalUserId)
-        .in('transaction_type', ['deposit', 'purchase', 'bonus', 'withdrawal', 'refund'])
+        .in('transaction_type', EXPORT_TRANSACTION_TYPES)
         .order('created_at', { ascending: false });
 
       if (error) throw error;

@@ -22,6 +22,7 @@ export function useBalanceHealthCheck(canonicalUserId: string | null): BalanceHe
   const [status, setStatus] = useState<BalanceHealthStatus>('checking');
   const [lastCheck, setLastCheck] = useState<Date | null>(null);
   const [discrepancy, setDiscrepancy] = useState<number | null>(null);
+  const [checkInterval, setCheckInterval] = useState<number>(30000); // Start with 30s
 
   const checkHealth = useCallback(async () => {
     if (!canonicalUserId) {
@@ -64,6 +65,7 @@ export function useBalanceHealthCheck(canonicalUserId: string | null): BalanceHe
         });
 
         setStatus('syncing');
+        setCheckInterval(10000); // Check more frequently when syncing (10s)
 
         // Trigger sync using the database RPC function
         try {
@@ -74,20 +76,24 @@ export function useBalanceHealthCheck(canonicalUserId: string | null): BalanceHe
           if (syncError) {
             console.error('[BalanceHealthCheck] Sync failed:', syncError);
             setStatus('error');
+            setCheckInterval(60000); // Back off to 60s on error
           } else {
             console.log('[BalanceHealthCheck] Sync triggered successfully');
             // Wait a moment and check again
             setTimeout(() => {
               setStatus('healthy');
+              setCheckInterval(60000); // Reduce frequency when healthy (60s)
             }, 2000);
           }
         } catch (syncErr) {
           console.error('[BalanceHealthCheck] Sync RPC error:', syncErr);
           setStatus('error');
+          setCheckInterval(60000); // Back off to 60s on error
         }
       } else {
         // Balances are in sync
         setStatus('healthy');
+        setCheckInterval(60000); // Reduce frequency when healthy (60s)
       }
     } catch (err) {
       console.error('[BalanceHealthCheck] Error checking balance health:', err);
@@ -102,11 +108,11 @@ export function useBalanceHealthCheck(canonicalUserId: string | null): BalanceHe
     // Initial health check
     checkHealth();
 
-    // Periodic health check every 30 seconds
-    const interval = setInterval(checkHealth, 30000);
+    // Periodic health check with dynamic interval
+    const interval = setInterval(checkHealth, checkInterval);
 
     return () => clearInterval(interval);
-  }, [canonicalUserId, checkHealth]);
+  }, [canonicalUserId, checkHealth, checkInterval]);
 
   return {
     status,

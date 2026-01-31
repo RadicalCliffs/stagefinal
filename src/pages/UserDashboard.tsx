@@ -37,7 +37,7 @@ const UserDashboard = () => {
             {/* Content For Each Tab */}
             <div className="max-w-7xl mx-auto my-4 sm:my-6 p-3 sm:p-4 lg:p-6">
                 {/* Pending Transactions Banner */}
-                {baseUser?.id && <PendingTransactionsBanner userId={baseUser.id} />}
+                <PendingTransactionsBanner />
                 {/* Balance Health Indicator */}
                 {baseUser?.id && <BalanceHealthIndicator />}
                 {/* Balance Sync Indicator */}

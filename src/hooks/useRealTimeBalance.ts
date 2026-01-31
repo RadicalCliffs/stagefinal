@@ -521,12 +521,11 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
 
   // Remove pending top-up (on confirmation or rollback)
   const removePendingTopUp = useCallback((id: string) => {
-    setPendingTopUps(prev => prev.filter(p => p.id !== id));
-    // Recalculate optimistic balance from remaining pending transactions
     setPendingTopUps(prev => {
-      const totalPending = prev.filter(p => p.id !== id).reduce((sum, p) => sum + p.amount, 0);
+      const filtered = prev.filter(p => p.id !== id);
+      const totalPending = filtered.reduce((sum, p) => sum + p.amount, 0);
       setOptimisticBalance(totalPending > 0 ? balance + totalPending : null);
-      return prev.filter(p => p.id !== id);
+      return filtered;
     });
     console.log('[RealTimeBalance] Removed pending top-up:', id);
   }, [balance]);
