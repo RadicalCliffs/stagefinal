@@ -383,9 +383,9 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
       if (!isReturningUser) {
         try {
           // Generate a unique temporary user ID using crypto.randomUUID for guaranteed uniqueness
-          // Format: email_prefix_uuid to ensure no collisions
+          // Format: email_prefix_uuid16 (16 hex chars from 32-char UUID without dashes)
           const emailPrefix = profileData.email.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 20);
-          const uniqueId = crypto.randomUUID().replace(/-/g, '').slice(0, 16); // 16 chars of hex
+          const uniqueId = crypto.randomUUID().replace(/-/g, '').slice(0, 16); // First 16 chars of 32-char hex
           const tempUserId = `${emailPrefix}_${uniqueId}`;
           const partialCanonicalId = `prize:pid:${tempUserId}`;
           

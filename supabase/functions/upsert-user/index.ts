@@ -118,12 +118,13 @@ Deno.serve(async (req) => {
       const updateData = {
         // CRITICAL: Preserve existing username if it exists, otherwise use provided username
         // This prevents overwriting the username from the signup form
-        username: existingUser.username || normalizedUsername,
-        first_name: existingUser.first_name || firstName || null,
-        last_name: existingUser.last_name || lastName || null,
-        country: existingUser.country || country || null,
-        telegram_handle: existingUser.telegram_handle || telegram || null,
-        avatar_url: existingUser.avatar_url || avatar || getRandomAvatarUrl(),
+        // Use nullish coalescing to preserve intentional empty strings
+        username: existingUser.username ?? normalizedUsername,
+        first_name: existingUser.first_name ?? firstName ?? null,
+        last_name: existingUser.last_name ?? lastName ?? null,
+        country: existingUser.country ?? country ?? null,
+        telegram_handle: existingUser.telegram_handle ?? telegram ?? null,
+        avatar_url: existingUser.avatar_url ?? avatar ?? getRandomAvatarUrl(),
         // CRITICAL: Include wallet fields if wallet address is provided
         ...buildWalletFields(),
       };

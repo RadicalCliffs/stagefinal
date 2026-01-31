@@ -835,7 +835,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
             // CRITICAL VALIDATION: Ensure username exists from the signup form
             // If no username, FAIL FAST - do not create user with random username
-            if (!formProfileData.username || !formProfileData.username.trim()) {
+            if (!formProfileData.username?.trim()) {
               console.error('[BaseWallet] CRITICAL: No username found in signup data!');
               setEmailError('Username missing from signup data. Please start over.');
               profileCheckedRef.current = false;
