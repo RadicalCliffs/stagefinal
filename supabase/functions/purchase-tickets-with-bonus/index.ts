@@ -1694,7 +1694,7 @@ Deno.serve(async (req: Request) => {
           success: true,  // Keep for backwards compatibility
           competition_id: competitionId,  // Frontend requires competition_id
           tickets: assignedNumbers.map(num => ({ ticket_number: num })),  // Frontend expects objects with ticket_number
-          entry_id: jcEntryCreated ? (jcData?.uid || entryUid) : entryUid,  // Frontend uses entry_id
+          entry_id: jcEntryCreated ? (jcData?.uid || entryUid) : null,  // Frontend uses entry_id, null if entry creation failed
           total_cost: totalCost,  // Frontend expects total_cost (not totalCost)
           new_balance: newBalance,  // Frontend expects new_balance (not balanceAfterPurchase)
           ticketsCreated: totalTickets,  // Keep for backwards compatibility
