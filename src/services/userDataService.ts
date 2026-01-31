@@ -227,7 +227,11 @@ export const userDataService = {
 
       let walletBalance = 0;
       if (!rpcError && rpcBalance !== null) {
-        walletBalance = Number(rpcBalance) || 0;
+        // get_user_balance returns JSONB object: { success, balance, bonus_balance, total_balance }
+        const rpcData = typeof rpcBalance === 'object' && rpcBalance !== null 
+          ? rpcBalance 
+          : { balance: 0, bonus_balance: 0 };
+        walletBalance = Number(rpcData.balance) || 0;
       } else {
         if (isTypeMismatchError) {
           console.warn('[userDataService] RPC type mismatch error - database migration may need to be applied. Falling back to direct query.');

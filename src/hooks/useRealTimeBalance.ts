@@ -85,12 +85,18 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
         rpcError?.code === '42846';
 
       if (!rpcError && rpcBalance !== null) {
-        const balanceValue = Number(rpcBalance) || 0;
+        // get_user_balance returns JSONB object: { success, balance, bonus_balance, total_balance }
+        const rpcData = typeof rpcBalance === 'object' && rpcBalance !== null 
+          ? rpcBalance 
+          : { balance: 0, bonus_balance: 0 };
+        const balanceValue = Number(rpcData.balance) || 0;
+        const bonusValue = Number(rpcData.bonus_balance) || 0;
+        
         setBalance(balanceValue);
-        setBonusBalance(0); // bonus_balance not used in new system
+        setBonusBalance(bonusValue);
         setLastUpdate(new Date());
         setError(null);
-        console.log('[RealTimeBalance] Balance fetched via RPC from sub_account_balances:', balanceValue);
+        console.log('[RealTimeBalance] Balance fetched via RPC from sub_account_balances:', balanceValue, 'bonus:', bonusValue);
 
         // Also fetch pending balance and user metadata from sub_account_balances
         const { data: subAccountData } = await supabase
