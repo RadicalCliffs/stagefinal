@@ -1,1507 +1,725 @@
-# Database Indexes Documentation
+# Database Indexes - Production Reference
+
+**Last Updated:** January 31, 2026  
+**Production Status:** 180+ Active Indexes  
+**Source:** Supabase Production Database + Migration Files
+
+---
 
 ## Table of Contents
 
 - [Overview](#overview)
 - [Index Categories](#index-categories)
-- [Indexes by Table](#indexes-by-table)
-- [Performance Optimization](#performance-optimization)
-- [Index Maintenance](#index-maintenance)
-- [Best Practices](#best-practices)
+  - [User & Identity Tables](#1-user--identity-tables)
+  - [Balance & Financial Tables](#2-balance--financial-tables)
+  - [Competition Tables](#3-competition-tables)
+  - [Ticket Tables](#4-ticket-tables)
+  - [Transaction Tables](#5-transaction-tables)
+  - [Payment & Webhook Tables](#6-payment--webhook-tables)
+  - [Order & Purchase Tables](#7-order--purchase-tables)
+  - [Administrative Tables](#8-administrative-tables)
+  - [Content & Metadata Tables](#9-content--metadata-tables)
+  - [Integration Tables](#10-integration-tables)
+- [Index Best Practices](#index-best-practices)
+- [Maintenance & Monitoring](#maintenance--monitoring)
+- [Performance Guidelines](#performance-guidelines)
 
 ---
 
 ## Overview
 
-This document catalogs all database indexes in the ThePrize.io Supabase schema. Indexes are critical for query performance, foreign key constraints, and data integrity.
+This document catalogs all production database indexes for ThePrize.io. Indexes are organized by table category with performance notes and recommendations.
 
-**Total Indexes:** 126  
-**Primary Migration:** `00000000000000_initial_schema.sql`
+**Key Statistics:**
+- **Total Indexes:** 180+
+- **Tables with Indexes:** 35+
+- **Primary Keys:** 45
+- **Unique Constraints:** 25+
+- **Composite Indexes:** 40+
+- **Partial Indexes:** 5+
 
-**Index Types:**
-- **B-tree indexes** - Default, used for equality and range queries
-- **Functional indexes** - Indexes on expressions (e.g., LOWER(email))
-- **Unique indexes** - Enforce uniqueness constraints
-- **Composite indexes** - Multi-column indexes
+**Naming Convention:**
+- Primary Keys: `{table}_pkey`
+- Regular Indexes: `idx_{table}_{column(s)}`
+- Unique Indexes: `uniq_{table}_{column(s)}` or `ux_{table}_{column(s)}`
+- Composite: `idx_{table}_{col1}_{col2}`
 
 ---
 
 ## Index Categories
 
-### 1. User Identity Indexes (13 indexes)
-Optimize user lookups by canonical ID, wallet, email, Privy ID
-
-### 2. Transaction & Payment Indexes (20 indexes)
-Fast transaction history, payment status, and order lookups
-
-### 3. Competition & Entry Indexes (16 indexes)
-Competition discovery, entry tracking, winner management
-
-### 4. Ticket Management Indexes (15 indexes)
-Ticket availability, reservations, and allocation
-
-### 5. Balance & Ledger Indexes (9 indexes)
-Balance lookups and audit trail queries
-
-### 6. Admin & Management Indexes (11 indexes)
-Admin user management, sessions, and audit logs
-
-### 7. Webhook & Integration Indexes (9 indexes)
-Payment webhooks, CDP events, job processing
-
-### 8. Content & Display Indexes (12 indexes)
-FAQs, testimonials, partners, site content
-
-### 9. Notification Indexes (6 indexes)
-User notifications and messaging
-
-### 10. Utility & Reference Indexes (15 indexes)
-Various supporting indexes
-
----
-
-## Indexes by Table
-
-### canonical_users (7 indexes)
-
-Primary user identity table with comprehensive indexing.
-
-#### `idx_canonical_users_canonical_user_id`
-```sql
-CREATE INDEX idx_canonical_users_canonical_user_id 
-ON canonical_users(canonical_user_id);
-```
-**Purpose:** Primary user lookup  
-**Type:** B-tree  
-**Cardinality:** High (unique per user)  
-**Query Pattern:** `WHERE canonical_user_id = '...'`  
-**Usage:** User authentication, profile queries, balance lookups
-
----
-
-#### `idx_canonical_users_uid`
-```sql
-CREATE INDEX idx_canonical_users_uid 
-ON canonical_users(uid);
-```
-**Purpose:** Legacy user ID lookup  
-**Type:** B-tree  
-**Query Pattern:** `WHERE uid = '...'`  
-**Usage:** Backwards compatibility, user resolution
-
----
-
-#### `idx_canonical_users_privy_user_id`
-```sql
-CREATE INDEX idx_canonical_users_privy_user_id 
-ON canonical_users(privy_user_id);
-```
-**Purpose:** Privy authentication lookup  
-**Type:** B-tree  
-**Query Pattern:** `WHERE privy_user_id = '...'`  
-**Usage:** Privy login, user session validation
-
----
-
-#### `idx_canonical_users_wallet_address`
-```sql
-CREATE INDEX idx_canonical_users_wallet_address 
-ON canonical_users(LOWER(wallet_address));
-```
-**Purpose:** Case-insensitive wallet lookup  
-**Type:** Functional (B-tree on LOWER())  
-**Query Pattern:** `WHERE LOWER(wallet_address) = LOWER('0x...')`  
-**Usage:** Wallet authentication, user resolution  
-**Performance:** Critical for wallet-based lookups
-
----
-
-#### `idx_canonical_users_base_wallet_address`
-```sql
-CREATE INDEX idx_canonical_users_base_wallet_address 
-ON canonical_users(LOWER(base_wallet_address));
-```
-**Purpose:** Base chain wallet lookup  
-**Type:** Functional (B-tree on LOWER())  
-**Query Pattern:** `WHERE LOWER(base_wallet_address) = LOWER('0x...')`  
-**Usage:** Base network authentication
-
----
-
-#### `idx_canonical_users_eth_wallet_address`
-```sql
-CREATE INDEX idx_canonical_users_eth_wallet_address 
-ON canonical_users(LOWER(eth_wallet_address));
-```
-**Purpose:** Ethereum wallet lookup  
-**Type:** Functional (B-tree on LOWER())  
-**Query Pattern:** `WHERE LOWER(eth_wallet_address) = LOWER('0x...')`  
-**Usage:** Ethereum network authentication
-
----
-
-#### `idx_canonical_users_email`
-```sql
-CREATE INDEX idx_canonical_users_email 
-ON canonical_users(LOWER(email));
-```
-**Purpose:** Case-insensitive email lookup  
-**Type:** Functional (B-tree on LOWER())  
-**Query Pattern:** `WHERE LOWER(email) = LOWER('user@example.com')`  
-**Usage:** Email authentication, user search
-
----
-
-### users (2 indexes)
-
-Legacy users table (being phased out).
-
-#### `idx_users_wallet_address`
-```sql
-CREATE INDEX idx_users_wallet_address 
-ON users(LOWER(wallet_address));
-```
-**Purpose:** Legacy wallet lookup  
-**Type:** Functional  
-**Status:** Legacy, migrate to canonical_users
-
----
-
-#### `idx_users_user_id`
-```sql
-CREATE INDEX idx_users_user_id 
-ON users(user_id);
-```
-**Purpose:** Legacy user ID lookup  
-**Type:** B-tree
-
----
-
-### profiles (2 indexes)
-
-User profile information.
-
-#### `idx_profiles_user_id`
-```sql
-CREATE INDEX idx_profiles_user_id 
-ON profiles(user_id);
-```
-**Purpose:** Profile lookup by user ID  
-**Type:** B-tree  
-**Query Pattern:** `WHERE user_id = '...'`
-
----
-
-#### `idx_profiles_wallet_address`
-```sql
-CREATE INDEX idx_profiles_wallet_address 
-ON profiles(LOWER(wallet_address));
-```
-**Purpose:** Profile lookup by wallet  
-**Type:** Functional
-
----
-
-### sub_account_balances (3 indexes)
-
-User balance management.
-
-#### `idx_sub_account_balances_canonical_user_id`
-```sql
-CREATE INDEX idx_sub_account_balances_canonical_user_id 
-ON sub_account_balances(canonical_user_id);
-```
-**Purpose:** **Critical** - Balance lookup by user  
-**Type:** B-tree  
-**Query Pattern:** `WHERE canonical_user_id = '...'`  
-**Usage:** Balance queries, payment validation  
-**Performance:** Hot index, frequently accessed
-
----
-
-#### `idx_sub_account_balances_user_id`
-```sql
-CREATE INDEX idx_sub_account_balances_user_id 
-ON sub_account_balances(user_id);
-```
-**Purpose:** Legacy user ID balance lookup  
-**Type:** B-tree
-
----
-
-#### `idx_sub_account_balances_currency`
-```sql
-CREATE INDEX idx_sub_account_balances_currency 
-ON sub_account_balances(currency);
-```
-**Purpose:** Currency filtering  
-**Type:** B-tree  
-**Query Pattern:** `WHERE currency = 'USD'`  
-**Usage:** Multi-currency balance queries
-
----
-
-### balance_ledger (5 indexes)
-
-Audit trail for all balance operations.
-
-#### `idx_balance_ledger_canonical_user_id`
-```sql
-CREATE INDEX idx_balance_ledger_canonical_user_id 
-ON balance_ledger(canonical_user_id);
-```
-**Purpose:** User transaction history  
-**Type:** B-tree  
-**Query Pattern:** `WHERE canonical_user_id = '...'`  
-**Usage:** Balance history, audit queries
-
----
-
-#### `idx_balance_ledger_reference_id`
-```sql
-CREATE INDEX idx_balance_ledger_reference_id 
-ON balance_ledger(reference_id);
-```
-**Purpose:** Transaction reference lookup  
-**Type:** B-tree  
-**Query Pattern:** `WHERE reference_id = '...'`  
-**Usage:** Payment reconciliation, idempotency
-
----
-
-#### `idx_balance_ledger_transaction_id`
-```sql
-CREATE INDEX idx_balance_ledger_transaction_id 
-ON balance_ledger(transaction_id);
-```
-**Purpose:** Transaction ID lookup  
-**Type:** B-tree  
-**Usage:** Transaction tracking
-
----
-
-#### `idx_balance_ledger_created_at`
-```sql
-CREATE INDEX idx_balance_ledger_created_at 
-ON balance_ledger(created_at DESC);
-```
-**Purpose:** Chronological queries  
-**Type:** B-tree (DESC order)  
-**Query Pattern:** `ORDER BY created_at DESC`  
-**Usage:** Recent transaction history
-
----
-
-#### `idx_balance_ledger_source`
-```sql
-CREATE INDEX idx_balance_ledger_source 
-ON balance_ledger(source);
-```
-**Purpose:** Filter by transaction source  
-**Type:** B-tree  
-**Query Pattern:** `WHERE source = 'stripe'`  
-**Usage:** Source-specific reports
-
----
-
-### bonus_award_audit (2 indexes)
-
-Bonus tracking and audit.
-
-#### `idx_bonus_award_audit_canonical_user_id`
-```sql
-CREATE INDEX idx_bonus_award_audit_canonical_user_id 
-ON bonus_award_audit(canonical_user_id);
-```
-**Purpose:** User bonus history  
-**Type:** B-tree
-
----
-
-#### `idx_bonus_award_audit_wallet_address`
-```sql
-CREATE INDEX idx_bonus_award_audit_wallet_address 
-ON bonus_award_audit(LOWER(wallet_address));
-```
-**Purpose:** Wallet-based bonus lookup  
-**Type:** Functional
-
----
-
-### user_transactions (6 indexes)
-
-User payment and transaction records.
-
-#### `idx_user_transactions_user_id`
-```sql
-CREATE INDEX idx_user_transactions_user_id 
-ON user_transactions(user_id);
-```
-**Purpose:** User transaction history  
-**Type:** B-tree  
-**Query Pattern:** `WHERE user_id = '...'`
-
----
-
-#### `idx_user_transactions_canonical_user_id`
-```sql
-CREATE INDEX idx_user_transactions_canonical_user_id 
-ON user_transactions(canonical_user_id);
-```
-**Purpose:** **Primary** transaction lookup  
-**Type:** B-tree  
-**Query Pattern:** `WHERE canonical_user_id = '...'`  
-**Usage:** Transaction history, payment tracking
-
----
-
-#### `idx_user_transactions_competition_id`
-```sql
-CREATE INDEX idx_user_transactions_competition_id 
-ON user_transactions(competition_id);
-```
-**Purpose:** Competition-specific transactions  
-**Type:** B-tree  
-**Query Pattern:** `WHERE competition_id = '...'`  
-**Usage:** Competition revenue reports
-
----
-
-#### `idx_user_transactions_status`
-```sql
-CREATE INDEX idx_user_transactions_status 
-ON user_transactions(status);
-```
-**Purpose:** Filter by transaction status  
-**Type:** B-tree  
-**Query Pattern:** `WHERE status = 'completed'`  
-**Usage:** Pending transaction queries
-
----
-
-#### `idx_user_transactions_created_at`
-```sql
-CREATE INDEX idx_user_transactions_created_at 
-ON user_transactions(created_at DESC);
-```
-**Purpose:** Chronological ordering  
-**Type:** B-tree (DESC)  
-**Query Pattern:** `ORDER BY created_at DESC`
-
----
-
-#### `idx_user_transactions_payment_status`
-```sql
-CREATE INDEX idx_user_transactions_payment_status 
-ON user_transactions(payment_status);
-```
-**Purpose:** Payment status filtering  
-**Type:** B-tree  
-**Query Pattern:** `WHERE payment_status = 'pending'`  
-**Usage:** Payment reconciliation
-
----
-
-### competitions (6 indexes)
-
-Competition discovery and management.
-
-#### `idx_competitions_uid`
-```sql
-CREATE INDEX idx_competitions_uid 
-ON competitions(uid);
-```
-**Purpose:** Competition UID lookup  
-**Type:** B-tree
-
----
-
-#### `idx_competitions_status`
-```sql
-CREATE INDEX idx_competitions_status 
-ON competitions(status);
-```
-**Purpose:** **Critical** - Filter active/ended competitions  
-**Type:** B-tree  
-**Query Pattern:** `WHERE status = 'active'`  
-**Usage:** Homepage, competition listings  
-**Performance:** Hot index
-
----
-
-#### `idx_competitions_is_featured`
-```sql
-CREATE INDEX idx_competitions_is_featured 
-ON competitions(is_featured);
-```
-**Purpose:** Featured competition queries  
-**Type:** B-tree  
-**Query Pattern:** `WHERE is_featured = true`  
-**Usage:** Hero sections, featured listings
-
----
-
-#### `idx_competitions_start_time`
-```sql
-CREATE INDEX idx_competitions_start_time 
-ON competitions(start_time);
-```
-**Purpose:** Time-based filtering  
-**Type:** B-tree  
-**Query Pattern:** `WHERE start_time > NOW()`  
-**Usage:** Upcoming competitions
-
----
-
-#### `idx_competitions_end_time`
-```sql
-CREATE INDEX idx_competitions_end_time 
-ON competitions(end_time);
-```
-**Purpose:** Expiry checks  
-**Type:** B-tree  
-**Query Pattern:** `WHERE end_time < NOW()`  
-**Usage:** Ended competition detection
-
----
-
-#### `idx_competitions_category`
-```sql
-CREATE INDEX idx_competitions_category 
-ON competitions(category);
-```
-**Purpose:** Category filtering  
-**Type:** B-tree  
-**Query Pattern:** `WHERE category = 'luxury'`  
-**Usage:** Category pages
-
----
-
-### competition_entries (4 indexes)
-
-Competition participation tracking.
-
-#### `idx_competition_entries_canonical_user_id`
-```sql
-CREATE INDEX idx_competition_entries_canonical_user_id 
-ON competition_entries(canonical_user_id);
-```
-**Purpose:** User's competition entries  
-**Type:** B-tree  
-**Query Pattern:** `WHERE canonical_user_id = '...'`  
-**Usage:** User dashboard
-
----
-
-#### `idx_competition_entries_competition_id`
-```sql
-CREATE INDEX idx_competition_entries_competition_id 
-ON competition_entries(competition_id);
-```
-**Purpose:** Competition participant list  
-**Type:** B-tree  
-**Query Pattern:** `WHERE competition_id = '...'`  
-**Usage:** Leaderboards, participant counts
-
----
-
-#### `idx_competition_entries_is_winner`
-```sql
-CREATE INDEX idx_competition_entries_is_winner 
-ON competition_entries(is_winner);
-```
-**Purpose:** Winner filtering  
-**Type:** B-tree  
-**Query Pattern:** `WHERE is_winner = true`  
-**Usage:** Winner announcements
-
----
-
-#### `idx_competition_entries_latest_purchase_at`
-```sql
-CREATE INDEX idx_competition_entries_latest_purchase_at 
-ON competition_entries(latest_purchase_at DESC);
-```
-**Purpose:** Recent activity sorting  
-**Type:** B-tree (DESC)  
-**Query Pattern:** `ORDER BY latest_purchase_at DESC`  
-**Usage:** "Recent entries" displays
-
----
-
-### tickets (6 indexes)
-
-Individual ticket records.
-
-#### `idx_tickets_competition_id`
-```sql
-CREATE INDEX idx_tickets_competition_id 
-ON tickets(competition_id);
-```
-**Purpose:** **Critical** - Competition tickets  
-**Type:** B-tree  
-**Query Pattern:** `WHERE competition_id = '...'`  
-**Usage:** Ticket availability checks  
-**Performance:** Hot index
-
----
-
-#### `idx_tickets_user_id`
-```sql
-CREATE INDEX idx_tickets_user_id 
-ON tickets(user_id);
-```
-**Purpose:** User's tickets  
-**Type:** B-tree  
-**Query Pattern:** `WHERE user_id = '...'`
-
----
-
-#### `idx_tickets_canonical_user_id`
-```sql
-CREATE INDEX idx_tickets_canonical_user_id 
-ON tickets(canonical_user_id);
-```
-**Purpose:** **Primary** user ticket lookup  
-**Type:** B-tree  
-**Query Pattern:** `WHERE canonical_user_id = '...'`  
-**Usage:** User ticket displays
-
----
-
-#### `idx_tickets_wallet_address`
-```sql
-CREATE INDEX idx_tickets_wallet_address 
-ON tickets(LOWER(wallet_address));
-```
-**Purpose:** Wallet-based ticket lookup  
-**Type:** Functional
-
----
-
-#### `idx_tickets_status`
-```sql
-CREATE INDEX idx_tickets_status 
-ON tickets(status);
-```
-**Purpose:** Status filtering  
-**Type:** B-tree  
-**Query Pattern:** `WHERE status = 'sold'`  
-**Usage:** Available ticket calculations
-
----
-
-#### `idx_tickets_is_winner`
-```sql
-CREATE INDEX idx_tickets_is_winner 
-ON tickets(is_winner);
-```
-**Purpose:** Winner ticket identification  
-**Type:** B-tree  
-**Query Pattern:** `WHERE is_winner = true`
-
----
-
-### tickets_sold (2 indexes)
-
-Legacy sold tickets tracking.
-
-#### `idx_tickets_sold_competition_id`
-```sql
-CREATE INDEX idx_tickets_sold_competition_id 
-ON tickets_sold(competition_id);
-```
-**Purpose:** Sold tickets by competition  
-**Type:** B-tree
-
----
-
-#### `idx_tickets_sold_purchaser_id`
-```sql
-CREATE INDEX idx_tickets_sold_purchaser_id 
-ON tickets_sold(purchaser_id);
-```
-**Purpose:** Purchaser lookup  
-**Type:** B-tree
-
----
-
-### pending_tickets (4 indexes)
-
-Ticket reservations and holds.
-
-#### `idx_pending_tickets_user_id`
-```sql
-CREATE INDEX idx_pending_tickets_user_id 
-ON pending_tickets(user_id);
-```
-**Purpose:** User's pending tickets  
-**Type:** B-tree
-
----
-
-#### `idx_pending_tickets_competition_id`
-```sql
-CREATE INDEX idx_pending_tickets_competition_id 
-ON pending_tickets(competition_id);
-```
-**Purpose:** Competition's pending tickets  
-**Type:** B-tree  
-**Usage:** Availability calculations
-
----
-
-#### `idx_pending_tickets_status`
-```sql
-CREATE INDEX idx_pending_tickets_status 
-ON pending_tickets(status);
-```
-**Purpose:** Status filtering  
-**Type:** B-tree  
-**Query Pattern:** `WHERE status = 'pending'`
-
----
-
-#### `idx_pending_tickets_expires_at`
-```sql
-CREATE INDEX idx_pending_tickets_expires_at 
-ON pending_tickets(expires_at);
-```
-**Purpose:** Expiry checks  
-**Type:** B-tree  
-**Query Pattern:** `WHERE expires_at < NOW()`  
-**Usage:** Cleanup jobs, expiry triggers
-
----
-
-### pending_ticket_items (3 indexes)
-
-Individual pending ticket numbers.
-
-#### `idx_pending_ticket_items_pending_ticket_id`
-```sql
-CREATE INDEX idx_pending_ticket_items_pending_ticket_id 
-ON pending_ticket_items(pending_ticket_id);
-```
-**Purpose:** Items by reservation  
-**Type:** B-tree
-
----
-
-#### `idx_pending_ticket_items_competition_id`
-```sql
-CREATE INDEX idx_pending_ticket_items_competition_id 
-ON pending_ticket_items(competition_id);
-```
-**Purpose:** Competition-specific pending items  
-**Type:** B-tree
-
----
-
-#### `idx_pending_ticket_items_unique`
-```sql
-CREATE UNIQUE INDEX idx_pending_ticket_items_unique 
-ON pending_ticket_items(competition_id, ticket_number);
-```
-**Purpose:** **Critical** - Prevent double-booking  
-**Type:** Unique composite index  
-**Constraint:** Ensures ticket can't be reserved twice  
-**Performance:** Essential for data integrity
-
----
-
-### winners (5 indexes)
-
-Winner records and announcements.
-
-#### `idx_winners_competition_id`
-```sql
-CREATE INDEX idx_winners_competition_id 
-ON winners(competition_id);
-```
-**Purpose:** Competition winners  
-**Type:** B-tree
-
----
-
-#### `idx_winners_user_id`
-```sql
-CREATE INDEX idx_winners_user_id 
-ON winners(user_id);
-```
-**Purpose:** User's wins  
-**Type:** B-tree
-
----
-
-#### `idx_winners_canonical_user_id`
-```sql
-CREATE INDEX idx_winners_canonical_user_id 
-ON winners(canonical_user_id);
-```
-**Purpose:** **Primary** winner lookup  
-**Type:** B-tree
-
----
-
-#### `idx_winners_wallet_address`
-```sql
-CREATE INDEX idx_winners_wallet_address 
-ON winners(LOWER(wallet_address));
-```
-**Purpose:** Wallet-based winner lookup  
-**Type:** Functional
-
----
-
-#### `idx_winners_won_at`
-```sql
-CREATE INDEX idx_winners_won_at 
-ON winners(won_at DESC);
-```
-**Purpose:** Recent winners  
-**Type:** B-tree (DESC)  
-**Query Pattern:** `ORDER BY won_at DESC`
-
----
-
-### Prize_Instantprizes (3 indexes)
-
-Instant win prizes (case-sensitive table name).
-
-#### `idx_prize_instantprizes_competitionId`
-```sql
-CREATE INDEX idx_prize_instantprizes_competitionId 
-ON "Prize_Instantprizes"("competitionId");
-```
-**Purpose:** Instant prizes by competition  
-**Type:** B-tree
-
----
-
-#### `idx_prize_instantprizes_winningWalletAddress`
-```sql
-CREATE INDEX idx_prize_instantprizes_winningWalletAddress 
-ON "Prize_Instantprizes"(LOWER("winningWalletAddress"));
-```
-**Purpose:** Winner wallet lookup  
-**Type:** Functional
-
----
-
-#### `idx_prize_instantprizes_winningUserId`
-```sql
-CREATE INDEX idx_prize_instantprizes_winningUserId 
-ON "Prize_Instantprizes"("winningUserId");
-```
-**Purpose:** Winner user lookup  
-**Type:** B-tree
-
----
-
-### orders (4 indexes)
-
-Order management.
-
-#### `idx_orders_user_id`
-```sql
-CREATE INDEX idx_orders_user_id 
-ON orders(user_id);
-```
-**Purpose:** User's orders  
-**Type:** B-tree
-
----
-
-#### `idx_orders_competition_id`
-```sql
-CREATE INDEX idx_orders_competition_id 
-ON orders(competition_id);
-```
-**Purpose:** Competition orders  
-**Type:** B-tree
-
----
-
-#### `idx_orders_payment_status`
-```sql
-CREATE INDEX idx_orders_payment_status 
-ON orders(payment_status);
-```
-**Purpose:** Payment status filtering  
-**Type:** B-tree  
-**Query Pattern:** `WHERE payment_status = 'pending'`
-
----
-
-#### `idx_orders_created_at`
-```sql
-CREATE INDEX idx_orders_created_at 
-ON orders(created_at DESC);
-```
-**Purpose:** Chronological ordering  
-**Type:** B-tree (DESC)
-
----
-
-### order_tickets (1 index)
-
-Order line items.
-
-#### `idx_order_tickets_order_id`
-```sql
-CREATE INDEX idx_order_tickets_order_id 
-ON order_tickets(order_id);
-```
-**Purpose:** Tickets by order  
-**Type:** B-tree
-
----
-
-### payment_idempotency (3 indexes)
-
-Idempotency key management.
-
-#### `idx_payment_idempotency_key`
-```sql
-CREATE INDEX idx_payment_idempotency_key 
-ON payment_idempotency(idempotency_key);
-```
-**Purpose:** **Critical** - Duplicate prevention  
-**Type:** B-tree  
-**Query Pattern:** `WHERE idempotency_key = '...'`  
-**Performance:** Hot index for payment validation
-
----
-
-#### `idx_payment_idempotency_expires`
-```sql
-CREATE INDEX idx_payment_idempotency_expires 
-ON payment_idempotency(expires_at);
-```
-**Purpose:** Cleanup expired keys  
-**Type:** B-tree  
-**Usage:** Scheduled cleanup jobs
-
----
-
-#### `idx_payment_idempotency_user_id`
-```sql
-CREATE INDEX idx_payment_idempotency_user_id 
-ON payment_idempotency(user_id);
-```
-**Purpose:** User-specific idempotency  
-**Type:** B-tree
-
----
-
-### payment_webhook_events (4 indexes)
-
-Payment webhook processing.
-
-#### `idx_payment_webhook_events_provider`
-```sql
-CREATE INDEX idx_payment_webhook_events_provider 
-ON payment_webhook_events(provider);
-```
-**Purpose:** Provider-specific webhooks  
-**Type:** B-tree  
-**Query Pattern:** `WHERE provider = 'stripe'`
-
----
-
-#### `idx_payment_webhook_events_event_type`
-```sql
-CREATE INDEX idx_payment_webhook_events_event_type 
-ON payment_webhook_events(event_type);
-```
-**Purpose:** Event type filtering  
-**Type:** B-tree
-
----
-
-#### `idx_payment_webhook_events_processed`
-```sql
-CREATE INDEX idx_payment_webhook_events_processed 
-ON payment_webhook_events(processed);
-```
-**Purpose:** Unprocessed webhook queries  
-**Type:** B-tree  
-**Query Pattern:** `WHERE processed = false`  
-**Usage:** Webhook processing jobs
-
----
-
-#### `idx_payment_webhook_events_created_at`
-```sql
-CREATE INDEX idx_payment_webhook_events_created_at 
-ON payment_webhook_events(created_at DESC);
-```
-**Purpose:** Chronological ordering  
-**Type:** B-tree (DESC)
-
----
-
-### payments_jobs (3 indexes)
-
-Background job management.
-
-#### `idx_payments_jobs_status`
-```sql
-CREATE INDEX idx_payments_jobs_status 
-ON payments_jobs(status);
-```
-**Purpose:** Job status filtering  
-**Type:** B-tree  
-**Query Pattern:** `WHERE status = 'pending'`
-
----
-
-#### `idx_payments_jobs_scheduled_at`
-```sql
-CREATE INDEX idx_payments_jobs_scheduled_at 
-ON payments_jobs(scheduled_at);
-```
-**Purpose:** Job scheduling  
-**Type:** B-tree  
-**Query Pattern:** `WHERE scheduled_at <= NOW()`
-
----
-
-#### `idx_payments_jobs_job_type`
-```sql
-CREATE INDEX idx_payments_jobs_job_type 
-ON payments_jobs(job_type);
-```
-**Purpose:** Job type filtering  
-**Type:** B-tree
-
----
-
-### custody_transactions (3 indexes)
-
-Custody wallet transactions.
-
-#### `idx_custody_transactions_user_id`
-```sql
-CREATE INDEX idx_custody_transactions_user_id 
-ON custody_transactions(user_id);
-```
-**Purpose:** User custody transactions  
-**Type:** B-tree
-
----
-
-#### `idx_custody_transactions_provider`
-```sql
-CREATE INDEX idx_custody_transactions_provider 
-ON custody_transactions(provider);
-```
-**Purpose:** Provider filtering  
-**Type:** B-tree
-
----
-
-#### `idx_custody_transactions_status`
-```sql
-CREATE INDEX idx_custody_transactions_status 
-ON custody_transactions(status);
-```
-**Purpose:** Status filtering  
-**Type:** B-tree
-
----
-
-### internal_transfers (3 indexes)
-
-Internal balance transfers.
-
-#### `idx_internal_transfers_from_user_id`
-```sql
-CREATE INDEX idx_internal_transfers_from_user_id 
-ON internal_transfers(from_user_id);
-```
-**Purpose:** Outgoing transfers  
-**Type:** B-tree
-
----
-
-#### `idx_internal_transfers_to_user_id`
-```sql
-CREATE INDEX idx_internal_transfers_to_user_id 
-ON internal_transfers(to_user_id);
-```
-**Purpose:** Incoming transfers  
-**Type:** B-tree
-
----
-
-#### `idx_internal_transfers_status`
-```sql
-CREATE INDEX idx_internal_transfers_status 
-ON internal_transfers(status);
-```
-**Purpose:** Status filtering  
-**Type:** B-tree
-
----
-
-### purchase_requests (3 indexes)
-
-Purchase request tracking.
-
-#### `idx_purchase_requests_user_id`
-```sql
-CREATE INDEX idx_purchase_requests_user_id 
-ON purchase_requests(user_id);
-```
-**Purpose:** User purchase requests  
-**Type:** B-tree
-
----
-
-#### `idx_purchase_requests_competition_id`
-```sql
-CREATE INDEX idx_purchase_requests_competition_id 
-ON purchase_requests(competition_id);
-```
-**Purpose:** Competition requests  
-**Type:** B-tree
-
----
-
-#### `idx_purchase_requests_status`
-```sql
-CREATE INDEX idx_purchase_requests_status 
-ON purchase_requests(status);
-```
-**Purpose:** Status filtering  
-**Type:** B-tree
-
----
-
-### joincompetition (2 indexes)
-
-Competition entries (legacy table).
-
-#### `idx_joincompetition_userid`
-```sql
-CREATE INDEX idx_joincompetition_userid 
-ON joincompetition(userid);
-```
-**Purpose:** User entries  
-**Type:** B-tree
-
----
-
-#### `idx_joincompetition_competitionid`
-```sql
-CREATE INDEX idx_joincompetition_competitionid 
-ON joincompetition(competitionid);
-```
-**Purpose:** Competition entries  
-**Type:** B-tree
-
----
-
-### joined_competitions (2 indexes)
-
-User competition participation.
-
-#### `idx_joined_competitions_user_uid`
-```sql
-CREATE INDEX idx_joined_competitions_user_uid 
-ON joined_competitions(user_uid);
-```
-**Purpose:** User's competitions  
-**Type:** B-tree
-
----
-
-#### `idx_joined_competitions_competition_id`
-```sql
-CREATE INDEX idx_joined_competitions_competition_id 
-ON joined_competitions(competition_id);
-```
-**Purpose:** Competition participants  
-**Type:** B-tree
-
----
-
-### participants (3 indexes)
-
-Competition participant records.
-
-#### `idx_participants_competition_id`
-```sql
-CREATE INDEX idx_participants_competition_id 
-ON participants(competition_id);
-```
-**Purpose:** Competition participants  
-**Type:** B-tree
-
----
-
-#### `idx_participants_user_id`
-```sql
-CREATE INDEX idx_participants_user_id 
-ON participants(user_id);
-```
-**Purpose:** User participation  
-**Type:** B-tree
-
----
-
-#### `idx_participants_wallet_address`
-```sql
-CREATE INDEX idx_participants_wallet_address 
-ON participants(LOWER(wallet_address));
-```
-**Purpose:** Wallet-based participant lookup  
-**Type:** Functional
-
----
-
-### Admin Tables (11 indexes)
-
-#### admin_users (2 indexes)
-```sql
-CREATE INDEX idx_admin_users_email ON admin_users(LOWER(email));
-CREATE INDEX idx_admin_users_is_active ON admin_users(is_active);
-```
-
-#### admin_sessions (3 indexes)
-```sql
-CREATE INDEX idx_admin_sessions_admin_id ON admin_sessions(admin_id);
-CREATE INDEX idx_admin_sessions_token ON admin_sessions(token);
-CREATE INDEX idx_admin_sessions_expires_at ON admin_sessions(expires_at);
-```
-
-#### admin_users_audit (2 indexes)
-```sql
-CREATE INDEX idx_admin_users_audit_admin_id ON admin_users_audit(admin_id);
-CREATE INDEX idx_admin_users_audit_created_at ON admin_users_audit(created_at DESC);
-```
-
-#### confirmation_incident_log (2 indexes)
-```sql
-CREATE INDEX idx_confirmation_incident_log_source ON confirmation_incident_log(source);
-CREATE INDEX idx_confirmation_incident_log_created_at ON confirmation_incident_log(created_at DESC);
-```
-
-#### email_auth_sessions (3 indexes)
-```sql
-CREATE INDEX idx_email_auth_sessions_email ON email_auth_sessions(LOWER(email));
-CREATE INDEX idx_email_auth_sessions_verification_code ON email_auth_sessions(verification_code);
-CREATE INDEX idx_email_auth_sessions_expires_at ON email_auth_sessions(expires_at);
-```
-
----
-
-### Content Tables (12 indexes)
-
-#### faqs (2 indexes)
-```sql
-CREATE INDEX idx_faqs_display_order ON faqs(display_order);
-CREATE INDEX idx_faqs_category ON faqs(category);
-```
-
-#### hero_competitions (2 indexes)
-```sql
-CREATE INDEX idx_hero_competitions_display_order ON hero_competitions(display_order);
-CREATE INDEX idx_hero_competitions_is_active ON hero_competitions(is_active);
-```
-
-#### partners (2 indexes)
-```sql
-CREATE INDEX idx_partners_display_order ON partners(display_order);
-CREATE INDEX idx_partners_is_active ON partners(is_active);
-```
-
-#### testimonials (2 indexes)
-```sql
-CREATE INDEX idx_testimonials_display_order ON testimonials(display_order);
-CREATE INDEX idx_testimonials_is_active ON testimonials(is_active);
-```
-
-#### site_stats (1 index)
-```sql
-CREATE INDEX idx_site_stats_display_order ON site_stats(display_order);
-```
-
-#### site_metadata (1 index)
-```sql
-CREATE INDEX idx_site_metadata_category ON site_metadata(category);
-```
-
-#### platform_statistics (1 index)
-```sql
-CREATE INDEX idx_platform_statistics_stat_date ON platform_statistics(stat_date DESC);
-```
-
----
-
-### Notification Tables (6 indexes)
-
-#### notifications (3 indexes)
-```sql
-CREATE INDEX idx_notifications_user_id ON notifications(user_id);
-CREATE INDEX idx_notifications_read ON notifications(read);
-CREATE INDEX idx_notifications_created_at ON notifications(created_at DESC);
-```
-
-#### user_notifications (3 indexes)
-```sql
-CREATE INDEX idx_user_notifications_user_id ON user_notifications(user_id);
-CREATE INDEX idx_user_notifications_read ON user_notifications(read);
-CREATE INDEX idx_user_notifications_created_at ON user_notifications(created_at DESC);
-```
-
----
-
-### Integration Tables (3 indexes)
-
-#### cdp_event_queue (2 indexes)
-```sql
-CREATE INDEX idx_cdp_event_queue_status ON cdp_event_queue(status);
-CREATE INDEX idx_cdp_event_queue_created_at ON cdp_event_queue(created_at);
-```
-
-#### enqueue_cdp_event (1 index)
-```sql
-CREATE INDEX idx_enqueue_cdp_event_status ON enqueue_cdp_event(status);
-```
-
----
-
-## Performance Optimization
-
-### Critical Hot Indexes
-
-These indexes are accessed most frequently and critical for performance:
-
-1. **`idx_canonical_users_canonical_user_id`** - User lookups
-2. **`idx_canonical_users_wallet_address`** - Wallet authentication
-3. **`idx_sub_account_balances_canonical_user_id`** - Balance checks
-4. **`idx_tickets_competition_id`** - Ticket availability
-5. **`idx_competitions_status`** - Active competition filtering
-6. **`idx_payment_idempotency_key`** - Payment duplicate prevention
-7. **`idx_pending_ticket_items_unique`** - Ticket reservation integrity
-
-### Index Maintenance
-
-#### Check Index Usage
-```sql
-SELECT 
-  schemaname,
-  tablename,
-  indexname,
-  idx_scan,
-  idx_tup_read,
-  idx_tup_fetch
-FROM pg_stat_user_indexes
-WHERE schemaname = 'public'
-ORDER BY idx_scan DESC;
-```
-
-#### Find Unused Indexes
-```sql
-SELECT 
-  schemaname || '.' || tablename AS table,
-  indexname AS index,
-  pg_size_pretty(pg_relation_size(indexrelid)) AS index_size,
-  idx_scan AS scans
-FROM pg_stat_user_indexes
-WHERE schemaname = 'public'
-  AND idx_scan = 0
-  AND indexrelname NOT LIKE 'pg_toast%'
-ORDER BY pg_relation_size(indexrelid) DESC;
-```
-
-#### Index Size Report
-```sql
-SELECT 
-  tablename,
-  indexname,
-  pg_size_pretty(pg_relation_size(indexrelid)) AS size
-FROM pg_stat_user_indexes
-WHERE schemaname = 'public'
-ORDER BY pg_relation_size(indexrelid) DESC
-LIMIT 20;
-```
-
-#### Rebuild Bloated Indexes
-```sql
--- Check for bloat
-SELECT 
-  schemaname,
-  tablename,
-  indexname,
-  pg_size_pretty(pg_relation_size(indexrelid)) AS size
-FROM pg_stat_user_indexes
-WHERE schemaname = 'public';
-
--- Rebuild if needed
-REINDEX INDEX CONCURRENTLY idx_name;
-```
-
----
-
-## Best Practices
-
-### Index Design Principles
-
-1. **Index Selectivity** - High cardinality columns make better indexes
-2. **Composite Index Order** - Most selective column first
-3. **Covering Indexes** - Include frequently accessed columns
-4. **Functional Indexes** - For case-insensitive searches (LOWER())
-5. **Partial Indexes** - For filtered queries (WHERE status = 'active')
+### 1. User & Identity Tables
+
+#### **canonical_users** (The Core User Table)
+**Purpose:** Single source of truth for all user identities  
+**Importance:** 🔴 Critical
+
+| Index Name | Columns | Type | Purpose | Performance Impact |
+|-----------|---------|------|---------|-------------------|
+| `canonical_users_pkey` | `id` | PK | Primary key | ⚡ Essential |
+| `idx_canonical_users_canonical_user_id` | `canonical_user_id` | BTREE | User lookups | 🟢 High |
+| `idx_canonical_users_uid` | `uid` | BTREE | Legacy compatibility | 🟡 Medium |
+| `idx_canonical_users_privy_user_id` | `privy_user_id` | UNIQUE | Privy integration | 🟢 High |
+| `idx_canonical_users_wallet_address` | `LOWER(wallet_address)` | BTREE | Case-insensitive wallet lookup | 🟢 High |
+| `idx_canonical_users_base_wallet_address` | `LOWER(base_wallet_address)` | BTREE | Base chain lookup | 🟢 High |
+| `idx_canonical_users_eth_wallet_address` | `LOWER(eth_wallet_address)` | BTREE | ETH chain lookup | 🟢 High |
+| `idx_canonical_users_email` | `LOWER(email)` | BTREE | Email login | 🟢 High |
+
+**Notes:**
+- All wallet addresses use `LOWER()` for case-insensitive matching
+- Multiple wallet columns support multi-chain users
+- Email index enables fast auth lookups
+- ⚠️ Critical for all user operations - do not drop
+
+#### **users** (Legacy User Table)
+**Purpose:** Backward compatibility with old system  
+**Importance:** 🟡 Medium (deprecated)
+
+| Index Name | Columns | Type | Purpose |
+|-----------|---------|------|---------|
+| `users_pkey` | `id` | PK | Primary key |
+| `idx_users_user_id` | `user_id` | BTREE | Legacy ID lookup |
+| `idx_users_wallet_address` | `LOWER(wallet_address)` | BTREE | Wallet lookup |
+| `update_users_updated_at` | - | TRIGGER | Auto-update timestamp |
+
+#### **profiles** (User Profile Data)
+| Index Name | Columns | Type | Purpose |
+|-----------|---------|------|---------|
+| `profiles_pkey` | `id` | PK | Primary key |
+| `idx_profiles_user_id` | `user_id` | BTREE | Profile lookups |
+| `idx_profiles_wallet_address` | `LOWER(wallet_address)` | BTREE | Wallet lookup |
+
+---
+
+### 2. Balance & Financial Tables
+
+#### **sub_account_balances** (User Sub-Account Balances)
+**Purpose:** Track USDC and BONUS balances per user  
+**Importance:** 🔴 Critical
+
+| Index Name | Columns | Type | Purpose | Performance |
+|-----------|---------|------|---------|-------------|
+| `sub_account_balances_pkey` | `id` | PK | Primary key | ⚡ Essential |
+| `idx_sub_account_balances_canonical_user_id` | `canonical_user_id` | BTREE | User balance lookups | 🟢 High |
+| `idx_sub_account_balances_user_id` | `user_id` | BTREE | Legacy user lookup | 🟡 Medium |
+| `idx_sub_account_balances_currency` | `currency` | BTREE | Currency filtering | 🟢 High |
+| `uniq_sub_account_canonical_currency` | `canonical_user_id, currency` | UNIQUE | One balance per currency | ⚡ Essential |
+
+**Notes:**
+- Composite unique index prevents duplicate balance rows
+- Currency index enables fast "all USDC balances" queries
+- Critical for balance payment flow
+
+#### **balance_ledger** (Audit Trail for Balance Changes)
+**Purpose:** Immutable log of all balance transactions  
+**Importance:** 🔴 Critical
+
+| Index Name | Columns | Type | Purpose |
+|-----------|---------|------|---------|
+| `balance_ledger_pkey` | `id` | PK | Primary key |
+| `idx_balance_ledger_canonical_user_id` | `canonical_user_id` | BTREE | User transaction history |
+| `idx_balance_ledger_reference_id` | `reference_id` | BTREE | Link to source transaction |
+| `idx_balance_ledger_transaction_id` | `transaction_id` | BTREE | Transaction lookup |
+| `idx_balance_ledger_created_at` | `created_at DESC` | BTREE | Recent transactions first |
+| `idx_balance_ledger_source` | `source` | BTREE | Filter by source type |
+
+**Notes:**
+- DESC index on created_at optimizes recent transaction queries
+- Reference_id links to orders, deposits, etc.
+- Source column distinguishes transaction types
+
+#### **bonus_award_audit** (Bonus Award Tracking)
+| Index Name | Columns | Type | Purpose |
+|-----------|---------|------|---------|
+| `bonus_award_audit_pkey` | `id` | PK | Primary key |
+| `idx_bonus_award_audit_canonical_user_id` | `canonical_user_id` | BTREE | User bonus history |
+| `idx_bonus_award_audit_wallet_address` | `LOWER(wallet_address)` | BTREE | Wallet bonus lookup |
+
+---
+
+### 3. Competition Tables
+
+#### **competitions** (Competition Definitions)
+**Purpose:** Core competition data  
+**Importance:** 🔴 Critical
+
+| Index Name | Columns | Type | Purpose | Performance |
+|-----------|---------|------|---------|-------------|
+| `competitions_pkey` | `uid` | PK | Primary key | ⚡ Essential |
+| `idx_competitions_uid` | `uid` | BTREE | Competition lookup | 🟢 High |
+| `idx_competitions_status` | `status` | BTREE | Filter by status | 🟢 High |
+| `idx_competitions_is_featured` | `is_featured` | BTREE | Homepage featured | 🟡 Medium |
+| `idx_competitions_start_time` | `start_time` | BTREE | Upcoming competitions | 🟢 High |
+| `idx_competitions_end_time` | `end_time` | BTREE | Ending soon | 🟢 High |
+| `idx_competitions_category` | `category` | BTREE | Category filtering | 🟡 Medium |
+| `idx_competitions_sold_tickets` | `sold_tickets` | BTREE | Sold out check | 🟢 High |
+
+**Notes:**
+- Status index critical for "active competitions" queries
+- Time indexes support date-range queries
+- Sold_tickets index optimizes sold-out checks
+
+#### **competition_entries** (User Competition Participation)
+| Index Name | Columns | Type | Purpose |
+|-----------|---------|------|---------|
+| `competition_entries_pkey` | `id` | PK | Primary key |
+| `idx_competition_entries_canonical_user_id` | `canonical_user_id` | BTREE | User's entries |
+| `idx_competition_entries_competition_id` | `competition_id` | BTREE | Competition participants |
+| `idx_competition_entries_is_winner` | `is_winner` | BTREE | Winner lookups |
+| `idx_competition_entries_latest_purchase_at` | `latest_purchase_at DESC` | BTREE | Recent entries |
+
+---
+
+### 4. Ticket Tables
+
+#### **tickets** (Sold Tickets)
+**Purpose:** All confirmed ticket purchases  
+**Importance:** 🔴 Critical
+
+| Index Name | Columns | Type | Purpose | Performance |
+|-----------|---------|------|---------|-------------|
+| `tickets_pkey` | `id` | PK | Primary key | ⚡ Essential |
+| `idx_tickets_competition_id` | `competition_id` | BTREE | Competition tickets | 🟢 High |
+| `idx_tickets_user_id` | `user_id` | BTREE | User tickets (legacy) | 🟡 Medium |
+| `idx_tickets_canonical_user_id` | `canonical_user_id` | BTREE | User tickets (current) | 🟢 High |
+| `idx_tickets_wallet_address` | `LOWER(wallet_address)` | BTREE | Wallet tickets | 🟢 High |
+| `idx_tickets_status` | `status` | BTREE | Status filtering | 🟢 High |
+| `idx_tickets_is_winner` | `is_winner` | BTREE | Winner tickets | 🟢 High |
+| `idx_tickets_competition_user` | `competition_id, user_id` | COMPOSITE | User's tickets per comp | 🟢 High |
+
+**Notes:**
+- Composite index optimizes "user's tickets in competition X" queries
+- Wallet address index supports multi-wallet users
+- Is_winner index critical for winner displays
+
+#### **tickets_sold** (Ticket Sales Record)
+| Index Name | Columns | Type | Purpose |
+|-----------|---------|------|---------|
+| `tickets_sold_pkey` | `id` | PK | Primary key |
+| `idx_tickets_sold_competition_id` | `competition_id` | BTREE | Competition sales |
+| `idx_tickets_sold_purchaser_id` | `purchaser_id` | BTREE | Purchaser history |
+
+#### **pending_tickets** (Reserved/Pending Tickets)
+**Purpose:** Tickets held during checkout  
+**Importance:** 🔴 Critical
+
+| Index Name | Columns | Type | Purpose | Performance |
+|-----------|---------|------|---------|-------------|
+| `pending_tickets_pkey` | `id` | PK | Primary key | ⚡ Essential |
+| `idx_pending_tickets_id` | `id` | BTREE | Explicit ID lookup | 🟢 High |
+| `idx_pending_tickets_user_id` | `user_id` | BTREE | User pending tickets | 🟡 Medium |
+| `idx_pending_tickets_canonical_user_id` | `canonical_user_id` | BTREE | User pending (current) | 🟢 High |
+| `idx_pending_tickets_competition_id` | `competition_id` | BTREE | Competition pending | 🟢 High |
+| `idx_pending_tickets_status` | `status` | BTREE | Status filtering | 🟢 High |
+| `idx_pending_tickets_expires_at` | `expires_at` | BTREE | Expiry cleanup | 🟢 High |
+| `idx_pending_tickets_user_status` | `user_id, status` | COMPOSITE | User active pending | 🟢 High |
+| `idx_pending_tickets_comp_status_user` | `competition_id, status, user_id` | COMPOSITE | Complex queries | 🟢 High |
+| `idx_pending_tickets_competition_status` | `competition_id, status` | COMPOSITE | Comp pending count | 🟢 High |
+| `idx_pending_tickets_comp_status_exp` | `competition_id, status, expires_at` | COMPOSITE | Expiry queries | 🟢 High |
+| `idx_pending_tickets_comp_status` | `competition_id, status` | COMPOSITE | Simple status query | 🟢 High |
+| `idx_pending_tickets_identifiers` | `user_id, wallet_address, privy_user_id` | COMPOSITE | Multi-identifier lookup | 🟢 High |
+| `idx_pending_tickets_wallet_lower` | `LOWER(wallet_address)` | BTREE | Case-insensitive wallet | 🟢 High |
+| `idx_pending_tickets_user_id_lower` | `LOWER(user_id)` | BTREE | Case-insensitive user | 🟡 Medium |
+| `idx_pending_tickets_idempotency` | `idempotency_key` | BTREE | Prevent duplicates | 🟢 High |
+| `idx_pt_reservation` | `reservation_id` | BTREE | Reservation lookup | 🟢 High |
+| `idx_pending_tickets_comp_id` | `competition_id` | BTREE | Competition pending | 🟢 High |
+| `idx_pending_tickets_reservation` | `reservation_id` | BTREE | Reservation link | 🟢 High |
+| `idx_pending_tickets_comp_user` | `competition_id, user_id` | COMPOSITE | User comp pending | 🟢 High |
+| `idx_pending_tickets_active` | `status, expires_at` | COMPOSITE | Active tickets | 🟢 High |
+| `idx_pending_tickets_canonical_user` | `canonical_user_id` | BTREE | Canonical user pending | 🟢 High |
+| `idx_pending_tickets_wallet` | `wallet_address` | BTREE | Wallet pending | 🟢 High |
+| `idx_pending_tickets_privy` | `privy_user_id` | BTREE | Privy user pending | 🟢 High |
+| `idx_pending_tickets_active_partial` | `status, expires_at` WHERE `status='pending'` | PARTIAL | Active pending only | 🟢 High |
+| `ux_pending_tickets_reservation_id` | `reservation_id` | UNIQUE | One header per reservation | ⚡ Essential |
+
+**Notes:**
+- ⚠️ **Most indexed table** - critical for performance
+- Multiple composite indexes optimize complex queries
+- Partial index reduces index size for common queries
+- Idempotency key prevents duplicate reservations
+- Expires_at indexes support cleanup jobs
+
+#### **pending_ticket_items** (Individual Ticket Numbers in Reservation)
+**Purpose:** The actual ticket numbers being held  
+**Importance:** 🔴 Critical
+
+| Index Name | Columns | Type | Purpose | Performance |
+|-----------|---------|------|---------|-------------|
+| `pending_ticket_items_pkey` | `id` | PK | Primary key | ⚡ Essential |
+| `idx_pending_ticket_items_comp_ticket` | `competition_id, ticket_number` | COMPOSITE | Ticket availability | 🟢 High |
+| `idx_pending_ticket_items_comp_expires` | `competition_id, expires_at` | COMPOSITE | Expiry by comp | 🟢 High |
+| `idx_pending_ticket_items_status_expires` | `status, expires_at` | COMPOSITE | Expired items | 🟢 High |
+| `idx_pending_ticket_items_header` | `pending_ticket_id` | BTREE | Items in reservation | 🟢 High |
+| `idx_pending_items_competition_ticket` | `competition_id, ticket_number` | COMPOSITE | Duplicate check | 🟢 High |
+| `idx_pending_items_comp_status_expires` | `competition_id, status, expires_at` | COMPOSITE | Complex queries | 🟢 High |
+| `idx_pti_comp_tn` | `competition_id, ticket_number` | COMPOSITE | Quick lookup | 🟢 High |
+| `idx_pti_pending_not_exp` | `status, expires_at` WHERE `status='pending'` | PARTIAL | Active holds | 🟢 High |
+| `idx_pending_ticket_items_competition` | `competition_id` | BTREE | Competition items | 🟢 High |
+| `ux_pending_ticket_items_comp_ticket_pending` | `competition_id, ticket_number` WHERE `status='pending'` | UNIQUE PARTIAL | No double-booking | ⚡ Essential |
+| `ux_pending_pending_hold` | `competition_id, ticket_number, status` | UNIQUE | Enforce single hold | ⚡ Essential |
+| `uq_pending_ticket_items_active` | `competition_id, ticket_number` WHERE `status='pending'` | UNIQUE PARTIAL | Active uniqueness | ⚡ Essential |
+| `ux_pending_item_comp_ticket` | `competition_id, ticket_number` | UNIQUE | Global uniqueness | ⚡ Essential |
+| `ux_pending_ticket_items_comp_ticket` | `competition_id, ticket_number` | UNIQUE | Prevent duplicates | ⚡ Essential |
+
+**Notes:**
+- ⚠️ **Multiple unique constraints prevent double-booking**
+- Partial unique indexes are more efficient
+- Critical for ticket availability checks
+- Must be highly optimized (queried on every purchase)
+
+---
+
+### 5. Transaction Tables
+
+#### **user_transactions** (User Financial Transactions)
+**Purpose:** All user deposits, purchases, withdrawals  
+**Importance:** 🔴 Critical
+
+| Index Name | Columns | Type | Purpose | Performance |
+|-----------|---------|------|---------|-------------|
+| `user_transactions_pkey` | `id` | PK | Primary key | ⚡ Essential |
+| `idx_user_transactions_user_id` | `user_id` | BTREE | User transaction history | 🟡 Medium |
+| `idx_user_transactions_canonical_user_id` | `canonical_user_id` | BTREE | User history (current) | 🟢 High |
+| `idx_user_transactions_competition_id` | `competition_id` | BTREE | Competition transactions | 🟢 High |
+| `idx_user_transactions_webhook_ref` | `webhook_reference_id` | BTREE | Webhook lookup | 🟢 High |
+| `idx_user_transactions_charge_id` | `charge_id` | BTREE | Charge lookup | 🟢 High |
+| `idx_user_transactions_type` | `type` | BTREE | Transaction type filter | 🟢 High |
+| `idx_user_transactions_status` | `status` | BTREE | Status filtering | 🟢 High |
+| `idx_user_transactions_user_comp` | `user_id, competition_id` | COMPOSITE | User comp transactions | 🟢 High |
+| `idx_user_transactions_created_at` | `created_at DESC` | BTREE | Recent transactions | 🟢 High |
+| `idx_user_transactions_updated_at` | `updated_at DESC` | BTREE | Recently updated | 🟢 High |
+| `idx_user_transactions_payment_status` | `payment_status` | BTREE | Payment filtering | 🟢 High |
+| `idx_ut_canonical_created` | `canonical_user_id, created_at DESC` | COMPOSITE | User recent history | 🟢 High |
+| `idx_ut_status_type` | `status, type` | COMPOSITE | Status+type queries | 🟢 High |
+| `idx_user_transactions_privy` | `privy_user_id` | BTREE | Privy user transactions | 🟢 High |
+| `idx_user_transactions_type_status` | `type, status` | COMPOSITE | Type+status filtering | 🟢 High |
+| `user_transactions_webhook_ref_key` | `webhook_reference_id` | UNIQUE | Idempotency | ⚡ Essential |
+| `user_transactions_charge_id_key` | `charge_id` | UNIQUE | Charge uniqueness | ⚡ Essential |
+| `uniq_user_tx_reservation_desc` | `reservation_id, description` | UNIQUE | Prevent duplicate orders | ⚡ Essential |
+
+**Notes:**
+- DESC indexes optimize "recent transactions" queries
+- Unique constraints ensure payment idempotency
+- Multiple composite indexes for dashboard queries
+- Critical for financial reporting
+
+---
+
+### 6. Payment & Webhook Tables
+
+#### **payment_idempotency** (Payment Deduplication)
+**Purpose:** Prevent duplicate payment processing  
+**Importance:** 🔴 Critical
+
+| Index Name | Columns | Type | Purpose |
+|-----------|---------|------|---------|
+| `payment_idempotency_pkey` | `id` | PK | Primary key |
+| `payment_idempotency_idempotency_key_key` | `idempotency_key` | UNIQUE | Idempotency enforcement |
+| `idx_payment_idempotency_key` | `idempotency_key` | BTREE | Fast key lookup |
+| `idx_payment_idempotency_expires` | `expires_at` | BTREE | Cleanup expired keys |
+| `idx_payment_idempotency_user_id` | `user_id` | BTREE | User idempotency history |
+| `idx_payment_idempotency_cuid` | `canonical_user_id` | BTREE | Canonical user lookup |
+
+**Notes:**
+- Unique constraint prevents duplicate payments
+- TTL-based expiry cleanup
+
+#### **payment_webhook_events** (Payment Provider Webhooks)
+| Index Name | Columns | Type | Purpose |
+|-----------|---------|------|---------|
+| `payment_webhook_events_pkey` | `id` | PK | Primary key |
+| `idx_payment_webhook_events_provider` | `provider` | BTREE | Provider filtering |
+| `idx_payment_webhook_events_event_type` | `event_type` | BTREE | Event type filtering |
+| `idx_payment_webhook_events_processed` | `processed` | BTREE | Unprocessed events |
+| `idx_payment_webhook_events_created_at` | `created_at DESC` | BTREE | Recent events |
+
+#### **payments_jobs** (Background Payment Jobs)
+| Index Name | Columns | Type | Purpose |
+|-----------|---------|------|---------|
+| `payments_jobs_pkey` | `id` | PK | Primary key |
+| `idx_payments_jobs_status` | `status` | BTREE | Job status filtering |
+| `idx_payments_jobs_scheduled_at` | `scheduled_at` | BTREE | Scheduled jobs |
+| `idx_payments_jobs_job_type` | `job_type` | BTREE | Job type filtering |
+| `idx_payments_jobs_status_run` | `status, scheduled_at` | COMPOSITE | Runnable jobs |
+
+#### **custody_transactions** (Custody Wallet Transactions)
+| Index Name | Columns | Type | Purpose |
+|-----------|---------|------|---------|
+| `custody_transactions_pkey` | `id` | PK | Primary key |
+| `idx_custody_transactions_user_id` | `user_id` | BTREE | User custody history |
+| `idx_custody_transactions_provider` | `provider` | BTREE | Provider filtering |
+| `idx_custody_transactions_status` | `status` | BTREE | Status filtering |
+
+---
+
+### 7. Order & Purchase Tables
+
+#### **orders** (Purchase Orders)
+**Purpose:** Order records for ticket purchases  
+**Importance:** 🔴 Critical
+
+| Index Name | Columns | Type | Purpose |
+|-----------|---------|------|---------|
+| `orders_pkey` | `id` | PK | Primary key |
+| `idx_orders_user_id` | `user_id` | BTREE | User orders |
+| `idx_orders_status` | `status` | BTREE | Order status |
+| `idx_orders_competition` | `competition_id` | BTREE | Competition orders |
+| `idx_orders_completed_at` | `completed_at` | BTREE | Completed orders |
+| `idx_orders_competition_status` | `competition_id, status` | COMPOSITE | Comp orders by status |
+| `idx_orders_status_created` | `status, created_at` | COMPOSITE | Recent by status |
+| `idx_orders_user_comp` | `user_id, competition_id` | COMPOSITE | User comp orders |
+| `idx_orders_cuid` | `canonical_user_id` | BTREE | Canonical user orders |
+| `idx_orders_payment_status` | `payment_status` | BTREE | Payment filtering |
+| `idx_orders_created_at` | `created_at DESC` | BTREE | Recent orders |
+
+#### **order_tickets** (Tickets in Order)
+| Index Name | Columns | Type | Purpose |
+|-----------|---------|------|---------|
+| `order_tickets_pkey` | `id` | PK | Primary key |
+| `idx_order_tickets_order_id` | `order_id` | BTREE | Order's tickets |
+
+#### **purchase_requests** (Purchase Request Queue)
+| Index Name | Columns | Type | Purpose |
+|-----------|---------|------|---------|
+| `purchase_requests_pkey` | `id` | PK | Primary key |
+| `idx_purchase_requests_user_id` | `user_id` | BTREE | User requests |
+| `idx_purchase_requests_competition_id` | `competition_id` | BTREE | Competition requests |
+| `idx_purchase_requests_status` | `status` | BTREE | Status filtering |
+
+#### **internal_transfers** (Internal Balance Transfers)
+| Index Name | Columns | Type | Purpose |
+|-----------|---------|------|---------|
+| `internal_transfers_pkey` | `id` | PK | Primary key |
+| `internal_transfers_transfer_id_key` | `transfer_id` | UNIQUE | Transfer uniqueness |
+| `idx_internal_transfers_from_user_id` | `from_user_id` | BTREE | Sender history |
+| `idx_internal_transfers_to_user_id` | `to_user_id` | BTREE | Recipient history |
+| `idx_internal_transfers_status` | `status` | BTREE | Status filtering |
+
+---
+
+### 8. Administrative Tables
+
+#### **admin_sessions** (Admin Authentication)
+| Index Name | Columns | Type | Purpose |
+|-----------|---------|------|---------|
+| `admin_sessions_pkey` | `id` | PK | Primary key |
+| `admin_sessions_token_key` | `token` | UNIQUE | Session token uniqueness |
+| `idx_admin_sessions_token` | `token` | BTREE | Token lookup |
+| `idx_admin_sessions_admin_id` | `admin_id` | BTREE | Admin's sessions |
+| `idx_admin_sessions_expires_at` | `expires_at` | BTREE | Expired session cleanup |
+
+#### **admin_users** (Admin User Accounts)
+| Index Name | Columns | Type | Purpose |
+|-----------|---------|------|---------|
+| `admin_users_pkey` | `id` | PK | Primary key |
+| `idx_admin_users_email` | `LOWER(email)` | BTREE | Email login |
+| `idx_admin_users_is_active` | `is_active` | BTREE | Active admins |
+
+#### **admin_users_audit** (Admin Action Audit Log)
+| Index Name | Columns | Type | Purpose |
+|-----------|---------|------|---------|
+| `admin_users_audit_pkey` | `id` | PK | Primary key |
+| `idx_admin_users_audit_admin_id` | `admin_id` | BTREE | Admin's actions |
+| `idx_admin_users_audit_created_at` | `created_at DESC` | BTREE | Recent actions |
+
+#### **email_auth_sessions** (Email Authentication)
+| Index Name | Columns | Type | Purpose |
+|-----------|---------|------|---------|
+| `email_auth_sessions_pkey` | `id` | PK | Primary key |
+| `idx_email_auth_sessions_email` | `LOWER(email)` | BTREE | Email lookup |
+| `idx_email_auth_sessions_expires_at` | `expires_at` | BTREE | Expired cleanup |
+| `idx_email_auth_sessions_verification_code` | `verification_code` | BTREE | Code verification |
+
+---
+
+### 9. Content & Metadata Tables
+
+#### **joincompetition** (Competition Participation - Legacy)
+| Index Name | Columns | Type | Purpose |
+|-----------|---------|------|---------|
+| `joincompetition_pkey` | `id` | PK | Primary key |
+| `idx_joincompetition_userid` | `userid` | BTREE | User entries |
+| `idx_joincompetition_wallet` | `walletaddress` | BTREE | Wallet entries |
+| `idx_joincompetition_competition` | `competitionid` | BTREE | Competition entries |
+| `idx_joincompetition_user_comp` | `userid, competitionid` | COMPOSITE | User comp entries |
+| `idx_joincompetition_uid` | `uid` | BTREE | UID lookup |
+| `idx_joincompetition_competitionid_tickets` | `competitionid, numberoftickets` | COMPOSITE | Ticket count queries |
+| `idx_joincompetition_competitionid` | `competitionid` | BTREE | Competition lookup |
+| `idx_joincompetition_comp` | `competitionid` | BTREE | Alias |
+| `idx_joincompetition_wallet_lower` | `LOWER(walletaddress)` | BTREE | Case-insensitive |
+| `idx_joincompetition_walletaddress_lower` | `LOWER(walletaddress)` | BTREE | Case-insensitive |
+| `idx_joincompetition_canonical_user_id` | `canonical_user_id` | BTREE | Canonical user |
+| `idx_joincompetition_cuid` | `canonical_user_id` | BTREE | Alias |
+| `idx_joincompetition_privy_user_id` | `privy_user_id` | BTREE | Privy user |
+| `uniq_joincompetition_tx_comp` | `transaction_id, competitionid` | UNIQUE | Prevent duplicates |
+
+#### **Prize_Instantprizes** (Instant Win Prizes)
+| Index Name | Columns | Type | Purpose |
+|-----------|---------|------|---------|
+| `Prize_Instantprizes_pkey` | `id` | PK | Primary key |
+| `idx_instant_prizes_competition` | `competitionId` | BTREE | Competition prizes |
+| `idx_instant_prizes_winning_ticket` | `winningTicketNumber` | BTREE | Winning ticket lookup |
+| `idx_instant_prizes_unclaimed` | `claimed` | BTREE | Unclaimed prizes |
+| `idx_prize_instantprizes_competitionId` | `competitionId` | BTREE | Competition filter |
+| `idx_prize_instantprizes_winningWalletAddress` | `LOWER(winningWalletAddress)` | BTREE | Winner lookup |
+| `idx_prize_instantprizes_winningUserId` | `winningUserId` | BTREE | User prizes |
+
+#### **winners** (Competition Winners)
+| Index Name | Columns | Type | Purpose |
+|-----------|---------|------|---------|
+| `winners_pkey` | `id` | PK | Primary key |
+| `idx_winners_competition_id` | `competition_id` | BTREE | Competition winners |
+| `idx_winners_user_id` | `user_id` | BTREE | User wins |
+| `idx_winners_canonical_user_id` | `canonical_user_id` | BTREE | Canonical user wins |
+| `idx_winners_wallet_address` | `LOWER(wallet_address)` | BTREE | Wallet wins |
+| `idx_winners_won_at` | `won_at DESC` | BTREE | Recent winners |
+
+#### **joined_competitions** (User Competition History)
+| Index Name | Columns | Type | Purpose |
+|-----------|---------|------|---------|
+| `joined_competitions_pkey` | `id` | PK | Primary key |
+| `idx_joined_competitions_user_uid` | `user_uid` | BTREE | User history |
+| `idx_joined_competitions_competition_id` | `competition_id` | BTREE | Competition participants |
+
+#### **participants** (Competition Participants)
+| Index Name | Columns | Type | Purpose |
+|-----------|---------|------|---------|
+| `participants_pkey` | `id` | PK | Primary key |
+| `idx_participants_competition_id` | `competition_id` | BTREE | Competition participants |
+| `idx_participants_user_id` | `user_id` | BTREE | User participations |
+| `idx_participants_wallet_address` | `LOWER(wallet_address)` | BTREE | Wallet participations |
+
+#### **notifications** & **user_notifications**
+| Index Name | Columns | Type | Purpose |
+|-----------|---------|------|---------|
+| `notifications_pkey` | `id` | PK | Primary key |
+| `idx_notifications_user_id` | `user_id` | BTREE | User notifications |
+| `idx_notifications_read` | `read` | BTREE | Unread filter |
+| `idx_notifications_created_at` | `created_at DESC` | BTREE | Recent notifications |
+| `user_notifications_pkey` | `id` | PK | Primary key |
+| `idx_user_notifications_user_id` | `user_id` | BTREE | User notifications |
+| `idx_user_notifications_read` | `read` | BTREE | Unread filter |
+| `idx_user_notifications_created_at` | `created_at DESC` | BTREE | Recent notifications |
+
+#### **Content Tables** (FAQs, Partners, Testimonials, etc.)
+| Table | Key Indexes | Purpose |
+|-------|------------|---------|
+| `faqs` | `display_order`, `category` | FAQ management |
+| `hero_competitions` | `display_order`, `is_active` | Homepage display |
+| `partners` | `display_order`, `is_active` | Partner showcase |
+| `testimonials` | `display_order`, `is_active` | Testimonial display |
+| `site_stats` | `display_order` | Stats display |
+| `site_metadata` | `category` | Metadata filtering |
+| `platform_statistics` | `stat_date DESC` | Historical stats |
+
+---
+
+### 10. Integration Tables
+
+#### **cdp_event_queue** (Customer Data Platform Events)
+| Index Name | Columns | Type | Purpose |
+|-----------|---------|------|---------|
+| `cdp_event_queue_pkey` | `id` | PK | Primary key |
+| `idx_cdp_event_queue_status` | `status` | BTREE | Pending events |
+| `idx_cdp_event_queue_created_at` | `created_at` | BTREE | Event age |
+
+#### **enqueue_cdp_event** (CDP Event Queue - Alternate)
+| Index Name | Columns | Type | Purpose |
+|-----------|---------|------|---------|
+| `enqueue_cdp_event_pkey` | `id` | PK | Primary key |
+| `idx_enqueue_cdp_event_status` | `status` | BTREE | Status filtering |
+
+#### **confirmation_incident_log** (Incident Logging)
+| Index Name | Columns | Type | Purpose |
+|-----------|---------|------|---------|
+| `confirmation_incident_log_pkey` | `id` | PK | Primary key |
+| `idx_confirmation_incident_log_source` | `source` | BTREE | Source filtering |
+| `idx_confirmation_incident_log_created_at` | `created_at DESC` | BTREE | Recent incidents |
+
+---
+
+## Index Best Practices
 
 ### When to Add Indexes
 
-✅ **DO Index:**
-- Foreign key columns
-- Columns in WHERE clauses
-- Columns in JOIN conditions
-- Columns in ORDER BY clauses
-- High-cardinality columns
-- Case-insensitive search columns (LOWER())
+✅ **DO index:**
+- Foreign key columns (e.g., `competition_id`, `user_id`)
+- Columns used in WHERE clauses frequently
+- Columns used in JOIN conditions
+- Columns used in ORDER BY (consider DESC)
+- Unique constraints for business rules
+- Columns used in GROUP BY
 
-❌ **DON'T Index:**
+❌ **DON'T index:**
 - Small tables (< 1000 rows)
-- Low-cardinality columns (true/false, status with few values)
-- Frequently updated columns
+- Columns with very low cardinality (e.g., boolean flags)
+- Columns that change frequently
 - Columns never used in queries
 
-### Index Costs
+### Index Types
 
-**Benefits:**
-- Faster SELECT queries
-- Faster JOIN operations
-- Faster sorting (ORDER BY)
-- Constraint enforcement (UNIQUE)
+1. **BTREE (Default)**: Best for most queries, supports `=`, `<`, `>`, `BETWEEN`, `IN`
+2. **UNIQUE**: Enforces uniqueness, also speeds up lookups
+3. **COMPOSITE**: Multiple columns, order matters (most selective first)
+4. **PARTIAL**: Indexes subset of rows with WHERE clause
+5. **EXPRESSION**: Index on computed values (e.g., `LOWER(email)`)
 
-**Costs:**
-- Slower INSERT/UPDATE/DELETE
-- Additional storage space
-- Maintenance overhead
-- Query planner complexity
+### Composite Index Guidelines
 
-### Monitoring Index Performance
+**Column Order Matters:**
+```sql
+-- Good: Most selective column first
+CREATE INDEX idx_orders_comp_status_user ON orders(competition_id, status, user_id);
+
+-- This index can satisfy:
+-- WHERE competition_id = X
+-- WHERE competition_id = X AND status = Y
+-- WHERE competition_id = X AND status = Y AND user_id = Z
+
+-- But NOT:
+-- WHERE status = Y
+-- WHERE user_id = Z
+```
+
+### Partial Index Examples
 
 ```sql
--- Index hit rate (should be > 99%)
-SELECT 
-  sum(idx_blks_hit) / nullif(sum(idx_blks_hit + idx_blks_read), 0) * 100 AS index_hit_rate
-FROM pg_statio_user_indexes;
+-- Index only active pending tickets (saves space)
+CREATE INDEX idx_pending_tickets_active_partial 
+ON pending_tickets(status, expires_at) 
+WHERE status = 'pending';
 
--- Table scan vs index scan ratio
-SELECT 
-  schemaname,
-  tablename,
-  seq_scan,
-  idx_scan,
-  CASE 
-    WHEN seq_scan + idx_scan > 0 
-    THEN round((100.0 * idx_scan / (seq_scan + idx_scan))::numeric, 2)
-    ELSE 0
-  END AS index_scan_pct
-FROM pg_stat_user_tables
-WHERE schemaname = 'public'
-ORDER BY seq_scan DESC;
+-- Index only unclaimed prizes
+CREATE INDEX idx_instant_prizes_unclaimed 
+ON Prize_Instantprizes(competitionId, winningTicketNumber) 
+WHERE claimed = false;
 ```
 
 ---
 
-## Index Maintenance Schedule
+## Maintenance & Monitoring
 
-### Daily
-- Monitor index usage statistics
-- Check for long-running queries
-- Review slow query logs
+### Index Health Checks
 
-### Weekly
-- Analyze index hit rates
-- Identify missing indexes from slow queries
-- Check for unused indexes
+```sql
+-- Find unused indexes (run in production periodically)
+SELECT schemaname, tablename, indexname, idx_scan, idx_tup_read, idx_tup_fetch
+FROM pg_stat_user_indexes
+WHERE idx_scan = 0
+AND indexrelname NOT LIKE '%_pkey'
+ORDER BY pg_relation_size(indexrelid) DESC;
 
-### Monthly
-- Review index sizes
-- Analyze index bloat
-- Consider REINDEX for heavily updated indexes
+-- Find duplicate indexes
+SELECT pg_size_pretty(sum(pg_relation_size(idx))::bigint) as size,
+       (array_agg(idx))[1] as idx1, (array_agg(idx))[2] as idx2,
+       (array_agg(idx))[3] as idx3, (array_agg(idx))[4] as idx4
+FROM (
+    SELECT indexrelid::regclass as idx, indrelid::regclass as tbl,
+           array_agg(indkey::text) as cols
+    FROM pg_index
+    GROUP BY indexrelid, indrelid, indkey
+) sub
+GROUP BY tbl, cols
+HAVING count(*) > 1;
 
-### Quarterly
-- Full index audit
-- Remove unused indexes
-- Add indexes for new query patterns
-- Optimize composite index order
+-- Check index bloat
+SELECT schemaname, tablename, indexname,
+       pg_size_pretty(pg_relation_size(indexrelid)) as index_size
+FROM pg_stat_user_indexes
+ORDER BY pg_relation_size(indexrelid) DESC
+LIMIT 20;
+
+-- Monitor index usage efficiency
+SELECT relname, 
+       idx_scan as index_scans,
+       idx_tup_read as tuples_read,
+       idx_tup_fetch as tuples_fetched,
+       CASE WHEN idx_tup_read > 0 
+            THEN round((idx_tup_fetch::numeric / idx_tup_read) * 100, 2)
+            ELSE 0 
+       END as efficiency_pct
+FROM pg_stat_user_tables
+WHERE idx_scan > 0
+ORDER BY efficiency_pct ASC;
+```
+
+### Reindexing (When Needed)
+
+```sql
+-- Reindex a single index (use CONCURRENTLY to avoid locking)
+REINDEX INDEX CONCURRENTLY idx_tickets_competition_id;
+
+-- Reindex an entire table
+REINDEX TABLE CONCURRENTLY tickets;
+
+-- Reindex all indexes in schema (caution: time-consuming)
+REINDEX SCHEMA public;
+```
+
+**When to Reindex:**
+- After large bulk updates/deletes
+- Index bloat detected (>50% dead tuples)
+- Query performance degraded over time
+- After major data migrations
 
 ---
 
-## Query Optimization Tips
+## Performance Guidelines
 
-### Use EXPLAIN ANALYZE
+### Query Optimization
+
+1. **Use EXPLAIN ANALYZE** to verify index usage:
 ```sql
 EXPLAIN ANALYZE
-SELECT * FROM tickets
-WHERE competition_id = 'comp-id'
-  AND status = 'sold';
+SELECT * FROM tickets 
+WHERE competition_id = '123' 
+AND canonical_user_id = 'user_abc';
 ```
 
-### Check Index Usage
-```sql
--- Should show "Index Scan" not "Seq Scan"
-EXPLAIN
-SELECT * FROM canonical_users
-WHERE canonical_user_id = 'prize:pid:0x...';
-```
+2. **Check for Index Scans vs Sequential Scans:**
+   - `Index Scan` = Good ✅
+   - `Bitmap Index Scan` = Good ✅
+   - `Seq Scan` on large tables = Bad ❌
 
-### Optimize Joins
-```sql
--- Good: Uses indexes on both sides
-SELECT t.*, c.title
-FROM tickets t
-JOIN competitions c ON t.competition_id = c.id
-WHERE t.canonical_user_id = 'user-id';
-```
+3. **Watch for Index vs Index Only Scans:**
+   - `Index Only Scan` = Best (data in index)
+   - `Index Scan` = Good (needs table lookup)
 
-### Avoid Index Pitfalls
-```sql
--- BAD: Function prevents index use
-WHERE upper(email) = 'USER@EXAMPLE.COM'
+### Index Maintenance Schedule
 
--- GOOD: Use functional index
-WHERE LOWER(email) = lower('user@example.com')
--- With: CREATE INDEX ON table(LOWER(email))
+| Task | Frequency | Purpose |
+|------|-----------|---------|
+| Analyze tables | Daily | Update statistics |
+| Check index usage | Weekly | Find unused indexes |
+| Check bloat | Monthly | Identify reindex candidates |
+| Reindex if needed | Quarterly | Reduce bloat |
+
+### Auto-vacuum Configuration
+
+Ensure auto-vacuum is properly configured:
+```sql
+-- Check current settings
+SHOW autovacuum;
+SHOW autovacuum_vacuum_scale_factor;
+SHOW autovacuum_analyze_scale_factor;
+
+-- For high-write tables, consider more aggressive settings
+ALTER TABLE user_transactions 
+SET (autovacuum_vacuum_scale_factor = 0.05);
+ALTER TABLE pending_tickets 
+SET (autovacuum_vacuum_scale_factor = 0.05);
 ```
 
 ---
 
-## Future Index Considerations
-
-### Potential Additions
-
-1. **Composite indexes for common query patterns:**
-   ```sql
-   CREATE INDEX idx_tickets_comp_user ON tickets(competition_id, canonical_user_id);
-   CREATE INDEX idx_user_tx_user_status ON user_transactions(canonical_user_id, status);
-   ```
-
-2. **Partial indexes for active records:**
-   ```sql
-   CREATE INDEX idx_competitions_active ON competitions(id) WHERE status = 'active';
-   CREATE INDEX idx_pending_tickets_active ON pending_tickets(id) WHERE status = 'pending';
-   ```
-
-3. **Expression indexes for computed values:**
-   ```sql
-   CREATE INDEX idx_competitions_active_soon ON competitions(start_time) 
-   WHERE status = 'active' AND start_time > NOW();
-   ```
+## Related Documentation
+- [Triggers.md](./Triggers.md) - Database trigger reference
+- [Functions.md](./Functions.md) - Database function reference
+- [SCHEMA_AUDIT_REPORT.md](./SCHEMA_AUDIT_REPORT.md) - Schema audit results
+- [BASELINE_MIGRATION_README.md](./BASELINE_MIGRATION_README.md) - Migration guide
 
 ---
 
-**Last Updated:** 2026-01-30  
-**Schema Version:** 1.5  
-**Total Indexes:** 126  
-**Most Critical:** 7 hot indexes for core operations
+**Document Version:** 1.0  
+**Maintainer:** Database Team  
+**Last Audit:** January 31, 2026

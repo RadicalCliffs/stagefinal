@@ -1,1202 +1,835 @@
-# Database Functions Documentation
+# Database Functions - Production Reference
+
+**Last Updated:** January 31, 2026  
+**Production Status:** 90+ Active Functions  
+**Source:** Supabase Production Database + Migration Files
+
+---
 
 ## Table of Contents
 
 - [Overview](#overview)
-- [Balance Management Functions](#balance-management-functions)
-- [User Profile & Identity Functions](#user-profile--identity-functions)
-- [Wallet Management Functions](#wallet-management-functions)
-- [Ticket Management Functions](#ticket-management-functions)
-- [Competition Management Functions](#competition-management-functions)
-- [User Query Functions](#user-query-functions)
-- [Payment Functions](#payment-functions)
-- [Utility Functions](#utility-functions)
-- [Security & Permissions](#security--permissions)
+- [Function Categories](#function-categories)
+  - [1. User Management (15 functions)](#1-user-management)
+  - [2. Balance & Payment Operations (20 functions)](#2-balance--payment-operations)
+  - [3. Ticket Operations (18 functions)](#3-ticket-operations)
+  - [4. Competition Management (8 functions)](#4-competition-management)
+  - [5. Transaction Processing (12 functions)](#5-transaction-processing)
+  - [6. Cleanup & Maintenance (8 functions)](#6-cleanup--maintenance)
+  - [7. Utility & Helper Functions (10 functions)](#7-utility--helper-functions)
+  - [8. Internal Functions (9 functions)](#8-internal-functions)
+- [Function Usage Patterns](#function-usage-patterns)
+- [Performance Considerations](#performance-considerations)
+- [Security & RLS](#security--rls)
 
 ---
 
 ## Overview
 
-This document catalogs all database functions (stored procedures/RPCs) in the ThePrize.io Supabase schema. These functions handle critical operations including balance management, ticket purchasing, user authentication, and competition management.
+This document catalogs all production database functions (stored procedures) in the ThePrize.io Supabase database. Functions are organized by category with usage examples and best practices.
 
-**Total Functions:** 48  
-**Migration Files:**
-- `00000000000000_initial_schema.sql` - 43 core functions
-- `20260128152400_add_debit_sub_account_balance.sql` - 1 function
-- `20260128152500_secure_credit_sub_account_balance.sql` - 1 updated function
-- `20260130000000_simplified_balance_payment.sql` - 2 functions
+**Key Statistics:**
+- **Total Functions:** 90+
+- **Public RPC Functions:** 40+
+- **Internal Helper Functions:** 20+
+- **Trigger Functions:** 15+
+- **Cleanup/Maintenance Jobs:** 8
+- **Critical Business Logic:** 35
 
-**Security Model:** Most functions use `SECURITY DEFINER` with `SET search_path = public` to execute with elevated privileges while preventing SQL injection.
-
----
-
-## Balance Management Functions
-
-### `get_user_balance`
-**Signature:**
-```sql
-get_user_balance(
-  p_user_identifier TEXT DEFAULT NULL,
-  p_canonical_user_id TEXT DEFAULT NULL
-) RETURNS JSONB
-```
-
-**Purpose:** Get user's current balance from sub_account_balances table.
-
-**Parameters:**
-- `p_user_identifier` - User wallet address, Privy DID, or canonical ID
-- `p_canonical_user_id` - Alternative parameter for canonical user ID
-
-**Returns:**
-```json
-{
-  "success": true,
-  "balance": 100.00,
-  "bonus_balance": 20.00,
-  "total_balance": 120.00
-}
-```
-
-**Security:** `SECURITY DEFINER`, accessible to authenticated users  
-**Usage:** Called by dashboard, purchase flows, and balance checks
+**Function Types:**
+- **RPC Functions:** Called from frontend via Supabase client
+- **Trigger Functions:** Called automatically by database triggers
+- **Helper Functions:** Internal functions called by other functions
+- **Cleanup Functions:** Scheduled via pg_cron or called manually
 
 ---
 
-### `get_user_wallet_balance`
-**Signature:**
+## Function Categories
+
+### 1. User Management
+**Purpose:** Handle user registration, authentication, profile management, and multi-wallet support  
+**Importance:** 🔴 Critical
+
+| Function Name | Parameters | Returns | Status | Purpose |
+|--------------|------------|---------|--------|---------|
+| `upsert_canonical_user()` | Multiple identity params | canonical_user record | ✅ Production | Get or create user from any identifier |
+| `ensure_canonical_user()` | user_identifier, wallet, privy_id | canonical_user_id | ✅ Production | Ensure user exists |
+| `attach_identity_after_auth()` | privy_id, wallet, email | void | ✅ Production | Link auth identity to user |
+| `get_user_balance()` | user_identifier, canonical_user_id | balance record | ✅ Production | Get user's USDC & bonus balance |
+| `get_user_wallet_balance()` | user_identifier | numeric | ✅ Production | Get total wallet balance |
+| `get_user_wallets()` | user_identifier | wallet[] | ✅ Production | List user's linked wallets |
+| `link_additional_wallet()` | user_id, wallet, nickname | boolean | ✅ Production | Link new wallet to account |
+| `unlink_wallet()` | user_id, wallet | boolean | ✅ Production | Remove wallet from account |
+| `set_primary_wallet()` | user_id, wallet | boolean | ✅ Production | Set primary wallet |
+| `update_wallet_nickname()` | user_id, wallet, nickname | boolean | ✅ Production | Update wallet display name |
+| `get_linked_external_wallet()` | user_identifier | wallet_address | ✅ Production | Get linked external wallet |
+| `unlink_external_wallet()` | user_identifier | boolean | ✅ Production | Unlink external wallet |
+| `update_user_profile_by_identifier()` | user_id, profile_data | boolean | ✅ Production | Update user profile |
+| `update_user_avatar()` | user_id, avatar_url | boolean | ✅ Production | Update avatar image |
+| `create_user_if_not_exists()` | user_data | canonical_user_id | ✅ Production | Create user if needed |
+
+**Key Functions:**
+
+#### `upsert_canonical_user()`
 ```sql
-get_user_wallet_balance(user_identifier TEXT) RETURNS JSONB
-```
-
-**Purpose:** Alias for `get_user_balance` for backwards compatibility.
-
-**Security:** `SECURITY DEFINER`, accessible to authenticated users
-
----
-
-### `credit_user_balance`
-**Signature:**
-```sql
-credit_user_balance(
-  p_user_id TEXT,
-  p_amount NUMERIC
-) RETURNS VOID
-```
-
-**Purpose:** Credit balance to user's sub-account. Creates balance ledger entry for audit trail.
-
-**Parameters:**
-- `p_user_id` - User ID or canonical_user_id
-- `p_amount` - Amount to credit (positive numeric)
-
-**Security:** `SECURITY DEFINER`, **service_role only**  
-**Used By:** Top-up webhooks, admin operations
-
----
-
-### `credit_sub_account_balance`
-**Signature:**
-```sql
-credit_sub_account_balance(
-  p_canonical_user_id TEXT,
-  p_amount NUMERIC,
-  p_currency TEXT DEFAULT 'USD'
-) RETURNS JSONB
-```
-
-**Purpose:** Credit balance to user's sub-account with currency support. Validates amount is positive.
-
-**Parameters:**
-- `p_canonical_user_id` - User's canonical ID
-- `p_amount` - Amount to credit (must be > 0)
-- `p_currency` - Currency code (default: 'USD')
-
-**Returns:**
-```json
-{
-  "success": true,
-  "balance": 150.00
-}
-```
-
-**Security:** `SECURITY DEFINER`, **service_role only** (as of migration 20260128152500)  
-**Migration:** Updated in `secure_credit_sub_account_balance` to add validation and restrict access
-
----
-
-### `debit_sub_account_balance`
-**Signature:**
-```sql
-debit_sub_account_balance(
-  p_canonical_user_id TEXT,
-  p_amount NUMERIC,
-  p_currency TEXT DEFAULT 'USD'
-) RETURNS TABLE(
-  success BOOLEAN,
-  previous_balance NUMERIC,
-  new_balance NUMERIC,
-  error_message TEXT
-)
-```
-
-**Purpose:** Atomically debit balance from user's sub-account. Uses row-level locking to prevent concurrent modifications.
-
-**Parameters:**
-- `p_canonical_user_id` - User's canonical ID
-- `p_amount` - Amount to debit (must be > 0)
-- `p_currency` - Currency code (default: 'USD')
-
-**Returns:**
-```json
-{
-  "success": true,
-  "previous_balance": 100.00,
-  "new_balance": 75.00,
-  "error_message": null
-}
-```
-
-**Error Codes:**
-- "Amount must be greater than zero"
-- "User balance record not found"
-- "Insufficient balance. Available: X, Required: Y"
-
-**Security:** `SECURITY DEFINER`, **service_role only**  
-**Migration:** Added in `add_debit_sub_account_balance` (20260128152400)  
-**Used By:** `purchase-tickets-with-bonus` edge function
-
-**Implementation Notes:**
-- Uses `FOR UPDATE` to lock balance row during transaction
-- Logs debits as negative amounts in balance_ledger for consistency
-- Credits are positive, debits are negative in ledger
-
----
-
-### `credit_balance_with_first_deposit_bonus`
-**Signature:**
-```sql
-credit_balance_with_first_deposit_bonus(
-  p_canonical_user_id TEXT,
-  p_amount NUMERIC,
-  p_reason TEXT,
-  p_reference_id TEXT
-) RETURNS JSONB
-```
-
-**Purpose:** Credit balance with automatic 20% first deposit bonus if eligible.
-
-**Parameters:**
-- `p_canonical_user_id` - User's canonical ID
-- `p_amount` - Base deposit amount
-- `p_reason` - Reason for credit
-- `p_reference_id` - Transaction reference
-
-**Bonus Logic:**
-- Checks `canonical_users.has_used_new_user_bonus`
-- If false/null, adds 20% bonus to bonus_balance
-- Marks bonus as used
-- Logs in bonus_award_audit table
-
-**Security:** `SECURITY DEFINER`, **service_role only**
-
----
-
-### `add_pending_balance`
-**Signature:**
-```sql
-add_pending_balance(
-  user_identifier TEXT,
-  amount NUMERIC
-) RETURNS JSONB
-```
-
-**Purpose:** Add pending balance awaiting confirmation.
-
-**Parameters:**
-- `user_identifier` - User canonical ID, UID, or wallet
-- `amount` - Amount to add to pending balance
-
-**Returns:**
-```json
-{
-  "success": true,
-  "canonical_user_id": "prize:pid:0x..."
-}
-```
-
-**Security:** `SECURITY DEFINER`
-
----
-
-### `migrate_user_balance`
-**Signature:**
-```sql
-migrate_user_balance(p_user_identifier TEXT) RETURNS JSONB
-```
-
-**Purpose:** Placeholder for legacy balance migration (currently no-op).
-
-**Security:** `SECURITY DEFINER`
-
----
-
-## User Profile & Identity Functions
-
-### `upsert_canonical_user`
-**Signature:**
-```sql
-upsert_canonical_user(
-  p_uid TEXT,
-  p_canonical_user_id TEXT,
-  p_email TEXT DEFAULT NULL,
-  p_username TEXT DEFAULT NULL,
+CREATE OR REPLACE FUNCTION upsert_canonical_user(
+  p_privy_user_id TEXT DEFAULT NULL,
   p_wallet_address TEXT DEFAULT NULL,
-  p_base_wallet_address TEXT DEFAULT NULL,
-  p_eth_wallet_address TEXT DEFAULT NULL,
-  p_privy_user_id TEXT DEFAULT NULL
-) RETURNS JSONB
-```
-
-**Purpose:** Create or update canonical user record. Primary function for user identity management.
-
-**Parameters:**
-- `p_uid` - Unique user identifier
-- `p_canonical_user_id` - Canonical user ID (defaults to uid)
-- `p_email` - User email
-- `p_username` - Display username
-- `p_wallet_address` - Primary wallet address
-- `p_base_wallet_address` - Base chain wallet
-- `p_eth_wallet_address` - Ethereum wallet
-- `p_privy_user_id` - Privy authentication ID
-
-**Returns:**
-```json
-{
-  "success": true,
-  "user_id": "prize:pid:0x..."
-}
-```
-
-**Security:** `SECURITY DEFINER`  
-**Used By:** User registration, profile updates, wallet linking
-
----
-
-### `update_user_profile_by_identifier`
-**Signature:**
-```sql
-update_user_profile_by_identifier(
-  p_user_identifier TEXT,
-  p_username TEXT DEFAULT NULL,
   p_email TEXT DEFAULT NULL,
-  p_country TEXT DEFAULT NULL,
-  p_telephone_number TEXT DEFAULT NULL,
-  p_telegram_handle TEXT DEFAULT NULL
-) RETURNS JSONB
+  p_username TEXT DEFAULT NULL,
+  p_avatar_url TEXT DEFAULT NULL,
+  p_smart_wallet_address TEXT DEFAULT NULL
+) RETURNS TABLE(canonical_user_id TEXT, is_new_user BOOLEAN)
 ```
+**Purpose:** Central user management - get existing or create new canonical user  
+**Used By:** Frontend auth flows, wallet connections  
+**Returns:** User ID and whether user was just created  
+**Importance:** 🔴 Critical - foundation of identity system
 
-**Purpose:** Update user profile information.
-
-**Parameters:**
-- `p_user_identifier` - User canonical ID, UID, or wallet
-- `p_username` - New username
-- `p_email` - New email
-- `p_country` - Country code
-- `p_telephone_number` - Phone number
-- `p_telegram_handle` - Telegram handle
-
-**Returns:**
-```json
-{
-  "success": true,
-  "updated_count": 1
-}
-```
-
-**Security:** `SECURITY DEFINER`
-
----
-
-### `update_user_avatar`
-**Signature:**
+#### `ensure_canonical_user()`
 ```sql
-update_user_avatar(
-  user_identifier TEXT,
-  new_avatar_url TEXT
-) RETURNS JSONB
-```
-
-**Purpose:** Update user avatar URL.
-
-**Security:** `SECURITY DEFINER`
-
----
-
-### `attach_identity_after_auth`
-**Signature:**
-```sql
-attach_identity_after_auth(
-  p_user_id TEXT,
-  p_email TEXT,
-  p_username TEXT
-) RETURNS JSONB
-```
-
-**Purpose:** Attach email/username after authentication flow.
-
-**Security:** `SECURITY DEFINER`  
-**Used By:** Post-authentication flows
-
----
-
-## Wallet Management Functions
-
-### `get_user_wallets`
-**Signature:**
-```sql
-get_user_wallets(user_identifier TEXT) RETURNS JSONB
-```
-
-**Purpose:** Get all wallet addresses associated with user.
-
-**Returns:**
-```json
-{
-  "success": true,
-  "primary_wallet": "0x...",
-  "wallets": [...],
-  "wallet_address": "0x...",
-  "base_wallet_address": "0x...",
-  "eth_wallet_address": "0x..."
-}
-```
-
-**Security:** `SECURITY DEFINER`
-
----
-
-### `link_additional_wallet`
-**Signature:**
-```sql
-link_additional_wallet(
-  user_identifier TEXT,
-  p_wallet_address TEXT,
-  p_wallet_type TEXT DEFAULT 'ethereum',
-  p_nickname TEXT DEFAULT NULL
-) RETURNS JSONB
-```
-
-**Purpose:** Link additional wallet to user account.
-
-**Parameters:**
-- `user_identifier` - User canonical ID or UID
-- `p_wallet_address` - Wallet address to link
-- `p_wallet_type` - Type (ethereum, base, etc.)
-- `p_nickname` - Optional wallet nickname
-
-**Returns:**
-```json
-{
-  "success": true,
-  "wallets": [...]
-}
-```
-
-**Security:** `SECURITY DEFINER`
-
----
-
-### `unlink_wallet`
-**Signature:**
-```sql
-unlink_wallet(
-  user_identifier TEXT,
-  p_wallet_address TEXT
-) RETURNS JSONB
-```
-
-**Purpose:** Remove wallet from user's linked wallets.
-
-**Security:** `SECURITY DEFINER`
-
----
-
-### `set_primary_wallet`
-**Signature:**
-```sql
-set_primary_wallet(
-  user_identifier TEXT,
-  p_wallet_address TEXT
-) RETURNS JSONB
-```
-
-**Purpose:** Set primary wallet for user.
-
-**Security:** `SECURITY DEFINER`
-
----
-
-### `update_wallet_nickname`
-**Signature:**
-```sql
-update_wallet_nickname(
-  user_identifier TEXT,
-  p_wallet_address TEXT,
-  p_nickname TEXT
-) RETURNS JSONB
-```
-
-**Purpose:** Update nickname for linked wallet.
-
-**Security:** `SECURITY DEFINER`
-
----
-
-### `get_linked_external_wallet`
-**Signature:**
-```sql
-get_linked_external_wallet(user_identifier TEXT) RETURNS JSONB
-```
-
-**Purpose:** Alias for `get_user_wallets`.
-
-**Security:** `SECURITY DEFINER`
-
----
-
-### `unlink_external_wallet`
-**Signature:**
-```sql
-unlink_external_wallet(user_identifier TEXT) RETURNS JSONB
-```
-
-**Purpose:** Unlink all external wallets.
-
-**Security:** `SECURITY DEFINER`
-
----
-
-## Ticket Management Functions
-
-### `reserve_tickets`
-**Signature:**
-```sql
-reserve_tickets(
-  p_competition_id TEXT,
-  p_ticket_numbers INTEGER[],
-  p_user_id TEXT,
-  p_hold_minutes INTEGER DEFAULT 5
-) RETURNS JSONB
-```
-
-**Purpose:** Reserve specific ticket numbers for user.
-
-**Parameters:**
-- `p_competition_id` - Competition UUID
-- `p_ticket_numbers` - Array of ticket numbers to reserve
-- `p_user_id` - User identifier
-- `p_hold_minutes` - Hold duration (default: 5 minutes)
-
-**Returns:**
-```json
-{
-  "success": true,
-  "reservation_id": "uuid",
-  "reserved_tickets": [1, 5, 10],
-  "expires_at": "2024-01-01T12:05:00Z"
-}
-```
-
-**Security:** `SECURITY DEFINER`
-
----
-
-### `reserve_tickets_atomically`
-**Signature:**
-```sql
-reserve_tickets_atomically(
-  p_competition_id TEXT,
-  p_ticket_count INTEGER,
-  p_user_id TEXT,
-  p_hold_minutes INTEGER DEFAULT 5
-) RETURNS JSONB
-```
-
-**Purpose:** Reserve random available tickets atomically (lucky dip).
-
-**Parameters:**
-- `p_competition_id` - Competition UUID
-- `p_ticket_count` - Number of tickets to reserve
-- `p_user_id` - User identifier
-- `p_hold_minutes` - Hold duration
-
-**Returns:** Same as `reserve_tickets`
-
-**Security:** `SECURITY DEFINER`
-
----
-
-### `release_reservation`
-**Signature:**
-```sql
-release_reservation(
-  p_reservation_id TEXT,
-  p_user_id TEXT
-) RETURNS JSONB
-```
-
-**Purpose:** Release ticket reservation before expiry.
-
-**Security:** `SECURITY DEFINER`
-
----
-
-### `allocate_lucky_dip_tickets`
-**Signature:**
-```sql
-allocate_lucky_dip_tickets(
-  p_competition_id TEXT,
-  p_user_id TEXT,
-  p_ticket_count INTEGER
-) RETURNS JSONB
-```
-
-**Purpose:** Allocate random available tickets.
-
-**Returns:**
-```json
-{
-  "success": true,
-  "tickets": [5, 12, 23, 45]
-}
-```
-
-**Security:** `SECURITY DEFINER`
-
----
-
-### `allocate_lucky_dip_tickets_batch`
-**Signature:**
-```sql
-allocate_lucky_dip_tickets_batch(
-  p_competition_id TEXT,
-  p_user_id TEXT,
-  p_ticket_count INTEGER
-) RETURNS JSONB
-```
-
-**Purpose:** Batch allocation of lucky dip tickets (optimized version).
-
-**Security:** `SECURITY DEFINER`
-
----
-
-### `finalize_order`
-**Signature:**
-```sql
-finalize_order(
-  p_reservation_id TEXT,
-  p_user_id TEXT,
-  p_competition_id TEXT,
-  p_unit_price NUMERIC
-) RETURNS JSONB
-```
-
-**Purpose:** Convert reservation to final purchase.
-
-**Parameters:**
-- `p_reservation_id` - Reservation UUID
-- `p_user_id` - User identifier
-- `p_competition_id` - Competition UUID
-- `p_unit_price` - Price per ticket
-
-**Security:** `SECURITY DEFINER`
-
----
-
-### `get_unavailable_tickets`
-**Signature:**
-```sql
-get_unavailable_tickets(p_competition_id TEXT) RETURNS INT4[]
-```
-
-**Purpose:** Get array of unavailable ticket numbers (sold, pending, reserved).
-
-**Returns:** Integer array `[1, 2, 5, 10, ...]`
-
-**Security:** `SECURITY DEFINER`  
-**Used By:** Frontend ticket selection UI
-
----
-
-### `get_competition_unavailable_tickets`
-**Signature:**
-```sql
-get_competition_unavailable_tickets(p_competition_id TEXT) RETURNS INTEGER[]
-```
-
-**Purpose:** Alias for `get_unavailable_tickets`.
-
-**Security:** `SECURITY DEFINER`
-
----
-
-### `get_available_ticket_count_v2`
-**Signature:**
-```sql
-get_available_ticket_count_v2(p_competition_id TEXT) RETURNS INTEGER
-```
-
-**Purpose:** Get count of available tickets.
-
-**Returns:** Integer count
-
-**Security:** `SECURITY DEFINER`
-
----
-
-### `check_and_mark_competition_sold_out`
-**Signature:**
-```sql
-check_and_mark_competition_sold_out(p_competition_id TEXT) RETURNS JSONB
-```
-
-**Purpose:** Check if competition is sold out and update status.
-
-**Returns:**
-```json
-{
-  "success": true,
-  "is_sold_out": true,
-  "status": "sold_out"
-}
-```
-
-**Security:** `SECURITY DEFINER`
-
----
-
-## Competition Management Functions
-
-### `sync_competition_status_if_ended`
-**Signature:**
-```sql
-sync_competition_status_if_ended(p_competition_id TEXT) RETURNS JSONB
-```
-
-**Purpose:** Update competition status to 'ended' if past end_time.
-
-**Security:** `SECURITY DEFINER`
-
----
-
-### `get_competition_ticket_availability_text`
-**Signature:**
-```sql
-get_competition_ticket_availability_text(p_competition_id TEXT) RETURNS TEXT
-```
-
-**Purpose:** Get human-readable availability text.
-
-**Returns:** 
-- "SOLD OUT" 
-- "5 left!" 
-- "23 available"
-
-**Security:** `SECURITY DEFINER`  
-**Used By:** Competition cards, detail pages
-
----
-
-### `get_recent_entries_count`
-**Signature:**
-```sql
-get_recent_entries_count(
-  p_competition_id TEXT,
-  p_minutes INTEGER
-) RETURNS INTEGER
-```
-
-**Purpose:** Get count of entries in last N minutes.
-
-**Security:** `SECURITY DEFINER`  
-**Used By:** "X entries in last 5 minutes" display
-
----
-
-## User Query Functions
-
-### `get_user_transactions`
-**Signature:**
-```sql
-get_user_transactions(p_user_identifier TEXT) RETURNS JSONB
-```
-
-**Purpose:** Get user's transaction history (last 100).
-
-**Returns:**
-```json
-{
-  "success": true,
-  "transactions": [
-    {
-      "id": "uuid",
-      "amount": 100.00,
-      "status": "completed",
-      "created_at": "2024-01-01T12:00:00Z"
-    }
-  ]
-}
-```
-
-**Security:** `SECURITY DEFINER`
-
----
-
-### `get_user_tickets`
-**Signature:**
-```sql
-get_user_tickets(
-  p_user_identifier TEXT,
-  p_competition_id TEXT
-) RETURNS JSONB
-```
-
-**Purpose:** Get user's tickets for specific competition.
-
-**Returns:**
-```json
-{
-  "success": true,
-  "tickets": [1, 5, 10, 25],
-  "count": 4
-}
-```
-
-**Security:** `SECURITY DEFINER`
-
----
-
-### `get_user_tickets_for_competition`
-**Signature:**
-```sql
-get_user_tickets_for_competition(
-  competition_id TEXT,
-  user_id TEXT
-) RETURNS JSONB
-```
-
-**Purpose:** Alias for `get_user_tickets`.
-
-**Security:** `SECURITY DEFINER`
-
----
-
-### `get_user_active_tickets`
-**Signature:**
-```sql
-get_user_active_tickets(
-  p_user_identifier TEXT,
-  p_competition_id TEXT
-) RETURNS JSONB
-```
-
-**Purpose:** Get active tickets (alias for get_user_tickets).
-
-**Security:** `SECURITY DEFINER`
-
----
-
-### `get_competition_entries`
-**Signature:**
-```sql
-get_competition_entries(
-  p_competition_id TEXT,
-  p_limit INTEGER DEFAULT 50,
-  p_offset INTEGER DEFAULT 0
-) RETURNS JSONB
-```
-
-**Purpose:** Get paginated list of competition entries.
-
-**Returns:**
-```json
-{
-  "success": true,
-  "entries": [
-    {
-      "user_id": "prize:pid:0x...",
-      "username": "user123",
-      "tickets_count": 5,
-      "amount_spent": 50.00
-    }
-  ],
-  "total": 150
-}
-```
-
-**Security:** `SECURITY DEFINER`
-
----
-
-### `get_competition_entries_bypass_rls`
-**Signature:**
-```sql
-get_competition_entries_bypass_rls(
-  p_competition_id TEXT,
-  p_limit INTEGER DEFAULT 50,
-  p_offset INTEGER DEFAULT 0
-) RETURNS JSONB
-```
-
-**Purpose:** Compatibility alias for `get_competition_entries`.
-
-**Security:** `SECURITY DEFINER`
-
----
-
-### `get_competition_entries_public`
-**Signature:**
-```sql
-get_competition_entries_public(p_competition_id TEXT)
-RETURNS TABLE(
-  canonical_user_id TEXT,
-  username TEXT,
-  tickets_count INTEGER,
-  amount_spent NUMERIC,
-  latest_purchase_at TIMESTAMPTZ
-)
-```
-
-**Purpose:** Get public competition entries as table.
-
-**Security:** `SECURITY DEFINER`  
-**Used By:** Public leaderboard displays
-
----
-
-### `get_user_competition_entries`
-**Signature:**
-```sql
-get_user_competition_entries(p_user_identifier TEXT)
-RETURNS TABLE(
-  competition_id TEXT,
-  competition_title TEXT,
-  tickets_count INTEGER,
-  amount_spent NUMERIC,
-  is_winner BOOLEAN,
-  latest_purchase_at TIMESTAMPTZ
-)
-```
-
-**Purpose:** Get user's entries across all competitions.
-
-**Security:** `SECURITY DEFINER`  
-**Used By:** User dashboard
-
----
-
-### `get_comprehensive_user_dashboard_entries`
-**Signature:**
-```sql
-get_comprehensive_user_dashboard_entries(p_user_identifier TEXT)
-RETURNS TABLE(
-  competition_id TEXT,
-  competition_title TEXT,
-  competition_status TEXT,
-  competition_image_url TEXT,
-  competition_end_time TIMESTAMPTZ,
-  tickets_count INTEGER,
-  amount_spent NUMERIC,
-  is_winner BOOLEAN,
-  prize_title TEXT,
-  prize_value NUMERIC,
-  latest_purchase_at TIMESTAMPTZ,
-  ticket_numbers INTEGER[],
-  winner_announced_at TIMESTAMPTZ,
-  total_tickets INTEGER,
-  tickets_sold INTEGER
-)
-```
-
-**Purpose:** Comprehensive user dashboard data with competition details.
-
-**Security:** `SECURITY DEFINER`  
-**Used By:** Main user dashboard page
-
----
-
-## Payment Functions
-
-### `execute_balance_payment`
-**Signature:**
-```sql
-execute_balance_payment(
-  p_user_identifier TEXT,
-  p_competition_id TEXT,
-  p_amount NUMERIC,
-  p_ticket_count INTEGER,
-  p_selected_tickets INTEGER[] DEFAULT NULL,
-  p_idempotency_key TEXT DEFAULT NULL,
-  p_reservation_id TEXT DEFAULT NULL
-) RETURNS JSONB
-```
-
-**Purpose:** Execute payment using user's balance (legacy function - deprecated).
-
-**Security:** `SECURITY DEFINER`  
-**Status:** Deprecated in favor of `purchase_tickets_with_balance`
-
----
-
-### `purchase_tickets_with_balance`
-**Signature:**
-```sql
-purchase_tickets_with_balance(
-  p_user_identifier TEXT,
-  p_competition_id TEXT,
-  p_ticket_price NUMERIC,
-  p_ticket_count INTEGER DEFAULT NULL,
-  p_ticket_numbers INTEGER[] DEFAULT NULL,
-  p_idempotency_key TEXT DEFAULT NULL
-) RETURNS JSONB
-```
-
-**Purpose:** **PRIMARY PAYMENT FUNCTION** - Simplified atomic balance payment with ticket allocation.
-
-**Parameters:**
-- `p_user_identifier` - User wallet, canonical ID, or Privy DID
-- `p_competition_id` - Competition UUID
-- `p_ticket_price` - Price per ticket in USD
-- `p_ticket_count` - Number of tickets (lucky dip mode)
-- `p_ticket_numbers` - Specific tickets (manual selection)
-- `p_idempotency_key` - Optional key to prevent duplicates
-
-**Returns:**
-```json
-{
-  "success": true,
-  "entry_id": "uuid",
-  "ticket_numbers": [1, 5, 10],
-  "ticket_count": 3,
-  "total_cost": 30.00,
-  "previous_balance": 100.00,
-  "new_balance": 70.00,
-  "competition_id": "uuid"
-}
-```
-
-**Error Returns:**
-```json
-{
-  "success": false,
-  "error": "Insufficient balance",
-  "error_code": "INSUFFICIENT_BALANCE",
-  "required": 30.00,
-  "available": 20.00
-}
-```
-
-**Error Codes:**
-- `NO_BALANCE_RECORD` - User balance not found
-- `INSUFFICIENT_BALANCE` - Not enough balance
-- `INTERNAL_ERROR` - Unexpected error
-
-**Features:**
-1. **Atomic Transaction** - All-or-nothing operation
-2. **Row Locking** - Uses `FOR UPDATE` to prevent race conditions
-3. **Idempotency** - Prevents duplicate purchases with same key
-4. **Lucky Dip** - Randomly allocates available tickets
-5. **Manual Selection** - Validates specific ticket availability
-6. **Audit Trail** - Logs to balance_ledger
-7. **Dual Table Updates** - Updates both joincompetition and tickets
-
-**Workflow:**
-1. Validate inputs (user, competition, price, tickets)
-2. Normalize user identifier to canonical format
-3. Check for duplicate with idempotency_key
-4. Lock and validate user balance
-5. Verify competition is active
-6. Determine ticket numbers (lucky dip or manual)
-7. Calculate cost and check sufficient balance
-8. Debit balance atomically
-9. Create balance_ledger entry
-10. Create joincompetition entry
-11. Insert ticket records
-12. Return success with details
-
-**Security:** `SECURITY DEFINER`, **service_role only**  
-**Migration:** Added in `simplified_balance_payment` (20260130000000)  
-**Used By:** `purchase-tickets-with-bonus` edge function  
-**Status:** ✅ **ACTIVE - PRIMARY PAYMENT METHOD**
-
----
-
-### `get_user_balance` (payment variant)
-**Signature:**
-```sql
-get_user_balance(p_user_identifier TEXT) RETURNS JSONB
-```
-
-**Purpose:** Get user balance for payment validation. Updated version from simplified_balance_payment migration.
-
-**Returns:**
-```json
-{
-  "success": true,
-  "balance": 100.00,
-  "currency": "USD"
-}
-```
-
-**Features:**
-- Matches by canonical_user_id
-- Matches by wallet address (case-insensitive)
-- Returns 0 if no record found
-- Checks canonical_users for wallet linkage
-
-**Security:** `SECURITY DEFINER`, accessible to **service_role** and **authenticated**  
-**Migration:** Updated in `simplified_balance_payment` (20260130000000)
-
----
-
-## Utility Functions
-
-### `log_confirmation_incident`
-**Signature:**
-```sql
-log_confirmation_incident(
-  p_source TEXT,
-  p_error_message TEXT,
-  p_error_details JSONB DEFAULT NULL
+CREATE OR REPLACE FUNCTION ensure_canonical_user(
+  p_user_identifier TEXT DEFAULT NULL,
+  p_wallet_address TEXT DEFAULT NULL,
+  p_privy_user_id TEXT DEFAULT NULL
 ) RETURNS TEXT
 ```
-
-**Purpose:** Log payment/confirmation incidents for debugging.
-
-**Parameters:**
-- `p_source` - Source of incident (e.g., 'webhook', 'edge_function')
-- `p_error_message` - Error message
-- `p_error_details` - Additional JSON details
-
-**Returns:** Incident ID (TEXT)
-
-**Security:** `SECURITY DEFINER`  
-**Used By:** Error handling in edge functions
+**Purpose:** Guarantee canonical_user_id exists, creating if necessary  
+**Used By:** Transaction processing, ticket purchases  
+**Returns:** canonical_user_id  
+**Importance:** 🔴 Critical - ensures data consistency
 
 ---
 
-### `cleanup_expired_idempotency`
-**Signature:**
+### 2. Balance & Payment Operations
+**Purpose:** Manage user balances, process payments, handle deposits/withdrawals  
+**Importance:** 🔴 Critical
+
+| Function Name | Parameters | Returns | Status | Purpose |
+|--------------|------------|---------|--------|---------|
+| `execute_balance_payment()` | canonical_user_id, amount, comp_id, order_id | result JSON | ✅ Production | Process balance payment |
+| `credit_user_balance()` | user_id, amount | new_balance | ✅ Production | Add funds to user balance |
+| `credit_sub_account_balance()` | canonical_user_id, amount, currency | new_balance | ✅ Production | Credit specific sub-account |
+| `credit_balance_with_first_deposit_bonus()` | canonical_user_id, amount | new_balance | ✅ Production | Credit + first deposit bonus |
+| `credit_balance_topup()` | user_id, amount, tx_data | transaction_id | ✅ Production | Process topup transaction |
+| `credit_sub_account_with_bonus()` | canonical_user_id, usdc, bonus | balances | ✅ Production | Credit both USDC & bonus |
+| `debit_user_balance()` | user_id, amount | new_balance | ✅ Production | Deduct from user balance |
+| `debit_sub_account_balance()` | canonical_user_id, amount, currency | new_balance | ✅ Production | Debit specific sub-account |
+| `debit_balance_and_confirm()` | user_id, amount, comp_id | result | ✅ Production | Debit + confirm tickets |
+| `debit_balance_and_confirm_tickets()` | canonical_user_id, amount, comp_id | result | ✅ Production | Debit + ticket confirmation |
+| `debit_balance_and_finalize_order()` | order_id | result | ✅ Production | Debit + finalize order |
+| `debit_balance_confirm_tickets()` | canonical_user_id, amount, comp_id | result | ✅ Production | Combined debit+confirm |
+| `debit_sub_account_balance_with_entry()` | canonical_user_id, amount, comp_id | result | ✅ Production | Debit + create entry |
+| `add_pending_balance()` | user_id, amount | pending_balance | ✅ Production | Add to pending balance |
+| `migrate_user_balance()` | user_identifier | success | ✅ Production | Migrate legacy balance |
+| `check_first_deposit_bonus_eligibility()` | canonical_user_id | boolean | ✅ Production | Check if eligible for bonus |
+| `award_first_topup_bonus()` | canonical_user_id, topup_amount | bonus_amount | ✅ Production | Award first deposit bonus |
+| `award_first_topup_bonus_via_webhook()` | canonical_user_id, topup_amount | bonus_amount | ✅ Production | Award bonus from webhook |
+| `award_welcome_bonus()` | canonical_user_id | bonus_amount | ✅ Production | Award signup bonus |
+| `ensure_sub_account_balance_row()` | canonical_user_id, currency | void | ✅ Production | Ensure balance row exists |
+
+**Key Functions:**
+
+#### `execute_balance_payment()`
 ```sql
-cleanup_expired_idempotency() RETURNS INTEGER
+CREATE OR REPLACE FUNCTION execute_balance_payment(
+  p_canonical_user_id TEXT,
+  p_amount_usd NUMERIC,
+  p_competition_id TEXT,
+  p_order_id TEXT,
+  p_ticket_count INTEGER DEFAULT 1
+) RETURNS JSON
+```
+**Purpose:** Main balance payment processor - handles all ticket purchases via balance  
+**Flow:**
+1. Validate sufficient balance
+2. Debit sub-account(s) (BONUS first, then USDC)
+3. Create balance_ledger entry
+4. Confirm pending tickets
+5. Update competition stats
+**Returns:** `{success: true, transaction_id, balance_after}` or error  
+**Importance:** 🔴 Mission Critical - core payment flow
+
+#### `credit_sub_account_balance()`
+```sql
+CREATE OR REPLACE FUNCTION credit_sub_account_balance(
+  p_canonical_user_id TEXT,
+  p_amount NUMERIC(20, 6),
+  p_currency TEXT DEFAULT 'USDC',
+  p_reference_id TEXT DEFAULT NULL,
+  p_transaction_id TEXT DEFAULT NULL,
+  p_source TEXT DEFAULT 'deposit'
+) RETURNS NUMERIC
+```
+**Purpose:** Safely add funds to user's sub-account  
+**Features:**
+- Creates sub-account row if missing
+- Records in balance_ledger for audit
+- Updates canonical_users.usdc_balance
+- Thread-safe with row locking
+**Returns:** New balance after credit  
+**Importance:** 🔴 Critical - foundation of deposits
+
+#### `debit_sub_account_balance()`
+```sql
+CREATE OR REPLACE FUNCTION debit_sub_account_balance(
+  p_canonical_user_id TEXT,
+  p_amount NUMERIC(20, 6),
+  p_currency TEXT DEFAULT 'USDC',
+  p_reference_id TEXT DEFAULT NULL,
+  p_transaction_id TEXT DEFAULT NULL,
+  p_description TEXT DEFAULT NULL
+) RETURNS NUMERIC
+```
+**Purpose:** Safely remove funds from user's sub-account  
+**Features:**
+- Validates sufficient balance
+- Records in balance_ledger
+- Updates canonical_users.usdc_balance
+- Prevents negative balances (raises exception)
+**Returns:** New balance after debit  
+**Importance:** 🔴 Critical - prevents overspending
+
+---
+
+### 3. Ticket Operations
+**Purpose:** Handle ticket reservations, confirmations, availability checks  
+**Importance:** 🔴 Critical
+
+| Function Name | Parameters | Returns | Status | Purpose |
+|--------------|------------|---------|--------|---------|
+| `reserve_tickets()` | comp_id, user_id, count | reservation_id | ✅ Production | Reserve tickets for purchase |
+| `reserve_tickets_atomically()` | comp_id, user_id, count, idempotency | reservation_id | ✅ Production | Atomic reservation with retry |
+| `release_reservation()` | reservation_id | boolean | ✅ Production | Cancel/expire reservation |
+| `confirm_pending_tickets()` | pending_ticket_id | tickets[] | ✅ Production | Convert pending → sold |
+| `confirm_pending_tickets_with_balance()` | canonical_user_id, comp_id | result | ✅ Production | Confirm + debit balance |
+| `confirm_pending_to_sold()` | pending_id | success | ✅ Production | Finalize ticket sale |
+| `confirm_ticket_purchase()` | order_id | tickets[] | ✅ Production | Confirm tickets from order |
+| `confirm_tickets()` | order_id | success | ✅ Production | Mark tickets as sold |
+| `confirm_payment_and_issue_tickets()` | order_id, payment_data | result | ✅ Production | Complete payment flow |
+| `confirm_purchase_by_ref()` | webhook_ref | result | ✅ Production | Confirm via webhook |
+| `get_unavailable_tickets()` | comp_id | ticket_numbers[] | ✅ Production | Get sold/reserved tickets |
+| `get_competition_unavailable_tickets()` | comp_id | ticket_numbers[] | ✅ Production | Alias for above |
+| `get_available_ticket_count_v2()` | comp_id | count | ✅ Production | Available tickets count |
+| `get_competition_ticket_availability_text()` | comp_id | text | ✅ Production | "X tickets remaining" |
+| `check_ticket_availability()` | comp_id, ticket_numbers[] | boolean | ✅ Production | Check if tickets available |
+| `allocate_lucky_dip_tickets_batch()` | comp_id, user_id, count | ticket_numbers[] | ✅ Production | Random ticket allocation |
+| `create_ticket_hold()` | comp_id, ticket_numbers | hold_id | ✅ Production | Temporary hold on tickets |
+| `finalize_ticket_hold()` | hold_id | success | ✅ Production | Convert hold to sale |
+
+**Key Functions:**
+
+#### `reserve_tickets_atomically()`
+```sql
+CREATE OR REPLACE FUNCTION reserve_tickets_atomically(
+  p_competition_id TEXT,
+  p_user_identifier TEXT,
+  p_ticket_count INTEGER,
+  p_idempotency_key TEXT DEFAULT NULL
+) RETURNS TABLE(
+  reservation_id TEXT,
+  pending_ticket_id TEXT,
+  expires_at TIMESTAMPTZ,
+  ticket_numbers INTEGER[]
+)
+```
+**Purpose:** Atomic ticket reservation with race condition protection  
+**Flow:**
+1. Check idempotency key (prevent duplicates)
+2. Lock competition row (prevent overselling)
+3. Get unavailable tickets (sold + pending)
+4. Select random available tickets
+5. Create pending_tickets header
+6. Create pending_ticket_items for each ticket
+7. Return reservation details
+**Features:**
+- SERIALIZABLE isolation level
+- Idempotency support
+- 10-minute expiry
+- Automatic cleanup on error
+**Returns:** Reservation ID, ticket numbers, expiry  
+**Importance:** 🔴 Mission Critical - prevents double-booking
+
+#### `confirm_pending_tickets()`
+```sql
+CREATE OR REPLACE FUNCTION confirm_pending_tickets(
+  p_pending_ticket_id TEXT
+) RETURNS TABLE(
+  ticket_id TEXT,
+  ticket_number INTEGER,
+  competition_id TEXT
+)
+```
+**Purpose:** Finalize pending reservation into sold tickets  
+**Flow:**
+1. Validate pending_tickets record exists
+2. For each pending_ticket_item:
+   - Insert into tickets table
+   - Mark pending_ticket_item as 'confirmed'
+3. Update pending_tickets status to 'completed'
+4. Update competition.sold_tickets
+5. Check if competition sold out
+**Returns:** Array of created ticket records  
+**Importance:** 🔴 Critical - final step of purchase
+
+#### `get_unavailable_tickets()`
+```sql
+CREATE OR REPLACE FUNCTION get_unavailable_tickets(
+  p_competition_id TEXT
+) RETURNS INTEGER[]
+```
+**Purpose:** Get all ticket numbers that cannot be sold  
+**Includes:**
+- Sold tickets (tickets table)
+- Pending tickets (pending_ticket_items with status='pending', not expired)
+**Used By:** Ticket reservation, availability checks  
+**Returns:** Array of ticket numbers  
+**Importance:** 🔴 Critical - prevents double-booking  
+**Performance:** Indexed on competition_id, status, expires_at
+
+---
+
+### 4. Competition Management
+**Purpose:** Competition lifecycle, winner selection, status updates  
+**Importance:** 🟡 Important
+
+| Function Name | Parameters | Returns | Status | Purpose |
+|--------------|------------|---------|--------|---------|
+| `get_competition_entries()` | comp_id | entries[] | ✅ Production | Get all competition entries |
+| `get_competition_entries_public()` | comp_id | entries[] | ✅ Production | Public entries (RLS-safe) |
+| `get_competition_entries_bypass_rls()` | comp_id | entries[] | ✅ Production | Admin entries view |
+| `get_user_competition_entries()` | user_id, comp_id | entries[] | ✅ Production | User's entries in comp |
+| `get_user_active_tickets()` | user_id | tickets[] | ✅ Production | User's active tickets |
+| `end_competition_and_select_winners()` | comp_id, winner_count | winners[] | ✅ Production | Run VRF winner selection |
+| `check_and_mark_competition_sold_out()` | comp_id | boolean | ✅ Production | Mark as sold out if full |
+| `sync_competition_status_if_ended()` | comp_id | void | ✅ Production | Update status if ended |
+
+**Key Functions:**
+
+#### `end_competition_and_select_winners()`
+```sql
+CREATE OR REPLACE FUNCTION end_competition_and_select_winners(
+  p_competition_id TEXT,
+  p_num_winners INTEGER DEFAULT 1,
+  p_vrf_seed TEXT DEFAULT NULL
+) RETURNS TABLE(
+  winner_ticket_number INTEGER,
+  winner_user_id TEXT,
+  winner_wallet_address TEXT,
+  prize_tier INTEGER
+)
+```
+**Purpose:** Fairly select competition winners using VRF (Verifiable Random Function)  
+**Flow:**
+1. Validate competition is ended
+2. Get all sold ticket numbers
+3. Use VRF or fallback random for selection
+4. Create winner records
+5. Update competition status to 'completed'
+6. Trigger winner notifications
+**Features:**
+- Provably fair with VRF
+- Fallback to secure random
+- Multi-tier prize support
+- Prevents duplicate winners
+**Returns:** Winner details  
+**Importance:** 🔴 Critical - determines prize distribution
+
+---
+
+### 5. Transaction Processing
+**Purpose:** Financial transaction handling, order processing  
+**Importance:** 🔴 Critical
+
+| Function Name | Parameters | Returns | Status | Purpose |
+|--------------|------------|---------|--------|---------|
+| `get_user_transactions()` | user_id, limit, offset | transactions[] | ✅ Production | User transaction history |
+| `create_order_for_reservation()` | reservation_id | order_id | ✅ Production | Create order from reservation |
+| `finalize_order()` | order_id | success | ✅ Production | Complete order processing |
+| `finalize_purchase()` | order_id, payment_data | result | ✅ Production | Finalize purchase |
+| `finalize_purchase2()` | order_id, payment_data | result | ✅ Production | Updated finalize logic |
+| `complete_topup_on_webhook_ref()` | webhook_ref | success | ✅ Production | Complete topup via webhook |
+| `convert_specific_deposit()` | tx_id | success | ✅ Production | Convert custody deposit |
+| `enter_competition()` | comp_id, user_id, tickets | entry_id | ✅ Production | Create competition entry |
+| `enter_competition_and_deduct()` | comp_id, user_id, tickets | result | ✅ Production | Enter + deduct balance |
+| `create_entry_charge()` | user_id, comp_id, amount | charge_id | ✅ Production | Create payment charge |
+| `claim_prize()` | winner_id | claim_data | ✅ Production | Claim competition prize |
+| `enqueue_cdp_event()` | event_type, user_id, data | event_id | ✅ Production | Queue CDP event |
+
+**Key Functions:**
+
+#### `finalize_order()`
+```sql
+CREATE OR REPLACE FUNCTION finalize_order(
+  p_order_id TEXT
+) RETURNS JSON
+```
+**Purpose:** Complete order processing after payment confirmed  
+**Flow:**
+1. Validate order exists and is pending
+2. Get associated pending_tickets
+3. Confirm pending tickets (convert to sold)
+4. Update order status to 'completed'
+5. Create user_transactions record
+6. Update competition stats
+**Returns:** `{success, tickets_issued, competition_id}`  
+**Importance:** 🔴 Critical - final order processing
+
+---
+
+### 6. Cleanup & Maintenance
+**Purpose:** Automated cleanup jobs, data maintenance  
+**Importance:** 🟡 Important
+
+| Function Name | Parameters | Returns | Status | Purpose |
+|--------------|------------|---------|--------|---------|
+| `cleanup_expired_holds()` | - | count | ✅ Production | Remove expired ticket holds |
+| `cleanup_expired_idempotency()` | - | count | ✅ Production | Remove old idempotency keys |
+| `cleanup_expired_pending_tickets()` | - | count | ✅ Production | Expire old pending tickets |
+| `cleanup_expired_reservations()` | - | count | ✅ Production | Release expired reservations |
+| `cleanup_old_data()` | days_old | count | ✅ Production | Archive/delete old records |
+| `cleanup_stale_transactions()` | - | count | ✅ Production | Clean stuck transactions |
+| `check_database_health()` | - | health_report | ✅ Production | Database health check |
+| `check_external_usdc_balance()` | - | balance | ✅ Production | Check custody wallet balance |
+
+**Scheduling:**
+These functions are typically called via:
+- Supabase pg_cron jobs (hourly/daily)
+- Manual admin triggers
+- Post-deployment health checks
+
+**Example pg_cron setup:**
+```sql
+-- Run every 10 minutes
+SELECT cron.schedule('cleanup-expired-holds', '*/10 * * * *', 
+  'SELECT cleanup_expired_pending_tickets()');
+
+-- Run daily at 3 AM
+SELECT cron.schedule('cleanup-old-data', '0 3 * * *', 
+  'SELECT cleanup_old_data(90)');
 ```
 
-**Purpose:** Clean up old idempotency records past expiry time.
+---
 
-**Returns:** Count of deleted records (INTEGER)
+### 7. Utility & Helper Functions
+**Purpose:** Shared utilities, formatting, calculations  
+**Importance:** 🟢 Supporting
 
-**Security:** `SECURITY DEFINER`  
-**Used By:** Scheduled cleanup jobs
+| Function Name | Parameters | Returns | Status | Purpose |
+|--------------|------------|---------|--------|---------|
+| `gen_random_uuid()` | - | uuid | ✅ Production | Generate UUID (pgcrypto) |
+| `gen_random_bytes()` | length | bytea | ✅ Production | Random bytes |
+| `gen_salt()` | type | text | ✅ Production | Generate bcrypt salt |
+| `gen_deterministic_tx_id()` | seed_data | text | ✅ Production | Deterministic transaction ID |
+| `crypt()` | password, salt | text | ✅ Production | Bcrypt hash (pgcrypto) |
+| `encrypt()` | data, key, type | bytea | ✅ Production | Encrypt data |
+| `decrypt()` | data, key, type | bytea | ✅ Production | Decrypt data |
+| `digest()` | data, type | bytea | ✅ Production | Hash data (SHA256, etc.) |
+| `armor()` | data | text | ✅ Production | ASCII armor encoding |
+| `dearmor()` | data | bytea | ✅ Production | ASCII armor decoding |
+
+**Notes:**
+- Most are from pgcrypto extension
+- Used for security, hashing, encryption
+- gen_deterministic_tx_id ensures idempotent transaction IDs
 
 ---
 
-## Security & Permissions
+### 8. Internal Functions
+**Purpose:** Internal helpers called by other functions/triggers  
+**Importance:** 🟢 Supporting (but critical for system)
 
-### Function Security Model
+| Function Name | Parameters | Returns | Status | Purpose |
+|--------------|------------|---------|--------|---------|
+| `_apply_wallet_delta()` | canonical_user_id, delta | new_balance | ✅ Production | Apply balance change atomically |
+| `_deduct_sub_account_balance()` | canonical_user_id, amount, currency | new_balance | ✅ Production | Internal debit logic |
+| `_get_competition_price()` | comp_id | price | ✅ Production | Get ticket price |
+| `_get_user_competition_entries_unified()` | user_id, comp_id | entries[] | ✅ Production | Unified entry query |
+| `_insert_user_spend_tx()` | user_id, amount, comp_id | tx_id | ✅ Production | Record spend transaction |
+| `_ticket_cuid()` | user_id, wallet, privy_id | canonical_user_id | ✅ Production | Derive canonical user ID |
+| `_wallet_delta_from_txn()` | tx_record | delta_amount | ✅ Production | Calculate wallet delta |
+| `_run_backfill_now()` | - | count | ✅ Production | Run data backfill |
+| `_test_block()` | - | void | ✅ Production | Test/debugging function |
+
+**Notes:**
+- Prefixed with `_` to indicate internal use
+- Not meant to be called directly from frontend
+- Called by other functions or triggers
+- Often more permissive (bypass RLS)
+
+---
+
+## Function Usage Patterns
+
+### Frontend RPC Call Pattern
+
+```typescript
+// Using Supabase client
+import { supabase } from '@/lib/supabase'
+
+// Reserve tickets
+const { data, error } = await supabase.rpc('reserve_tickets_atomically', {
+  p_competition_id: 'comp_123',
+  p_user_identifier: 'user_abc',
+  p_ticket_count: 5,
+  p_idempotency_key: 'unique_key_123'
+})
+
+// Execute balance payment
+const { data, error } = await supabase.rpc('execute_balance_payment', {
+  p_canonical_user_id: 'user_abc',
+  p_amount_usd: 25.00,
+  p_competition_id: 'comp_123',
+  p_order_id: 'order_456',
+  p_ticket_count: 5
+})
+
+// Get user balance
+const { data, error } = await supabase.rpc('get_user_balance', {
+  p_canonical_user_id: 'user_abc'
+})
+```
+
+### Error Handling
+
+Functions use PostgreSQL's exception handling:
+
+```sql
+-- Function with error handling
+CREATE OR REPLACE FUNCTION debit_sub_account_balance(
+  p_canonical_user_id TEXT,
+  p_amount NUMERIC
+) RETURNS NUMERIC AS $$
+DECLARE
+  v_current_balance NUMERIC;
+BEGIN
+  -- Get current balance with row lock
+  SELECT balance INTO v_current_balance
+  FROM sub_account_balances
+  WHERE canonical_user_id = p_canonical_user_id
+  FOR UPDATE;
+
+  -- Check sufficient balance
+  IF v_current_balance < p_amount THEN
+    RAISE EXCEPTION 'Insufficient balance: % < %', v_current_balance, p_amount;
+  END IF;
+
+  -- Debit balance
+  UPDATE sub_account_balances
+  SET balance = balance - p_amount
+  WHERE canonical_user_id = p_canonical_user_id;
+
+  RETURN v_current_balance - p_amount;
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE EXCEPTION 'Failed to debit balance: %', SQLERRM;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+Frontend handling:
+```typescript
+try {
+  const { data, error } = await supabase.rpc('debit_sub_account_balance', {
+    p_canonical_user_id: userId,
+    p_amount: 25.00
+  })
+  
+  if (error) {
+    if (error.message.includes('Insufficient balance')) {
+      // Show "add funds" prompt
+    } else {
+      // Generic error handling
+    }
+  }
+} catch (err) {
+  console.error('Payment failed:', err)
+}
+```
+
+---
+
+## Performance Considerations
+
+### 1. Use Prepared Statements
+```sql
+-- Good: Prepared statement
+PREPARE reserve_stmt (text, text, int) AS
+  SELECT * FROM reserve_tickets_atomically($1, $2, $3);
+
+EXECUTE reserve_stmt('comp_123', 'user_abc', 5);
+```
+
+### 2. Avoid N+1 Queries
+```sql
+-- Bad: Loop with queries
+FOR ticket IN SELECT * FROM tickets WHERE competition_id = p_comp_id LOOP
+  PERFORM some_operation(ticket.id);
+END LOOP;
+
+-- Good: Bulk operation
+UPDATE tickets 
+SET status = 'completed'
+WHERE competition_id = p_comp_id;
+```
+
+### 3. Use Indexes Effectively
+```sql
+-- Ensure indexes exist for function queries
+-- See Indexes.md for full index list
+
+-- Example: get_unavailable_tickets uses these indexes:
+-- - idx_tickets_competition_id
+-- - idx_pending_ticket_items_comp_status_expires
+-- - idx_tickets_status
+```
+
+### 4. Transaction Isolation
+```sql
+-- Use appropriate isolation levels
+BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+  -- Critical operations (reservations, payments)
+COMMIT;
+
+BEGIN TRANSACTION ISOLATION LEVEL READ COMMITTED;
+  -- Read-heavy operations
+COMMIT;
+```
+
+### 5. Row Locking
+```sql
+-- Lock rows to prevent race conditions
+SELECT balance 
+FROM sub_account_balances 
+WHERE canonical_user_id = p_user_id
+FOR UPDATE;  -- Exclusive lock until transaction commits
+```
+
+---
+
+## Security & RLS
+
+### Function Security Models
 
 **SECURITY DEFINER:**
-- All functions use `SECURITY DEFINER` to execute with database owner privileges
-- Prevents privilege escalation attacks
-- Validates inputs to prevent SQL injection
+- Function runs with privileges of function owner
+- Use for privileged operations (balance modifications)
+- ⚠️ **Validate all inputs** - bypass RLS, so must be careful
 
-**SET search_path = public:**
-- Prevents search path injection attacks
-- Ensures functions only access public schema
-
-### Permission Levels
-
-**Service Role Only (Most Sensitive):**
-- `credit_user_balance` - Prevents unauthorized credits
-- `credit_sub_account_balance` - Balance manipulation
-- `debit_sub_account_balance` - Balance manipulation
-- `purchase_tickets_with_balance` - Payment execution
-
-**Authenticated Users:**
-- `get_user_balance` - Read own balance
-- `get_user_wallet_balance` - Read own wallet balance
-- `get_user_tickets` - Read own tickets
-- `get_user_transactions` - Read own transactions
-- All query functions for personal data
-
-**Public Access:**
-- `get_competition_entries_public` - Public leaderboards
-- `get_competition_ticket_availability_text` - Public availability
-
-### Security Best Practices
-
-1. **Input Validation** - All functions validate inputs
-2. **Row Locking** - Balance operations use `FOR UPDATE`
-3. **Idempotency** - Payment functions support idempotency keys
-4. **Audit Trails** - balance_ledger logs all balance changes
-5. **Error Messages** - Don't expose internal details
-6. **Rate Limiting** - Handled at API/edge function layer
-
----
-
-## Migration History
-
-| Migration | Functions Added/Updated | Description |
-|-----------|------------------------|-------------|
-| `00000000000000_initial_schema.sql` | 43 functions | Core RPC functions for all operations |
-| `20260128152400_add_debit_sub_account_balance.sql` | `debit_sub_account_balance` | Added atomic debit function with locking |
-| `20260128152500_secure_credit_sub_account_balance.sql` | `credit_sub_account_balance` (updated) | Added validation and restricted to service_role |
-| `20260130000000_simplified_balance_payment.sql` | `purchase_tickets_with_balance`, `get_user_balance` (updated) | Simplified atomic payment function |
-
----
-
-## Usage Examples
-
-### Get User Balance
-```javascript
-const { data } = await supabase.rpc('get_user_balance', {
-  p_user_identifier: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb'
-});
-console.log(data.balance); // 100.00
+```sql
+CREATE OR REPLACE FUNCTION credit_sub_account_balance(...)
+RETURNS NUMERIC
+SECURITY DEFINER  -- Runs as postgres user
+SET search_path = public, pg_temp
+AS $$ ... $$;
 ```
 
-### Purchase Tickets with Balance
-```javascript
-const { data } = await supabase.rpc('purchase_tickets_with_balance', {
-  p_user_identifier: 'prize:pid:0x742d35...',
-  p_competition_id: 'comp-uuid',
-  p_ticket_price: 10.00,
-  p_ticket_count: 5,
-  p_idempotency_key: 'purchase-12345'
-});
+**SECURITY INVOKER:**
+- Function runs with privileges of caller
+- Use for read operations that respect RLS
+- Safer but more limited
+
+```sql
+CREATE OR REPLACE FUNCTION get_user_tickets(p_user_id TEXT)
+RETURNS TABLE(...)
+SECURITY INVOKER  -- Runs as current user
+AS $$ ... $$;
 ```
 
-### Reserve Specific Tickets
-```javascript
-const { data } = await supabase.rpc('reserve_tickets', {
-  p_competition_id: 'comp-uuid',
-  p_ticket_numbers: [1, 5, 10, 25],
-  p_user_id: 'user-uuid',
-  p_hold_minutes: 5
-});
-```
+### RLS Bypass Functions
 
-### Get Competition Entries
-```javascript
-const { data } = await supabase.rpc('get_competition_entries', {
-  p_competition_id: 'comp-uuid',
-  p_limit: 50,
-  p_offset: 0
-});
+Some functions intentionally bypass RLS for admin/system operations:
+- `get_competition_entries_bypass_rls()`
+- `_get_user_competition_entries_unified()`
+- Internal `_*` functions
+
+**Always validate:**
+1. User identity (canonical_user_id)
+2. Authorization (is user allowed to perform action?)
+3. Input sanitization (prevent SQL injection)
+4. Amount limits (prevent abuse)
+
+### Input Validation Example
+
+```sql
+CREATE OR REPLACE FUNCTION credit_sub_account_balance(
+  p_canonical_user_id TEXT,
+  p_amount NUMERIC
+) RETURNS NUMERIC AS $$
+BEGIN
+  -- Validate canonical_user_id format
+  IF p_canonical_user_id IS NULL OR p_canonical_user_id = '' THEN
+    RAISE EXCEPTION 'Invalid canonical_user_id';
+  END IF;
+
+  -- Validate amount is positive
+  IF p_amount <= 0 THEN
+    RAISE EXCEPTION 'Amount must be positive: %', p_amount;
+  END IF;
+
+  -- Validate amount not too large (prevent abuse)
+  IF p_amount > 100000 THEN
+    RAISE EXCEPTION 'Amount exceeds maximum: %', p_amount;
+  END IF;
+
+  -- Validate user exists
+  IF NOT EXISTS (SELECT 1 FROM canonical_users WHERE canonical_user_id = p_canonical_user_id) THEN
+    RAISE EXCEPTION 'User not found: %', p_canonical_user_id;
+  END IF;
+
+  -- Proceed with operation
+  ...
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 ```
 
 ---
 
-**Last Updated:** 2026-01-30  
-**Schema Version:** 1.5  
-**Total Functions:** 48
+## Function Monitoring
+
+### Track Function Performance
+
+```sql
+-- Enable pg_stat_statements
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+
+-- View function call statistics
+SELECT 
+  schemaname,
+  funcname,
+  calls,
+  total_time,
+  mean_time,
+  max_time
+FROM pg_stat_user_functions
+WHERE schemaname = 'public'
+ORDER BY total_time DESC
+LIMIT 20;
+
+-- Reset statistics
+SELECT pg_stat_statements_reset();
+```
+
+### Log Function Calls (Optional)
+
+```sql
+-- Add logging to critical functions
+CREATE OR REPLACE FUNCTION execute_balance_payment(...)
+RETURNS JSON AS $$
+DECLARE
+  v_start_time TIMESTAMPTZ := clock_timestamp();
+  v_result JSON;
+BEGIN
+  -- Function logic
+  ...
+  
+  -- Log execution time
+  RAISE NOTICE 'execute_balance_payment took %ms', 
+    EXTRACT(milliseconds FROM clock_timestamp() - v_start_time);
+  
+  RETURN v_result;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+---
+
+## Migration Status
+
+### ✅ In Baseline Migration (`00000000000000_initial_schema.sql`)
+Core functions (~40) are in the baseline schema:
+- User management functions
+- Balance operations
+- Ticket reservations
+- Competition queries
+- Transaction processing
+
+### 🔶 In Recent Migrations
+- `execute_balance_payment()` - 20260130000000_simplified_balance_payment.sql
+- `credit_sub_account_balance()` - 20260128152500_secure_credit_sub_account_balance.sql
+- `debit_sub_account_balance()` - 20260128152400_add_debit_sub_account_balance.sql
+
+### 📋 Production-Only (Not Yet in Migrations)
+Some utility and cleanup functions exist only in production:
+- CDP integration functions
+- Advanced cleanup jobs
+- Diagnostic functions
+
+---
+
+## Best Practices
+
+### 1. Always Use Transactions
+```sql
+CREATE OR REPLACE FUNCTION my_function(...)
+RETURNS ... AS $$
+BEGIN
+  -- All modifications in transaction
+  ...
+  
+  -- Will auto-rollback on exception
+  RETURN result;
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE EXCEPTION 'Operation failed: %', SQLERRM;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+### 2. Use Explicit Locking for Critical Sections
+```sql
+-- Lock user balance row
+SELECT balance FROM sub_account_balances
+WHERE canonical_user_id = p_user_id
+FOR UPDATE;  -- Others wait here
+```
+
+### 3. Return Structured Data
+```sql
+-- Good: Return JSON with clear structure
+RETURN json_build_object(
+  'success', true,
+  'transaction_id', v_tx_id,
+  'balance_after', v_new_balance,
+  'timestamp', NOW()
+);
+
+-- Bad: Return single value when multiple outputs needed
+```
+
+### 4. Idempotency for Payment Operations
+```sql
+-- Check idempotency key first
+IF EXISTS (SELECT 1 FROM payment_idempotency 
+           WHERE idempotency_key = p_key) THEN
+  RETURN 'already_processed';
+END IF;
+
+-- Record idempotency
+INSERT INTO payment_idempotency (idempotency_key, ...)
+VALUES (p_key, ...);
+
+-- Proceed with operation
+...
+```
+
+### 5. Comprehensive Error Messages
+```sql
+-- Include context in exceptions
+RAISE EXCEPTION 'Failed to reserve tickets for user % in competition %: %',
+  p_user_id, p_competition_id, SQLERRM;
+```
+
+---
+
+## Related Documentation
+- [Triggers.md](./Triggers.md) - Database trigger reference
+- [Indexes.md](./Indexes.md) - Database index reference
+- [BASELINE_MIGRATION_README.md](./BASELINE_MIGRATION_README.md) - Migration guide
+- [SCHEMA_AUDIT_REPORT.md](./SCHEMA_AUDIT_REPORT.md) - Schema audit results
+
+---
+
+**Document Version:** 1.0  
+**Maintainer:** Database Team  
+**Last Audit:** January 31, 2026
