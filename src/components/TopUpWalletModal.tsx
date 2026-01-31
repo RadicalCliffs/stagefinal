@@ -398,7 +398,9 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
               if (retryCount < maxRetries) {
                 retryCount++;
                 console.log(`[TopUpWalletModal] Transaction not yet confirmed, retry ${retryCount}/${maxRetries} in ${retryDelay}ms`);
-                setTimeout(verifyAndCredit, retryDelay);
+                // Use proper async delay pattern to avoid unhandled promise rejections
+                await new Promise(resolve => setTimeout(resolve, retryDelay));
+                await verifyAndCredit();
                 return;
               } else {
                 console.warn('[TopUpWalletModal] Max retries reached, transaction will be verified later');
