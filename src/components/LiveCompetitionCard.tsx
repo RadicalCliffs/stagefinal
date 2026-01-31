@@ -12,6 +12,8 @@ const LiveCompetitionCard: React.FC<CompetitionCardProps> = ({
   price,
   timeRemaining,
   entriesSold,
+  ticketsSold,
+  totalTickets,
   progressPercent = 10,
   onEnter,
   isCompetitionFinished = false,
@@ -42,15 +44,19 @@ const LiveCompetitionCard: React.FC<CompetitionCardProps> = ({
   const ActiveCompetition = ({
     price,
     entriesSold,
+    ticketsSold,
+    totalTickets,
     progressPercent,
     onEnter,
   }: Pick<
     CompetitionCardProps,
-    "price" | "onEnter" | "progressPercent" | "entriesSold"
+    "price" | "onEnter" | "progressPercent" | "entriesSold" | "ticketsSold" | "totalTickets"
   >) => (
     <div>
       <p className="sequel-45 md:text-xs text-[11px] uppercase text-center text-white font-semibold md:mb-3 mb-2">
-        {entriesSold}% Entries Sold
+        {ticketsSold !== undefined && ticketsSold >= 0 && totalTickets !== undefined && totalTickets > 0
+          ? `${ticketsSold} / ${totalTickets} Tickets Sold`
+          : `${entriesSold}% Entries Sold`}
       </p>
 
       {/* Progress bar - fills from left to right as entries are sold */}
@@ -179,6 +185,8 @@ const LiveCompetitionCard: React.FC<CompetitionCardProps> = ({
             <ActiveCompetition
               price={price}
               entriesSold={entriesSold}
+              ticketsSold={ticketsSold}
+              totalTickets={totalTickets}
               progressPercent={progressPercent}
               onEnter={onEnter}
             />

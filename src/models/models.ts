@@ -155,7 +155,8 @@ export interface CompetitionCardProps {
   price: string | number;
   timeRemaining: string; // e.g. "07:12:44:23"
   entriesSold: string; // e.g. "70% Entries Sold"
-  ticketsSold?: string; // Alternative to entriesSold for ticket-based competitions
+  ticketsSold?: number; // Number of tickets sold
+  totalTickets?: number; // Total number of tickets available
   progressPercent?: number; // 0–100
   onEnter?: () => void;
   className?: string;

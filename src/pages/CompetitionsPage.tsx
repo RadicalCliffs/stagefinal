@@ -98,6 +98,8 @@ const CompetitionsPage = () => {
                   )}
                   endDate={comp.end_date ?? undefined}
                   entriesSold={`${Math.round(progressPercent)}`}
+                  ticketsSold={comp.tickets_sold || comp.entries_sold || 0}
+                  totalTickets={comp.total_tickets || comp.total_entries || 0}
                   progressPercent={progressPercent === 0 ? 10 : progressPercent}
                   onEnter={() => navigate(`/competitions/${comp.id}`)}
                   isInstantWin={comp.is_instant_win || undefined}
@@ -150,6 +152,8 @@ const CompetitionsPage = () => {
                   )}
                   endDate={comp.end_date ?? undefined}
                   entriesSold={`${Math.round(progressPercent)}`}
+                  ticketsSold={comp.tickets_sold || comp.entries_sold || 0}
+                  totalTickets={comp.total_tickets || comp.total_entries || 0}
                   progressPercent={progressPercent === 0 ? 10 : progressPercent}
                   onEnter={() => navigate(`/competitions/${comp.id}`)}
                   isInstantWin={true}
@@ -208,6 +212,8 @@ const CompetitionsPage = () => {
                   )}
                   endDate={comp.end_date ?? undefined}
                   entriesSold={`${Math.round(progressPercent)}`}
+                  ticketsSold={comp.tickets_sold || comp.entries_sold || 0}
+                  totalTickets={comp.total_tickets || comp.total_entries || 0}
                   progressPercent={progressPercent === 0 ? 10 : progressPercent}
                   onEnter={() => navigate(`/competitions/${comp.id}`)}
                   className="!border-[#DDE404]"
@@ -259,8 +265,9 @@ const CompetitionsPage = () => {
                 title={comp.title}
                 price={parseFloat(String(comp.ticket_price || comp.entry_fee || '0'))}
                 timeRemaining="00:00:00:00"
-                ticketsSold={`${Math.round(progressPercent)}`}
-                entriesSold={`${Math.round(progressPercent)}% Sold`}
+                entriesSold={`${Math.round(progressPercent)}`}
+                ticketsSold={comp.tickets_sold || comp.entries_sold || 0}
+                totalTickets={comp.total_tickets || comp.total_entries || 0}
                 progressPercent={progressPercent === 0 ? 10 : progressPercent}
                 onEnter={() => navigate(`/competitions/${comp.id}`)}
                 className="!border-[#EF008F]"

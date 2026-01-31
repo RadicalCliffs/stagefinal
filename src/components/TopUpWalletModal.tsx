@@ -336,7 +336,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
         throw new Error((paymentResult as any).error || 'Payment failed');
       }
 
-      const transactionHash = (paymentResult as any).transactionHash;
+      const transactionHash = (paymentResult as any).id || (paymentResult as any).transactionHash;
       if (!transactionHash) {
         throw new Error('Payment succeeded but no transaction hash returned');
       }
