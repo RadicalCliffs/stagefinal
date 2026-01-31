@@ -606,6 +606,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
       // Step 1: Reserve or use existing reservation
       let currentReservationId = effectiveReservationId;
+      let ticketNumbersToPurchase = selectedTickets;
 
       if (!currentReservationId) {
         console.log('[PaymentModal] No reservation found, creating one...');
@@ -625,13 +626,25 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         }
 
         currentReservationId = reserveResult.data.reservation_id;
+        ticketNumbersToPurchase = reserveResult.data.ticket_numbers;
         console.log('[PaymentModal] Reservation created:', currentReservationId);
+      } else {
+        // Using existing reservation - retrieve ticket numbers from storage
+        const storedReservation = reservationStorage.getReservation(competitionId);
+        if (storedReservation && storedReservation.ticketNumbers && storedReservation.ticketNumbers.length > 0) {
+          ticketNumbersToPurchase = storedReservation.ticketNumbers;
+          console.log('[PaymentModal] Using ticket numbers from stored reservation:', ticketNumbersToPurchase);
+        } else {
+          console.log('[PaymentModal] Using existing reservation with selected tickets:', selectedTickets);
+        }
       }
 
       // Step 2: Purchase with balance
       console.log('[PaymentModal] Purchasing with balance, reservation:', currentReservationId);
       const purchaseResult = await BalancePaymentService.purchaseWithBalance({
-        reservationId: currentReservationId
+        reservationId: currentReservationId,
+        competitionId: competitionId,
+        ticketNumbers: ticketNumbersToPurchase
       });
 
       if (!purchaseResult.success || !purchaseResult.data) {
