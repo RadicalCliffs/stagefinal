@@ -145,7 +145,7 @@ export async function reserveTicketsWithRedundancy(
           message: result.retried 
             ? 'Tickets reserved successfully after retry' 
             : 'Tickets reserved successfully',
-          expiresAt: new Date(Date.now() + 30 * 1000).toISOString(), // 30 seconds
+          expiresAt: new Date(Date.now() + 2 * 60 * 1000).toISOString(), // 2 minutes
         },
         error: null,
       };

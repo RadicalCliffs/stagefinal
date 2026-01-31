@@ -18,7 +18,7 @@ interface ReservationData {
 }
 
 const STORAGE_KEY = 'theprize:active_reservations';
-const RESERVATION_TTL_MS = 30 * 1000; // 30 seconds
+const RESERVATION_TTL_MS = 2 * 60 * 1000; // 2 minutes
 
 class ReservationStorage {
   private storageAvailable: boolean;
