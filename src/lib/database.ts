@@ -235,12 +235,18 @@ export const database = {
       const processedData = await Promise.all(
         (data || []).map(async comp => {
           const competitionId = comp.id || comp.uid;
-          let ticketsSold = comp.tickets_sold;
+          let ticketsSold = 0;
 
-          // Derive tickets sold (including active reservations) when not already present
-          if (!Number.isFinite(ticketsSold) && competitionId) {
-            const unavailable = await this.getUnavailableTicketsForCompetition(competitionId);
-            ticketsSold = unavailable.size;
+          // Always derive accurate tickets sold count from tickets table
+          // This ensures landing page ticket counters match individual competition pages
+          // which use the same approach in useRealTimeCompetition hook
+          if (competitionId) {
+            const { count } = await supabase
+              .from('tickets')
+              .select('id', { count: 'exact', head: true })
+              .eq('competition_id', competitionId);
+            
+            ticketsSold = count || 0;
           }
 
           return {
