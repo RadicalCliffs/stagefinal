@@ -23,6 +23,15 @@ const supabase = createClient<Database>(supabaseUrl, supabaseKey, {
     // Storage key prefix - don't change this as existing sessions use this key
     storageKey: 'sb-' + new URL(supabaseUrl).hostname.split('.')[0] + '-auth-token',
   },
+  global: {
+    headers: {
+      // Prevent Safari and other browsers from aggressively caching responses
+      // This fixes Safari users not seeing recent entries and transactions
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+    },
+  },
 });
 
 export default supabase;

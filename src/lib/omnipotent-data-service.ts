@@ -742,7 +742,7 @@ class OmnipotentDataService {
 
     try {
       const reservationId = crypto.randomUUID();
-      const expiresAt = new Date(Date.now() + 30 * 1000); // 30 seconds
+      const expiresAt = new Date(Date.now() + 2 * 60 * 1000); // 2 minutes
       const userId = identity.canonicalUserId;
       const normalizedUserId = userId.toLowerCase();
 

@@ -348,73 +348,115 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
       addPendingTopUp(amount, topUpId);
       console.log('[TopUpWalletModal] Added optimistic balance update:', amount);
 
+      // Show success immediately (optimistic) - verification will happen in background
+      setTransactionId(transactionHash);
+      setStep('success');
+      await refreshUserData();
+
+      // Dispatch balance update event
+      window.dispatchEvent(new CustomEvent('balance-updated', {
+        detail: { newBalance: amount } // Optimistic - actual balance will be updated later
+      }));
+
+      onSuccess?.();
+
       // After successful on-chain payment, call instant-topup to verify and credit balance
-      // This verifies the transaction on-chain before crediting the user's internal balance
-      console.log('[TopUpWalletModal] Calling instant-topup to verify and credit balance');
+      // This runs in the background and doesn't block the user experience
+      console.log('[TopUpWalletModal] Starting background verification and balance credit');
 
       // Get auth token for API call - prefer wallet-based auth
       const walletToken = `wallet:${walletAddress}`;
       const { data: sessionData } = await supabase.auth.getSession();
       const authToken = sessionData.session?.access_token || walletToken;
 
-      const topupResponse = await fetch('/api/instant-topup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({
-          transactionHash,
-          amount,
-          walletAddress, // Sender wallet address for verification
-        }),
+      // Retry logic for transaction verification (blockchain can take time to confirm)
+      let retryCount = 0;
+      const maxRetries = 5;
+      const retryDelay = 3000; // 3 seconds between retries
+
+      const verifyAndCredit = async (): Promise<void> => {
+        try {
+          const topupResponse = await fetch('/api/instant-topup', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authToken}`,
+            },
+            body: JSON.stringify({
+              transactionHash,
+              amount,
+              walletAddress, // Sender wallet address for verification
+            }),
+          });
+
+          const topupResult = await topupResponse.json();
+
+          if (!topupResponse.ok || !topupResult.success) {
+            // Check if it's a "transaction not found" error (needs retry)
+            const errorMsg = topupResult.error || '';
+            if (errorMsg.includes('Transaction not found') || errorMsg.includes('not yet confirmed')) {
+              if (retryCount < maxRetries) {
+                retryCount++;
+                console.log(`[TopUpWalletModal] Transaction not yet confirmed, retry ${retryCount}/${maxRetries} in ${retryDelay}ms`);
+                setTimeout(verifyAndCredit, retryDelay);
+                return;
+              } else {
+                console.warn('[TopUpWalletModal] Max retries reached, transaction will be verified later');
+                // Don't show error to user - transaction was sent successfully
+                // Background job will pick it up later
+                return;
+              }
+            }
+
+            // For other errors, log but don't show to user (optimistic UI)
+            console.error('[TopUpWalletModal] Background verification failed:', topupResult);
+            return;
+          }
+
+          console.log('[TopUpWalletModal] Balance credited successfully:', {
+            creditedAmount: topupResult.creditedAmount,
+            bonusApplied: topupResult.bonusApplied,
+            bonusAmount: topupResult.bonusAmount,
+            newBalance: topupResult.newBalance,
+          });
+
+          // Clear optimistic update now that balance is confirmed
+          if (optimisticTopUpId) {
+            removePendingTopUp(optimisticTopUpId);
+            setOptimisticTopUpId(null);
+          }
+
+          // Update transaction ID if returned
+          if (topupResult.transactionId) {
+            setTransactionId(topupResult.transactionId);
+          }
+
+          // Refresh balance to get the actual amount (including any bonuses)
+          await refreshUserData();
+
+          // Dispatch actual balance update event
+          if (topupResult.newBalance !== undefined && topupResult.newBalance !== null) {
+            window.dispatchEvent(new CustomEvent('balance-updated', {
+              detail: { newBalance: topupResult.newBalance }
+            }));
+          }
+
+          // Send in-app notification
+          if (baseUser?.id) {
+            notificationService.notifyTopUp(baseUser.id, amount, topupResult.newBalance).catch(err => {
+              console.warn('[TopUpWalletModal] Failed to send top-up notification:', err);
+            });
+          }
+        } catch (err) {
+          console.error('[TopUpWalletModal] Background verification error:', err);
+          // Don't retry on network errors after transaction was sent
+        }
+      };
+
+      // Start background verification
+      verifyAndCredit().catch(err => {
+        console.error('[TopUpWalletModal] Verification failed:', err);
       });
-
-      const topupResult = await topupResponse.json();
-
-      if (!topupResponse.ok || !topupResult.success) {
-        // Transaction was sent but verification/crediting failed
-        console.error('[TopUpWalletModal] instant-topup failed:', topupResult);
-        throw new Error(
-          topupResult.error ||
-          `Payment sent but balance credit failed. Please contact support with tx: ${transactionHash.substring(0, 10)}...`
-        );
-      }
-
-      console.log('[TopUpWalletModal] Balance credited successfully:', {
-        creditedAmount: topupResult.creditedAmount,
-        bonusApplied: topupResult.bonusApplied,
-        bonusAmount: topupResult.bonusAmount,
-        newBalance: topupResult.newBalance,
-      });
-
-      setTransactionId(topupResult.transactionId || '');
-
-      // Clear optimistic update now that balance is confirmed
-      if (optimisticTopUpId) {
-        removePendingTopUp(optimisticTopUpId);
-        setOptimisticTopUpId(null);
-      }
-
-      // Success!
-      setStep('success');
-      await refreshUserData();
-
-      // Dispatch balance update event
-      if (topupResult.newBalance !== undefined && topupResult.newBalance !== null) {
-        window.dispatchEvent(new CustomEvent('balance-updated', {
-          detail: { newBalance: topupResult.newBalance }
-        }));
-      }
-
-      // Send in-app notification
-      if (baseUser?.id) {
-        notificationService.notifyTopUp(baseUser.id, amount, topupResult.newBalance).catch(err => {
-          console.warn('[TopUpWalletModal] Failed to send top-up notification:', err);
-        });
-      }
-
-      onSuccess?.();
     } catch (err) {
       console.error('[TopUpWalletModal] Base Account top-up error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Payment failed';
