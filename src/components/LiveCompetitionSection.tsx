@@ -127,6 +127,8 @@ const LiveCompetitionSection = () => {
               endDate={comp.end_date || comp.draw_date || undefined}
               timeRemaining={calculateTimeRemaining(comp.end_date || comp.draw_date || new Date().toISOString())}
               entriesSold={`${Math.round(progressPercent)}`}
+              ticketsSold={comp.tickets_sold || comp.entries_sold || 0}
+              totalTickets={comp.total_tickets || comp.total_entries || 0}
               progressPercent={progressPercent === 0 ? 10 : progressPercent}
               onEnter={() => navigate(`/competitions/${comp.id}`)}
               isInstantWin={comp.is_instant_win || undefined}
