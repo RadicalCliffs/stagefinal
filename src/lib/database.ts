@@ -261,7 +261,7 @@ export const database = {
       // Process image URLs and hydrate ticket progress
       const processedData = data.map(comp => {
         const competitionId = comp.id || comp.uid;
-        const ticketsSold = competitionId ? (ticketCountMap.get(competitionId) || 0) : 0;
+        const ticketsSold = ticketCountMap.get(competitionId) || 0;
 
         return {
           ...comp,
