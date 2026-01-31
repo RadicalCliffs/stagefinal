@@ -383,8 +383,10 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                 return prev;
             }
             // Prevent selecting more tickets than are actually available
-            // Use the real-time available count from state
-            if (prev.length >= availableTickets.length) {
+            // Maximum of 5000 tickets per transaction or available tickets, whichever is lower
+            const MAX_TICKETS_PER_TRANSACTION = 5000;
+            const maxAllowed = Math.min(availableTickets.length, MAX_TICKETS_PER_TRANSACTION);
+            if (prev.length >= maxAllowed) {
                 return prev;
             }
             // Add to selection
@@ -638,7 +640,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                 selectedTickets={selectedTickets}
                 ownedTickets={ownedTickets}
                 onSelect={handleTicketSelect}
-                maxSelectableCount={availableTickets.length}
+                maxSelectableCount={Math.min(availableTickets.length, 5000)}
             />
 
             {/* Footer */}
@@ -720,7 +722,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                             <p className="text-white/60 sequel-45 text-sm">
                                 {selectedTickets.length} ticket{selectedTickets.length !== 1 ? 's' : ''} selected
                                 {availableTickets.length > 0 && (
-                                    <span className="text-white/40 ml-2">(max {availableTickets.length})</span>
+                                    <span className="text-white/40 ml-2">(max {Math.min(availableTickets.length, 5000)})</span>
                                 )}
                             </p>
                             <p className="text-[#DDE404] sequel-95 text-2xl sm:text-3xl">
@@ -739,10 +741,10 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                 </div>
 
                 {/* Maximum selection warning */}
-                {selectedTickets.length >= availableTickets.length && availableTickets.length > 0 && (
+                {selectedTickets.length >= Math.min(availableTickets.length, 5000) && availableTickets.length > 0 && (
                     <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg px-4 py-3">
                         <p className="text-yellow-400 text-sm sequel-45 text-center">
-                            You have selected all {availableTickets.length} available tickets
+                            You have selected the maximum of {Math.min(availableTickets.length, 5000)} tickets per transaction
                         </p>
                     </div>
                 )}
@@ -818,7 +820,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                         userInfo={userInfo}
                         selectedTickets={selectedTickets}
                         reservationId={reservationId}
-                        maxAvailableTickets={availableTickets.length}
+                        maxAvailableTickets={Math.min(availableTickets.length, 5000)}
                         onPaymentSuccess={() => {
                             // Refresh available tickets and owned tickets after successful payment
                             // Use soft refresh (no loading spinner) to prevent UI flash
