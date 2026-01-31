@@ -645,7 +645,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         reservationId: currentReservationId,
         competitionId: competitionId,
         ticketNumbers: ticketNumbersToPurchase,
-        userId: baseUser.id,
+        userId: canonicalUserId,
         ticketPrice: ticketPrice
       });
 
