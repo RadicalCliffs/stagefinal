@@ -262,28 +262,28 @@ export class BalancePaymentService {
    * 
    * @param params.competitionId - Competition UUID (REQUIRED)
    * @param params.ticketNumbers - Specific ticket numbers to purchase (REQUIRED)
+   * @param params.userId - User identifier (REQUIRED)
+   * @param params.ticketPrice - Ticket price (REQUIRED)
    * @param params.reservationId - Optional reservation ID (for backwards compatibility)
-   * @param params.userId - Optional user identifier (for backwards compatibility)
    * @param params.ticketCount - Optional count (for backwards compatibility)
-   * @param params.ticketPrice - Optional price (for backwards compatibility)
    * @returns Promise with purchase data including new balance
    */
   static async purchaseWithBalance(params: {
     competitionId: string;
     ticketNumbers: number[];
+    userId: string;
+    ticketPrice: number;
     reservationId?: string;
-    userId?: string;
     ticketCount?: number;
-    ticketPrice?: number;
   }): Promise<{
     success: boolean;
     data?: PurchaseResponse;
     error?: string;
     errorDetails?: BalancePaymentError;
   }> {
-    const { competitionId, ticketNumbers } = params;
+    const { competitionId, ticketNumbers, userId, ticketPrice } = params;
 
-    // Validate required parameters for rolled-back contract
+    // Validate required parameters
     if (!competitionId) {
       return {
         success: false,
@@ -298,18 +298,40 @@ export class BalancePaymentService {
       };
     }
 
+    if (!userId) {
+      return {
+        success: false,
+        error: 'User ID is required'
+      };
+    }
+
+    if (ticketPrice < 0.1 || ticketPrice > 100) {
+      return {
+        success: false,
+        error: 'Ticket price must be between $0.10 and $100'
+      };
+    }
+
     try {
-      // Build request body matching rolled-back contract
-      // { competition_id: string, tickets: Array<{ ticket_number: string | number }>, idempotent?: boolean }
+      // Convert userId to canonical format
+      const canonicalUserId = toCanonicalUserId(userId);
+      
+      // Build request body with all required parameters
+      // The edge function expects: userId/walletAddress, competitionId, numberOfTickets, ticketPrice, tickets
       const requestBody = {
+        userId: canonicalUserId,
         competition_id: competitionId,
+        numberOfTickets: ticketNumbers.length,
+        ticketPrice: ticketPrice,
         tickets: ticketNumbers.map(num => ({ ticket_number: num })),
         idempotent: true
       };
 
       console.log('[BalancePayment] Purchasing with balance (simplified system):', { 
+        userId: canonicalUserId.length > 20 ? canonicalUserId.substring(0, 20) + '...' : canonicalUserId,
         competitionId: competitionId.substring(0, 10) + '...',
         ticketCount: ticketNumbers.length,
+        ticketPrice: ticketPrice,
         tickets: ticketNumbers
       });
 
@@ -479,6 +501,7 @@ export class BalancePaymentService {
   static async reserveAndPurchase(params: {
     userId: string;
     competitionId: string;
+    ticketPrice: number;
     ticketNumbers?: number[];
     ticketCount?: number;
   }): Promise<{
@@ -501,10 +524,12 @@ export class BalancePaymentService {
 
     const reservationData = reserveResult.data;
 
-    // Step 2: Purchase using rolled-back contract
+    // Step 2: Purchase with required parameters
     const purchaseResult = await this.purchaseWithBalance({
       competitionId: params.competitionId,
-      ticketNumbers: reservationData.ticket_numbers
+      ticketNumbers: reservationData.ticket_numbers,
+      userId: params.userId,
+      ticketPrice: params.ticketPrice
     });
 
     if (!purchaseResult.success) {

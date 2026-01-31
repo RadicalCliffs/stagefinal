@@ -125,7 +125,9 @@ export async function purchaseTicketsWithBalance({
     
     const purchaseResult = await BalancePaymentService.purchaseWithBalance({
       competitionId: competitionId,
-      ticketNumbers: ticketsToSend
+      ticketNumbers: ticketsToSend,
+      userId: userId,
+      ticketPrice: ticketPrice
     });
 
     if (!purchaseResult.success || !purchaseResult.data) {
