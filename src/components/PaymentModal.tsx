@@ -590,7 +590,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     const safeBalance = typeof userBalance === 'number' && Number.isFinite(userBalance) ? userBalance : 0;
     if (safeBalance < amount) {
       const shortfall = amount - safeBalance;
-      setErrorMessage(`Insufficient balance. You need $${amount.toFixed(2)} but only have $${safeBalance.toFixed(2)} available. Please top up your wallet with at least $${shortfall.toFixed(2)} to continue.`);
+      setErrorMessage(`Insufficient balance. Please top up your wallet with at least $${shortfall.toFixed(2)} to continue.`);
       // Open the top-up modal to help user add funds
       setShowTopUpModal(true);
       return;
