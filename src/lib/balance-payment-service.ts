@@ -305,10 +305,10 @@ export class BalancePaymentService {
       };
     }
 
-    if (ticketPrice <= 0) {
+    if (ticketPrice < 0.1 || ticketPrice > 100) {
       return {
         success: false,
-        error: 'Valid ticket price is required'
+        error: 'Ticket price must be between $0.10 and $100'
       };
     }
 
@@ -328,7 +328,7 @@ export class BalancePaymentService {
       };
 
       console.log('[BalancePayment] Purchasing with balance (simplified system):', { 
-        userId: canonicalUserId.substring(0, 20) + '...',
+        userId: canonicalUserId.length > 20 ? canonicalUserId.substring(0, 20) + '...' : canonicalUserId,
         competitionId: competitionId.substring(0, 10) + '...',
         ticketCount: ticketNumbers.length,
         ticketPrice: ticketPrice,
