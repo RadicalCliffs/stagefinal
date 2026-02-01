@@ -351,6 +351,7 @@ export default async (request: Request, context: Context): Promise<Response> => 
         .from("user_transactions")
         .insert({
           user_id: user.canonicalUserId,
+          canonical_user_id: user.canonicalUserId, // CRITICAL: Set canonical_user_id for proper querying
           wallet_address: normalizedWallet,
           competition_id: null, // Top-up has no competition
           amount: creditAmount,
