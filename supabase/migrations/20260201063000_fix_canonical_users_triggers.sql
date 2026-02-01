@@ -58,17 +58,17 @@ RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  -- Normalize all wallet address fields to lowercase
+  -- Normalize all wallet address fields using util function for consistency
   IF NEW.wallet_address IS NOT NULL THEN
-    NEW.wallet_address := LOWER(NEW.wallet_address);
+    NEW.wallet_address := util.normalize_evm_address(NEW.wallet_address);
   END IF;
   
   IF NEW.base_wallet_address IS NOT NULL THEN
-    NEW.base_wallet_address := LOWER(NEW.base_wallet_address);
+    NEW.base_wallet_address := util.normalize_evm_address(NEW.base_wallet_address);
   END IF;
   
   IF NEW.eth_wallet_address IS NOT NULL THEN
-    NEW.eth_wallet_address := LOWER(NEW.eth_wallet_address);
+    NEW.eth_wallet_address := util.normalize_evm_address(NEW.eth_wallet_address);
   END IF;
 
   -- Auto-generate canonical_user_id if missing and we have a wallet address
@@ -101,7 +101,8 @@ BEGIN
   -- Or extract wallet_address from canonical_user_id if it follows the prize:pid: pattern
   ELSIF NEW.canonical_user_id IS NOT NULL THEN
     IF POSITION('prize:pid:' IN NEW.canonical_user_id) = 1 THEN
-      NEW.wallet_address := REPLACE(NEW.canonical_user_id, 'prize:pid:', '');
+      -- Use SUBSTRING to safely extract only the prefix (not REPLACE which is unsafe)
+      NEW.wallet_address := SUBSTRING(NEW.canonical_user_id FROM 11);
       NEW.wallet_address := util.normalize_evm_address(NEW.wallet_address);
       NEW.canonical_user_id := 'prize:pid:' || NEW.wallet_address;
     END IF;
@@ -121,17 +122,17 @@ RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  -- Normalize all wallet fields to lowercase
+  -- Normalize all wallet fields using util function for consistency
   IF NEW.wallet_address IS NOT NULL THEN
-    NEW.wallet_address := LOWER(NEW.wallet_address);
+    NEW.wallet_address := util.normalize_evm_address(NEW.wallet_address);
   END IF;
   
   IF NEW.base_wallet_address IS NOT NULL THEN
-    NEW.base_wallet_address := LOWER(NEW.base_wallet_address);
+    NEW.base_wallet_address := util.normalize_evm_address(NEW.base_wallet_address);
   END IF;
   
   IF NEW.eth_wallet_address IS NOT NULL THEN
-    NEW.eth_wallet_address := LOWER(NEW.eth_wallet_address);
+    NEW.eth_wallet_address := util.normalize_evm_address(NEW.eth_wallet_address);
   END IF;
 
   -- If primary wallet is missing but alternates exist, pick first non-null
@@ -179,6 +180,14 @@ COMMENT ON FUNCTION users_normalize_before_write IS
 
 -- ============================================================================
 -- SECTION 3: Create triggers on canonical_users table
+-- ============================================================================
+-- NOTE: We create three separate triggers to match the production database structure.
+-- While this creates some redundancy, it ensures compatibility with existing code
+-- that may depend on these specific trigger names and execution order.
+-- The triggers execute in alphabetical order by trigger name:
+--   1. canonical_users_normalize_before_write (first alphabetically)
+--   2. cu_normalize_and_enforce_trg (second)
+--   3. trg_canonical_users_normalize (third)
 -- ============================================================================
 
 -- Drop existing triggers if they exist (to avoid conflicts)
