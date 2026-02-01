@@ -303,7 +303,7 @@ export default function OrdersList() {
       {/* Entry count */}
       {data.length > 0 && (
         <div className="text-center mt-4 text-white/60 sequel-45 text-sm">
-          Showing {startIndex + 1}-{Math.min(endIndex, data.length)} of {data.length} {activeTab.key === "purchases" ? "purchases" : "entries"}
+          Showing {startIndex + 1}-{Math.min(endIndex, data.length)} of {data.length} {activeTab.key === "purchases" ? "purchases" : "transactions"}
         </div>
       )}
 
