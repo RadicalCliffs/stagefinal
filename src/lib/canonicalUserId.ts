@@ -2,13 +2,12 @@
  * Converts any user identifier to the canonical prize:pid: format.
  * Mirrors the backend toPrizePid() function in netlify/functions/_shared/userId.mts
  * 
- * Returns null instead of throwing when input is missing to support pre-auth states
- * where baseUser.id is not yet available.
+ * IMPORTANT: This function throws an error if input is null/undefined.
+ * Callers MUST check for null before calling this function.
  */
-export function toCanonicalUserId(input: string | null | undefined): string | null {
+export function toCanonicalUserId(input: string | null | undefined): string {
   if (!input) {
-    console.warn('[canonicalUserId] Input is null/undefined - returning null for pre-auth state');
-    return null;
+    throw new Error('User ID required - cannot convert null/undefined to canonical format');
   }
   if (input.startsWith('prize:pid:')) return input;
 
