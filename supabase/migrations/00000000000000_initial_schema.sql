@@ -1193,7 +1193,7 @@ BEGIN
 END;
 $$;
 
--- credit_balance_with_first_deposit_bonus: Credit with first deposit bonus (50% bonus)
+-- credit_balance_with_first_deposit_bonus: Credit with first deposit bonus
 CREATE OR REPLACE FUNCTION credit_balance_with_first_deposit_bonus(
   p_canonical_user_id TEXT,
   p_amount NUMERIC,
@@ -1227,7 +1227,7 @@ BEGIN
         updated_at = NOW()
     WHERE canonical_user_id = p_canonical_user_id;
 
-    -- Log bonus award (no longer updating bonus_balance column separately)
+    -- Log bonus award to audit table
     INSERT INTO bonus_award_audit (
       canonical_user_id,
       amount,
@@ -1243,8 +1243,7 @@ BEGIN
     v_total_credit := p_amount;
   END IF;
 
-  -- Credit TOTAL to available_balance (base amount + bonus if applicable)
-  -- CRITICAL FIX: Add v_total_credit instead of just p_amount
+  -- Credit total amount including any applicable bonus to available_balance
   INSERT INTO sub_account_balances (canonical_user_id, currency, available_balance)
   VALUES (p_canonical_user_id, 'USD', v_total_credit)
   ON CONFLICT (canonical_user_id, currency)
@@ -1257,7 +1256,7 @@ BEGIN
   FROM sub_account_balances
   WHERE canonical_user_id = p_canonical_user_id AND currency = 'USD';
 
-  -- Log in balance ledger (with total amount including bonus)
+  -- Log transaction in balance ledger
   INSERT INTO balance_ledger (
     canonical_user_id,
     transaction_type,
@@ -1267,7 +1266,7 @@ BEGIN
   ) VALUES (
     p_canonical_user_id,
     'deposit',
-    v_total_credit,  -- Log the total including bonus
+    v_total_credit,
     p_reference_id,
     p_reason
   );
