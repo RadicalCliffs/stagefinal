@@ -29,15 +29,27 @@ export interface PendingSignupData {
 }
 
 /**
+ * Helper functions to check storage availability
+ * Prevents repeated typeof checks throughout the code
+ */
+function isLocalStorageAvailable(): boolean {
+  return typeof localStorage !== 'undefined';
+}
+
+function isSessionStorageAvailable(): boolean {
+  return typeof sessionStorage !== 'undefined';
+}
+
+/**
  * Check if a signup flow is currently in progress
  * Returns the pending signup data if found, null otherwise
  */
 export function getSignupInProgress(): PendingSignupData | null {
   try {
     // Check both localStorage and sessionStorage for maximum reliability
-    const localData = typeof localStorage !== 'undefined' ? localStorage.getItem('pendingSignupData') : null;
-    const sessionData = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('pendingSignupData') : null;
-    const signupFlag = typeof localStorage !== 'undefined' ? localStorage.getItem('signupInProgress') : null;
+    const localData = isLocalStorageAvailable() ? localStorage.getItem('pendingSignupData') : null;
+    const sessionData = isSessionStorageAvailable() ? sessionStorage.getItem('pendingSignupData') : null;
+    const signupFlag = isLocalStorageAvailable() ? localStorage.getItem('signupInProgress') : null;
     
     const dataStr = localData || sessionData;
     
@@ -60,8 +72,8 @@ export function getSignupInProgress(): PendingSignupData | null {
     if (signupFlag === 'true') {
       console.log('[SignupGuard] Signup flag is set, but no valid data found');
       // Clear stale flag
-      if (typeof localStorage !== 'undefined') localStorage.removeItem('signupInProgress');
-      if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('signupInProgress');
+      if (isLocalStorageAvailable()) localStorage.removeItem('signupInProgress');
+      if (isSessionStorageAvailable()) sessionStorage.removeItem('signupInProgress');
     }
   } catch (e) {
     console.error('[SignupGuard] Error checking signup status:', e);
@@ -76,11 +88,11 @@ export function getSignupInProgress(): PendingSignupData | null {
  */
 export function clearSignupData(): void {
   try {
-    if (typeof localStorage !== 'undefined') {
+    if (isLocalStorageAvailable()) {
       localStorage.removeItem('pendingSignupData');
       localStorage.removeItem('signupInProgress');
     }
-    if (typeof sessionStorage !== 'undefined') {
+    if (isSessionStorageAvailable()) {
       sessionStorage.removeItem('pendingSignupData');
       sessionStorage.removeItem('signupInProgress');
     }
@@ -97,11 +109,11 @@ export function clearSignupData(): void {
 export function setSignupData(data: PendingSignupData): void {
   try {
     const dataStr = JSON.stringify(data);
-    if (typeof localStorage !== 'undefined') {
+    if (isLocalStorageAvailable()) {
       localStorage.setItem('pendingSignupData', dataStr);
       localStorage.setItem('signupInProgress', 'true');
     }
-    if (typeof sessionStorage !== 'undefined') {
+    if (isSessionStorageAvailable()) {
       sessionStorage.setItem('pendingSignupData', dataStr);
       sessionStorage.setItem('signupInProgress', 'true');
     }

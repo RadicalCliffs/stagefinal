@@ -174,8 +174,8 @@ Deno.serve(async (req: Request) => {
     if (!existingUser) {
       if (isSignupInProgress) {
         console.log(`[create-charge][${requestId}] Signup in progress detected, skipping user creation. Will be created by signup flow.`);
-        // Return success - the user will be created by the signup flow with proper username
-        // For now, just skip the charge creation and return an error asking user to complete signup
+        // Return error - the user will be created by the signup flow with proper username
+        // The user must complete signup before making purchases
         return new Response(
           JSON.stringify({ 
             success: false, 
