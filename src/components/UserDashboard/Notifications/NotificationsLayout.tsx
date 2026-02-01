@@ -11,28 +11,28 @@ const NotificationsLayout = () => {
   const [loading, setLoading] = useState(true);
   const [backfilling, setBackfilling] = useState(false);
   const [backfillStatus, setBackfillStatus] = useState<string | null>(null);
-  const { baseUser, authenticated } = useAuthUser();
+  const { baseUser, canonicalUserId, authenticated } = useAuthUser();
   const hasBackfilled = useRef(false);
 
   const loadNotifications = useCallback(async () => {
-    if (!authenticated || !baseUser?.id) return;
+    if (!authenticated || !canonicalUserId) return;
 
     setLoading(true);
-    const data = await notificationService.getUserNotifications(baseUser.id);
+    const data = await notificationService.getUserNotifications(canonicalUserId);
     setNotifications(data);
     setLoading(false);
     return data;
-  }, [authenticated, baseUser?.id]);
+  }, [authenticated, canonicalUserId]);
 
   // Backfill notifications from activity history
   const handleBackfill = useCallback(async () => {
-    if (!authenticated || !baseUser?.id || backfilling) return;
+    if (!authenticated || !canonicalUserId || backfilling) return;
 
     setBackfilling(true);
     setBackfillStatus('Loading your activity history...');
 
     try {
-      const result = await notificationService.backfillNotificationsFromActivity(baseUser.id);
+      const result = await notificationService.backfillNotificationsFromActivity(canonicalUserId);
       if (result.created > 0) {
         setBackfillStatus(`Added ${result.created} notification${result.created !== 1 ? 's' : ''} from your history`);
         // Reload notifications to show the new ones
@@ -48,21 +48,21 @@ const NotificationsLayout = () => {
       // Clear status after 3 seconds
       setTimeout(() => setBackfillStatus(null), 3000);
     }
-  }, [authenticated, baseUser?.id, backfilling, loadNotifications]);
+  }, [authenticated, canonicalUserId, backfilling, loadNotifications]);
 
   useEffect(() => {
     const init = async () => {
       const data = await loadNotifications();
 
       // Auto-backfill if no notifications exist and we haven't tried yet
-      if (data && data.length === 0 && !hasBackfilled.current && authenticated && baseUser?.id) {
+      if (data && data.length === 0 && !hasBackfilled.current && authenticated && canonicalUserId) {
         hasBackfilled.current = true;
         await handleBackfill();
       }
     };
 
     init();
-  }, [loadNotifications, handleBackfill, authenticated, baseUser?.id]);
+  }, [loadNotifications, handleBackfill, authenticated, canonicalUserId]);
 
   const handleMarkAsRead = async (id: string) => {
     await notificationService.markAsRead(id);
@@ -70,8 +70,8 @@ const NotificationsLayout = () => {
   };
 
   const handleMarkAllAsRead = async () => {
-    if (!baseUser?.id) return;
-    await notificationService.markAllAsRead(baseUser.id);
+    if (!canonicalUserId) return;
+    await notificationService.markAllAsRead(canonicalUserId);
     await loadNotifications();
   };
 
