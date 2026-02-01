@@ -11,10 +11,11 @@ interface BalanceHealthState {
 }
 
 /**
- * Hook to monitor balance synchronization health between canonical_users.balance
+ * Hook to monitor balance synchronization health between canonical_users.usdc_balance
  * and sub_account_balances.available_balance.
  * 
- * Detects race conditions and automatically triggers sync when discrepancies are found.
+ * Detects race conditions when discrepancies are found.
+ * Note: Automatic sync is disabled. Balance sync happens via database triggers.
  */
 export function useBalanceHealthCheck(canonicalUserId: string | null): BalanceHealthState & {
   checkNow: () => Promise<void>;
@@ -38,18 +39,32 @@ export function useBalanceHealthCheck(canonicalUserId: string | null): BalanceHe
       const [canonicalResult, subAccountResult] = await Promise.all([
         supabase
           .from('canonical_users')
-          .select('balance')
+          .select('usdc_balance')
           .eq('canonical_user_id', canonicalId)
-          .maybeSingle(),
+          .maybeSingle<{ usdc_balance: number }>(),
         supabase
           .from('sub_account_balances')
           .select('available_balance')
           .eq('canonical_user_id', canonicalId)
           .eq('currency', 'USD')
-          .maybeSingle(),
+          .maybeSingle<{ available_balance: number }>(),
       ]);
 
-      const canonicalBalance = Number(canonicalResult.data?.balance || 0);
+      if (canonicalResult.error) {
+        console.error('[BalanceHealthCheck] Error fetching canonical balance:', canonicalResult.error);
+        setStatus('error');
+        setLastCheck(new Date());
+        return;
+      }
+
+      if (subAccountResult.error) {
+        console.error('[BalanceHealthCheck] Error fetching sub-account balance:', subAccountResult.error);
+        setStatus('error');
+        setLastCheck(new Date());
+        return;
+      }
+
+      const canonicalBalance = Number(canonicalResult.data?.usdc_balance || 0);
       const subAccountBalance = Number(subAccountResult.data?.available_balance || 0);
       const diff = Math.abs(canonicalBalance - subAccountBalance);
 
@@ -64,32 +79,12 @@ export function useBalanceHealthCheck(canonicalUserId: string | null): BalanceHe
           difference: diff,
         });
 
-        setStatus('syncing');
-        setCheckInterval(10000); // Check more frequently when syncing (10s)
-
-        // Trigger sync using the database RPC function
-        try {
-          const { error: syncError } = await supabase.rpc('sync_user_balances', {
-            p_canonical_user_id: canonicalId,
-          });
-
-          if (syncError) {
-            console.error('[BalanceHealthCheck] Sync failed:', syncError);
-            setStatus('error');
-            setCheckInterval(60000); // Back off to 60s on error
-          } else {
-            console.log('[BalanceHealthCheck] Sync triggered successfully');
-            // Wait a moment and check again
-            setTimeout(() => {
-              setStatus('healthy');
-              setCheckInterval(60000); // Reduce frequency when healthy (60s)
-            }, 2000);
-          }
-        } catch (syncErr) {
-          console.error('[BalanceHealthCheck] Sync RPC error:', syncErr);
-          setStatus('error');
-          setCheckInterval(60000); // Back off to 60s on error
-        }
+        setStatus('error');
+        setCheckInterval(60000); // Back off to 60s when discrepancy detected
+        
+        // Note: Automatic sync is disabled because sync_user_balances function doesn't exist.
+        // The sync_all_user_balances function syncs ALL users and should only be run manually.
+        // Balance sync happens automatically via database triggers when sub_account_balances changes.
       } else {
         // Balances are in sync
         setStatus('healthy');
