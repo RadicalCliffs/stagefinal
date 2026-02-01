@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { toPrizePid } from '../utils/userId';
 
-export type BalanceHealthStatus = 'healthy' | 'syncing' | 'checking' | 'error';
+export type BalanceHealthStatus = 'healthy' | 'checking' | 'error';
 
 interface BalanceHealthState {
   status: BalanceHealthStatus;
@@ -14,8 +14,10 @@ interface BalanceHealthState {
  * Hook to monitor balance synchronization health between canonical_users.usdc_balance
  * and sub_account_balances.available_balance.
  * 
- * Detects race conditions when discrepancies are found.
- * Note: Automatic sync is disabled. Balance sync happens via database triggers.
+/*
+Detects discrepancies and flags an error state for backend reconciliation.
+Race conditions may occur; automatic sync is disabled.
+Balance synchronization is handled via database triggers. /
  */
 export function useBalanceHealthCheck(canonicalUserId: string | null): BalanceHealthState & {
   checkNow: () => Promise<void>;
@@ -23,7 +25,6 @@ export function useBalanceHealthCheck(canonicalUserId: string | null): BalanceHe
   const [status, setStatus] = useState<BalanceHealthStatus>('checking');
   const [lastCheck, setLastCheck] = useState<Date | null>(null);
   const [discrepancy, setDiscrepancy] = useState<number | null>(null);
-  const [checkInterval, setCheckInterval] = useState<number>(30000); // Start with 30s
 
   const checkHealth = useCallback(async () => {
     if (!canonicalUserId) {
@@ -78,17 +79,16 @@ export function useBalanceHealthCheck(canonicalUserId: string | null): BalanceHe
           subAccount: subAccountBalance,
           difference: diff,
         });
-
-        setStatus('error');
-        setCheckInterval(60000); // Back off to 60s when discrepancy detected
-        
-        // Note: Automatic sync is disabled because sync_user_balances function doesn't exist.
-        // The sync_all_user_balances function syncs ALL users and should only be run manually.
-        // Balance sync happens automatically via database triggers when sub_account_balances changes.
+// Mark as error; manual intervention or backend reconciliation required.
+// Automatic sync is disabled (sync_user_balances does not exist).
+// sync_all_user_balances affects ALL users and should only be run manually.
+// Balance reconciliation occurs via database triggers on sub_account_balances changes.
+// Back off polling to reduce pressure during discrepancy states.
+setStatus('error');
+setCheckInterval(60000); // 60s backoff when discrepancy detected
       } else {
         // Balances are in sync
         setStatus('healthy');
-        setCheckInterval(60000); // Reduce frequency when healthy (60s)
       }
     } catch (err) {
       console.error('[BalanceHealthCheck] Error checking balance health:', err);
@@ -103,11 +103,11 @@ export function useBalanceHealthCheck(canonicalUserId: string | null): BalanceHe
     // Initial health check
     checkHealth();
 
-    // Periodic health check with dynamic interval
-    const interval = setInterval(checkHealth, checkInterval);
+    // Periodic health check every 60 seconds
+    const interval = setInterval(checkHealth, 60000);
 
     return () => clearInterval(interval);
-  }, [canonicalUserId, checkHealth, checkInterval]);
+  }, [canonicalUserId, checkHealth]);
 
   return {
     status,
