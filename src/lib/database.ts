@@ -1677,13 +1677,20 @@ export const database = {
             : `${tx.amount} ${tx.currency?.toUpperCase() || ''}`,
           currency: tx.currency,
           network: tx.network || tx.payment_provider || 'crypto',
-          tx_id: tx.tx_id || tx.order_id || null,
+          tx_id: tx.tx_id || tx.transaction_hash || tx.order_id || null,
           status: tx.status,
           payment_status: tx.payment_status,
           created_at: tx.created_at,
           completed_at: tx.completed_at,
           is_topup: isTopUp,
           transaction_type: isTopUp ? 'topup' : 'entry',
+          // Additional fields for Orders dashboard
+          type: tx.type,
+          balance_before: tx.balance_before,
+          balance_after: tx.balance_after,
+          payment_provider: tx.payment_provider || 'unknown',
+          metadata: tx.metadata,
+          transaction_hash: tx.transaction_hash,
           action: (() => {
             const statusLower = (tx.status || '').toLowerCase().trim();
             if (statusLower === 'completed' || statusLower === 'finished' || statusLower === 'confirmed' || statusLower === 'success') return 'View';
@@ -1762,13 +1769,20 @@ export const database = {
               : `${tx.amount} ${tx.currency?.toUpperCase() || ''}`,
             currency: tx.currency,
             network: tx.network || tx.payment_provider || 'crypto',
-            tx_id: tx.tx_id || tx.order_id || null,
+            tx_id: tx.tx_id || tx.transaction_hash || tx.order_id || null,
             status: tx.status,
             payment_status: tx.payment_status,
             created_at: tx.created_at,
             completed_at: tx.completed_at,
             is_topup: isTopUp,
             transaction_type: isTopUp ? 'topup' : 'entry',
+            // Additional fields for Orders dashboard
+            type: tx.type,
+            balance_before: tx.balance_before,
+            balance_after: tx.balance_after,
+            payment_provider: tx.payment_provider || 'unknown',
+            metadata: tx.metadata,
+            transaction_hash: tx.transaction_hash,
             action: (() => {
               const statusLower = (tx.status || '').toLowerCase().trim();
               if (statusLower === 'completed' || statusLower === 'finished' || statusLower === 'confirmed' || statusLower === 'success') return 'View';

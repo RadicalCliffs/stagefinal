@@ -7,7 +7,7 @@ import type { Options } from '../../../models/models';
 
 const OPTIONS:Options[] = [
   { label: 'Purchases', key: 'purchases' },
-  { label: 'Entries', key: 'entries' },
+  { label: 'Transactions', key: 'entries' },
 ];
 
 export default function OrdersLayout() {

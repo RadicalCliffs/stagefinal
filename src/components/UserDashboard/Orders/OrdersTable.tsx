@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router";
 import { useState, type FC } from "react";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, ChevronDown, ChevronUp } from "lucide-react";
 import type { EntryOrder, PurchaseOrder } from "../../../models/models";
 
 
@@ -31,9 +31,40 @@ function getEffectiveStatus(item: any): string {
   return rawStatus || 'live';
 }
 
+/**
+ * Compute cost from transaction data
+ * Priority: amount > balance_delta > 0
+ */
+function computeCost(item: any): string {
+  if (item.amount !== null && item.amount !== undefined) {
+    return `$${Number(item.amount).toFixed(2)}`;
+  }
+  
+  if (item.balance_before !== null && item.balance_before !== undefined &&
+      item.balance_after !== null && item.balance_after !== undefined) {
+    const delta = Math.abs(Number(item.balance_before) - Number(item.balance_after));
+    return `$${delta.toFixed(2)}`;
+  }
+  
+  return '-';
+}
+
 const OrdersTable: FC<OrdersTableProps> = ({ activeTab, data }) => {
   const navigate = useNavigate();
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [expandedMetadata, setExpandedMetadata] = useState<Set<string>>(new Set());
+
+  const toggleMetadata = (id: string) => {
+    setExpandedMetadata(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
 
   // Generate full BaseScan URL from transaction hash
   const getBaseScanUrl = (txHash: string): string => {
@@ -67,19 +98,22 @@ const OrdersTable: FC<OrdersTableProps> = ({ activeTab, data }) => {
     <div className="border-[2px] border-[#DDE404] rounded-lg mx-auto overflow-hidden relative z-10">
       {/* Desktop Header */}
       {activeTab.key === "purchases" ? (
-        <div className="hidden uppercase lg:grid items-center grid-cols-5 text-white sequel-75 text-base px-10 py-6 border-b-[2px] border-[#DDE404]">
-          <p className="w-7/12 text-center">Description</p>
-          <p >Network</p>
-          <p >TX Hash</p>
-          <p className="text-center">Date/ <br /> Time</p>
+        <div className="hidden uppercase lg:grid items-center grid-cols-8 text-white sequel-75 text-xs px-10 py-6 border-b-[2px] border-[#DDE404]">
+          <p className="text-center col-span-2">Description</p>
+          <p className="text-center">Payment Provider</p>
+          <p className="text-center">TX Hash</p>
+          <p className="text-center">Balance Before</p>
+          <p className="text-center">Balance After</p>
+          <p className="text-center">Completed At</p>
           <p className="text-center">Amount</p>
         </div>
       ) : (
-        <div className="hidden uppercase lg:grid grid-cols-5 text-white sequel-75 items-center text-base px-10 py-6 border-b-[2px] border-[#DDE404]">
+        <div className="hidden uppercase lg:grid grid-cols-6 text-white sequel-75 items-center text-xs px-10 py-6 border-b-[2px] border-[#DDE404]">
           <p className="text-center">Competition <br /> Name</p>
-          <p className="text-center">Tickets</p>
+          <p className="text-center">Type</p>
+          <p className="text-center">Payment <br /> Provider</p>
           <p className="text-center">Date/ <br />Time</p>
-          <p className="text-center">Amount</p>
+          <p className="text-center">Cost</p>
           <p className="text-center">Status</p>
         </div>
       )}
@@ -92,62 +126,98 @@ const OrdersTable: FC<OrdersTableProps> = ({ activeTab, data }) => {
               <div key={index}>
                 {/* Desktop layout */}
                 {activeTab.key === "purchases" ? (
-                  <div className="hidden lg:grid grid-cols-5 text-white sequel-45 items-center">
-                    <p className="text-white/60 text-center w-1/2">
+                  <div className="hidden lg:grid grid-cols-8 text-white sequel-45 items-center text-xs">
+                    <p className="text-white/60 text-center col-span-2">
                       {item.is_topup ? item.competition_name : `${item.ticket_count} ticket${item.ticket_count !== 1 ? 's' : ''} - ${item.competition_name}`}
                     </p>
-                    <p className="text-white/60 ">{item.network}</p>
-                    <div className="flex items-center gap-2">
-                      <p className="text-white/60 truncate max-w-[140px]">{item.tx_id}</p>
-                      {item.tx_id && (
+                    <p className="text-white/60 text-center">{item.payment_provider || 'unknown'}</p>
+                    <div className="flex items-center gap-2 justify-center">
+                      <p className="text-white/60 truncate max-w-[100px]">{item.tx_id || item.transaction_hash || '-'}</p>
+                      {(item.tx_id || item.transaction_hash) && (
                         <button
-                          onClick={() => handleCopyTxHash(item.tx_id, item.id)}
+                          onClick={() => handleCopyTxHash(item.tx_id || item.transaction_hash, item.id)}
                           className="text-white/60 hover:text-[#DDE404] transition-colors"
                           title="Copy BaseScan URL"
                         >
                           {copiedId === item.id ? (
-                            <Check size={16} className="text-[#DDE404]" />
+                            <Check size={14} className="text-[#DDE404]" />
                           ) : (
-                            <Copy size={16} />
+                            <Copy size={14} />
                           )}
                         </button>
                       )}
                     </div>
-                    <p className="text-white/60 text-center">  {new Date(item.created_at).toLocaleString()}</p>
+                    <p className="text-white/60 text-center">
+                      {item.balance_before !== null && item.balance_before !== undefined 
+                        ? `$${Number(item.balance_before).toFixed(2)}` 
+                        : '-'}
+                    </p>
+                    <p className="text-white/60 text-center">
+                      {item.balance_after !== null && item.balance_after !== undefined 
+                        ? `$${Number(item.balance_after).toFixed(2)}` 
+                        : '-'}
+                    </p>
+                    <p className="text-white/60 text-center">
+                      {item.completed_at ? new Date(item.completed_at).toLocaleString() : '-'}
+                    </p>
                     <p
                       onClick={() => handleAmountClick(item.id)}
-                      className="text-[#DDE404]  cursor-pointer hover:underline text-center"
+                      className="text-[#DDE404] cursor-pointer hover:underline text-center"
                     >
                       {item.amount_usd}
                     </p>
                   </div>
                 ) : (
-                  <div className="hidden lg:grid grid-cols-5 text-white sequel-45 items-center">
-                    {item.transaction_type === 'topup' ? (
-                      <span className="text-green-500 text-center">Wallet Top-Up</span>
-                    ) : (
-                      <p className="text-white/60 truncate max-w-[200px] text-center">{item.title || item.competition_name || 'Unknown Competition'}</p>
-                    )}
-                    <p className="text-white/60 text-center">{item.number_of_tickets || item.ticket_count || '-'}</p>
-                    <p className="text-white/60 text-center">{new Date(item.purchase_date || item.created_at).toLocaleString()}</p>
-                    <p
-                      onClick={() => navigate(`/dashboard/entries/competition/${item.competition_id}`)}
-                      className="text-[#DDE404] text-center cursor-pointer hover:underline"
-                    >
-                      {item.amount_spent ? `$${parseFloat(item.amount_spent).toFixed(2)}` : item.amount_usd || '-'}
-                    </p>
-                    {(() => {
-                      const effectiveStatus = getEffectiveStatus(item);
-                      const isFinished = effectiveStatus === 'completed' || effectiveStatus === 'drawn';
-                      return (
+                  <div className="hidden lg:block text-white sequel-45 text-xs">
+                    <div className="grid grid-cols-6 items-center gap-2">
+                      {item.transaction_type === 'topup' ? (
+                        <span className="text-green-500 text-center">Wallet Top-Up</span>
+                      ) : (
+                        <p className="text-white/60 truncate max-w-[150px] text-center">{item.title || item.competition_name || 'Unknown Competition'}</p>
+                      )}
+                      <p className="text-white/60 text-center">{item.type || '-'}</p>
+                      <p className="text-white/60 text-center">{item.payment_provider || 'unknown'}</p>
+                      <p className="text-white/60 text-center">{new Date(item.purchase_date || item.created_at).toLocaleString()}</p>
+                      <p
+                        onClick={() => navigate(`/dashboard/entries/competition/${item.competition_id}`)}
+                        className="text-[#DDE404] text-center cursor-pointer hover:underline"
+                      >
+                        {computeCost(item)}
+                      </p>
+                      {(() => {
+                        const effectiveStatus = getEffectiveStatus(item);
+                        const isFinished = effectiveStatus === 'completed' || effectiveStatus === 'drawn';
+                        return (
+                          <button
+                            onClick={() => navigate(`/dashboard/entries/competition/${item.competition_id}`)}
+                            className="bg-[#DDE404] cursor-pointer hover:bg-[#DDE404]/90 text-black text-center sequel-95 py-1 rounded-md uppercase text-xs"
+                          >
+                            {effectiveStatus === 'live' ? 'Live' : effectiveStatus === 'pending' ? 'Pending' : isFinished ? (item.is_winner ? 'Won!' : 'View Results') : item.action || "View"}
+                          </button>
+                        );
+                      })()}
+                    </div>
+                    {/* Metadata row - collapsible */}
+                    {item.metadata && (
+                      <div className="mt-2">
                         <button
-                          onClick={() => navigate(`/dashboard/entries/competition/${item.competition_id}`)}
-                          className="bg-[#DDE404] cursor-pointer hover:bg-[#DDE404]/90 text-black text-center sequel-95 py-1 rounded-md uppercase"
+                          onClick={() => toggleMetadata(item.id)}
+                          className="flex items-center gap-1 text-white/60 hover:text-white text-xs"
                         >
-                          {effectiveStatus === 'live' ? 'Live' : effectiveStatus === 'pending' ? 'Pending' : isFinished ? (item.is_winner ? 'Won!' : 'View Results') : item.action || "View"}
+                          {expandedMetadata.has(item.id) ? (
+                            <ChevronUp size={14} />
+                          ) : (
+                            <ChevronDown size={14} />
+                          )}
+                          <span>Metadata</span>
                         </button>
-                      );
-                    })()}
+                        {expandedMetadata.has(item.id) && (
+                          <pre className="mt-2 p-2 bg-black/30 rounded text-xs overflow-auto max-h-40 text-white/70">
+                            {JSON.stringify(item.metadata, null, 2)}
+                          </pre>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -168,16 +238,16 @@ const OrdersTable: FC<OrdersTableProps> = ({ activeTab, data }) => {
                         </div>
                       )}
                       <div className="flex justify-between gap-4">
-                        <p className="text-white/60">Network</p>
-                        <p className="text-white">{item.network}</p>
+                        <p className="text-white/60">Payment Provider</p>
+                        <p className="text-white">{item.payment_provider || 'unknown'}</p>
                       </div>
                       <div className="flex justify-between gap-4 items-center">
                         <p className="text-white/60">TX Hash</p>
                         <div className="flex items-center gap-2">
-                          <p className="text-white truncate max-w-[130px] text-right">{item.tx_id}</p>
-                          {item.tx_id && (
+                          <p className="text-white truncate max-w-[130px] text-right">{item.tx_id || item.transaction_hash || '-'}</p>
+                          {(item.tx_id || item.transaction_hash) && (
                             <button
-                              onClick={() => handleCopyTxHash(item.tx_id, item.id)}
+                              onClick={() => handleCopyTxHash(item.tx_id || item.transaction_hash, item.id)}
                               className="text-white/60 hover:text-[#DDE404] transition-colors flex-shrink-0"
                               title="Copy BaseScan URL"
                             >
@@ -191,8 +261,26 @@ const OrdersTable: FC<OrdersTableProps> = ({ activeTab, data }) => {
                         </div>
                       </div>
                       <div className="flex justify-between gap-4">
-                        <p className="text-white/60">Date</p>
-                        <p className="text-white truncate max-w-[160px] text-right">{new Date(item.created_at).toLocaleString()}</p>
+                        <p className="text-white/60">Balance Before</p>
+                        <p className="text-white">
+                          {item.balance_before !== null && item.balance_before !== undefined 
+                            ? `$${Number(item.balance_before).toFixed(2)}` 
+                            : '-'}
+                        </p>
+                      </div>
+                      <div className="flex justify-between gap-4">
+                        <p className="text-white/60">Balance After</p>
+                        <p className="text-white">
+                          {item.balance_after !== null && item.balance_after !== undefined 
+                            ? `$${Number(item.balance_after).toFixed(2)}` 
+                            : '-'}
+                        </p>
+                      </div>
+                      <div className="flex justify-between gap-4">
+                        <p className="text-white/60">Completed At</p>
+                        <p className="text-white truncate max-w-[160px] text-right">
+                          {item.completed_at ? new Date(item.completed_at).toLocaleString() : '-'}
+                        </p>
                       </div>
                       <div className="flex justify-between gap-4">
                         <p className="text-white/60">Amount</p>
@@ -213,24 +301,47 @@ const OrdersTable: FC<OrdersTableProps> = ({ activeTab, data }) => {
                         </p>
                       </div>
                       <div className="flex justify-between gap-4">
-                        <p className="text-white/60">Tickets</p>
-                        <p className="text-white text-right">
-                          {item.number_of_tickets || item.ticket_count || '-'}
-                        </p>
+                        <p className="text-white/60">Type</p>
+                        <p className="text-white text-right">{item.type || '-'}</p>
+                      </div>
+                      <div className="flex justify-between gap-4">
+                        <p className="text-white/60">Payment Provider</p>
+                        <p className="text-white text-right">{item.payment_provider || 'unknown'}</p>
                       </div>
                       <div className="flex justify-between gap-4">
                         <p className="text-white/60">Date</p>
                         <p className="text-white truncate max-w-[160px] text-right">{new Date(item.purchase_date || item.created_at).toLocaleString()}</p>
                       </div>
                       <div className="flex justify-between gap-4">
-                        <p className="text-white/60">Amount</p>
+                        <p className="text-white/60">Cost</p>
                         <p
                           onClick={() => handleAmountClick(item.competition_id || item.id)}
                           className="text-[#DDE404] cursor-pointer hover:underline"
                         >
-                          {item.amount_spent ? `$${parseFloat(item.amount_spent).toFixed(2)}` : item.amount_usd || '-'}
+                          {computeCost(item)}
                         </p>
                       </div>
+                      {/* Metadata - mobile */}
+                      {item.metadata && (
+                        <div className="pt-2">
+                          <button
+                            onClick={() => toggleMetadata(item.id)}
+                            className="flex items-center gap-1 text-white/60 hover:text-white text-xs"
+                          >
+                            {expandedMetadata.has(item.id) ? (
+                              <ChevronUp size={14} />
+                            ) : (
+                              <ChevronDown size={14} />
+                            )}
+                            <span>Metadata</span>
+                          </button>
+                          {expandedMetadata.has(item.id) && (
+                            <pre className="mt-2 p-2 bg-black/30 rounded text-xs overflow-auto max-h-40 text-white/70">
+                              {JSON.stringify(item.metadata, null, 2)}
+                            </pre>
+                          )}
+                        </div>
+                      )}
                       {(() => {
                         const effectiveStatus = getEffectiveStatus(item);
                         const isFinished = effectiveStatus === 'completed' || effectiveStatus === 'drawn';
