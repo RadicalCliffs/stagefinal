@@ -104,12 +104,16 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
       email: options.email || profileData.email,
     };
 
-    localStorage.setItem('pendingSignupData', JSON.stringify({
+    // CRITICAL: Store in BOTH localStorage AND sessionStorage for maximum reliability
+    // Use the new signupGuard utility for consistent behavior
+    const signupDataObj = {
       profileData: effectiveProfileData,
       isReturningUser: options.isReturningUser ?? isReturningUser,
       timestamp: Date.now(),
       ...(options.returningUserWalletAddress && { returningUserWalletAddress: options.returningUserWalletAddress })
-    }));
+    };
+    
+    setSignupData(signupDataObj);
 
     // Close this modal
     onClose();

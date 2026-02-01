@@ -3,6 +3,7 @@ import { userDataService } from '../services/userDataService';
 import { toPrizePid, isWalletAddress, normalizeWalletAddress } from '../utils/userId';
 import { toCanonicalUserId } from './canonicalUserId';
 import { generatePrivyStyleId } from './identity';
+import { getSignupInProgress, shouldBlockUserCreation } from '../utils/signupGuard';
 
 // Re-export toPrizePid for other modules
 export { toPrizePid } from '../utils/userId';
@@ -532,6 +533,16 @@ export const userAuth = {
       }
     }
 
+    // CRITICAL FIX: Check if signup is in progress before creating user with random username
+    // Use the centralized signup guard utility
+    if (shouldBlockUserCreation()) {
+      const pendingData = getSignupInProgress();
+      console.log('[user-auth] Signup in progress detected with username:', pendingData?.profileData?.username);
+      console.log('[user-auth] Waiting for signup flow to complete via upsert-user');
+      // Return an error to prevent user creation with random username
+      throw new Error('Signup in progress. Please complete the signup flow.');
+    }
+
     const newUser = {
       canonical_user_id: canonicalUserId, // NEW: Store canonical format
       privy_user_id: inputUserId, // Keep legacy field for backward compatibility
@@ -539,6 +550,7 @@ export const userAuth = {
       eth_wallet_address: walletAddress ? normalizeWalletAddress(walletAddress) : null,
       base_wallet_address: walletAddress ? normalizeWalletAddress(walletAddress) : null,
       email: email ? email.toLowerCase().trim() : null,
+      // CRITICAL: Only use fallback username if NOT in signup flow
       username: email?.split('@')[0] || `user_${Date.now()}`,
       // Use getRandomAvatar() ONLY during account creation so user gets a unique avatar once
       // After creation, the avatar_url is stored in the database and should not be regenerated

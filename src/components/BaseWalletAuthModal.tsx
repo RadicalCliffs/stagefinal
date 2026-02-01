@@ -7,6 +7,7 @@ import { supabase } from "../lib/supabase";
 import { userDataService } from "../services/userDataService";
 import { toPrizePid } from "../utils/userId";
 import { truncateWalletAddress } from "../utils/util";
+import { clearSignupData } from "../utils/signupGuard";
 import BaseLogo from "../assets/images/Base_lockup_white.png";
 
 /**
@@ -772,9 +773,9 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
         setWaitingForWallet(false);
         profileCheckedRef.current = true;
 
-        // Check if we have pending signup data from NewAuthModal FIRST
-        // This data contains the verified email from the OTP step
-        let pendingDataStr = localStorage.getItem('pendingSignupData');
+        // CRITICAL FIX: Check BOTH localStorage AND sessionStorage for pending signup data
+        // This provides maximum reliability against race conditions
+        let pendingDataStr = localStorage.getItem('pendingSignupData') || sessionStorage.getItem('pendingSignupData');
         let pendingData = null;
         
         if (pendingDataStr) {
@@ -797,7 +798,8 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
           console.log('[BaseWallet] No pending signup data found initially, attempting quick retries...');
           while (!pendingDataStr && retryCount < PENDING_DATA_MAX_RETRIES) {
             await new Promise(resolve => setTimeout(resolve, PENDING_DATA_RETRY_DELAY_MS));
-            pendingDataStr = localStorage.getItem('pendingSignupData');
+            // BULLETPROOF: Check BOTH storage locations on retry
+            pendingDataStr = localStorage.getItem('pendingSignupData') || sessionStorage.getItem('pendingSignupData');
             retryCount++;
           }
           
@@ -903,7 +905,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                   savedToDbRef.current = true;
                   localStorage.setItem('cdp:wallet_address', evmAddress);
                   // CRITICAL: Clear pendingSignupData after successful creation
-                  localStorage.removeItem('pendingSignupData');
+                  clearSignupData();
                   window.dispatchEvent(new CustomEvent('auth-complete', {
                     detail: { walletAddress: evmAddress, email: userEmail }
                   }));
@@ -939,7 +941,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               localStorage.setItem('cdp:wallet_address', evmAddress);
               
               // CRITICAL: Clear pendingSignupData after successful creation
-              localStorage.removeItem('pendingSignupData');
+              clearSignupData();
 
               // Dispatch auth-complete event for AuthContext to refresh user data
               window.dispatchEvent(new CustomEvent('auth-complete', {
@@ -1079,7 +1081,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
           if (result.success) {
             // Clear pending data after successful connection
-            localStorage.removeItem('pendingSignupData');
+            clearSignupData();
             savedToDbRef.current = true;
             localStorage.setItem('cdp:wallet_address', wagmiAddress);
 
@@ -1143,7 +1145,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                 avatar: profileData.avatar,
               });
               if (directResult.success) {
-                localStorage.removeItem('pendingSignupData');
+                clearSignupData();
                 savedToDbRef.current = true;
                 localStorage.setItem('cdp:wallet_address', wagmiAddress);
                 window.dispatchEvent(new CustomEvent('auth-complete', {
@@ -1161,7 +1163,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             }
 
             // Clear pending data after successful creation
-            localStorage.removeItem('pendingSignupData');
+            clearSignupData();
             savedToDbRef.current = true;
             localStorage.setItem('cdp:wallet_address', wagmiAddress);
 
@@ -1191,7 +1193,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
           const result = await linkWalletToExistingUser(effectiveEmailForLinking, wagmiAddress, profileDataForFallback);
 
           if (result.success) {
-            localStorage.removeItem('pendingSignupData');
+            clearSignupData();
             savedToDbRef.current = true;
             localStorage.setItem('cdp:wallet_address', wagmiAddress);
 
