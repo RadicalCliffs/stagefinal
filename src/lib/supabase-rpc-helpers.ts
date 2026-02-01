@@ -86,9 +86,9 @@ export const getDashboardEntries = (
     throw new Error('canonicalId is required for getDashboardEntries');
   }
 
-  // Use params jsonb signature with user_identifier key
+  // Use correct parameter name: p_user_identifier (not wrapped in params object)
   return supabaseClient.rpc('get_comprehensive_user_dashboard_entries', {
-    params: { user_identifier: canonicalId }
+    p_user_identifier: canonicalId
   });
 };
 
