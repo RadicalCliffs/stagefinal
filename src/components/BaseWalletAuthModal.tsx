@@ -174,21 +174,63 @@ async function linkWalletToExistingUser(
     const requestPromise = (async () => {
       try {
 
-    // Find user by email (case-insensitive)
-    // CRITICAL: Use ilike for case-insensitive matching to find pre-created users
-    const { data: existingUser, error: fetchError } = await supabase
-      .from('canonical_users')
-      .select('id, username, email, country, first_name, last_name')
-      .ilike('email', normalizedEmail)
-      .maybeSingle() as { data: any; error: any };
+    // CRITICAL: Check for pending signup data (from NewAuthModal) first
+    // This contains the uid and temporary placeholder canonical_user_id
+    let pendingSignupUid: string | null = null;
+    let pendingSignupData: any = null;
+    
+    const pendingDataStr = localStorage.getItem('pendingSignupData') || sessionStorage.getItem('pendingSignupData');
+    if (pendingDataStr) {
+      try {
+        pendingSignupData = JSON.parse(pendingDataStr);
+        pendingSignupUid = pendingSignupData.uid;
+        console.log('[BaseWallet] Found pending signup data with uid:', pendingSignupUid);
+      } catch (e) {
+        console.error('[BaseWallet] Failed to parse pending signup data:', e);
+      }
+    }
+
+    // Find user by uid (if available from pending signup) OR email (case-insensitive)
+    // CRITICAL: Use uid first for exact match to pre-created placeholder user
+    let existingUser: any = null;
+    let fetchError: any = null;
+    
+    if (pendingSignupUid) {
+      console.log('[BaseWallet] Looking up user by uid from pending signup:', pendingSignupUid);
+      const result = await supabase
+        .from('canonical_users')
+        .select('id, uid, canonical_user_id, username, email, country, first_name, last_name')
+        .eq('uid', pendingSignupUid)
+        .maybeSingle() as { data: any; error: any };
+      
+      existingUser = result.data;
+      fetchError = result.error;
+      
+      if (existingUser) {
+        console.log('[BaseWallet] Found user by uid with placeholder canonical_user_id:', existingUser.canonical_user_id);
+      }
+    }
+    
+    // Fallback: Find user by email if not found by uid
+    if (!existingUser) {
+      console.log('[BaseWallet] Looking up user by email:', normalizedEmail);
+      const result = await supabase
+        .from('canonical_users')
+        .select('id, uid, canonical_user_id, username, email, country, first_name, last_name')
+        .ilike('email', normalizedEmail)
+        .maybeSingle() as { data: any; error: any };
+      
+      existingUser = result.data;
+      fetchError = result.error;
+    }
 
     if (fetchError) {
-      console.error('[BaseWallet] Error finding user by email:', fetchError);
+      console.error('[BaseWallet] Error finding user:', fetchError);
       // Don't return false - fall through to upsert
     }
 
     if (existingUser) {
-      console.log('[BaseWallet] Found user by email, updating with wallet:', existingUser.id);
+      console.log('[BaseWallet] Found existing user, updating with wallet. uid:', existingUser.uid, 'old canonical_user_id:', existingUser.canonical_user_id);
 
       // Update user with wallet info - THIS IS CRITICAL for saving wallet to Supabase
       const { error: updateError } = await supabase
@@ -241,12 +283,13 @@ async function linkWalletToExistingUser(
 
       // CRITICAL: Call upsert_canonical_user RPC after wallet link completion
       // This ensures canonical_users table is up-to-date with wallet linkage
+      // Use the uid (not id) to match the user and replace placeholder canonical_user_id
       // NOTE: Parameters must match the database function signature exactly
       try {
         console.log('[BaseWallet] Calling upsert_canonical_user RPC for wallet link completion');
 
         const { error: upsertError } = await supabase.rpc('upsert_canonical_user', {
-          p_uid: existingUser.id,
+          p_uid: existingUser.uid,  // CRITICAL: Use uid for placeholder replacement
           p_canonical_user_id: canonicalUserId,
           p_email: normalizedEmail || null,
           p_username: existingUser.username || null,

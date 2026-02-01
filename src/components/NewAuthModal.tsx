@@ -386,26 +386,50 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
       
       if (!isReturningUser) {
         try {
-          // Generate a unique temporary user ID using crypto.randomUUID for guaranteed uniqueness
-          // Format: email_prefix_uuid16 (16 hex chars from 32-char UUID without dashes)
-          const emailPrefix = profileData.email.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 20);
-          const uniqueId = crypto.randomUUID().replace(/-/g, '').slice(0, 16); // First 16 chars of 32-char hex
-          const tempUserId = `${emailPrefix}_${uniqueId}`;
-          const partialCanonicalId = `prize:pid:${tempUserId}`;
+          // Allocate a unique temporary placeholder ID from database (prize:pid:temp<N>)
+          // This ensures atomicity and prevents collisions across concurrent signups
+          console.log('[NewAuthModal] Allocating temporary placeholder canonical_user_id');
           
-          console.log('[NewAuthModal] Creating canonical_users record with partial ID:', partialCanonicalId);
+          const { data: allocResult, error: allocError } = await supabase
+            .rpc('allocate_temp_canonical_user');
           
+          if (allocError || !allocResult) {
+            console.error('[NewAuthModal] Failed to allocate temp user:', allocError);
+            throw new Error('Failed to initialize user account. Please try again.');
+          }
+          
+          const tempUid = allocResult.uid;
+          const tempCanonicalUserId = allocResult.canonical_user_id;
+          
+          console.log('[NewAuthModal] Allocated temp user:', { uid: tempUid, canonical_user_id: tempCanonicalUserId });
+          
+          // Store in sessionStorage for BaseWalletAuthModal to use when wallet connects
+          sessionStorage.setItem('pendingSignupData', JSON.stringify({
+            uid: tempUid,
+            canonical_user_id: tempCanonicalUserId,
+            email: profileData.email.toLowerCase(),
+            username: profileData.username.toLowerCase(),
+            firstName: profileData.firstName,
+            lastName: profileData.lastName,
+            telegram: profileData.telegram,
+            country: profileData.country,
+            timestamp: Date.now(),
+          }));
+          
+          // Create canonical_users record with temporary placeholder
           // Call upsert_canonical_user RPC function (has SECURITY DEFINER to bypass RLS)
-          // This is the correct way to create users from the frontend
+          console.log('[NewAuthModal] Creating canonical_users record with temp placeholder');
+          
           const { data: rpcResult, error: rpcError } = await supabase
             .rpc('upsert_canonical_user', {
-              p_uid: tempUserId,
-              p_canonical_user_id: partialCanonicalId,
+              p_uid: tempUid,
+              p_canonical_user_id: tempCanonicalUserId,
               p_email: profileData.email.toLowerCase(),
               p_username: profileData.username.toLowerCase(),
               p_first_name: profileData.firstName || null,
               p_last_name: profileData.lastName || null,
               p_telegram_handle: profileData.telegram || null,
+              p_country: profileData.country || null,
             });
           
           if (rpcError) {
@@ -413,7 +437,7 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
             throw new Error('Failed to save user data. Please try again.');
           }
           
-          console.log('[NewAuthModal] User record created successfully:', rpcResult);
+          console.log('[NewAuthModal] User record created successfully with temp ID:', rpcResult);
         } catch (userCreateErr) {
           console.error('[NewAuthModal] Error creating user record:', userCreateErr);
           setError('Failed to save your profile. Please try again.');
