@@ -14,7 +14,8 @@ interface BalanceHealthState {
  * Hook to monitor balance synchronization health between canonical_users.balance
  * and sub_account_balances.available_balance.
  * 
- * Detects race conditions and automatically triggers sync when discrepancies are found.
+ * Detects discrepancies and reports error state when found.
+ * Backend processes should handle balance reconciliation.
  */
 export function useBalanceHealthCheck(canonicalUserId: string | null): BalanceHealthState & {
   checkNow: () => Promise<void>;
@@ -22,7 +23,6 @@ export function useBalanceHealthCheck(canonicalUserId: string | null): BalanceHe
   const [status, setStatus] = useState<BalanceHealthStatus>('checking');
   const [lastCheck, setLastCheck] = useState<Date | null>(null);
   const [discrepancy, setDiscrepancy] = useState<number | null>(null);
-  const [checkInterval, setCheckInterval] = useState<number>(30000); // Start with 30s
 
   const checkHealth = useCallback(async () => {
     if (!canonicalUserId) {
@@ -64,36 +64,13 @@ export function useBalanceHealthCheck(canonicalUserId: string | null): BalanceHe
           difference: diff,
         });
 
-        setStatus('syncing');
-        setCheckInterval(10000); // Check more frequently when syncing (10s)
-
-        // Trigger sync using the database RPC function
-        try {
-          const { error: syncError } = await supabase.rpc('sync_user_balances', {
-            p_canonical_user_id: canonicalId,
-          });
-
-          if (syncError) {
-            console.error('[BalanceHealthCheck] Sync failed:', syncError);
-            setStatus('error');
-            setCheckInterval(60000); // Back off to 60s on error
-          } else {
-            console.log('[BalanceHealthCheck] Sync triggered successfully');
-            // Wait a moment and check again
-            setTimeout(() => {
-              setStatus('healthy');
-              setCheckInterval(60000); // Reduce frequency when healthy (60s)
-            }, 2000);
-          }
-        } catch (syncErr) {
-          console.error('[BalanceHealthCheck] Sync RPC error:', syncErr);
-          setStatus('error');
-          setCheckInterval(60000); // Back off to 60s on error
-        }
+        // Mark as error state - manual intervention or backend sync needed
+        // NOTE: Automatic sync via RPC removed as sync_user_balances function doesn't exist
+        // The backend should handle balance reconciliation through its normal processes
+        setStatus('error');
       } else {
         // Balances are in sync
         setStatus('healthy');
-        setCheckInterval(60000); // Reduce frequency when healthy (60s)
       }
     } catch (err) {
       console.error('[BalanceHealthCheck] Error checking balance health:', err);
@@ -108,11 +85,11 @@ export function useBalanceHealthCheck(canonicalUserId: string | null): BalanceHe
     // Initial health check
     checkHealth();
 
-    // Periodic health check with dynamic interval
-    const interval = setInterval(checkHealth, checkInterval);
+    // Periodic health check every 60 seconds
+    const interval = setInterval(checkHealth, 60000);
 
     return () => clearInterval(interval);
-  }, [canonicalUserId, checkHealth, checkInterval]);
+  }, [canonicalUserId, checkHealth]);
 
   return {
     status,
