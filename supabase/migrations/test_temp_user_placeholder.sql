@@ -216,6 +216,57 @@ BEGIN
   RAISE NOTICE 'PASSED: Triggers preserve placeholder format';
 END $$;
 
+-- ============================================================================
+-- TEST 6: Validate p_wallet_linked boolean parameter type
+-- ============================================================================
+DO $$
+DECLARE
+  v_alloc JSONB;
+  v_uid TEXT;
+  v_canonical_user_id TEXT;
+  v_result JSONB;
+BEGIN
+  RAISE NOTICE '';
+  RAISE NOTICE '=== TEST 6: Boolean parameter type validation ===';
+  
+  SELECT allocate_temp_canonical_user() INTO v_alloc;
+  v_uid := v_alloc->>'uid';
+  v_canonical_user_id := v_alloc->>'canonical_user_id';
+  
+  -- Test with boolean true (should work)
+  RAISE NOTICE 'Testing with p_wallet_linked := true (boolean)';
+  SELECT upsert_canonical_user(
+    p_uid := v_uid,
+    p_canonical_user_id := v_canonical_user_id,
+    p_email := 'bool-test@example.com',
+    p_username := 'booluser',
+    p_wallet_linked := true
+  ) INTO v_result;
+  
+  IF v_result IS NULL THEN
+    RAISE EXCEPTION 'FAILED: Function returned NULL for boolean true';
+  END IF;
+  
+  RAISE NOTICE 'Result with true: %', v_result;
+  
+  -- Test with boolean false (should work)
+  RAISE NOTICE 'Testing with p_wallet_linked := false (boolean)';
+  SELECT upsert_canonical_user(
+    p_uid := v_uid,
+    p_canonical_user_id := v_canonical_user_id,
+    p_email := 'bool-test@example.com',
+    p_username := 'booluser',
+    p_wallet_linked := false
+  ) INTO v_result;
+  
+  IF v_result IS NULL THEN
+    RAISE EXCEPTION 'FAILED: Function returned NULL for boolean false';
+  END IF;
+  
+  RAISE NOTICE 'Result with false: %', v_result;
+  RAISE NOTICE 'PASSED: Boolean parameter type validation successful';
+END $$;
+
 -- Clean up test data
 DELETE FROM canonical_users WHERE uid LIKE 'test_%' OR email LIKE '%test%' OR email LIKE '%example.com';
 
