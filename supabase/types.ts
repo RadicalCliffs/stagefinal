@@ -2087,6 +2087,10 @@ export interface Database {
         }
         Returns: Json
       }
+      allocate_temp_canonical_user: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       attach_identity_after_auth: {
         Args: {
           p_user_id: string
