@@ -1,8 +1,8 @@
-# Restore Production RPC Functions - Deployment Guide
+# Production RPC Functions - Migration System Integration
 
 ## Overview
 
-This deployment restores 4 critical RPC (Remote Procedure Call) functions from the production database that were missing from the development/staging environments. These functions are essential for the balance payment system and ticket purchase workflows.
+This deployment adds 4 critical RPC (Remote Procedure Call) functions to the migration system. These functions already exist in production but were missing from the baseline migrations, causing issues in fresh database setups. These functions are essential for the balance payment system and ticket purchase workflows.
 
 ## Background
 
@@ -250,4 +250,4 @@ After deployment, monitor:
 
 ## Questions?
 
-These functions were restored from the production database backup. The frontend code was already written to use these functions, which is why they're being "migrated back" to Supabase. They ensure the frontend can properly utilize the balance payment system with atomic operations and proper audit trails.
+These function definitions were extracted from the production database and added to the migration system. The frontend code was already written to use these functions (which exist in production), but they were missing from the baseline migrations. Adding them to the migration system ensures they exist in all environments (dev, staging, production) and allows fresh database setups to work correctly. They enable the frontend to properly utilize the balance payment system with atomic operations and proper audit trails.

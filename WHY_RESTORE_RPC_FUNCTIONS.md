@@ -2,7 +2,7 @@
 
 ## The Confusion
 
-You mentioned: "i got those files from suppabase, why would i now be trying to migrate functionality 'back' to it, werent they for you to ensure fron end was utilising appropriately?"
+You mentioned: "i got those files from Supabase, why would i now be trying to migrate functionality 'back' to it, weren't they for you to ensure front end was utilising appropriately?"
 
 This is a valid question! Here's what happened:
 
