@@ -67,6 +67,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
     baseAccount,
     embeddedWallet,
     baseUser,
+    canonicalUserId,
     refreshUserData,
     isLoading
   } = useAuthUser();
@@ -111,12 +112,12 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
   // Fetch the linked external wallet and transactions on mount
   useEffect(() => {
     const fetchLinkedWallet = async () => {
-      if (!baseUser?.id) return;
+      if (!canonicalUserId) return;
 
       try {
         // Use RPC function which bypasses RLS and handles case-insensitive matching
         const { data, error } = await supabase.rpc('get_linked_external_wallet', {
-          user_identifier: baseUser.id
+          user_identifier: canonicalUserId
         });
 
         if (error) {
@@ -171,7 +172,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
       if (!baseUser?.id) return;
       
       try {
-        const transactions = await database.getUserTransactions(baseUser.id);
+        const transactions = await database.getUserTransactions(canonicalUserId);
         setTopUps(transactions.filter((t: any) => t.transaction_type === 'topup'));
       } catch (err) {
         console.error('Error fetching top-ups:', err);
@@ -184,7 +185,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
 
     // Set up real-time subscription for transaction changes
     const channel = supabase
-      .channel(`wallet-transactions-${baseUser?.id}`)
+      .channel(`wallet-transactions-${canonicalUserId}`)
       .on(
         'postgres_changes',
         {
@@ -224,11 +225,11 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
 
   // Fetch all user wallets from the database
   const fetchUserWallets = useCallback(async () => {
-    if (!baseUser?.id) return;
+    if (!canonicalUserId) return;
 
     try {
       const { data, error } = await supabase.rpc('get_user_wallets', {
-        user_identifier: baseUser.id
+        user_identifier: canonicalUserId
       });
 
       if (error) {
@@ -252,7 +253,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
 
   // Handle setting a wallet as primary
   const handleSetPrimaryWallet = async (walletAddress: string) => {
-    if (!baseUser?.id) return;
+    if (!canonicalUserId) return;
 
     setIsSettingPrimary(walletAddress);
     setLinkError(null);
@@ -260,7 +261,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
 
     try {
       const { data, error } = await supabase.rpc('set_primary_wallet', {
-        user_identifier: baseUser.id,
+        user_identifier: canonicalUserId,
         p_wallet_address: walletAddress
       });
 
@@ -289,11 +290,11 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
 
   // Handle updating wallet nickname
   const handleUpdateNickname = async (walletAddress: string, nickname: string) => {
-    if (!baseUser?.id) return;
+    if (!canonicalUserId) return;
 
     try {
       const { data, error } = await supabase.rpc('update_wallet_nickname', {
-        user_identifier: baseUser.id,
+        user_identifier: canonicalUserId,
         p_wallet_address: walletAddress,
         p_nickname: nickname
       });
@@ -319,7 +320,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
 
   // Handle unlinking a wallet (new multi-wallet version)
   const handleUnlinkMultiWallet = async (walletAddress: string) => {
-    if (!baseUser?.id) return;
+    if (!canonicalUserId) return;
 
     setIsUnlinking(true);
     setLinkError(null);
@@ -327,7 +328,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
 
     try {
       const { data, error } = await supabase.rpc('unlink_wallet', {
-        user_identifier: baseUser.id,
+        user_identifier: canonicalUserId,
         p_wallet_address: walletAddress
       });
 
@@ -398,7 +399,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
   };
 
   const handleUnlinkWallet = async () => {
-    if (!baseUser?.id || !linkedExternalWallet) return;
+    if (!canonicalUserId || !linkedExternalWallet) return;
 
     setIsUnlinking(true);
     setLinkError(null);
@@ -407,7 +408,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
     try {
       // Use RPC function which bypasses RLS
       const { data, error } = await supabase.rpc('unlink_external_wallet', {
-        user_identifier: baseUser.id
+        user_identifier: canonicalUserId
       });
 
       if (error) {

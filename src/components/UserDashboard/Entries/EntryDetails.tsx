@@ -30,7 +30,7 @@ interface EntryData {
 
 const EntryDetail = () => {
   const { id } = useParams<{ id: string }>();
-  const { baseUser } = useAuthUser();
+  const { baseUser, canonicalUserId } = useAuthUser();
   const [entry, setEntry] = useState<EntryData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +44,7 @@ const EntryDetail = () => {
 
   useEffect(() => {
     const fetchEntry = async () => {
-      if (!baseUser?.id || !id) {
+      if (!canonicalUserId || !id) {
         setLoading(false);
         setError("Unable to load entry details");
         return;
@@ -55,7 +55,8 @@ const EntryDetail = () => {
 
       try {
         // Fetch all user entries and find the specific one
-        const entries = await database.getUserEntries(baseUser.id);
+        // Use canonicalUserId (prize:pid:<wallet>) to match database records
+        const entries = await database.getUserEntries(canonicalUserId);
         const foundEntry = (entries || []).find((e: any): e is EntryData => 
           e !== null && typeof e === 'object' && 'id' in e && 'entry_type' in e && 'expires_at' in e && e.id === id
         ) as EntryData | undefined;
@@ -74,7 +75,7 @@ const EntryDetail = () => {
     };
 
     fetchEntry();
-  }, [baseUser, id]);
+  }, [canonicalUserId, id]);
 
   // Build fields for winner section
   const fields: WinnerInfoField[] = entry
