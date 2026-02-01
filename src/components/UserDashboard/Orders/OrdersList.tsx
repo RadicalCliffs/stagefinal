@@ -35,7 +35,7 @@ export default function OrdersList() {
   const [entries, setEntries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const { baseUser } = useAuthUser();
+  const { baseUser, canonicalUserId } = useAuthUser();
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const navigate = useNavigate();
   const { paymentData, loading: paymentLoading, paymentStatus } = usePaymentStatus(() => setShowPaymentModal(true));
@@ -56,7 +56,8 @@ export default function OrdersList() {
 
   // Function to fetch orders data
   const fetchOrders = useCallback(async (isBackgroundRefresh = false) => {
-    if (!baseUser?.id) {
+    if (!canonicalUserId) {
+      console.warn('[OrdersList] No canonical user ID available, skipping fetch');
       setLoading(false);
       return;
     }
@@ -73,7 +74,8 @@ export default function OrdersList() {
 
     try {
       // Fetch from user_transactions table for purchases (includes Base and other payments)
-      const purchasesData = await database.getUserTransactions(baseUser.id);
+      // Use canonicalUserId (prize:pid:<wallet>) to match database records
+      const purchasesData = await database.getUserTransactions(canonicalUserId);
 
       // For entries tab, use the same user_transactions data but filter out top-ups
       // This ensures both tabs pull from the same source for consistency
@@ -88,7 +90,7 @@ export default function OrdersList() {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [baseUser?.id]);
+  }, [canonicalUserId]);
 
   // Debounced refresh function to prevent excessive API calls from rapid real-time updates
   const debouncedFetchOrders = useCallback(() => {
@@ -104,11 +106,12 @@ export default function OrdersList() {
     fetchOrders(false); // Initial load, not background refresh
 
     // Set up real-time subscriptions for dashboard updates
-    if (baseUser?.id) {
+    if (canonicalUserId) {
       // Channel for user's transactions (INSERT/UPDATE)
       // This covers both top-ups and ticket purchases
+      // Use canonicalUserId to match database records keyed by canonical_user_id
       const transactionsChannel = supabase
-        .channel(`user-transactions-${baseUser.id}`)
+        .channel(`user-transactions-${canonicalUserId}`)
         .on(
           'postgres_changes',
           {
@@ -124,7 +127,7 @@ export default function OrdersList() {
               privy_user_id?: string;
             };
 
-            if (recordMatchesUser(record, baseUser.id)) {
+            if (recordMatchesUser(record, canonicalUserId)) {
               console.log('[OrdersList] Transaction change detected:', payload.eventType);
               debouncedFetchOrders();
             }
@@ -137,7 +140,7 @@ export default function OrdersList() {
 
       // Channel for balance changes (covers top-ups via sub_account_balances)
       const balanceChannel = supabase
-        .channel(`user-balance-orders-${baseUser.id}`)
+        .channel(`user-balance-orders-${canonicalUserId}`)
         .on(
           'postgres_changes',
           {
@@ -158,7 +161,7 @@ export default function OrdersList() {
               return;
             }
 
-            if (recordMatchesUser(record, baseUser.id)) {
+            if (recordMatchesUser(record, canonicalUserId)) {
               console.log('[OrdersList] Balance change detected - may be a top-up:', payload.eventType);
               debouncedFetchOrders();
             }
@@ -185,7 +188,7 @@ export default function OrdersList() {
         supabase.removeChannel(balanceChannel);
       };
     }
-  }, [baseUser?.id, fetchOrders, debouncedFetchOrders]);
+  }, [canonicalUserId, fetchOrders, debouncedFetchOrders]);
 
   // Reset to first page when tab changes
   useEffect(() => {
@@ -230,9 +233,9 @@ export default function OrdersList() {
   return (
     <>
       {/* Export button */}
-      {baseUser?.id && data.length > 0 && (
+      {canonicalUserId && data.length > 0 && (
         <div className="mb-4 flex justify-end">
-          <ExportButton userId={baseUser.id} />
+          <ExportButton userId={canonicalUserId} />
         </div>
       )}
 

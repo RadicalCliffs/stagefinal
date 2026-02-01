@@ -673,9 +673,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [effectiveWalletAddress, refreshUserData, fetchUserData, profile?.wallet_address, profile?.id, profile?.uid]);
 
   // Compute canonical user ID for Supabase calls
+  // This is the ONLY acceptable identifier for database queries and RPC calls
   const canonicalUserId = useMemo(() => {
-    if (!baseUser?.id) return null;
-    return toCanonicalUserId(baseUser.id);
+    if (!baseUser?.id) {
+      console.warn('[AuthContext] No baseUser.id available, canonicalUserId will be null');
+      return null;
+    }
+    
+    const canonical = toCanonicalUserId(baseUser.id);
+    console.log('[AuthContext] Canonical user ID:', canonical, 'from baseUser.id:', baseUser.id);
+    return canonical;
   }, [baseUser?.id]);
 
   const value: AuthContextType = {

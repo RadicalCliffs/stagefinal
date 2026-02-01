@@ -53,7 +53,7 @@ interface AggregatedEntry {
 
 const CompetitionEntryDetails = () => {
   const { competitionId } = useParams<{ competitionId: string }>();
-  const { baseUser } = useAuthUser();
+  const { baseUser, canonicalUserId } = useAuthUser();
   const [entries, setEntries] = useState<EntryData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +67,7 @@ const CompetitionEntryDetails = () => {
 
   useEffect(() => {
     const fetchEntries = async () => {
-      if (!baseUser?.id || !competitionId) {
+      if (!canonicalUserId || !competitionId) {
         setLoading(false);
         setError("Unable to load entry details");
         return;
@@ -78,7 +78,8 @@ const CompetitionEntryDetails = () => {
 
       try {
         // Fetch all user entries and filter for this competition
-        const allEntries = await database.getUserEntries(baseUser.id);
+        // Use canonicalUserId (prize:pid:<wallet>) to match database records
+        const allEntries = await database.getUserEntries(canonicalUserId);
         const competitionEntries = (allEntries || []).filter(
           (e: any): e is EntryData => e !== null && typeof e === 'object' && 'competition_id' in e && 'expires_at' in e && e.competition_id === competitionId
         ) as EntryData[];
@@ -97,7 +98,7 @@ const CompetitionEntryDetails = () => {
     };
 
     fetchEntries();
-  }, [baseUser, competitionId]);
+  }, [canonicalUserId, competitionId]);
 
   // Helper function to deduplicate entries
   const deduplicateEntries = (entriesList: EntryData[]): EntryData[] => {

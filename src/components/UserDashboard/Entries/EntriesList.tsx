@@ -81,7 +81,7 @@ export default function EntriesList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const { baseUser, authenticated } = useAuthUser();
+  const { baseUser, canonicalUserId, authenticated } = useAuthUser();
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -97,7 +97,8 @@ export default function EntriesList() {
 
   // Function to fetch dashboard entries
   const fetchEntries = useCallback(async (isBackgroundRefresh = false) => {
-    if (!baseUser?.id) {
+    if (!canonicalUserId) {
+      console.warn('[EntriesList] No canonical user ID available, skipping fetch');
       setLoading(false);
       return;
     }
@@ -117,7 +118,8 @@ export default function EntriesList() {
     try {
       // Try fetching from competition_entries table first (new unified source)
       // Falls back to legacy getUserEntries if the new RPC is not available
-      const data = await database.getUserEntriesFromCompetitionEntries(baseUser.id);
+      // Use canonicalUserId (prize:pid:<wallet>) to match database records
+      const data = await database.getUserEntriesFromCompetitionEntries(canonicalUserId);
       setEntries(data || []);
       initialLoadDoneRef.current = true;
       // Reset consecutive error counter on success
@@ -170,7 +172,7 @@ export default function EntriesList() {
       setIsRefreshing(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseUser?.id, showToast]); // debouncedFetchEntries excluded to avoid circular dependency
+  }, [canonicalUserId, showToast]); // debouncedFetchEntries excluded to avoid circular dependency
 
   // Debounced refresh function to prevent excessive API calls from rapid real-time updates
   // ISSUE 9A FIX: Pass isBackgroundRefresh=true to show refresh indicator
@@ -215,16 +217,15 @@ export default function EntriesList() {
     fetchEntries(false); // Initial load, not background refresh
 
     // Set up real-time subscriptions for dashboard updates
-    // baseUser.id is the wallet address - the PRIMARY identifier
-    if (baseUser?.id) {
-      // Normalize wallet address to lowercase for case-insensitive comparison
-      const isWalletAddress = baseUser.id.startsWith('0x') && baseUser.id.length === 42;
-      const normalizedUserId = isWalletAddress ? baseUser.id.toLowerCase() : baseUser.id;
+    // Use canonicalUserId for channel names to match database records
+    if (canonicalUserId) {
+      // For matching records, use both canonical and normalized wallet
+      const normalizedWallet = baseUser?.id ? baseUser.id.toLowerCase() : '';
 
       // Channel for user's competition entries from the new competition_entries table (PRIMARY)
       // This is the new unified source for all competition entries
       const competitionEntriesChannel = supabase
-        .channel(`competition-entries-${normalizedUserId}`)
+        .channel(`competition-entries-${canonicalUserId}`)
         .on(
           'postgres_changes',
           {
@@ -240,7 +241,7 @@ export default function EntriesList() {
               user_id?: string;
             };
 
-            if (recordMatchesUser(record, normalizedUserId, baseUser.id)) {
+            if (recordMatchesUser(record, normalizedWallet, canonicalUserId)) {
               console.log('[EntriesList] Competition entry change detected:', payload.eventType);
               // Use debounced refresh to prevent rapid consecutive API calls
               debouncedFetchEntries();
@@ -252,7 +253,7 @@ export default function EntriesList() {
       // Channel for user's competition entries (LEGACY - v_joincompetition_active)
       // Kept for backwards compatibility during migration
       const entriesChannel = supabase
-        .channel(`user-entries-${normalizedUserId}`)
+        .channel(`user-entries-${canonicalUserId}`)
         .on(
           'postgres_changes',
           {
@@ -267,7 +268,7 @@ export default function EntriesList() {
               userid?: string;
             };
 
-            if (recordMatchesUser(record, normalizedUserId, baseUser.id)) {
+            if (recordMatchesUser(record, normalizedWallet, canonicalUserId)) {
               console.log('Entry change detected:', payload.eventType, 'for user');
               // Use debounced refresh to prevent rapid consecutive API calls
               debouncedFetchEntries();
@@ -279,7 +280,7 @@ export default function EntriesList() {
       // Channel for pending ticket reservations (INSERT/UPDATE/DELETE)
       // Subscribe without filter and apply case-insensitive matching in callback
       const pendingTicketsChannel = supabase
-        .channel(`user-pending-${normalizedUserId}`)
+        .channel(`user-pending-${canonicalUserId}`)
         .on(
           'postgres_changes',
           {
@@ -294,7 +295,7 @@ export default function EntriesList() {
               wallet_address?: string;
             };
 
-            if (recordMatchesUser(record, normalizedUserId, baseUser.id)) {
+            if (recordMatchesUser(record, normalizedWallet, canonicalUserId)) {
               console.log('Pending ticket change detected:', payload.eventType);
               // Use debounced refresh
               debouncedFetchEntries();
@@ -326,7 +327,7 @@ export default function EntriesList() {
 
       // Channel for user_transactions updates (for balance and crypto payments)
       const userTransactionsChannel = supabase
-        .channel(`user-transactions-${normalizedUserId}`)
+        .channel(`user-transactions-${canonicalUserId}`)
         .on(
           'postgres_changes',
           {
@@ -344,7 +345,7 @@ export default function EntriesList() {
               payment_status?: string;
             };
 
-            if (recordMatchesUser(record, normalizedUserId, baseUser.id)) {
+            if (recordMatchesUser(record, normalizedWallet, canonicalUserId)) {
               // Refresh on completed/confirmed transactions
               const status = (record.status || record.payment_status || '').toLowerCase();
               if (status === 'completed' || status === 'complete' || status === 'confirmed' || status === 'finished' || status === 'success' || status === 'paid') {
@@ -358,7 +359,7 @@ export default function EntriesList() {
 
       // Channel for balance_ledger changes (for balance-based purchases)
       const balanceLedgerChannel = supabase
-        .channel(`balance-ledger-${normalizedUserId}`)
+        .channel(`balance-ledger-${canonicalUserId}`)
         .on(
           'postgres_changes',
           {
@@ -386,7 +387,7 @@ export default function EntriesList() {
 
       // Channel for winners table (to detect when user wins)
       const winnersChannel = supabase
-        .channel(`winners-${normalizedUserId}`)
+        .channel(`winners-${canonicalUserId}`)
         .on(
           'postgres_changes',
           {
@@ -402,7 +403,7 @@ export default function EntriesList() {
               user_id?: string;
             };
 
-            if (recordMatchesUser(record, normalizedUserId, baseUser.id)) {
+            if (recordMatchesUser(record, normalizedWallet, canonicalUserId)) {
               console.log('[EntriesList] Winner update detected:', payload.eventType);
               debouncedFetchEntries();
             }
@@ -434,7 +435,7 @@ export default function EntriesList() {
         supabase.removeChannel(winnersChannel);
       };
     }
-  }, [baseUser?.id, fetchEntries, debouncedFetchEntries]);
+  }, [canonicalUserId, fetchEntries, debouncedFetchEntries, baseUser?.id]);
 
   // Reset to first page when tab changes
   useEffect(() => {

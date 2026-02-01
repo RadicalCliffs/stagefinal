@@ -28,7 +28,7 @@ interface TicketSelectorProps {
 }
 
 const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTickets, ticketPrice: rawTicketPrice = 1, ticketsSold = 0 }) => {
-    const { baseUser } = useAuthUser();
+    const { baseUser, canonicalUserId } = useAuthUser();
 
     // Ensure ticketPrice is a valid positive number (handles string coercion from database)
     const ticketPrice = Number(rawTicketPrice) || 1;
@@ -227,7 +227,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
         }
         try {
             // First try using the database RPC function for more reliable results
-            const rpcResult = await database.getUserTicketsForCompetition(baseUser.id, competitionId);
+            const rpcResult = await database.getUserTicketsForCompetition(canonicalUserId, competitionId);
             if (rpcResult && rpcResult.tickets && rpcResult.tickets.length > 0) {
                 setOwnedTickets(rpcResult.tickets.sort((a, b) => a - b));
                 return;
@@ -238,6 +238,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
             const resolvedCompetitionId = competitionId; // Already resolved by caller
 
             // Use separate queries for different user identifiers to ensure we find all entries
+            // Use baseUser.id (raw wallet address) for legacy fields in direct Supabase queries
             const queries = [
                 supabase
                     .from('v_joincompetition_active')
@@ -464,7 +465,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                     );
                     
                     // Refresh available tickets from server for consistency
-                    const available = await database.getAvailableTicketsForCompetition(competitionId, totalTickets, baseUser.id);
+                    const available = await database.getAvailableTicketsForCompetition(competitionId, totalTickets, canonicalUserId);
                     setAvailableTickets(available);
 
                     // Show specific error message for 409 conflicts
@@ -493,7 +494,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                         prev.filter(t => !unavailableSet.has(t))
                     );
                     // Refresh available tickets from server for consistency
-                    const available = await database.getAvailableTicketsForCompetition(competitionId, totalTickets, baseUser.id);
+                    const available = await database.getAvailableTicketsForCompetition(competitionId, totalTickets, canonicalUserId);
                     setAvailableTickets(available);
                     throw new Error(`Tickets ${response.unavailableTickets.join(", ")} are no longer available. Please select different tickets.`);
                 }

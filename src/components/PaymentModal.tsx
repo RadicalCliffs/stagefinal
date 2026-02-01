@@ -204,7 +204,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   const amount = Number(ticketCount * ticketPrice);
   const navigate = useNavigate();
   // Hooks must be called unconditionally at the top level
-  const { authenticated, baseUser, profile, linkedWallets, refreshUserData } = useAuthUser();
+  const { authenticated, baseUser, profile, linkedWallets, refreshUserData, canonicalUserId } = useAuthUser();
   // Base Sub Account for passkey-free payments (when available)
   const {
     isSupported: hasSubAccount,
@@ -223,25 +223,25 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   // Auto-refreshes balance when changes are detected in the database
   useRealtimeSubscriptions({
     onBalanceLedgerChange: useCallback(() => {
-      if (baseUser?.id && isOpen) {
+      if (canonicalUserId && isOpen) {
         console.log('[PaymentModal] Balance ledger changed, refreshing balance');
-        getUserBalance(baseUser.id).then(result => {
+        getUserBalance(canonicalUserId).then(result => {
           if (result.success) {
             setUserBalance(result.data.usdc_balance);
           }
         }).catch(err => console.warn('[PaymentModal] Balance refresh failed:', err));
       }
-    }, [baseUser?.id, isOpen]),
+    }, [canonicalUserId, isOpen]),
     onSubAccountBalanceChange: useCallback(() => {
-      if (baseUser?.id && isOpen) {
+      if (canonicalUserId && isOpen) {
         console.log('[PaymentModal] Sub-account balance changed, refreshing balance');
-        getUserBalance(baseUser.id).then(result => {
+        getUserBalance(canonicalUserId).then(result => {
           if (result.success) {
             setUserBalance(result.data.usdc_balance);
           }
         }).catch(err => console.warn('[PaymentModal] Balance refresh failed:', err));
       }
-    }, [baseUser?.id, isOpen]),
+    }, [canonicalUserId, isOpen]),
     debounceMs: 500,
   });
 
@@ -478,7 +478,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
     setLoadingBalance(true);
     try {
-      const result = await getUserBalance(baseUser.id);
+      const result = await getUserBalance(canonicalUserId);
       if (result.success) {
         setUserBalance(result.data.usdc_balance);
       }
@@ -1730,9 +1730,9 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
               setShowTopUpModal(false);
               refreshUserData();
               // Refresh balance after top-up
-              if (baseUser?.id) {
+              if (canonicalUserId) {
                 setLoadingBalance(true);
-                getUserBalance(toCanonicalUserId(baseUser.id))
+                getUserBalance(canonicalUserId)
                   .then(balance => setUserBalance(balance.data.usdc_balance))
                   .catch(err => console.warn('Failed to refresh balance:', err))
                   .finally(() => setLoadingBalance(false));
