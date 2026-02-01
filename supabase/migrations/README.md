@@ -20,6 +20,23 @@ This directory contains the database schema migrations for ThePrize.io.
    - Documentation for 42 additional triggers
    - See: `/TRIGGERS_MIGRATION_README.md` for details
 
+### Production RPC Restoration (2026-02-01)
+
+Critical RPC functions restored from production backup:
+
+3. **`20260201004000_restore_production_balance_functions.sql`** - Core balance operations
+   - `credit_sub_account_balance` - Atomic balance credit with audit trail
+   - `debit_sub_account_balance` - Atomic balance debit with row-level locking
+   - Includes wallet address normalization (prize:pid:0x... format)
+   - Race condition prevention via FOR UPDATE locking
+   - Automatic balance_ledger entries
+   - Service role only access
+
+4. **`20260201004100_restore_additional_balance_functions.sql`** - Helper functions
+   - `confirm_ticket_purchase` - Atomic ticket confirmation with balance debit
+   - `get_joincompetition_entries_for_competition` - Entry deduplication lookup
+   - See: `/RESTORE_RPC_FUNCTIONS_DEPLOYMENT.md` for deployment guide
+
 ### Skipped Migrations
 
 - **`20251218100000_create_vrf_availability_view_and_lucky_dip_support.sql.skip`**
@@ -88,6 +105,7 @@ For detailed information about the database schema and migrations:
 - **Technical Details:** `/BASELINE_MIGRATION_SUMMARY.md`
 - **Deployment Guide:** `/BASELINE_MIGRATION_USAGE.md`
 - **Triggers Documentation:** `/TRIGGERS_MIGRATION_README.md`
+- **RPC Functions Restoration:** `/RESTORE_RPC_FUNCTIONS_DEPLOYMENT.md`
 - **Diagnostics:** `/supabase/diagnostics/ACTUAL_DATABASE_ANALYSIS.md`
 
 ## Migration History
