@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { toPrizePid } from '../utils/userId';
 
-export type BalanceHealthStatus = 'healthy' | 'syncing' | 'checking' | 'error';
+export type BalanceHealthStatus = 'healthy' | 'checking' | 'error';
 
 interface BalanceHealthState {
   status: BalanceHealthStatus;
