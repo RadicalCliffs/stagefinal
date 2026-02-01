@@ -55,9 +55,6 @@ interface UserData {
 // This prevents premature database queries when baseUser.id is not yet available
 type PreAuthState = 
   | 'unauthenticated'        // No auth in progress
-  | 'usernameChecked'         // Username has been verified (exists or not)
-  | 'requiresSignupDetails'   // New user - collecting signup information
-  | 'awaitingBaseAuthChoice'  // User choosing between Base wallet or create Base account
   | 'awaitingBaseAuthCompletion' // Base auth in progress, wallet connecting
   | 'authenticated';          // Fully authenticated with baseUser.id available
 

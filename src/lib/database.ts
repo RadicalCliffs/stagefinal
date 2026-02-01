@@ -408,15 +408,14 @@ export const database = {
         error = result.error;
       } catch (queryError: any) {
         // Check if this is a schema drift error (missing column)
-        const errorCode = queryError?.code || queryError?.details?.code;
+        const errorCode = queryError?.code ?? queryError?.details?.code;
         const errorMessage = queryError?.message || '';
         
         // PostgreSQL error code 42703 = column does not exist
         // Also check for similar error messages
         if (
           errorCode === '42703' || 
-          (errorMessage.includes('column') && errorMessage.includes('does not exist')) ||
-          errorMessage.includes('distribution_hash')
+          (errorMessage.includes('column') && errorMessage.includes('does not exist'))
         ) {
           console.warn('[Database] distribution_hash column not found, retrying query without it');
           
@@ -643,15 +642,14 @@ export const database = {
       error = result.error;
     } catch (queryError: any) {
       // Check if this is a schema drift error (missing column)
-      const errorCode = queryError?.code || queryError?.details?.code;
+      const errorCode = queryError?.code ?? queryError?.details?.code;
       const errorMessage = queryError?.message || '';
       
       // PostgreSQL error code 42703 = column does not exist
       // Also check for similar error messages
       if (
         errorCode === '42703' || 
-        (errorMessage.includes('column') && errorMessage.includes('does not exist')) ||
-        errorMessage.includes('distribution_hash')
+        (errorMessage.includes('column') && errorMessage.includes('does not exist'))
       ) {
         console.warn('[Database] distribution_hash column not found in getWinners, retrying query without it');
         
