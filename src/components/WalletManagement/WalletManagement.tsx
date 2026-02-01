@@ -169,7 +169,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
     };
 
     const fetchTopUps = async () => {
-      if (!baseUser?.id) return;
+      if (!canonicalUserId) return;
       
       try {
         const transactions = await database.getUserTransactions(canonicalUserId);

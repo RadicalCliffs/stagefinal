@@ -238,17 +238,18 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
             const resolvedCompetitionId = competitionId; // Already resolved by caller
 
             // Use separate queries for different user identifiers to ensure we find all entries
+            // Use baseUser.id (raw wallet address) for legacy fields in direct Supabase queries
             const queries = [
                 supabase
                     .from('v_joincompetition_active')
                     .select('ticketnumbers')
                     .eq('competitionid', resolvedCompetitionId)
-                    .eq('wallet_address', canonicalUserId),
+                    .eq('wallet_address', baseUser.id),
                 supabase
                     .from('v_joincompetition_active')
                     .select('ticketnumbers')
                     .eq('competitionid', resolvedCompetitionId)
-                    .eq('userid', canonicalUserId)
+                    .eq('userid', baseUser.id)
             ];
 
             const results = await Promise.all(queries);

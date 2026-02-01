@@ -223,7 +223,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   // Auto-refreshes balance when changes are detected in the database
   useRealtimeSubscriptions({
     onBalanceLedgerChange: useCallback(() => {
-      if (baseUser?.id && isOpen) {
+      if (canonicalUserId && isOpen) {
         console.log('[PaymentModal] Balance ledger changed, refreshing balance');
         getUserBalance(canonicalUserId).then(result => {
           if (result.success) {
@@ -231,9 +231,9 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           }
         }).catch(err => console.warn('[PaymentModal] Balance refresh failed:', err));
       }
-    }, [baseUser?.id, isOpen]),
+    }, [canonicalUserId, isOpen]),
     onSubAccountBalanceChange: useCallback(() => {
-      if (baseUser?.id && isOpen) {
+      if (canonicalUserId && isOpen) {
         console.log('[PaymentModal] Sub-account balance changed, refreshing balance');
         getUserBalance(canonicalUserId).then(result => {
           if (result.success) {
@@ -241,7 +241,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           }
         }).catch(err => console.warn('[PaymentModal] Balance refresh failed:', err));
       }
-    }, [baseUser?.id, isOpen]),
+    }, [canonicalUserId, isOpen]),
     debounceMs: 500,
   });
 
@@ -1730,7 +1730,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
               setShowTopUpModal(false);
               refreshUserData();
               // Refresh balance after top-up
-              if (baseUser?.id) {
+              if (canonicalUserId) {
                 setLoadingBalance(true);
                 getUserBalance(canonicalUserId)
                   .then(balance => setUserBalance(balance.data.usdc_balance))
