@@ -47,7 +47,10 @@ BEGIN
       
       -- CRITICAL FIX: Only set wallet_address if extracted value looks like EVM address
       -- Valid EVM addresses: start with '0x' and are 42 characters long (0x + 40 hex chars)
-      IF extracted_value LIKE '0x%' AND LENGTH(extracted_value) = 42 THEN
+      -- Also validate it contains only valid hex characters (0-9, a-f, A-F)
+      IF extracted_value LIKE '0x%' 
+         AND LENGTH(extracted_value) = 42 
+         AND extracted_value ~ '^0x[0-9a-fA-F]{40}$' THEN
         NEW.wallet_address := util.normalize_evm_address(extracted_value);
         NEW.canonical_user_id := 'prize:pid:' || NEW.wallet_address;
       END IF;
@@ -96,7 +99,11 @@ BEGIN
 
   -- CRITICAL FIX: Only enforce canonical_user_id when we have a REAL wallet
   -- Don't set it for temporary IDs (email-based identifiers before wallet connection)
-  IF NEW.wallet_address IS NOT NULL AND NEW.wallet_address LIKE '0x%' AND LENGTH(NEW.wallet_address) = 42 THEN
+  -- Validate it's a proper EVM address (0x + 40 hex chars)
+  IF NEW.wallet_address IS NOT NULL 
+     AND NEW.wallet_address LIKE '0x%' 
+     AND LENGTH(NEW.wallet_address) = 42
+     AND NEW.wallet_address ~ '^0x[0-9a-fA-F]{40}$' THEN
     NEW.canonical_user_id := 'prize:pid:' || NEW.wallet_address;
   END IF;
   -- Otherwise, leave canonical_user_id as-is (could be temporary ID)
