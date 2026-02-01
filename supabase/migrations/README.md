@@ -37,6 +37,27 @@ Critical RPC functions restored from production backup:
    - `get_joincompetition_entries_for_competition` - Entry deduplication lookup
    - See: `/RESTORE_RPC_FUNCTIONS_DEPLOYMENT.md` for deployment guide
 
+### Canonical User Management (2026-01-28, 2026-02-01)
+
+User identity and authentication functions:
+
+5. **`20260128054900_fix_upsert_canonical_user.sql`** - Core canonical user RPC
+   - `upsert_canonical_user` - Main user upsert function
+   - **Signature:** 12 parameters including `p_wallet_linked BOOLEAN DEFAULT FALSE`
+   - Returns JSONB with user_id, canonical_user_id, is_new_user, wallet_linked
+   - Client-facing RPC called from frontend (AuthContext, NewAuthModal, BaseWalletAuthModal)
+
+6. **`20260201164500_add_temp_user_placeholder_support.sql`** - Email-first auth support
+   - `allocate_temp_canonical_user` - Generates temporary placeholder IDs (prize:pid:temp<N>)
+   - Updated `upsert_canonical_user` to handle placeholder replacement on wallet connection
+   - **Important:** Uses `p_wallet_linked BOOLEAN` to match client calls
+   - Trigger updates to preserve placeholder format
+
+7. **`20260201170000_remove_util_upsert_canonical_user_collision.sql`** - Schema safety
+   - Renames `util.upsert_canonical_user` to `util.upsert_canonical_user_from_auth`
+   - Prevents search_path ambiguity between util and public schemas
+   - Idempotent: only acts if util function exists
+
 ### Skipped Migrations
 
 - **`20251218100000_create_vrf_availability_view_and_lucky_dip_support.sql.skip`**

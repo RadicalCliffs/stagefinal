@@ -118,7 +118,7 @@ BEGIN
     p_canonical_user_id := v_final_canonical_id,
     p_wallet_address := v_wallet,
     p_base_wallet_address := v_wallet,
-    p_wallet_linked := 'true'
+    p_wallet_linked := true
   ) INTO v_result;
   
   RAISE NOTICE 'Update result: %', v_result;
