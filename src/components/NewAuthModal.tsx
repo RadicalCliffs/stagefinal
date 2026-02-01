@@ -386,22 +386,55 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
       
       if (!isReturningUser) {
         try {
-          // Allocate a unique temporary placeholder ID from database (prize:pid:temp<N>)
+          let tempUid: string;
+          let tempCanonicalUserId: string;
+          
+          // Try to allocate a unique temporary placeholder ID from database (prize:pid:temp<N>)
           // This ensures atomicity and prevents collisions across concurrent signups
-          console.log('[NewAuthModal] Allocating temporary placeholder canonical_user_id');
+          console.log('[NewAuthModal] Attempting to allocate temporary placeholder canonical_user_id');
           
-          const { data: allocResult, error: allocError } = await supabase
-            .rpc('allocate_temp_canonical_user');
-          
-          if (allocError || !allocResult) {
-            console.error('[NewAuthModal] Failed to allocate temp user:', allocError);
-            throw new Error('Failed to initialize user account. Please try again.');
+          try {
+            const { data: allocResult, error: allocError } = await supabase
+              .rpc('allocate_temp_canonical_user');
+            
+            if (allocError) {
+              // Check if error is because function doesn't exist (404 / PGRST202)
+              const errorCode = (allocError as any)?.code;
+              if (errorCode === 'PGRST202' || errorCode === '42883') {
+                console.warn('[NewAuthModal] allocate_temp_canonical_user RPC not found - migration not applied. Using fallback.');
+                throw new Error('RPC_NOT_FOUND');
+              }
+              throw allocError;
+            }
+            
+            if (!allocResult) {
+              throw new Error('No result from allocate_temp_canonical_user');
+            }
+            
+            tempUid = allocResult.uid;
+            tempCanonicalUserId = allocResult.canonical_user_id;
+            
+            console.log('[NewAuthModal] Allocated temp user from database:', { uid: tempUid, canonical_user_id: tempCanonicalUserId });
+          } catch (allocErr: any) {
+            // FALLBACK: Generate temp ID locally if RPC doesn't exist
+            if (allocErr?.message === 'RPC_NOT_FOUND' || (allocErr as any)?.code === 'PGRST202') {
+              console.warn('[NewAuthModal] ⚠️  Database migration not applied! Using local temp ID generation as fallback.');
+              console.warn('[NewAuthModal] ⚠️  Please apply migration: 20260201164500_add_temp_user_placeholder_support.sql');
+              
+              // Generate fallback temp ID using timestamp + random to avoid collisions
+              const timestamp = Date.now();
+              const random = Math.floor(Math.random() * 1000000);
+              const fallbackTempId = `${timestamp}${random}`;
+              
+              tempUid = crypto.randomUUID();
+              tempCanonicalUserId = `prize:pid:temp${fallbackTempId}`;
+              
+              console.log('[NewAuthModal] Generated fallback temp user:', { uid: tempUid, canonical_user_id: tempCanonicalUserId });
+            } else {
+              // Real error - re-throw
+              throw allocErr;
+            }
           }
-          
-          const tempUid = allocResult.uid;
-          const tempCanonicalUserId = allocResult.canonical_user_id;
-          
-          console.log('[NewAuthModal] Allocated temp user:', { uid: tempUid, canonical_user_id: tempCanonicalUserId });
           
           // Store in sessionStorage for BaseWalletAuthModal to use when wallet connects
           sessionStorage.setItem('pendingSignupData', JSON.stringify({

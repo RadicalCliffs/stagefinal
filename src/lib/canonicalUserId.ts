@@ -1,9 +1,14 @@
 /**
  * Converts any user identifier to the canonical prize:pid: format.
  * Mirrors the backend toPrizePid() function in netlify/functions/_shared/userId.mts
+ * 
+ * IMPORTANT: This function throws an error if input is null/undefined.
+ * Callers MUST check for null before calling this function.
  */
 export function toCanonicalUserId(input: string | null | undefined): string {
-  if (!input) throw new Error('User ID required');
+  if (!input) {
+    throw new Error('User ID required - cannot convert null/undefined to canonical format');
+  }
   if (input.startsWith('prize:pid:')) return input;
 
   // Privy DID format

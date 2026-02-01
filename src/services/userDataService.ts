@@ -164,8 +164,10 @@ export const userDataService = {
         }
       }
 
-      console.log('[userDataService] Avatar update completed:', data);
-      return true;
+      // CRITICAL FIX: Don't assume success if response doesn't have explicit success field
+      // The RPC might return empty data or an unexpected format
+      console.warn('[userDataService] Avatar update returned no success confirmation:', data);
+      return false; // Changed from true to false - require explicit success
     } catch (error) {
       console.error('[userDataService] Error in updateUserAvatar:', error);
       return false;
