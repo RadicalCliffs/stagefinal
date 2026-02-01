@@ -1,54 +1,24 @@
 -- ============================================================================
--- FIX: Canonical Users Triggers - Missing util schema and normalization functions
+-- FIX: Canonical Users Triggers - Missing normalization trigger functions
 -- ============================================================================
 -- Migration: 20260201063000_fix_canonical_users_triggers.sql
 -- Description: Fixes "record 'new' has no field 'updated_at'" error by creating
---              missing util schema, normalization functions, and triggers
+--              missing normalization trigger functions and triggers
 -- 
 -- Issue: Error 42703 when updating canonical_users table
--- Root Cause: canonical_users_normalize_before_write trigger calls util.normalize_evm_address()
---             which doesn't exist, causing trigger failure
+-- Root Cause: Normalization triggers reference functions that don't exist
+--             (canonical_users_normalize, canonical_users_normalize_before_write, etc.)
+--             but the util.normalize_evm_address function they call DOES exist
+-- 
+-- Note: util schema and util.normalize_evm_address already exist in production
 -- ============================================================================
 
 BEGIN;
 
 -- ============================================================================
--- SECTION 1: Create util schema and normalize_evm_address function
+-- SECTION 1: Create canonical_users normalization trigger functions
 -- ============================================================================
-
--- Create util schema if it doesn't exist
-CREATE SCHEMA IF NOT EXISTS util;
-
--- Grant usage on util schema
-GRANT USAGE ON SCHEMA util TO authenticated, anon, service_role;
-
--- Create util.normalize_evm_address function
--- This function normalizes EVM (Ethereum Virtual Machine) addresses to lowercase
-CREATE OR REPLACE FUNCTION util.normalize_evm_address(address TEXT)
-RETURNS TEXT
-LANGUAGE plpgsql
-IMMUTABLE
-AS $$
-BEGIN
-  -- Return NULL if input is NULL
-  IF address IS NULL THEN
-    RETURN NULL;
-  END IF;
-  
-  -- Trim whitespace and convert to lowercase
-  -- EVM addresses are case-insensitive, so we normalize to lowercase
-  RETURN LOWER(TRIM(address));
-END;
-$$;
-
--- Grant execute permission on the function
-GRANT EXECUTE ON FUNCTION util.normalize_evm_address(TEXT) TO authenticated, anon, service_role;
-
-COMMENT ON FUNCTION util.normalize_evm_address IS 
-'Normalizes EVM wallet addresses to lowercase for consistent storage and comparison';
-
--- ============================================================================
--- SECTION 2: Create canonical_users normalization trigger functions
+-- Note: These functions use util.normalize_evm_address which already exists
 -- ============================================================================
 
 -- Function 1: canonical_users_normalize
@@ -179,7 +149,7 @@ COMMENT ON FUNCTION users_normalize_before_write IS
 'Normalizes wallet addresses on legacy users table (no canonical_user_id)';
 
 -- ============================================================================
--- SECTION 3: Create triggers on canonical_users table
+-- SECTION 2: Create triggers on canonical_users table
 -- ============================================================================
 -- NOTE: We create three separate triggers to match the production database structure.
 -- While this creates some redundancy, it ensures compatibility with existing code
@@ -214,7 +184,7 @@ CREATE TRIGGER cu_normalize_and_enforce_trg
   EXECUTE FUNCTION cu_normalize_and_enforce();
 
 -- ============================================================================
--- SECTION 4: Create trigger on users table
+-- SECTION 3: Create trigger on users table
 -- ============================================================================
 
 -- Drop existing trigger if it exists
@@ -227,28 +197,14 @@ CREATE TRIGGER users_normalize_before_write
   EXECUTE FUNCTION users_normalize_before_write();
 
 -- ============================================================================
--- SECTION 5: Verification
+-- SECTION 4: Verification
 -- ============================================================================
 
 DO $$
 DECLARE
-  util_schema_exists BOOLEAN;
-  normalize_func_exists BOOLEAN;
   trigger_count INTEGER;
+  func_count INTEGER;
 BEGIN
-  -- Check if util schema exists
-  SELECT EXISTS (
-    SELECT 1 FROM information_schema.schemata
-    WHERE schema_name = 'util'
-  ) INTO util_schema_exists;
-
-  -- Check if util.normalize_evm_address function exists
-  SELECT EXISTS (
-    SELECT 1 FROM pg_proc p
-    JOIN pg_namespace n ON p.pronamespace = n.oid
-    WHERE n.nspname = 'util'
-    AND p.proname = 'normalize_evm_address'
-  ) INTO normalize_func_exists;
 
   -- Count normalization triggers on both tables
   SELECT COUNT(*) INTO trigger_count
@@ -265,15 +221,25 @@ BEGIN
   )
   AND NOT t.tgisinternal;
 
+  -- Count created trigger functions
+  SELECT COUNT(*) INTO func_count
+  FROM pg_proc p
+  JOIN pg_namespace n ON p.pronamespace = n.oid
+  WHERE n.nspname = 'public'
+  AND p.proname IN (
+    'canonical_users_normalize',
+    'canonical_users_normalize_before_write',
+    'cu_normalize_and_enforce',
+    'users_normalize_before_write'
+  );
+
   RAISE NOTICE '=====================================================';
   RAISE NOTICE 'CANONICAL_USERS TRIGGERS FIX - VERIFICATION';
   RAISE NOTICE '=====================================================';
-  RAISE NOTICE 'util schema exists: %', util_schema_exists;
-  RAISE NOTICE 'util.normalize_evm_address exists: %', normalize_func_exists;
+  RAISE NOTICE 'Normalization trigger functions created: % / 4', func_count;
   RAISE NOTICE 'Normalization triggers created: % / 4', trigger_count;
   RAISE NOTICE '';
-  RAISE NOTICE 'Created functions:';
-  RAISE NOTICE '  ✓ util.normalize_evm_address()';
+  RAISE NOTICE 'Created trigger functions:';
   RAISE NOTICE '  ✓ canonical_users_normalize()';
   RAISE NOTICE '  ✓ canonical_users_normalize_before_write()';
   RAISE NOTICE '  ✓ cu_normalize_and_enforce()';
@@ -287,6 +253,7 @@ BEGIN
   RAISE NOTICE 'Created triggers on users:';
   RAISE NOTICE '  ✓ users_normalize_before_write';
   RAISE NOTICE '';
+  RAISE NOTICE 'Note: Uses existing util.normalize_evm_address() function';
   RAISE NOTICE 'Fix complete! Wallet linking should now work without errors.';
   RAISE NOTICE '=====================================================';
 END $$;

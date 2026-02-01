@@ -12,6 +12,8 @@ This error occurred specifically when updating the `canonical_users` table with 
 
 ## Root Cause
 
+## Root Cause
+
 The baseline migration (`00000000000001_baseline_triggers.sql`) documented that several normalization triggers existed in production but were not implemented in the migration. These included:
 
 1. `canonical_users_normalize` - Referenced in comments but function not created
@@ -19,13 +21,9 @@ The baseline migration (`00000000000001_baseline_triggers.sql`) documented that 
 3. `cu_normalize_and_enforce` - Referenced but not created
 4. `users_normalize_before_write` - Referenced but not created
 
-When the baseline migration created the `update_canonical_users_updated_at` trigger, it expected these normalization triggers to exist. However, the normalization triggers were calling a function `util.normalize_evm_address()` that didn't exist because:
+The `util` schema and `util.normalize_evm_address()` function already exist in production. However, the normalization trigger functions that call this utility function were missing.
 
-1. The `util` schema was never created
-2. The `util.normalize_evm_address()` function was never implemented
-3. The normalization trigger functions were never created
-
-This caused the triggers to fail with a confusing error message about `updated_at` when they actually failed due to the missing `util.normalize_evm_address()` function.
+When the baseline migration created the `update_canonical_users_updated_at` trigger, it expected these normalization triggers to exist. Since they didn't, updates to the `canonical_users` table would fail with a confusing error message about `updated_at`.
 
 Additionally, the `users_normalize_before_write` function in production incorrectly referenced a `canonical_user_id` column that doesn't exist on the legacy `users` table.
 
@@ -33,35 +31,16 @@ Additionally, the `users_normalize_before_write` function in production incorrec
 
 Created migration `20260201063000_fix_canonical_users_triggers.sql` that:
 
-### 1. Created util Schema
-```sql
-CREATE SCHEMA IF NOT EXISTS util;
-```
+### 1. Created Four Missing Trigger Functions
 
-### 2. Implemented util.normalize_evm_address Function
-```sql
-CREATE OR REPLACE FUNCTION util.normalize_evm_address(address TEXT)
-RETURNS TEXT
-LANGUAGE plpgsql
-IMMUTABLE
-AS $$
-BEGIN
-  IF address IS NULL THEN
-    RETURN NULL;
-  END IF;
-  RETURN LOWER(TRIM(address));
-END;
-$$;
-```
-
-### 3. Created Four Missing Trigger Functions
-
-1. **canonical_users_normalize()** - Basic wallet address normalization to lowercase
+1. **canonical_users_normalize()** - Basic wallet address normalization to lowercase using existing `util.normalize_evm_address()`
 2. **canonical_users_normalize_before_write()** - Advanced normalization ensuring canonical_user_id consistency
 3. **cu_normalize_and_enforce()** - Comprehensive normalization with fallback logic
 4. **users_normalize_before_write()** - Fixed version for legacy users table (no canonical_user_id reference)
 
-### 4. Created Triggers
+All functions use the existing `util.normalize_evm_address()` function from the util schema.
+
+### 2. Created Triggers
 
 - Three triggers on `canonical_users` table
 - One trigger on `users` table
@@ -151,4 +130,4 @@ hint: null
 message: "record \"new\" has no field \"updated_at\""
 ```
 
-The error was misleading - it wasn't actually about `updated_at`, but about the missing `util.normalize_evm_address()` function that the normalization triggers were trying to call.
+The error was misleading - it wasn't actually about `updated_at`, but about the missing normalization trigger functions. The `util.normalize_evm_address()` function already existed in production, so the issue was solely the missing trigger functions that call it.
