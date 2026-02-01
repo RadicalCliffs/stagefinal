@@ -155,6 +155,28 @@ $$;
 COMMENT ON FUNCTION cu_normalize_and_enforce IS 
 'Comprehensive normalization with fallback logic to ensure data consistency';
 
+-- Function 4: users_normalize_before_write
+-- Normalization for legacy users table (no canonical_user_id column)
+CREATE OR REPLACE FUNCTION users_normalize_before_write()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  -- Normalize wallet_address using util function
+  IF NEW.wallet_address IS NOT NULL THEN
+    NEW.wallet_address := util.normalize_evm_address(NEW.wallet_address);
+  END IF;
+
+  -- Note: users table does NOT have canonical_user_id column
+  -- Only normalize the wallet_address field
+
+  RETURN NEW;
+END;
+$$;
+
+COMMENT ON FUNCTION users_normalize_before_write IS 
+'Normalizes wallet addresses on legacy users table (no canonical_user_id)';
+
 -- ============================================================================
 -- SECTION 3: Create triggers on canonical_users table
 -- ============================================================================
@@ -183,7 +205,20 @@ CREATE TRIGGER cu_normalize_and_enforce_trg
   EXECUTE FUNCTION cu_normalize_and_enforce();
 
 -- ============================================================================
--- SECTION 4: Verification
+-- SECTION 4: Create trigger on users table
+-- ============================================================================
+
+-- Drop existing trigger if it exists
+DROP TRIGGER IF EXISTS users_normalize_before_write ON users;
+
+-- Create trigger for users_normalize_before_write
+CREATE TRIGGER users_normalize_before_write
+  BEFORE INSERT OR UPDATE ON users
+  FOR EACH ROW
+  EXECUTE FUNCTION users_normalize_before_write();
+
+-- ============================================================================
+-- SECTION 5: Verification
 -- ============================================================================
 
 DO $$
@@ -206,15 +241,18 @@ BEGIN
     AND p.proname = 'normalize_evm_address'
   ) INTO normalize_func_exists;
 
-  -- Count canonical_users triggers
+  -- Count normalization triggers on both tables
   SELECT COUNT(*) INTO trigger_count
   FROM pg_trigger t
   JOIN pg_class c ON t.tgrelid = c.oid
-  WHERE c.relname = 'canonical_users'
-  AND t.tgname IN (
-    'trg_canonical_users_normalize',
-    'canonical_users_normalize_before_write',
-    'cu_normalize_and_enforce_trg'
+  WHERE (
+    (c.relname = 'canonical_users' AND t.tgname IN (
+      'trg_canonical_users_normalize',
+      'canonical_users_normalize_before_write',
+      'cu_normalize_and_enforce_trg'
+    ))
+    OR
+    (c.relname = 'users' AND t.tgname = 'users_normalize_before_write')
   )
   AND NOT t.tgisinternal;
 
@@ -223,18 +261,22 @@ BEGIN
   RAISE NOTICE '=====================================================';
   RAISE NOTICE 'util schema exists: %', util_schema_exists;
   RAISE NOTICE 'util.normalize_evm_address exists: %', normalize_func_exists;
-  RAISE NOTICE 'Normalization triggers created: % / 3', trigger_count;
+  RAISE NOTICE 'Normalization triggers created: % / 4', trigger_count;
   RAISE NOTICE '';
   RAISE NOTICE 'Created functions:';
   RAISE NOTICE '  ✓ util.normalize_evm_address()';
   RAISE NOTICE '  ✓ canonical_users_normalize()';
   RAISE NOTICE '  ✓ canonical_users_normalize_before_write()';
   RAISE NOTICE '  ✓ cu_normalize_and_enforce()';
+  RAISE NOTICE '  ✓ users_normalize_before_write()';
   RAISE NOTICE '';
   RAISE NOTICE 'Created triggers on canonical_users:';
   RAISE NOTICE '  ✓ trg_canonical_users_normalize';
   RAISE NOTICE '  ✓ canonical_users_normalize_before_write';
   RAISE NOTICE '  ✓ cu_normalize_and_enforce_trg';
+  RAISE NOTICE '';
+  RAISE NOTICE 'Created triggers on users:';
+  RAISE NOTICE '  ✓ users_normalize_before_write';
   RAISE NOTICE '';
   RAISE NOTICE 'Fix complete! Wallet linking should now work without errors.';
   RAISE NOTICE '=====================================================';
