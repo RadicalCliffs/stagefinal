@@ -41,14 +41,28 @@ export function useBalanceHealthCheck(canonicalUserId: string | null): BalanceHe
           .from('canonical_users')
           .select('usdc_balance')
           .eq('canonical_user_id', canonicalId)
-          .maybeSingle(),
+          .maybeSingle<{ usdc_balance: number }>(),
         supabase
           .from('sub_account_balances')
           .select('available_balance')
           .eq('canonical_user_id', canonicalId)
           .eq('currency', 'USD')
-          .maybeSingle(),
+          .maybeSingle<{ available_balance: number }>(),
       ]);
+
+      if (canonicalResult.error) {
+        console.error('[BalanceHealthCheck] Error fetching canonical balance:', canonicalResult.error);
+        setStatus('error');
+        setLastCheck(new Date());
+        return;
+      }
+
+      if (subAccountResult.error) {
+        console.error('[BalanceHealthCheck] Error fetching sub-account balance:', subAccountResult.error);
+        setStatus('error');
+        setLastCheck(new Date());
+        return;
+      }
 
       const canonicalBalance = Number(canonicalResult.data?.usdc_balance || 0);
       const subAccountBalance = Number(subAccountResult.data?.available_balance || 0);
