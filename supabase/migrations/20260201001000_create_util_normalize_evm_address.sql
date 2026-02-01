@@ -1,7 +1,7 @@
 -- ============================================================================
 -- CREATE UTILITY FUNCTION: util.normalize_evm_address
 -- ============================================================================
--- Migration: 20260201161800_create_util_normalize_evm_address.sql
+-- Migration: 20260201001000_create_util_normalize_evm_address.sql
 -- Description: Creates the util schema and normalize_evm_address function
 --              that is referenced by canonical_users triggers but was never defined
 -- 
@@ -28,6 +28,9 @@ COMMENT ON SCHEMA util IS 'Utility functions for common operations';
 -- Create normalize_evm_address function
 -- ============================================================================
 
+-- Use CREATE OR REPLACE for idempotency in case function exists from initial_schema.sql
+-- This migration serves as a standalone fix for databases that already ran initial schema
+-- before util.normalize_evm_address was added
 CREATE OR REPLACE FUNCTION util.normalize_evm_address(address TEXT)
 RETURNS TEXT
 LANGUAGE plpgsql
