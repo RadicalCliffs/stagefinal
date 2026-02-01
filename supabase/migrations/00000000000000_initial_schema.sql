@@ -24,6 +24,31 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- =====================================================
+-- UTILITY SCHEMA AND FUNCTIONS
+-- =====================================================
+
+-- Create util schema for utility functions
+CREATE SCHEMA IF NOT EXISTS util;
+
+-- util.normalize_evm_address: Normalize EVM addresses to lowercase
+CREATE OR REPLACE FUNCTION util.normalize_evm_address(address TEXT)
+RETURNS TEXT
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+BEGIN
+  IF address IS NULL THEN
+    RETURN NULL;
+  END IF;
+  RETURN LOWER(address);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION util.normalize_evm_address(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION util.normalize_evm_address(TEXT) TO service_role;
+GRANT EXECUTE ON FUNCTION util.normalize_evm_address(TEXT) TO anon;
+
+-- =====================================================
 -- SECTION 2: CORE USER TABLES
 -- =====================================================
 
