@@ -4,6 +4,9 @@
 
 BEGIN;
 
+-- Drop existing functions first to avoid return type conflicts
+DROP FUNCTION IF EXISTS get_comprehensive_user_dashboard_entries(TEXT) CASCADE;
+
 -- Fix get_comprehensive_user_dashboard_entries to include joincompetition data
 CREATE OR REPLACE FUNCTION get_comprehensive_user_dashboard_entries(p_user_identifier TEXT)
 RETURNS TABLE (
@@ -159,6 +162,9 @@ END;
 $$;
 
 COMMIT;
+
+-- Drop existing function first to avoid return type conflicts
+DROP FUNCTION IF EXISTS get_user_competition_entries(TEXT) CASCADE;
 
 -- Also fix get_user_competition_entries to include joincompetition
 CREATE OR REPLACE FUNCTION get_user_competition_entries(p_user_identifier TEXT)
