@@ -51,6 +51,16 @@ interface UserData {
   logout: () => Promise<void>;
 }
 
+// Pre-auth state machine to track authentication flow stages
+// This prevents premature database queries when baseUser.id is not yet available
+type PreAuthState = 
+  | 'unauthenticated'        // No auth in progress
+  | 'usernameChecked'         // Username has been verified (exists or not)
+  | 'requiresSignupDetails'   // New user - collecting signup information
+  | 'awaitingBaseAuthChoice'  // User choosing between Base wallet or create Base account
+  | 'awaitingBaseAuthCompletion' // Base auth in progress, wallet connecting
+  | 'authenticated';          // Fully authenticated with baseUser.id available
+
 interface AuthContextType extends UserData {
   refreshUserData: () => Promise<void>;
   // Keep privyUser for backward compatibility (maps to baseUser)
@@ -60,6 +70,8 @@ interface AuthContextType extends UserData {
   // Login function - triggers auth modal via event system
   // Components call this, and the Header component listens and opens the modal
   login: (options?: { loginMethods?: string[]; prefill?: { type: string; value: string } }) => void;
+  // Pre-auth state for tracking flow stages
+  preAuthState: PreAuthState;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -88,6 +100,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [embeddedWallet, setEmbeddedWallet] = useState<LinkedWallet | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [ready, setReady] = useState(false);
+  
+  // Pre-auth state machine - tracks authentication flow stages
+  // This prevents premature database queries before baseUser.id is available
+  const [preAuthState, setPreAuthState] = useState<PreAuthState>('unauthenticated');
 
   // Track if initial auth data has been fetched to prevent infinite loops
   const initialFetchDoneRef = useRef(false);
@@ -160,6 +176,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // This prevents confusing states where the profile is for one wallet but UI shows another
   const authenticated = isCDPAuthenticated || (wagmiIsConnected && !!wagmiAddress && !isCDPAuthenticated);
 
+  // Update preAuthState based on authentication status
+  // This state machine helps components understand where in the auth flow we are
+  useEffect(() => {
+    const newState: PreAuthState = authenticated && baseUser?.id 
+      ? 'authenticated' 
+      : authenticated && !baseUser?.id 
+        ? 'awaitingBaseAuthCompletion' 
+        : 'unauthenticated';
+    
+    if (newState !== preAuthState) {
+      console.log('[AuthContext] PreAuthState transition:', preAuthState, '->', newState, {
+        authenticated,
+        hasBaseUserId: !!baseUser?.id,
+        effectiveWalletAddress,
+        timestamp: new Date().toISOString()
+      });
+      setPreAuthState(newState);
+    }
+  }, [authenticated, baseUser?.id, effectiveWalletAddress, preAuthState]);
+
   // Mark as ready once CDP has finished initializing or wagmi is connected
   // Use smart session restoration detection to minimize flash of logged-out state
   useEffect(() => {
@@ -223,6 +259,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Logout function using CDP and/or wagmi
   const logout = useCallback(async () => {
     try {
+      console.log('[AuthContext] Logout initiated');
+      
+      // Reset pre-auth state
+      setPreAuthState('unauthenticated');
+      
       // Disconnect wagmi wallet if connected
       if (wagmiIsConnected) {
         wagmiDisconnect();
@@ -621,12 +662,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // This ensures user data is refreshed immediately after authentication
   useEffect(() => {
     const handleAuthComplete = (event: CustomEvent) => {
-      console.log('[AuthContext] Auth complete event received:', event.detail);
+      console.log('[AuthContext] ✅ Auth complete event received:', {
+        detail: event.detail,
+        hasWalletAddress: !!event.detail?.walletAddress,
+        hasEmail: !!event.detail?.email,
+        effectiveWalletAddress,
+        currentPreAuthState: preAuthState,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Update pre-auth state to indicate Base auth is completing
+      setPreAuthState('awaitingBaseAuthCompletion');
+      
       // CRITICAL FIX: Mark that auth-complete was handled to prevent race with handleAuthStateChange
       authCompleteHandledRef.current = Date.now();
       // Store the email from the event for use in case of race conditions
       if (event.detail?.email) {
         lastAuthCompleteEmailRef.current = event.detail.email;
+        console.log('[AuthContext] Stored email from auth-complete event:', event.detail.email);
       }
       // Reset tracking refs to force a fresh fetch
       initialFetchDoneRef.current = false;
@@ -636,7 +689,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // This ensures we can find the existing user by email even if currentUser.email is not yet populated
       // Note: void is used to explicitly ignore the promise. Error handling is done within refreshUserData.
       if (event.detail?.walletAddress || effectiveWalletAddress) {
+        console.log('[AuthContext] Triggering refreshUserData after auth-complete');
         void refreshUserData(event.detail?.email);
+      } else {
+        console.warn('[AuthContext] No wallet address available in auth-complete event or effectiveWalletAddress');
       }
     };
 
@@ -701,6 +757,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     logout,
     login,
     refreshUserData,
+    preAuthState, // Expose pre-auth state for components to check
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -731,6 +788,7 @@ export const useAuthUser = () => {
         console.warn('[AuthContext] Login called but AuthProvider is not available');
       },
       refreshUserData: async () => {},
+      preAuthState: 'unauthenticated',
     };
   }
   return context;

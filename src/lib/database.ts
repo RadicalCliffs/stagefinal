@@ -373,32 +373,86 @@ export const database = {
 
   async getAllWinners(limit: number = 50): Promise<WinnerCardProps[]>{
     try {
-      // Fetch all winners from the actual winners table
-      const { data: winners, error } = await supabase
-        .from('winners')
-        .select(`
-          id,
-          wallet_address,
-          prize_value,
-          won_at,
-          created_at,
-          ticket_number,
-          competition_id,
-          distribution_hash,
-          competitions (
+      // First, try fetching with distribution_hash column
+      let winners: any[] | null = null;
+      let error: any = null;
+      
+      try {
+        const result = await supabase
+          .from('winners')
+          .select(`
             id,
-            title,
-            image_url,
-            end_date,
-            draw_date,
-            prize_description,
+            wallet_address,
             prize_value,
-            prize_type
-          )
-        `)
-        .not('wallet_address', 'is', null)
-        .order('won_at', { ascending: false, nullsLast: true })
-        .limit(150); // Query more to account for filtered test data
+            won_at,
+            created_at,
+            ticket_number,
+            competition_id,
+            distribution_hash,
+            competitions (
+              id,
+              title,
+              image_url,
+              end_date,
+              draw_date,
+              prize_description,
+              prize_value,
+              prize_type
+            )
+          `)
+          .not('wallet_address', 'is', null)
+          .order('won_at', { ascending: false, nullsLast: true })
+          .limit(150); // Query more to account for filtered test data
+        
+        winners = result.data;
+        error = result.error;
+      } catch (queryError: any) {
+        // Check if this is a schema drift error (missing column)
+        const errorCode = queryError?.code || queryError?.details?.code;
+        const errorMessage = queryError?.message || '';
+        
+        // PostgreSQL error code 42703 = column does not exist
+        // Also check for similar error messages
+        if (
+          errorCode === '42703' || 
+          errorMessage.includes('column') && errorMessage.includes('does not exist') ||
+          errorMessage.includes('distribution_hash')
+        ) {
+          console.warn('[Database] distribution_hash column not found, retrying query without it');
+          
+          // Retry query without distribution_hash
+          const fallbackResult = await supabase
+            .from('winners')
+            .select(`
+              id,
+              wallet_address,
+              prize_value,
+              won_at,
+              created_at,
+              ticket_number,
+              competition_id,
+              competitions (
+                id,
+                title,
+                image_url,
+                end_date,
+                draw_date,
+                prize_description,
+                prize_value,
+                prize_type
+              )
+            `)
+            .not('wallet_address', 'is', null)
+            .order('won_at', { ascending: false, nullsLast: true })
+            .limit(150);
+          
+          winners = fallbackResult.data;
+          error = fallbackResult.error;
+        } else {
+          // Re-throw non-schema errors
+          throw queryError;
+        }
+      }
 
       if (error) {
         handleDatabaseError(error, 'getAllWinners');
@@ -552,33 +606,88 @@ export const database = {
 
 
   async getWinners(limit: number = 50): Promise<WinnerCardProps[]> {
-    // Fetch all winners from the actual winners table
-    const { data: winners, error } = await supabase
-      .from('winners')
-      .select(`
-        id,
-        wallet_address,
-        prize_value,
-        prize_description,
-        won_at,
-        created_at,
-        ticket_number,
-        competition_id,
-        distribution_hash,
-        competitions (
+    // First, try fetching with distribution_hash column
+    let winners: any[] | null = null;
+    let error: any = null;
+    
+    try {
+      const result = await supabase
+        .from('winners')
+        .select(`
           id,
-          title,
-          image_url,
-          end_date,
-          draw_date,
-          prize_description,
+          wallet_address,
           prize_value,
-          prize_type
-        )
-      `)
-      .not('wallet_address', 'is', null)
-      .order('won_at', { ascending: false, nullsLast: true })
-      .limit(150); // Query more to account for filtered test data
+          prize_description,
+          won_at,
+          created_at,
+          ticket_number,
+          competition_id,
+          distribution_hash,
+          competitions (
+            id,
+            title,
+            image_url,
+            end_date,
+            draw_date,
+            prize_description,
+            prize_value,
+            prize_type
+          )
+        `)
+        .not('wallet_address', 'is', null)
+        .order('won_at', { ascending: false, nullsLast: true })
+        .limit(150); // Query more to account for filtered test data
+      
+      winners = result.data;
+      error = result.error;
+    } catch (queryError: any) {
+      // Check if this is a schema drift error (missing column)
+      const errorCode = queryError?.code || queryError?.details?.code;
+      const errorMessage = queryError?.message || '';
+      
+      // PostgreSQL error code 42703 = column does not exist
+      // Also check for similar error messages
+      if (
+        errorCode === '42703' || 
+        errorMessage.includes('column') && errorMessage.includes('does not exist') ||
+        errorMessage.includes('distribution_hash')
+      ) {
+        console.warn('[Database] distribution_hash column not found in getWinners, retrying query without it');
+        
+        // Retry query without distribution_hash
+        const fallbackResult = await supabase
+          .from('winners')
+          .select(`
+            id,
+            wallet_address,
+            prize_value,
+            prize_description,
+            won_at,
+            created_at,
+            ticket_number,
+            competition_id,
+            competitions (
+              id,
+              title,
+              image_url,
+              end_date,
+              draw_date,
+              prize_description,
+              prize_value,
+              prize_type
+            )
+          `)
+          .not('wallet_address', 'is', null)
+          .order('won_at', { ascending: false, nullsLast: true })
+          .limit(150);
+        
+        winners = fallbackResult.data;
+        error = fallbackResult.error;
+      } else {
+        // Re-throw non-schema errors
+        throw queryError;
+      }
+    }
 
     if (error) {
       console.error('Error fetching winners from winners table:', error);
