@@ -5,8 +5,23 @@ import { toPrizePid, isWalletAddress, isPrizePid } from "../_shared/userId.ts";
 /**
  * Simple processor for completed balance-based payment transactions
  *
- * This function marks completed balance payments as processed
- * and creates basic competition entries.
+ * PURPOSE: This function processes crypto-to-treasury transactions AFTER payment completion:
+ * 
+ * 1. TOP-UPS (competition_id IS NULL): 
+ *    - Credits user's sub_account_balance via credit_sub_account_balance RPC
+ *    - Applies 50% bonus on first top-up
+ *    - NOTE: instant-topup.mts handles immediate top-ups and sets wallet_credited=true,
+ *      so this is mainly a fallback for delayed/webhook-based top-ups
+ * 
+ * 2. ENTRY PURCHASES (competition_id IS NOT NULL):
+ *    - Marks transaction as processed WITHOUT touching balance
+ *    - User paid directly with crypto - no balance debit needed
+ *    - Entry creation is handled by payment flow (PaymentModal, etc.)
+ * 
+ * Transactions are filtered by:
+ * - payment_provider IN ('base-cdp', 'coinbase', 'coinbase_onramp', 'onchainkit', 'privy_base_wallet')
+ * - status IN ('completed', 'complete', 'finished', 'confirmed', 'success', 'paid')
+ * - wallet_credited = false
  */
 
 const corsHeaders = {
@@ -240,10 +255,13 @@ Deno.serve(async (req) => {
         }
 
         if (isEntryPurchase) {
-          // ENTRY PURCHASE: Use debit_sub_account_balance_with_entry RPC
-          // This atomically debits balance AND creates joincompetition entry
-          console.log(`[process-balance-payments][${requestId}] Processing entry purchase for transaction ${transaction.id}`);
+          // ENTRY PURCHASE VIA CRYPTO: Mark as processed without touching balance
+          // Entry purchases via Base/crypto are direct payments to treasury - NO balance debit needed
+          // The entry should have been created by the payment flow (e.g., PaymentModal)
+          // We just mark the transaction as processed here to avoid infinite retries
+          console.log(`[process-balance-payments][${requestId}] Processing entry purchase via crypto for transaction ${transaction.id}`);
           
+          // Check if entry already exists
           const { data: existingEntry } = await supabase
             .from('joincompetition')
             .select('uid')
@@ -251,54 +269,15 @@ Deno.serve(async (req) => {
             .maybeSingle();
 
           if (existingEntry) {
-            console.log(`[process-balance-payments][${requestId}] Entry already exists for transaction ${transaction.id}`);
-
-            await supabase
-              .from('user_transactions')
-              .update({ wallet_credited: true })
-              .eq('id', transaction.id);
-
-            results.push({
-              transactionId: transaction.id,
-              status: 'already_processed',
-              message: 'Entry already existed',
-            });
-            continue;
+            console.log(`[process-balance-payments][${requestId}] ✅ Entry exists for transaction ${transaction.id}, marking as processed`);
+          } else {
+            // Entry doesn't exist yet - this is handled by a different flow
+            // Just log and mark as credited to prevent retries
+            console.log(`[process-balance-payments][${requestId}] ⚠️ Entry not found for transaction ${transaction.id}, but marking as processed (handled elsewhere)`);
           }
 
-          const ticketCount = transaction.ticket_count || 1;
-          const totalCost = Number(transaction.amount ?? amountUsd);
-
-          // Convert user_id to canonical format for consistent storage
-          const entryCanonicalUserId = toPrizePid(transaction.user_id);
-
-          // CRITICAL: Use RPC to atomically debit balance AND create entry
-          // This ensures balance is properly debited when paying with balance
-          console.log(`[process-balance-payments][${requestId}] Calling debit_sub_account_balance_with_entry RPC for ${entryCanonicalUserId}, amount: ${totalCost}`);
-          
-          const { data: purchaseResult, error: purchaseRpcError } = await supabase
-            .rpc('debit_sub_account_balance_with_entry', {
-              p_canonical_user_id: entryCanonicalUserId,
-              p_competition_id: transaction.competition_id,
-              p_amount: totalCost,
-              p_ticket_count: ticketCount,
-              p_ticket_numbers: '', // ticket numbers if available from transaction
-              p_transaction_id: transaction.id
-            });
-
-          if (purchaseRpcError) {
-            console.error(`[process-balance-payments][${requestId}] Error calling debit_sub_account_balance_with_entry RPC:`, purchaseRpcError);
-            throw new Error(`Failed to process purchase via RPC: ${purchaseRpcError.message}`);
-          }
-
-          if (!purchaseResult || !purchaseResult.success) {
-            const errorMsg = purchaseResult?.error || 'Unknown error';
-            console.error(`[process-balance-payments][${requestId}] debit_sub_account_balance_with_entry RPC failed:`, errorMsg);
-            throw new Error(`Failed to process purchase: ${errorMsg}`);
-          }
-
-          console.log(`[process-balance-payments][${requestId}] ✅ Entry created via RPC: ${purchaseResult.entry_uid}, balance: ${purchaseResult.previous_balance} → ${purchaseResult.new_balance}`);
-
+          // Mark transaction as wallet_credited to prevent reprocessing
+          // NOTE: For crypto payments, "wallet_credited" means "processed" - no actual balance change occurs
           await supabase
             .from('user_transactions')
             .update({ wallet_credited: true })
@@ -306,13 +285,9 @@ Deno.serve(async (req) => {
 
           results.push({
             transactionId: transaction.id,
-            status: 'processed_entry',
-            ticketsCreated: ticketCount,
-            totalCost,
-            entryCreated: true,
-            entryUid: purchaseResult.entry_uid,
-            previousBalance: purchaseResult.previous_balance,
-            newBalance: purchaseResult.new_balance,
+            status: 'entry_purchase_via_crypto',
+            message: 'Entry purchase via crypto - no balance change needed',
+            entryExists: !!existingEntry,
           });
           processed++;
           continue;
