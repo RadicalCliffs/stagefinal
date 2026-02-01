@@ -133,7 +133,7 @@ export interface PendingTransaction {
 export async function fetchUserDashboardEntries(identifier: string): Promise<DashboardEntry[]> {
   const { data, error } = await (supabase.rpc as any)(
     'get_comprehensive_user_dashboard_entries',
-    { params: { user_identifier: identifier } }
+    { p_user_identifier: identifier }
   );
 
   if (error) throw error;
