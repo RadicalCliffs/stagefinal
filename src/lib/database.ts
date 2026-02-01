@@ -593,7 +593,8 @@ export const database = {
           showInstantWin: false,
           avatarUrl: userData?.avatar_url || getRandomAvatar(),
           competitionId: winner.competition_id || '',
-          txHash: winner.distribution_hash || '',
+          // Use optional chaining for distribution_hash which may not exist in some environments
+          txHash: winner?.distribution_hash ?? '',
         });
       }
 
@@ -823,7 +824,8 @@ export const database = {
         showInstantWin: false,
         avatarUrl: userData?.avatar_url || getRandomAvatar(),
         competitionId: winner.competition_id || '',
-        txHash: winner.distribution_hash || '',
+        // Use optional chaining for distribution_hash which may not exist in some environments
+        txHash: winner?.distribution_hash ?? '',
       });
     }
 
