@@ -256,12 +256,16 @@ Deno.serve(async (req) => {
 
         if (isEntryPurchase) {
           // ENTRY PURCHASE VIA CRYPTO: Mark as processed without touching balance
-          // Entry purchases via Base/crypto are direct payments to treasury - NO balance debit needed
-          // The entry should have been created by the payment flow (e.g., PaymentModal)
-          // We just mark the transaction as processed here to avoid infinite retries
+          // 
+          // CONTEXT: Entry purchases via Base/crypto are direct payments to treasury.
+          // No balance debit is needed because the user paid with crypto, not site balance.
+          // 
+          // Entry creation is handled by confirm-pending-tickets-proxy.mts when tickets
+          // are allocated during the payment flow. This function just marks the transaction
+          // as processed to prevent reprocessing attempts.
           console.log(`[process-balance-payments][${requestId}] Processing entry purchase via crypto for transaction ${transaction.id}`);
           
-          // Check if entry already exists
+          // Check if entry already exists (for logging/debugging only)
           const { data: existingEntry } = await supabase
             .from('joincompetition')
             .select('uid')
@@ -271,13 +275,15 @@ Deno.serve(async (req) => {
           if (existingEntry) {
             console.log(`[process-balance-payments][${requestId}] ✅ Entry exists for transaction ${transaction.id}, marking as processed`);
           } else {
-            // Entry doesn't exist yet - this is handled by a different flow
-            // Just log and mark as credited to prevent retries
-            console.log(`[process-balance-payments][${requestId}] ⚠️ Entry not found for transaction ${transaction.id}, but marking as processed (handled elsewhere)`);
+            // Entry doesn't exist yet - likely still being processed by confirm-pending-tickets-proxy
+            // or payment flow is not complete. Mark as processed anyway to avoid retry loops.
+            console.log(`[process-balance-payments][${requestId}] ⚠️ Entry not found for transaction ${transaction.id}. Expected to be created by confirm-pending-tickets-proxy.mts or payment flow. Marking as processed to prevent retries.`);
           }
 
           // Mark transaction as wallet_credited to prevent reprocessing
-          // NOTE: For crypto payments, "wallet_credited" means "processed" - no actual balance change occurs
+          // NOTE: For crypto entry purchases, "wallet_credited" is a misnomer - it just means "processed".
+          // No actual wallet/balance crediting occurs for entry purchases - the field name is reused
+          // for transaction state management across multiple payment types.
           await supabase
             .from('user_transactions')
             .update({ wallet_credited: true })
