@@ -4,6 +4,9 @@
 
 BEGIN;
 
+-- Drop existing function first to avoid return type conflicts
+DROP FUNCTION IF EXISTS public.confirm_ticket_purchase(UUID, TEXT) CASCADE;
+
 -- Update confirm_ticket_purchase to also insert into user_transactions
 CREATE OR REPLACE FUNCTION public.confirm_ticket_purchase(
   p_pending_ticket_id UUID, 
