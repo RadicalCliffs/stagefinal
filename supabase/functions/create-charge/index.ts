@@ -164,7 +164,28 @@ Deno.serve(async (req: Request) => {
     }
 
     // Step 3: Only create new user if truly not found anywhere
+    // CRITICAL FIX: Check if signup is in progress via request headers
+    // If X-Signup-Username or X-Signup-Email are present, DO NOT create user here
+    // Let the signup flow complete via upsert-user instead
+    const signupUsername = req.headers.get('x-signup-username');
+    const signupEmail = req.headers.get('x-signup-email');
+    const isSignupInProgress = signupUsername || signupEmail;
+    
     if (!existingUser) {
+      if (isSignupInProgress) {
+        console.log(`[create-charge][${requestId}] Signup in progress detected, skipping user creation. Will be created by signup flow.`);
+        // Return error - the user will be created by the signup flow with proper username
+        // The user must complete signup before making purchases
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: "Please complete your signup before making a purchase",
+            code: "SIGNUP_IN_PROGRESS" 
+          }),
+          { status: 400, headers: { "Content-Type": "application/json", ...cors } }
+        );
+      }
+      
       console.log(`[create-charge][${requestId}] No user found, creating minimal entry`);
       const { error: createUserError } = await supabase.from('canonical_users').insert({
         canonical_user_id: canonicalUserId,
@@ -172,6 +193,7 @@ Deno.serve(async (req: Request) => {
         wallet_address: walletAddress,
         base_wallet_address: walletAddress,
         eth_wallet_address: walletAddress,
+        // CRITICAL: Only use fallback username if NOT in signup flow
         username: walletAddress ? `user_${walletAddress.slice(2, 8)}` : `user_${Date.now()}`,
         usdc_balance: 0,
         has_used_new_user_bonus: false,
