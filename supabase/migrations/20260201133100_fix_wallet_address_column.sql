@@ -64,7 +64,8 @@ $$;
 UPDATE user_transactions
 SET wallet_address = LOWER(SUBSTRING(wallet_address FROM 11))
 WHERE wallet_address LIKE 'prize:pid:0x%'
-  AND SUBSTRING(wallet_address FROM 11) ~ '^0x[a-f0-9]{40}$';
+  AND LENGTH(SUBSTRING(wallet_address FROM 11)) = 42
+  AND SUBSTRING(wallet_address FROM 11) LIKE '0x%';
 
 -- Normalize all wallet addresses to lowercase
 UPDATE user_transactions
