@@ -1,416 +1,88 @@
-# Database Triggers - Production Reference
+schema  
+public  
+[Docs](https://supabase.com/docs/guides/database/postgres/triggers)  
+New trigger
+
+| Name | Table | Function | Events | Orientation | Enabled |  |
+| :---- | :---- | :---- | :---- | :---- | :---- | ----- |
+| balance\_ledger\_broadcast | [balance\_ledger](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/62872) | [broadcast\_table\_changes](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=broadcast_table_changes&schema=public) | AFTER DELETEAFTER UPDATEAFTER INSERT | ROW |  |  |
+| balance\_ledger\_broadcast\_trigger | [balance\_ledger](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/62872) | [broadcast\_table\_changes](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=broadcast_table_changes&schema=util) | AFTER INSERTAFTER UPDATEAFTER DELETE | ROW |  |  |
+| canonical\_users\_broadcast | [canonical\_users](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45488) | [broadcast\_table\_changes](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=broadcast_table_changes&schema=public) | AFTER DELETEAFTER UPDATEAFTER INSERT | ROW |  |  |
+| canonical\_users\_normalize\_before\_write | [canonical\_users](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45488) | [canonical\_users\_normalize\_before\_write](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=canonical_users_normalize_before_write&schema=public) | BEFORE UPDATEBEFORE INSERT | ROW |  |  |
+| check\_reservation\_expiry | [pending\_tickets](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45457) | [auto\_expire\_reservations](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=auto_expire_reservations&schema=public) | BEFORE INSERTBEFORE UPDATE | ROW |  |  |
+| competitions\_broadcast | [competitions](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45390) | [broadcast\_table\_changes](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=broadcast_table_changes&schema=public) | AFTER UPDATEAFTER INSERTAFTER DELETE | ROW |  |  |
+| competitions\_broadcast\_trigger | [competitions](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45390) | [broadcast\_table\_changes](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=broadcast_table_changes&schema=util) | AFTER DELETEAFTER INSERTAFTER UPDATE | ROW |  |  |
+| competitions\_sync\_num\_winners\_trg | [competitions](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45390) | [competitions\_sync\_num\_winners](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=competitions_sync_num_winners&schema=public) | BEFORE INSERTBEFORE UPDATE | ROW |  |  |
+| competitions\_sync\_tickets\_sold\_trg | [competitions](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45390) | [competitions\_sync\_tickets\_sold](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=competitions_sync_tickets_sold&schema=public) | BEFORE UPDATEBEFORE INSERT | ROW |  |  |
+| cu\_normalize\_and\_enforce\_trg | [canonical\_users](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45488) | [cu\_normalize\_and\_enforce](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=cu_normalize_and_enforce&schema=public) | BEFORE UPDATEBEFORE INSERT | ROW |  |  |
+| joincompetition\_broadcast | [joincompetition](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45423) | [broadcast\_table\_changes](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=broadcast_table_changes&schema=public) | AFTER UPDATEAFTER INSERTAFTER DELETE | ROW |  |  |
+| joincompetition\_broadcast\_trigger | [joincompetition](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45423) | [broadcast\_table\_changes](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=broadcast_table_changes&schema=util) | AFTER UPDATEAFTER DELETEAFTER INSERT | ROW |  |  |
+| orders\_broadcast | [orders](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45439) | [broadcast\_table\_changes](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=broadcast_table_changes&schema=public) | AFTER UPDATEAFTER INSERTAFTER DELETE | ROW |  |  |
+| payment\_webhook\_events\_broadcast | [payment\_webhook\_events](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45573) | [broadcast\_table\_changes](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=broadcast_table_changes&schema=public) | AFTER UPDATEAFTER DELETEAFTER INSERT | ROW |  |  |
+| payments\_broadcast | [payments](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/72877) | [payment\_broadcast\_trigger](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=payment_broadcast_trigger&schema=public) | AFTER UPDATEAFTER INSERT | ROW |  |  |
+| payments\_set\_updated\_at | [payments](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/72877) | [set\_payments\_updated\_at](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=set_payments_updated_at&schema=public) | BEFORE UPDATE | ROW |  |  |
+| pending\_tickets\_broadcast | [pending\_tickets](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45457) | [broadcast\_table\_changes](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=broadcast_table_changes&schema=public) | AFTER UPDATEAFTER INSERTAFTER DELETE | ROW |  |  |
+| pending\_tickets\_broadcast\_trigger | [pending\_tickets](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45457) | [broadcast\_table\_changes](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=broadcast_table_changes&schema=util) | AFTER DELETEAFTER UPDATEAFTER INSERT | ROW |  |  |
+| reservations\_broadcast | [reservations](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/72869) | [reservation\_broadcast\_trigger](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=reservation_broadcast_trigger&schema=public) | AFTER DELETEAFTER INSERTAFTER UPDATE | ROW |  |  |
+| sub\_account\_balances\_award\_insert | [sub\_account\_balances](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/47312) | [sub\_account\_bonus\_trigger](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=sub_account_bonus_trigger&schema=public) | AFTER INSERT | ROW |  |  |
+| sub\_account\_balances\_award\_update | [sub\_account\_balances](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/47312) | [sub\_account\_bonus\_trigger](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=sub_account_bonus_trigger&schema=public) | AFTER UPDATE | ROW |  |  |
+| sub\_account\_balances\_broadcast\_trigger | [sub\_account\_balances](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/47312) | [broadcast\_table\_changes](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=broadcast_table_changes&schema=util) | AFTER UPDATEAFTER INSERTAFTER DELETE | ROW |  |  |
+| sync\_balance\_to\_canonical\_users | [sub\_account\_balances](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/47312) | [sync\_canonical\_user\_balance](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=sync_canonical_user_balance&schema=public) | AFTER UPDATEAFTER INSERT | ROW |  |  |
+| tickets\_broadcast | [tickets](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45406) | [broadcast\_table\_changes](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=broadcast_table_changes&schema=public) | AFTER DELETEAFTER UPDATEAFTER INSERT | ROW |  |  |
+| tickets\_broadcast\_trigger | [tickets](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45406) | [broadcast\_table\_changes](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=broadcast_table_changes&schema=util) | AFTER UPDATEAFTER DELETEAFTER INSERT | ROW |  |  |
+| tr\_set\_canonical\_user\_id | [canonical\_users](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45488) | [set\_canonical\_user\_id\_from\_wallet](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=set_canonical_user_id_from_wallet&schema=public) | BEFORE UPDATEBEFORE INSERT | ROW |  |  |
+| trg\_auto\_debit\_on\_balance\_order | [orders](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45439) | [auto\_debit\_on\_balance\_order](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=auto_debit_on_balance_order&schema=public) | AFTER INSERTAFTER UPDATE | ROW |  |  |
+| trg\_award\_first\_topup\_bonus | [custody\_transactions](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/47276) | [award\_first\_topup\_bonus](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=award_first_topup_bonus&schema=public) | AFTER UPDATE | ROW |  |  |
+| trg\_balance\_ledger\_sync\_wallet | [balance\_ledger](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/62872) | [balance\_ledger\_sync\_wallet](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=balance_ledger_sync_wallet&schema=public) | AFTER INSERT | ROW |  |  |
+| trg\_bcast\_ticket\_changes | [tickets](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45406) | [bcast\_ticket\_changes](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=bcast_ticket_changes&schema=public) | AFTER UPDATEAFTER INSERTAFTER DELETE | ROW |  |  |
+| trg\_bcast\_winner\_changes | [winners](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45473) | [bcast\_winner\_changes](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=bcast_winner_changes&schema=public) | AFTER UPDATEAFTER INSERTAFTER DELETE | ROW |  |  |
+| trg\_canonical\_users\_normalize | [canonical\_users](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45488) | [canonical\_users\_normalize](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=canonical_users_normalize&schema=public) | BEFORE UPDATEBEFORE INSERT | ROW |  |  |
+| trg\_check\_sold\_out\_on\_ticket\_insert | [tickets](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45406) | [trigger\_check\_competition\_sold\_out](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=trigger_check_competition_sold_out&schema=public) | AFTER INSERT | ROW |  |  |
+| trg\_complete\_topup\_on\_webhook\_ref\_ins | [user\_transactions](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45544) | [complete\_topup\_on\_webhook\_ref](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=complete_topup_on_webhook_ref&schema=public) | BEFORE INSERT | ROW |  |  |
+| trg\_complete\_topup\_on\_webhook\_ref\_upd | [user\_transactions](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45544) | [complete\_topup\_on\_webhook\_ref](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=complete_topup_on_webhook_ref&schema=public) | BEFORE UPDATE | ROW |  |  |
+| trg\_confirm\_pending\_tickets | [pending\_tickets](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45457) | [trg\_fn\_confirm\_pending\_tickets](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=trg_fn_confirm_pending_tickets&schema=public) | AFTER UPDATE | ROW |  |  |
+| trg\_email\_auth\_sessions\_verified | [email\_auth\_sessions](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/48849) | [on\_email\_verification\_merge](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=on_email_verification_merge&schema=public) | AFTER UPDATE | ROW |  |  |
+| trg\_expire\_hold\_on\_write | [pending\_ticket\_items](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/52468) | [expire\_hold\_if\_needed](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=expire_hold_if_needed&schema=public) | BEFORE INSERTBEFORE UPDATE | ROW |  |  |
+| trg\_finalize\_pending\_user\_transactions | [user\_transactions](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45544) | [finalize\_pending\_user\_transactions](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=finalize_pending_user_transactions&schema=util) | BEFORE INSERT | ROW |  |  |
+| trg\_init\_sub\_balance | [canonical\_users](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45488) | [init\_sub\_balance\_after\_canonical\_user](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=init_sub_balance_after_canonical_user&schema=public) | AFTER INSERT | ROW |  |  |
+| trg\_joincompetition\_set\_cuid | [joincompetition](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45423) | [trg\_set\_cuid\_from\_context](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=trg_set_cuid_from_context&schema=util) | BEFORE UPDATEBEFORE INSERT | ROW |  |  |
+| trg\_joincompetition\_wallet\_bi | [joincompetition](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45423) | [joincompetition\_sync\_wallet](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=joincompetition_sync_wallet&schema=public) | BEFORE UPDATEBEFORE INSERT | ROW |  |  |
+| trg\_normalize\_sub\_account\_currency | [sub\_account\_balances](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/47312) | [normalize\_sub\_account\_currency](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=normalize_sub_account_currency&schema=public) | BEFORE UPDATEBEFORE INSERT | ROW |  |  |
+| trg\_orders\_to\_user\_transactions | [orders](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45439) | [orders\_to\_user\_transactions](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=orders_to_user_transactions&schema=public) | AFTER INSERTAFTER UPDATE | ROW |  |  |
+| trg\_pending\_sync\_joincompetition | [pending\_tickets](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45457) | [trg\_sync\_joincompetition\_from\_pending](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=trg_sync_joincompetition_from_pending&schema=public) | AFTER INSERTAFTER UPDATE | ROW |  |  |
+| trg\_pending\_tickets\_enforce\_expiry\_biu | [pending\_tickets](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45457) | [pending\_tickets\_enforce\_expiry](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=pending_tickets_enforce_expiry&schema=public) | BEFORE INSERTBEFORE UPDATE | ROW |  |  |
+| trg\_pending\_tickets\_set\_cuid | [pending\_tickets](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45457) | [trg\_set\_cuid\_from\_context](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=trg_set_cuid_from_context&schema=util) | BEFORE INSERTBEFORE UPDATE | ROW |  |  |
+| trg\_profiles\_after\_upsert | [profiles](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45529) | [call\_profiles\_processor\_async](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=call_profiles_processor_async&schema=public) | AFTER INSERTAFTER UPDATE | ROW |  |  |
+| trg\_provision\_sub\_account\_balance | [canonical\_users](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45488) | [handle\_canonical\_user\_insert](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=handle_canonical_user_insert&schema=public) | AFTER INSERT | ROW |  |  |
+| trg\_repair\_topup\_provider\_and\_status | [user\_transactions](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45544) | [repair\_topup\_provider\_and\_status](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=repair_topup_provider_and_status&schema=public) | BEFORE INSERTBEFORE UPDATE | ROW |  |  |
+| trg\_sub\_account\_balances\_sync\_ids | [sub\_account\_balances](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/47312) | [sub\_account\_balances\_sync\_ids](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=sub_account_balances_sync_ids&schema=public) | BEFORE UPDATEBEFORE INSERT | ROW |  |  |
+| trg\_sync\_identity\_user\_tx | [user\_transactions](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45544) | [sync\_identity\_columns](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=sync_identity_columns&schema=public) | BEFORE INSERTBEFORE UPDATE | ROW |  |  |
+| trg\_tickets\_finalize\_spend | [tickets](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45406) | [tickets\_finalize\_spend\_trigger](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=tickets_finalize_spend_trigger&schema=public) | AFTER INSERTAFTER UPDATE | ROW |  |  |
+| trg\_tickets\_set\_cuid | [tickets](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45406) | [trg\_set\_cuid\_from\_context](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=trg_set_cuid_from_context&schema=util) | BEFORE UPDATEBEFORE INSERT | ROW |  |  |
+| trg\_tickets\_sync\_joincompetition | [tickets](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45406) | [trg\_sync\_joincompetition\_from\_tickets](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=trg_sync_joincompetition_from_tickets&schema=public) | AFTER UPDATEAFTER DELETEAFTER INSERT | ROW |  |  |
+| trg\_tickets\_txid\_fill | [tickets](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45406) | [tickets\_tx\_id\_fill](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=tickets_tx_id_fill&schema=public) | BEFORE INSERT | ROW |  |  |
+| trg\_tickets\_wallet\_bi | [tickets](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45406) | [tickets\_sync\_wallet](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=tickets_sync_wallet&schema=public) | BEFORE INSERTBEFORE UPDATE | ROW |  |  |
+| trg\_user\_transactions\_cdp\_enqueue | [user\_transactions](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45544) | [user\_transactions\_cdp\_enqueue](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=user_transactions_cdp_enqueue&schema=public) | AFTER INSERT | ROW |  |  |
+| trg\_user\_transactions\_post\_to\_wallet | [user\_transactions](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45544) | [user\_transactions\_post\_to\_wallet](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=user_transactions_post_to_wallet&schema=public) | AFTER UPDATEAFTER INSERT | ROW |  |  |
+| trg\_user\_transactions\_set\_cuid | [user\_transactions](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45544) | [trg\_set\_cuid\_from\_context](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=trg_set_cuid_from_context&schema=util) | BEFORE UPDATEBEFORE INSERT | ROW |  |  |
+| trg\_user\_transactions\_txid\_fill | [user\_transactions](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45544) | [user\_transactions\_tx\_id\_fill](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=user_transactions_tx_id_fill&schema=public) | BEFORE INSERT | ROW |  |  |
+| trg\_user\_transactions\_wallet\_bi | [user\_transactions](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45544) | [user\_transactions\_sync\_wallet](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=user_transactions_sync_wallet&schema=public) | BEFORE INSERTBEFORE UPDATE | ROW |  |  |
+| trg\_user\_tx\_autocomplete\_bi | [user\_transactions](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45544) | [user\_tx\_autocomplete\_if\_expired](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=user_tx_autocomplete_if_expired&schema=public) | BEFORE INSERT | ROW |  |  |
+| trg\_user\_tx\_autocomplete\_bu | [user\_transactions](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45544) | [user\_tx\_autocomplete\_if\_expired](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=user_tx_autocomplete_if_expired&schema=public) | BEFORE UPDATE | ROW |  |  |
+| trg\_user\_tx\_before\_insert | [user\_transactions](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45544) | [user\_tx\_before\_insert](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=user_tx_before_insert&schema=public) | BEFORE INSERT | ROW |  |  |
+| trg\_user\_tx\_guard\_bu | [user\_transactions](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45544) | [user\_tx\_guard\_no\_double\_post](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=user_tx_guard_no_double_post&schema=public) | BEFORE UPDATE | ROW |  |  |
+| trg\_user\_tx\_post\_ai | [user\_transactions](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45544) | [post\_user\_transaction\_to\_balance](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=post_user_transaction_to_balance&schema=public) | BEFORE INSERT | ROW |  |  |
+| trg\_user\_tx\_post\_au | [user\_transactions](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45544) | [post\_user\_transaction\_to\_balance](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=post_user_transaction_to_balance&schema=public) | BEFORE UPDATE | ROW |  |  |
+| trg\_users\_autolink\_before\_ins | [users](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45511) | [users\_autolink\_canonical\_before\_ins](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=users_autolink_canonical_before_ins&schema=public) | BEFORE INSERT | ROW |  |  |
+| trg\_winners\_wallet\_bi | [winners](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45473) | [winners\_sync\_wallet\_from\_user\_id](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=winners_sync_wallet_from_user_id&schema=public) | BEFORE UPDATEBEFORE INSERT | ROW |  |  |
+| trigger\_instant\_win\_grids\_updated\_at | [instant\_win\_grids](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/74179) | [update\_instant\_win\_grids\_updated\_at](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=update_instant_win_grids_updated_at&schema=public) | BEFORE UPDATE | ROW |  |  |
+| trigger\_joincompetition\_updated\_at | [joincompetition](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45423) | [update\_joincompetition\_updated\_at](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=update_joincompetition_updated_at&schema=public) | BEFORE UPDATE | ROW |  |  |
+| update\_canonical\_users\_updated\_at | [canonical\_users](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45488) | [update\_updated\_at\_column](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=update_updated_at_column&schema=public) | BEFORE UPDATE | ROW |  |  |
+| update\_competitions\_updated\_at | [competitions](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45390) | [update\_updated\_at\_column](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=update_updated_at_column&schema=public) | BEFORE UPDATE | ROW |  |  |
+| update\_pending\_tickets\_updated\_at | [pending\_tickets](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45457) | [update\_updated\_at\_column](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=update_updated_at_column&schema=public) | BEFORE UPDATE | ROW |  |  |
+| update\_user\_transactions\_updated\_at | [user\_transactions](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45544) | [update\_updated\_at\_column](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=update_updated_at_column&schema=public) | BEFORE UPDATE | ROW |  |  |
+| user\_transactions\_broadcast | [user\_transactions](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45544) | [broadcast\_table\_changes](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=broadcast_table_changes&schema=public) | AFTER INSERTAFTER UPDATEAFTER DELETE | ROW |  |  |
+| user\_transactions\_broadcast\_trigger | [user\_transactions](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45544) | [broadcast\_table\_changes](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=broadcast_table_changes&schema=util) | AFTER INSERTAFTER DELETEAFTER UPDATE | ROW |  |  |
+| users\_normalize\_before\_write | [users](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45511) | [users\_normalize\_before\_write](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=users_normalize_before_write&schema=public) | BEFORE UPDATEBEFORE INSERT | ROW |  |  |
+| winners\_broadcast\_trigger | [winners](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/editor/45473) | [broadcast\_table\_changes](https://supabase.com/dashboard/project/mthwfldcjvpxjtmrqkqm/database/functions?search=broadcast_table_changes&schema=util) | AFTER DELETEAFTER INSERTAFTER UPDATE | ROW |  |  |
 
-**Last Updated:** January 31, 2026  
-**Production Status:** 78 Active Triggers (51 Unique)  
-**Source:** Supabase Production Database
-
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Trigger Categories](#trigger-categories)
-  - [1. Timestamp Management (4 triggers)](#1-timestamp-management)
-  - [2. Data Normalization (5 triggers)](#2-data-normalization)
-  - [3. Realtime Broadcast (17 triggers)](#3-realtime-broadcast)
-  - [4. Balance & Payment (7 triggers)](#4-balance--payment)
-  - [5. Ticket Management (10 triggers)](#5-ticket-management)
-  - [6. Canonical User ID (6 triggers)](#6-canonical-user-id)
-  - [7. Transaction Processing (15 triggers)](#7-transaction-processing)
-  - [8. Wallet Synchronization (5 triggers)](#8-wallet-synchronization)
-  - [9. Competition Sync (2 triggers)](#9-competition-sync)
-  - [10. Other Business Logic (7 triggers)](#10-other-business-logic)
-- [Migration Status](#migration-status)
-- [Best Practices](#best-practices)
-
----
-
-## Overview
-
-This document catalogs all 78 production database triggers currently active in the ThePrize.io Supabase database. Triggers are organized by functional category with importance ratings and usage notes.
-
-**Key Statistics:**
-- **Total Trigger Instances:** 78 (includes multiple events per trigger)
-- **Unique Trigger Names:** 51
-- **Tables with Triggers:** 20+
-- **Critical Business Logic Triggers:** 35
-- **Realtime Broadcasting Triggers:** 17
-
----
-
-## Trigger Categories
-
-### 1. Timestamp Management
-**Purpose:** Automatically update `updated_at` timestamps on row modifications  
-**Importance:** 🟢 Standard (but critical for data integrity)
-
-| Trigger Name | Table | Events | Status |
-|-------------|-------|--------|--------|
-| `update_user_transactions_updated_at` | `user_transactions` | BEFORE UPDATE | ✅ Production |
-| `update_pending_tickets_updated_at` | `pending_tickets` | BEFORE UPDATE | ✅ Production |
-| `update_canonical_users_updated_at` | `canonical_users` | BEFORE UPDATE | ✅ Production |
-| `update_competitions_updated_at` | `competitions` | BEFORE UPDATE | ✅ Production |
-
-**Additional Timestamp Triggers:**
-- `trigger_instant_win_grids_updated_at`
-- `trigger_joincompetition_updated_at`
-- `payments_set_updated_at`
-
-**Function Used:** `update_updated_at_column()`
-
-**Notes:**
-- These triggers are passive and low-overhead
-- Essential for audit trails and change tracking
-- Do not modify business logic
-
----
-
-### 2. Data Normalization
-**Purpose:** Ensure data consistency, normalize identifiers, and enforce data quality  
-**Importance:** 🔴 Critical
-
-| Trigger Name | Table | Events | Status | Purpose |
-|-------------|-------|--------|--------|---------|
-| `canonical_users_normalize_before_write` | `canonical_users` | BEFORE INSERT/UPDATE | ✅ Production | Normalize email, wallet addresses |
-| `users_normalize_before_write` | `users` | BEFORE INSERT/UPDATE | ✅ Production | Normalize legacy user data |
-| `cu_normalize_and_enforce_trg` | `canonical_users` | BEFORE INSERT/UPDATE | ✅ Production | Enforce canonical user rules |
-| `trg_canonical_users_normalize` | `canonical_users` | BEFORE INSERT/UPDATE | ✅ Production | Additional normalization layer |
-| `trg_normalize_sub_account_currency` | `sub_account_balances` | BEFORE INSERT/UPDATE | ✅ Production | Ensure valid currency codes |
-
-**Functions Used:**
-- `canonical_users_normalize_before_write()`
-- `cu_normalize_and_enforce()`
-- `normalize_sub_account_currency()`
-
-**Notes:**
-- ⚠️ **Critical for data integrity** - prevents invalid data entry
-- Normalizes wallet addresses to lowercase
-- Validates email formats
-- Ensures canonical_user_id consistency
-
----
-
-### 3. Realtime Broadcast
-**Purpose:** Enable Supabase Realtime subscriptions for live UI updates  
-**Importance:** 🟡 Important (UX)
-
-| Trigger Name | Table | Events | Status |
-|-------------|-------|--------|--------|
-| `balance_ledger_broadcast` | `balance_ledger` | AFTER INSERT/UPDATE/DELETE | ✅ Production |
-| `balance_ledger_broadcast_trigger` | `balance_ledger` | AFTER INSERT/UPDATE/DELETE | ✅ Production |
-| `canonical_users_broadcast` | `canonical_users` | AFTER INSERT/UPDATE/DELETE | ✅ Production |
-| `competitions_broadcast` | `competitions` | AFTER INSERT/UPDATE/DELETE | ✅ Production |
-| `competitions_broadcast_trigger` | `competitions` | AFTER INSERT/UPDATE/DELETE | ✅ Production |
-| `joincompetition_broadcast` | `joincompetition` | AFTER INSERT/UPDATE/DELETE | ✅ Production |
-| `joincompetition_broadcast_trigger` | `joincompetition` | AFTER INSERT/UPDATE/DELETE | ✅ Production |
-| `orders_broadcast` | `orders` | AFTER INSERT/UPDATE/DELETE | ✅ Production |
-| `payment_webhook_events_broadcast` | `payment_webhook_events` | AFTER INSERT/UPDATE/DELETE | ✅ Production |
-| `payments_broadcast` | `payments` | AFTER INSERT/UPDATE/DELETE | ✅ Production |
-| `pending_tickets_broadcast` | `pending_tickets` | AFTER INSERT/UPDATE/DELETE | ✅ Production |
-| `pending_tickets_broadcast_trigger` | `pending_tickets` | AFTER INSERT/UPDATE/DELETE | ✅ Production |
-| `reservations_broadcast` | `reservations` | AFTER INSERT/UPDATE/DELETE | ✅ Production |
-| `sub_account_balances_broadcast_trigger` | `sub_account_balances` | AFTER INSERT/UPDATE/DELETE | ✅ Production |
-| `tickets_broadcast` | `tickets` | AFTER INSERT/UPDATE/DELETE | ✅ Production |
-| `tickets_broadcast_trigger` | `tickets` | AFTER INSERT/UPDATE/DELETE | ✅ Production |
-| `user_transactions_broadcast` | `user_transactions` | AFTER INSERT/UPDATE/DELETE | ✅ Production |
-| `user_transactions_broadcast_trigger` | `user_transactions` | AFTER INSERT/UPDATE/DELETE | ✅ Production |
-| `winners_broadcast_trigger` | `winners` | AFTER INSERT/UPDATE/DELETE | ✅ Production |
-
-**Additional Broadcast Triggers:**
-- `trg_bcast_ticket_changes` (tickets)
-- `trg_bcast_winner_changes` (winners)
-
-**Functions Used:**
-- Supabase built-in realtime broadcasting
-- `bcast_ticket_changes()`
-- `bcast_winner_changes()`
-
-**Notes:**
-- Enable live dashboard updates without polling
-- Low overhead (fires AFTER, doesn't block writes)
-- Essential for real-time competition status
-- ⚠️ Ensure Realtime is enabled on these tables in Supabase dashboard
-
----
-
-### 4. Balance & Payment
-**Purpose:** Manage user balances, process payments, award bonuses  
-**Importance:** 🔴 Critical
-
-| Trigger Name | Table | Events | Status | Purpose |
-|-------------|-------|--------|--------|---------|
-| `trg_auto_debit_on_balance_order` | `orders` | AFTER INSERT/UPDATE | ✅ Production | Auto-debit balance when order created |
-| `trg_balance_ledger_sync_wallet` | `balance_ledger` | BEFORE INSERT/UPDATE | ✅ Production | Sync wallet address in ledger |
-| `trg_provision_sub_account_balance` | `canonical_users` | AFTER INSERT | ✅ Production | Create sub-account balances for new users |
-| `trg_init_sub_balance` | `canonical_users` | AFTER INSERT | ✅ Production | Initialize balance rows |
-| `trg_award_first_topup_bonus` | `custody_transactions` | AFTER INSERT | ✅ Production | Award bonus on first deposit |
-| `sub_account_balances_award_insert` | `sub_account_balances` | AFTER INSERT | ✅ Production | Track bonus awards |
-| `sub_account_balances_award_update` | `sub_account_balances` | AFTER UPDATE | ✅ Production | Track bonus updates |
-| `sync_balance_to_canonical_users` | `sub_account_balances` | AFTER UPDATE | ✅ Production | Sync balance to canonical_users |
-
-**Functions Used:**
-- `auto_debit_on_balance_order()`
-- `balance_ledger_sync_wallet()`
-- `provision_sub_account_balance()`
-- `award_first_topup_bonus()`
-
-**Notes:**
-- ⚠️ **Mission Critical** - handles all payment processing
-- Ensures atomicity of balance operations
-- Prevents negative balances
-- Must handle concurrent transactions safely
-
----
-
-### 5. Ticket Management
-**Purpose:** Handle ticket reservations, confirmations, and expiration  
-**Importance:** 🔴 Critical
-
-| Trigger Name | Table | Events | Status | Purpose |
-|-------------|-------|--------|--------|---------|
-| `trg_confirm_pending_tickets` | `pending_tickets` | AFTER UPDATE | ✅ Production | Convert pending → sold tickets |
-| `trg_expire_hold_on_write` | `pending_ticket_items` | BEFORE INSERT/UPDATE | ✅ Production | Auto-expire held tickets |
-| `trg_tickets_finalize_spend` | `tickets` | AFTER INSERT/UPDATE | ✅ Production | Finalize spending on ticket purchase |
-| `trg_check_sold_out_on_ticket_insert` | `tickets` | AFTER INSERT | ✅ Production | Mark competition sold out |
-| `trg_tickets_sync_joincompetition` | `tickets` | AFTER INSERT/UPDATE/DELETE | ✅ Production | Sync tickets to joincompetition |
-| `trg_pending_sync_joincompetition` | `pending_tickets` | AFTER INSERT/UPDATE | ✅ Production | Sync pending tickets |
-| `trg_pending_tickets_enforce_expiry_biu` | `pending_tickets` | BEFORE INSERT/UPDATE | ✅ Production | Enforce expiry rules |
-| `check_reservation_expiry` | `pending_tickets` | BEFORE INSERT/UPDATE | ✅ Production | Check if reservation expired |
-
-**Additional Ticket Triggers:**
-- `trg_tickets_txid_fill` (tickets) - Auto-generate transaction IDs
-- `trg_tickets_wallet_bi` (tickets) - Normalize wallet before insert
-
-**Functions Used:**
-- `confirm_pending_tickets()`
-- `expire_hold_if_needed()`
-- `finalize_ticket_spend()`
-- `check_and_mark_competition_sold_out()`
-
-**Notes:**
-- ⚠️ **Core Business Logic** - handles ticket lifecycle
-- Prevents double-booking
-- Ensures fair ticket distribution
-- Must handle race conditions
-
----
-
-### 6. Canonical User ID
-**Purpose:** Ensure all records have correct canonical_user_id references  
-**Importance:** 🔴 Critical
-
-| Trigger Name | Table | Events | Status | Purpose |
-|-------------|-------|--------|--------|---------|
-| `trg_tickets_set_cuid` | `tickets` | BEFORE INSERT/UPDATE | ✅ Production | Set canonical_user_id on tickets |
-| `trg_joincompetition_set_cuid` | `joincompetition` | BEFORE INSERT/UPDATE | ✅ Production | Set canonical_user_id on entries |
-| `trg_pending_tickets_set_cuid` | `pending_tickets` | BEFORE INSERT/UPDATE | ✅ Production | Set canonical_user_id on pending |
-| `trg_user_transactions_set_cuid` | `user_transactions` | BEFORE INSERT/UPDATE | ✅ Production | Set canonical_user_id on transactions |
-| `trg_sub_account_balances_sync_ids` | `sub_account_balances` | BEFORE INSERT/UPDATE | ✅ Production | Sync all identity columns |
-| `tr_set_canonical_user_id` | `canonical_users` | BEFORE INSERT/UPDATE | ✅ Production | Ensure canonical_user_id set |
-
-**Functions Used:**
-- `_ticket_cuid()` - Derive canonical_user_id from identifiers
-- `ensure_canonical_user()` - Get or create canonical user
-
-**Notes:**
-- ⚠️ **Critical for User Identity** - enables multi-wallet support
-- Ensures data consistency across all user-related tables
-- Required for accurate reporting and analytics
-- Must be idempotent and handle NULL values
-
----
-
-### 7. Transaction Processing
-**Purpose:** Handle user transaction lifecycle and state management  
-**Importance:** 🔴 Critical
-
-| Trigger Name | Table | Events | Status | Purpose |
-|-------------|-------|--------|--------|---------|
-| `trg_orders_to_user_transactions` | `orders` | AFTER INSERT/UPDATE | ✅ Production | Create transaction from order |
-| `trg_user_tx_before_insert` | `user_transactions` | BEFORE INSERT | ✅ Production | Validate transaction data |
-| `trg_user_tx_autocomplete_bi` | `user_transactions` | BEFORE INSERT | ✅ Production | Auto-complete transaction fields |
-| `trg_user_tx_autocomplete_bu` | `user_transactions` | BEFORE UPDATE | ✅ Production | Auto-complete on update |
-| `trg_user_tx_post_ai` | `user_transactions` | AFTER INSERT | ✅ Production | Post-insert processing |
-| `trg_user_tx_post_au` | `user_transactions` | AFTER UPDATE | ✅ Production | Post-update processing |
-| `trg_user_tx_guard_bu` | `user_transactions` | BEFORE UPDATE | ✅ Production | Prevent invalid state changes |
-| `trg_finalize_pending_user_transactions` | `user_transactions` | AFTER UPDATE | ✅ Production | Finalize completed transactions |
-| `trg_user_transactions_post_to_wallet` | `user_transactions` | AFTER INSERT/UPDATE | ✅ Production | Update wallet balances |
-| `trg_complete_topup_on_webhook_ref_ins` | `user_transactions` | AFTER INSERT | ✅ Production | Complete topup on webhook |
-| `trg_complete_topup_on_webhook_ref_upd` | `user_transactions` | AFTER UPDATE | ✅ Production | Complete topup on webhook update |
-| `trg_user_transactions_txid_fill` | `user_transactions` | BEFORE INSERT | ✅ Production | Generate transaction IDs |
-| `trg_repair_topup_provider_and_status` | `user_transactions` | BEFORE INSERT/UPDATE | ✅ Production | Fix provider/status issues |
-| `trg_sync_identity_user_tx` | `user_transactions` | BEFORE INSERT/UPDATE | ✅ Production | Sync identity columns |
-| `trg_user_transactions_cdp_enqueue` | `user_transactions` | AFTER INSERT | ✅ Production | Enqueue CDP events |
-
-**Functions Used:**
-- `validate_user_transaction()`
-- `autocomplete_transaction()`
-- `finalize_pending_user_transactions()`
-- `post_to_wallet()`
-- `complete_topup_on_webhook_ref()`
-- `enqueue_cdp_event()`
-
-**Notes:**
-- ⚠️ **Mission Critical** - manages all financial transactions
-- State machine enforcement (pending → processing → completed)
-- Prevents invalid state transitions
-- Integrates with payment providers
-- Ensures idempotency
-
----
-
-### 8. Wallet Synchronization
-**Purpose:** Keep wallet addresses synchronized across tables  
-**Importance:** 🟡 Important
-
-| Trigger Name | Table | Events | Status | Purpose |
-|-------------|-------|--------|--------|---------|
-| `trg_tickets_wallet_bi` | `tickets` | BEFORE INSERT | ✅ Production | Sync wallet on ticket insert |
-| `trg_user_transactions_wallet_bi` | `user_transactions` | BEFORE INSERT | ✅ Production | Sync wallet on transaction |
-| `trg_joincompetition_wallet_bi` | `joincompetition` | BEFORE INSERT | ✅ Production | Sync wallet on competition entry |
-| `trg_winners_wallet_bi` | `winners` | BEFORE INSERT | ✅ Production | Sync wallet on winner record |
-| `trg_balance_ledger_sync_wallet` | `balance_ledger` | BEFORE INSERT/UPDATE | ✅ Production | Sync wallet in ledger |
-
-**Functions Used:**
-- `sync_wallet_address()` - Lookup and set wallet from canonical_user_id
-
-**Notes:**
-- Ensures wallet address consistency
-- Supports multi-wallet users
-- Required for analytics and reporting
-- Low overhead
-
----
-
-### 9. Competition Sync
-**Purpose:** Keep competition statistics updated in real-time  
-**Importance:** 🟡 Important (UX)
-
-| Trigger Name | Table | Events | Status | Purpose |
-|-------------|-------|--------|--------|---------|
-| `competitions_sync_num_winners_trg` | `competitions` | BEFORE INSERT/UPDATE | ✅ Production | Update winner count |
-| `competitions_sync_tickets_sold_trg` | `competitions` | BEFORE INSERT/UPDATE | ✅ Production | Update tickets sold count |
-
-**Functions Used:**
-- `competitions_sync_num_winners()`
-- `competitions_sync_tickets_sold()`
-
-**Notes:**
-- Keeps competition metadata fresh
-- Prevents expensive COUNT queries
-- Critical for UI display
-- Must handle concurrent updates
-
----
-
-### 10. Other Business Logic
-**Purpose:** Miscellaneous business rules and integrations  
-**Importance:** 🟡 Important
-
-| Trigger Name | Table | Events | Status | Purpose |
-|-------------|-------|--------|--------|---------|
-| `trg_email_auth_sessions_verified` | `email_auth_sessions` | AFTER UPDATE | ✅ Production | Process verified email sessions |
-| `trg_users_autolink_before_ins` | `users` | BEFORE INSERT | ✅ Production | Auto-link legacy user accounts |
-| `trg_profiles_after_upsert` | `profiles` | AFTER INSERT/UPDATE | ✅ Production | Sync profile changes |
-
-**Functions Used:**
-- `process_verified_email_session()`
-- `autolink_user_account()`
-- `sync_profile_data()`
-
-**Notes:**
-- Support features like email verification
-- Backward compatibility with legacy systems
-- Profile synchronization
-
----
-
-## Migration Status
-
-### ✅ In Baseline Migration (`00000000000001_baseline_triggers.sql`)
-- Timestamp management triggers (8 triggers)
-- Reservation expiry trigger
-- Helper functions documented
-
-### 🔶 Production-Only (Not Yet in Migrations)
-The following 43 triggers exist in production but are not yet in migration files:
-
-**High Priority (Must Add):**
-- All Balance & Payment triggers (7)
-- All Canonical User ID triggers (6)
-- All Transaction Processing triggers (15)
-- All Ticket Management triggers (10)
-
-**Medium Priority:**
-- All Realtime Broadcast triggers (17)
-- Wallet Synchronization triggers (5)
-- Competition Sync triggers (2)
-
-**Low Priority:**
-- Other Business Logic triggers (7)
-
-### 📋 Next Steps
-1. Extract trigger function definitions from production
-2. Add to new migration file: `00000000000002_production_triggers.sql`
-3. Test in development environment
-4. Deploy to production (idempotent - uses OR REPLACE)
-
----
-
-## Best Practices
-
-### Development Guidelines
-1. **Always use `OR REPLACE`** for trigger functions to support idempotent migrations
-2. **Use `DROP TRIGGER IF EXISTS`** before `CREATE TRIGGER` statements
-3. **Test triggers in development** before production deployment
-4. **Document purpose and dependencies** in migration comments
-5. **Use consistent naming**: `trg_<action>_<table>` format
-
-### Performance Considerations
-1. **BEFORE vs AFTER triggers**:
-   - Use BEFORE for data validation and normalization
-   - Use AFTER for side effects (broadcasts, logging)
-2. **Avoid expensive operations** in triggers (external API calls, complex queries)
-3. **Consider batch operations** - triggers fire per row
-4. **Index foreign keys** used in trigger functions
-5. **Monitor trigger execution time** with `pg_stat_statements`
-
-### Security Considerations
-1. **Validate all inputs** in trigger functions
-2. **Use SECURITY DEFINER cautiously** - prefer SECURITY INVOKER
-3. **Audit sensitive operations** (balance changes, user modifications)
-4. **Prevent infinite trigger loops** - check for actual changes
-5. **Handle NULL values** explicitly
-
-### Debugging Triggers
-```sql
--- View all triggers on a table
-SELECT tgname, tgtype, tgenabled 
-FROM pg_trigger 
-WHERE tgrelid = 'table_name'::regclass;
-
--- View trigger function definition
-SELECT pg_get_functiondef(oid) 
-FROM pg_proc 
-WHERE proname = 'function_name';
-
--- Temporarily disable a trigger
-ALTER TABLE table_name DISABLE TRIGGER trigger_name;
-
--- Re-enable a trigger
-ALTER TABLE table_name ENABLE TRIGGER trigger_name;
-```
-
----
-
-## Related Documentation
-- [Functions.md](./Functions.md) - Database function reference
-- [Indexes.md](./Indexes.md) - Database index reference
-- [BASELINE_MIGRATION_README.md](./BASELINE_MIGRATION_README.md) - Migration guide
-- [SCHEMA_AUDIT_REPORT.md](./SCHEMA_AUDIT_REPORT.md) - Schema audit results
-
----
-
-**Document Version:** 1.0  
-**Maintainer:** Database Team  
-**Last Audit:** January 31, 2026
