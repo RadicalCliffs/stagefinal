@@ -72,7 +72,7 @@ Use the provided deployment script:
 
 ```bash
 # Navigate to project root
-cd /home/runner/work/theprize.io/theprize.io
+cd theprize.io
 
 # Run the deployment script
 ./deploy-edge-functions.sh
@@ -84,7 +84,7 @@ If you prefer manual deployment:
 
 ```bash
 # Navigate to project root
-cd /home/runner/work/theprize.io/theprize.io
+cd theprize.io
 
 # Deploy the critical functions
 supabase functions deploy purchase-tickets-with-bonus

@@ -49,13 +49,13 @@ Created deployment automation and documentation:
 
 ### Quick Deploy
 ```bash
-cd /home/runner/work/theprize.io/theprize.io
+cd theprize.io
 ./deploy-edge-functions.sh
 ```
 
 ### Manual Deploy
 ```bash
-cd /home/runner/work/theprize.io/theprize.io
+cd theprize.io
 supabase functions deploy purchase-tickets-with-bonus
 supabase functions deploy update-user-avatar
 supabase functions deploy upsert-user

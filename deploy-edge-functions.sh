@@ -46,7 +46,8 @@ echo ""
 # Verify we're in the right directory
 if [ ! -d "supabase/functions" ]; then
     echo "❌ ERROR: Not in project root directory"
-    echo "Please run this script from the repository root"
+    echo "Please run this script from the repository root (theprize.io directory)"
+    echo "Example: cd theprize.io && ./deploy-edge-functions.sh"
     exit 1
 fi
 

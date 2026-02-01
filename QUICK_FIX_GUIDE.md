@@ -10,7 +10,7 @@
 
 ```bash
 # 1. Navigate to project root
-cd /home/runner/work/theprize.io/theprize.io
+cd theprize.io
 
 # 2. Run deployment script
 ./deploy-edge-functions.sh
