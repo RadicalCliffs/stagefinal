@@ -12,6 +12,7 @@ SECURITY DEFINER
 AS $$
 DECLARE
   v_pending RECORD;
+  v_pending_status TEXT;
   v_user_balance RECORD;
   v_new_balance NUMERIC;
   v_canonical_user_id TEXT;
@@ -28,11 +29,11 @@ BEGIN
 
   IF v_pending IS NULL THEN
     -- Check if already confirmed
-    SELECT status INTO v_pending 
+    SELECT status INTO v_pending_status 
     FROM pending_tickets 
     WHERE id = p_pending_ticket_id;
     
-    IF v_pending.status = 'confirmed' THEN
+    IF v_pending_status = 'confirmed' THEN
       RETURN jsonb_build_object(
         'success', true, 
         'message', 'Already confirmed', 
