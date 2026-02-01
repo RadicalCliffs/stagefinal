@@ -1,57 +1,50 @@
-# Payment Balance Issues - Investigation & Fix Summary
+# Payment Balance Issues - Investigation & Fix Summary (UPDATED)
 
 ## 🎯 Executive Summary
 
-**Issue**: Entry purchases via Base crypto were attempting to debit sub_account_balances, while top-ups appeared not to credit balances.
+**Issue**: User clarified that top-ups should be handled ENTIRELY by dedicated functions, not by `process-balance-payments`.
 
-**Root Cause**: `process-balance-payments` edge function called non-existent RPC and had fundamental misunderstanding about payment flows.
+**Root Cause**: `process-balance-payments` edge function had unnecessary top-up credit logic that should never execute.
 
-**Fix**: Removed incorrect balance debit logic for entry purchases. Top-ups were already working correctly.
+**Fix**: Removed all top-up credit logic from `process-balance-payments`. Function now ONLY acknowledges crypto entry purchases.
 
 **Status**: ✅ RESOLVED
 
 ---
 
-## 📊 Investigation Findings
+## 📊 Investigation Findings (UPDATED)
 
-### Issue #1: Entry Purchases "Crediting" Balance
+### User Clarification
 
-**User Report**: "base seems to be 'crediting' me with sub account balance when i pay for entries"
+The user provided important clarification:
 
-**Actual Problem**: 
-- `process-balance-payments/index.ts` line 280 called `debit_sub_account_balance_with_entry()` RPC
-- This RPC **does not exist** in any migration file
-- Function call failed, causing unexpected behavior
-- Entry purchases via Base crypto should NOT touch `sub_account_balances` at all
+> "Top-ups ARE actually working correctly! They're handled by instant-topup.mts which verifies the on-chain transaction and credits the balance immediately. Then the sub_account_balance should increase by the top amount paid for. sub_account_balances is the literal table for all users top ups. There should be no others. process balance payments isn't meant to touch the table during top ups, only when pay for entries with balance, it comes out of the sub account balance..."
 
-**Why?**
-- User pays directly to treasury with crypto
-- No balance debit needed - it's a direct payment
-- Entry creation handled by `confirm-pending-tickets-proxy.mts`
-- Balance operations should only occur for "Pay with Balance" feature
+### Key Points
 
-### Issue #2: Top-ups "Not Working"
+1. **Top-ups ARE working correctly**
+   - Handled by `instant-topup.mts`, `onramp-complete.ts`, `commerce-webhook.ts`
+   - These functions credit `sub_account_balances` directly
+   - Set `wallet_credited=true` immediately after crediting
 
-**User Report**: "top up doesn't impact the sub account balance at all"
+2. **`sub_account_balances` is THE table**
+   - All user balances are in this table
+   - Only modified by dedicated top-up functions
+   - "There should be no others"
 
-**Actual Status**: Top-ups ARE working correctly!
+3. **`process-balance-payments` should NOT handle top-ups**
+   - Should ONLY handle crypto entry purchase acknowledgment
+   - Should NOT touch `sub_account_balances` for top-ups
+   - Top-up logic was dead code (never reached)
 
-**Explanation**:
-- Top-ups are handled by `instant-topup.mts` Netlify function
-- Flow: User pays → verify on-chain tx → credit balance → set `wallet_credited=true`
-- Credits via `credit_balance_with_first_deposit_bonus` RPC
-- Applies 50% bonus on first top-up
-- `process-balance-payments` never processes them (filters for `wallet_credited=false`)
-
-**Likely User Confusion**:
-- Browser caching
-- Balance display not refreshing
-- Testing with same transaction multiple times
-- Network latency in balance updates
+4. **Balance debits**
+   - Only occur for "pay with balance" entry purchases
+   - Handled by `purchase-tickets-with-bonus` edge function
+   - NOT handled by `process-balance-payments`
 
 ---
 
-## 🔧 Technical Details
+## 🔧 Technical Details (UPDATED)
 
 ### Payment Flow Architectures
 
