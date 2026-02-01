@@ -38,11 +38,16 @@ SELECT
   data_type
 FROM information_schema.routines 
 WHERE routine_schema = 'public' 
-  AND routine_name IN ('debit_sub_account_balance', 'credit_sub_account_balance')
+  AND routine_name IN (
+    'debit_sub_account_balance', 
+    'credit_sub_account_balance',
+    'confirm_ticket_purchase',
+    'get_joincompetition_entries_for_competition'
+  )
 ORDER BY routine_name;
 ```
 
-You should see 2 rows returned (one for each function).
+You should see 4 rows returned (one for each function).
 
 ### Step 3: Test the Functions
 
@@ -96,7 +101,9 @@ supabase functions deploy onramp-webhook
 
 ## What This Migration Does
 
-The migration:
+Two migrations are applied:
+
+### Migration 1: `20260201004000_restore_production_balance_functions.sql`
 1. **Drops** old versions of `credit_sub_account_balance` and `debit_sub_account_balance`
 2. **Creates** production versions with proper signatures:
    - `credit_sub_account_balance(p_canonical_user_id, p_amount, p_currency, p_reference_id, p_description)`
@@ -107,6 +114,18 @@ The migration:
    - Create audit trail in `balance_ledger` table
    - Return structured results with success/error messages
    - Are secured to `service_role` only
+
+### Migration 2: `20260201004100_restore_additional_balance_functions.sql`
+1. **Creates** `confirm_ticket_purchase(p_pending_ticket_id, p_payment_provider)`:
+   - Confirms a pending ticket reservation
+   - Debits user balance atomically
+   - Creates tickets and joincompetition entry
+   - Handles idempotency (already confirmed check)
+   - Uses row locking to prevent double-spending
+
+2. **Creates** `get_joincompetition_entries_for_competition(p_competition_id)`:
+   - Returns all competition entries for a given competition
+   - Used to check if tickets are already purchased
 
 ## Verification Checklist
 
