@@ -415,7 +415,7 @@ export const database = {
         // Also check for similar error messages
         if (
           errorCode === '42703' || 
-          errorMessage.includes('column') && errorMessage.includes('does not exist') ||
+          (errorMessage.includes('column') && errorMessage.includes('does not exist')) ||
           errorMessage.includes('distribution_hash')
         ) {
           console.warn('[Database] distribution_hash column not found, retrying query without it');
@@ -650,7 +650,7 @@ export const database = {
       // Also check for similar error messages
       if (
         errorCode === '42703' || 
-        errorMessage.includes('column') && errorMessage.includes('does not exist') ||
+        (errorMessage.includes('column') && errorMessage.includes('does not exist')) ||
         errorMessage.includes('distribution_hash')
       ) {
         console.warn('[Database] distribution_hash column not found in getWinners, retrying query without it');
