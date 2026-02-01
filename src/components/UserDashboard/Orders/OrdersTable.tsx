@@ -35,7 +35,11 @@ function getEffectiveStatus(item: any): string {
  * Compute cost from transaction data
  * Priority: amount > balance_delta > 0
  */
-function computeCost(item: any): string {
+function computeCost(item: { 
+  amount?: number | null; 
+  balance_before?: number | null; 
+  balance_after?: number | null;
+}): string {
   if (item.amount !== null && item.amount !== undefined) {
     return `$${Number(item.amount).toFixed(2)}`;
   }
