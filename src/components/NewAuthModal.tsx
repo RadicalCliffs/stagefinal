@@ -380,8 +380,8 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
 
       // CRITICAL FIX: Create user in canonical_users NOW, before Base wallet connects
       // This prevents race condition where Base creates random username
-      // We create with partial prize:pid: identifier (without wallet address)
-      // which will be updated to prize:pid:walletaddress when Base completes
+      // Use upsert_canonical_user RPC function which has SECURITY DEFINER
+      // to bypass RLS policies (direct INSERT would fail with anon key)
       console.log('[NewAuthModal] Email verified successfully, creating user record before wallet connection');
       
       if (!isReturningUser) {
@@ -395,35 +395,25 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
           
           console.log('[NewAuthModal] Creating canonical_users record with partial ID:', partialCanonicalId);
           
-          // Insert user into canonical_users with username set
-          // Base wallet will UPDATE this record, not create a new one
-          // NOTE: uid and canonical_user_id use same temporary ID until wallet connects
-          // Then canonical_user_id becomes prize:pid:walletaddress while uid stays the same
-          const { data: insertData, error: insertError } = await supabase
-            .from('canonical_users')
-            .insert({
-              uid: tempUserId,
-              canonical_user_id: partialCanonicalId,
-              email: profileData.email.toLowerCase(),
-              username: profileData.username.toLowerCase(),
-              first_name: profileData.firstName || null,
-              last_name: profileData.lastName || null,
-              country: profileData.country || null,
-              telegram_handle: profileData.telegram || null,
-              avatar_url: profileData.avatar || null,
-            })
-            .select('id, canonical_user_id')
-            .single();
+          // Call upsert_canonical_user RPC function (has SECURITY DEFINER to bypass RLS)
+          // This is the correct way to create users from the frontend
+          const { data: rpcResult, error: rpcError } = await supabase
+            .rpc('upsert_canonical_user', {
+              p_uid: tempUserId,
+              p_canonical_user_id: partialCanonicalId,
+              p_email: profileData.email.toLowerCase(),
+              p_username: profileData.username.toLowerCase(),
+              p_first_name: profileData.firstName || null,
+              p_last_name: profileData.lastName || null,
+              p_telegram_handle: profileData.telegram || null,
+            });
           
-          if (insertError) {
-            console.error('[NewAuthModal] Failed to create user record:', insertError);
+          if (rpcError) {
+            console.error('[NewAuthModal] Failed to create user record:', rpcError);
             throw new Error('Failed to save user data. Please try again.');
           }
           
-          console.log('[NewAuthModal] User record created successfully:', {
-            id: insertData.id,
-            canonical_user_id: insertData.canonical_user_id,
-          });
+          console.log('[NewAuthModal] User record created successfully:', rpcResult);
         } catch (userCreateErr) {
           console.error('[NewAuthModal] Error creating user record:', userCreateErr);
           setError('Failed to save your profile. Please try again.');

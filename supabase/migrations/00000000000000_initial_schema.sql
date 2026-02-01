@@ -1187,7 +1187,8 @@ BEGIN
 
   RETURN jsonb_build_object(
     'success', true,
-    'balance', v_new_balance
+    'balance', v_new_balance,
+    'new_balance', v_new_balance
   );
 END;
 $$;
@@ -1208,15 +1209,16 @@ DECLARE
   v_has_used_bonus BOOLEAN;
   v_bonus_amount NUMERIC := 0;
   v_total_credit NUMERIC;
+  v_new_balance NUMERIC;
 BEGIN
   -- Check if user has used first deposit bonus
   SELECT has_used_new_user_bonus INTO v_has_used_bonus
   FROM canonical_users
   WHERE canonical_user_id = p_canonical_user_id;
 
-  -- If first deposit, add bonus
+  -- If first deposit, add 50% bonus
   IF v_has_used_bonus = false OR v_has_used_bonus IS NULL THEN
-    v_bonus_amount := p_amount * 0.20; -- 20% bonus
+    v_bonus_amount := p_amount * 0.50; -- 50% bonus (was 20%)
     v_total_credit := p_amount + v_bonus_amount;
 
     -- Mark bonus as used
@@ -1225,15 +1227,7 @@ BEGIN
         updated_at = NOW()
     WHERE canonical_user_id = p_canonical_user_id;
 
-    -- Credit bonus to bonus_balance
-    INSERT INTO sub_account_balances (canonical_user_id, currency, bonus_balance)
-    VALUES (p_canonical_user_id, 'USD', v_bonus_amount)
-    ON CONFLICT (canonical_user_id, currency)
-    DO UPDATE SET
-      bonus_balance = sub_account_balances.bonus_balance + v_bonus_amount,
-      updated_at = NOW();
-
-    -- Log bonus award
+    -- Log bonus award to audit table
     INSERT INTO bonus_award_audit (
       canonical_user_id,
       amount,
@@ -1243,21 +1237,26 @@ BEGIN
       p_canonical_user_id,
       v_bonus_amount,
       p_reason,
-      'First deposit bonus: 20%'
+      'First deposit bonus: 50%'  -- Updated from 20% to 50%
     );
   ELSE
     v_total_credit := p_amount;
   END IF;
 
-  -- Credit main balance
+  -- Credit total amount including any applicable bonus to available_balance
   INSERT INTO sub_account_balances (canonical_user_id, currency, available_balance)
-  VALUES (p_canonical_user_id, 'USD', p_amount)
+  VALUES (p_canonical_user_id, 'USD', v_total_credit)
   ON CONFLICT (canonical_user_id, currency)
   DO UPDATE SET
-    available_balance = sub_account_balances.available_balance + p_amount,
+    available_balance = sub_account_balances.available_balance + v_total_credit,
     updated_at = NOW();
 
-  -- Log in balance ledger
+  -- Get the new balance after credit
+  SELECT available_balance INTO v_new_balance
+  FROM sub_account_balances
+  WHERE canonical_user_id = p_canonical_user_id AND currency = 'USD';
+
+  -- Log transaction in balance ledger
   INSERT INTO balance_ledger (
     canonical_user_id,
     transaction_type,
@@ -1276,7 +1275,9 @@ BEGIN
     'success', true,
     'credited_amount', p_amount,
     'bonus_amount', v_bonus_amount,
-    'total_credited', v_total_credit
+    'bonus_applied', v_bonus_amount > 0,
+    'total_credited', v_total_credit,
+    'new_balance', COALESCE(v_new_balance, v_total_credit)
   );
 END;
 $$;

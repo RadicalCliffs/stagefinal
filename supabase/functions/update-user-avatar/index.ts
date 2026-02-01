@@ -91,74 +91,39 @@ Deno.serve(async (req) => {
         // Convert to canonical format for primary lookup
         const canonicalUserId = toPrizePid(user_id);
         console.log(`[update-user-avatar] Canonical user ID: ${canonicalUserId}`);
+        console.log(`[update-user-avatar] Image URL: ${image_url}`);
 
-        // First, try to find the user by canonical_user_id (primary lookup)
-        let checkResponse = await fetch(
-            `${supabaseUrl}/rest/v1/user_profiles_raw?canonical_user_id=eq.${encodeURIComponent(canonicalUserId)}`,
+        // Use the RPC function to update avatar (it has SECURITY DEFINER and handles all user ID formats)
+        const rpcResponse = await fetch(
+            `${supabaseUrl}/rest/v1/rpc/update_user_avatar`,
             {
-                method: 'GET',
+                method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${serviceRoleKey}`,
                     'apikey': serviceRoleKey,
                     'Content-Type': 'application/json'
-                }
+                },
+                body: JSON.stringify({
+                    user_identifier: canonicalUserId,
+                    new_avatar_url: image_url
+                })
             }
         );
 
-        if (!checkResponse.ok) {
-            const errorText = await checkResponse.text();
-            throw new Error(`Failed to check user profile: ${errorText}`);
+        if (!rpcResponse.ok) {
+            const errorText = await rpcResponse.text();
+            console.error(`[update-user-avatar] RPC call failed:`, errorText);
+            throw new Error(`Failed to update avatar via RPC: ${errorText}`);
         }
 
-        let existingProfiles = await checkResponse.json();
-        let queryField = 'canonical_user_id';
-        let queryValue = canonicalUserId;
+        const rpcResult = await rpcResponse.json();
+        console.log(`[update-user-avatar] RPC result:`, rpcResult);
 
-        // If no results with canonical, try fallback lookups for legacy data
-        if (!existingProfiles || existingProfiles.length === 0) {
-            console.log(`[update-user-avatar] No match with canonical ID, trying legacy lookups`);
-
-            // Try by privy_wallet_id if it starts with did:privy:
-            if (user_id.startsWith('did:privy:')) {
-                queryField = 'privy_wallet_id';
-                queryValue = user_id;
-            }
-            // Try by uid if it starts with id_
-            else if (user_id.startsWith('id_')) {
-                queryField = 'uid';
-                queryValue = user_id;
-            }
-            // Otherwise try uid as fallback
-            else {
-                queryField = 'uid';
-                queryValue = user_id;
-            }
-
-            checkResponse = await fetch(
-                `${supabaseUrl}/rest/v1/user_profiles_raw?${queryField}=eq.${encodeURIComponent(queryValue)}`,
-                {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${serviceRoleKey}`,
-                        'apikey': serviceRoleKey,
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
-
-            if (!checkResponse.ok) {
-                const errorText = await checkResponse.text();
-                throw new Error(`Failed to check user profile (fallback): ${errorText}`);
-            }
-
-            existingProfiles = await checkResponse.json();
-        }
-
-        if (!existingProfiles || existingProfiles.length === 0) {
+        if (!rpcResult.success) {
             return new Response(JSON.stringify({
                 error: {
                     code: 'USER_NOT_FOUND',
-                    message: `User not found with ${queryField}: ${queryValue}`
+                    message: `User not found for identifier: ${canonicalUserId}`
                 }
             }), {
                 status: 404,
@@ -166,35 +131,11 @@ Deno.serve(async (req) => {
             });
         }
 
-        // Update existing profile with new avatar URL
-        const updateResponse = await fetch(
-            `${supabaseUrl}/rest/v1/user_profiles_raw?${queryField}=eq.${encodeURIComponent(queryValue)}`,
-            {
-                method: 'PATCH',
-                headers: {
-                    'Authorization': `Bearer ${serviceRoleKey}`,
-                    'apikey': serviceRoleKey,
-                    'Content-Type': 'application/json',
-                    'Prefer': 'return=representation'
-                },
-                body: JSON.stringify({
-                    image_url: image_url
-                })
-            }
-        );
-
-        if (!updateResponse.ok) {
-            const errorText = await updateResponse.text();
-            throw new Error(`Failed to update avatar: ${errorText}`);
-        }
-
-        const updatedProfile = await updateResponse.json();
-
         // Return success response
         return new Response(JSON.stringify({
             data: {
                 success: true,
-                profile: Array.isArray(updatedProfile) ? updatedProfile[0] : updatedProfile
+                avatar_url: rpcResult.avatar_url
             }
         }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
