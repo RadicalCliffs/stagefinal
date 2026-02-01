@@ -236,7 +236,7 @@ BEGIN
     v_final_canonical_id := p_canonical_user_id;
   ELSIF v_existing_canonical_id IS NOT NULL AND v_existing_canonical_id LIKE 'prize:pid:temp%' AND p_wallet_address IS NOT NULL THEN
     -- Replace placeholder with wallet-based ID
-    v_final_canonical_id := 'prize:pid:' || LOWER(p_wallet_address);
+    v_final_canonical_id := 'prize:pid:' || util.normalize_evm_address(p_wallet_address);
   ELSE
     -- Keep provided or use existing
     v_final_canonical_id := COALESCE(p_canonical_user_id, v_existing_canonical_id, p_uid);
