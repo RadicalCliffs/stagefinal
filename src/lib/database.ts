@@ -380,7 +380,6 @@ export const database = {
           id,
           wallet_address,
           prize_value,
-          prize_description,
           won_at,
           created_at,
           ticket_number,
