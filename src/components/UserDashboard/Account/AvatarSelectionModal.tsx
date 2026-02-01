@@ -44,11 +44,20 @@ const AvatarSelectionModal = ({ isOpen, onClose, currentAvatar }: AvatarSelectio
     }
 
     try {
-      await updateAvatar(selectedAvatar);
-      onClose();
+      // CRITICAL FIX: Wait for avatar update to complete and check result
+      const success = await updateAvatar(selectedAvatar);
+      
+      // Only close modal if update actually succeeded
+      if (success) {
+        onClose();
+      } else {
+        // Show error if update failed without throwing
+        alert('Failed to update avatar. Please try again.');
+      }
     } catch (error) {
       console.error('Error updating avatar:', error);
       alert(error instanceof Error ? error.message : 'Failed to update avatar. Please try again.');
+      // Keep modal open so user can retry
     }
   };
 
