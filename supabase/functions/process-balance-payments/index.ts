@@ -94,10 +94,9 @@ Deno.serve(async (req) => {
         console.log(`[process-balance-payments][${requestId}] Processing transaction ${transaction.id} (${transaction.payment_provider})`);
 
         // Check transaction type based on competition_id
-        const isTopup = !transaction.competition_id;
-        const isEntryPurchase = !!transaction.competition_id;
+        const hasCompetitionId = !!transaction.competition_id;
 
-        if (isTopup) {
+        if (!hasCompetitionId) {
           // TOP-UP TRANSACTIONS: Should NOT be processed here
           // Top-ups are handled by dedicated functions:
           // - instant-topup.mts (Base Account top-ups)
@@ -115,7 +114,7 @@ Deno.serve(async (req) => {
             .from('user_transactions')
             .update({ 
               wallet_credited: true,
-              notes: 'Marked as processed by process-balance-payments - top-ups should be handled by dedicated functions'
+              notes: `Anomaly: Marked as processed by process-balance-payments on ${new Date().toISOString()} - top-ups should be handled by dedicated functions (Transaction: ${transaction.id})`
             })
             .eq('id', transaction.id);
 
@@ -128,53 +127,35 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        if (isEntryPurchase) {
-          // ENTRY PURCHASE VIA CRYPTO: Mark as processed without touching balance
-          // 
-          // CONTEXT: Entry purchases via Base/crypto are direct payments to treasury.
-          // No balance debit is needed because the user paid with crypto, not site balance.
-          // 
-          // Entry creation is handled by confirm-pending-tickets-proxy.mts when tickets
-          // are allocated during the payment flow. This function just marks the transaction
-          // as processed to prevent reprocessing attempts.
-          console.log(`[process-balance-payments][${requestId}] Processing entry purchase via crypto for transaction ${transaction.id}`);
-          
-          // Check if entry already exists (for logging/debugging only)
-          const { data: existingEntry } = await supabase
-            .from('joincompetition')
-            .select('uid')
-            .eq('transactionhash', transaction.id)
-            .maybeSingle();
+        // ENTRY PURCHASE VIA CRYPTO: Mark as processed without touching balance
+        // 
+        // CONTEXT: Entry purchases via Base/crypto are direct payments to treasury.
+        // No balance debit is needed because the user paid with crypto, not site balance.
+        // 
+        // Entry creation is handled by confirm-pending-tickets-proxy.mts when tickets
+        // are allocated during the payment flow. This function just marks the transaction
+        // as processed to prevent reprocessing attempts.
+        console.log(`[process-balance-payments][${requestId}] Processing entry purchase via crypto for transaction ${transaction.id}`);
+        
+        // Check if entry already exists (for logging/debugging only)
+        const { data: existingEntry } = await supabase
+          .from('joincompetition')
+          .select('uid')
+          .eq('transactionhash', transaction.id)
+          .maybeSingle();
 
-          if (existingEntry) {
-            console.log(`[process-balance-payments][${requestId}] ✅ Entry exists for transaction ${transaction.id}, marking as processed`);
-          } else {
-            // Entry doesn't exist yet - likely still being processed by confirm-pending-tickets-proxy
-            // or payment flow is not complete. Mark as processed anyway to avoid retry loops.
-            console.log(`[process-balance-payments][${requestId}] ⚠️ Entry not found for transaction ${transaction.id}. Expected to be created by confirm-pending-tickets-proxy.mts or payment flow. Marking as processed to prevent retries.`);
-          }
-
-          // Mark transaction as wallet_credited to prevent reprocessing
-          // NOTE: For crypto entry purchases, "wallet_credited" is a misnomer - it just means "processed".
-          // No actual wallet/balance crediting occurs for entry purchases - the field name is reused
-          // for transaction state management across multiple payment types.
-          await supabase
-            .from('user_transactions')
-            .update({ wallet_credited: true })
-            .eq('id', transaction.id);
-
-          results.push({
-            transactionId: transaction.id,
-            status: 'entry_purchase_via_crypto',
-            message: 'Entry purchase via crypto - no balance change needed',
-            entryExists: !!existingEntry,
-          });
-          processed++;
-          continue;
+        if (existingEntry) {
+          console.log(`[process-balance-payments][${requestId}] ✅ Entry exists for transaction ${transaction.id}, marking as processed`);
+        } else {
+          // Entry doesn't exist yet - likely still being processed by confirm-pending-tickets-proxy
+          // or payment flow is not complete. Mark as processed anyway to avoid retry loops.
+          console.log(`[process-balance-payments][${requestId}] ⚠️ Entry not found for transaction ${transaction.id}. Expected to be created by confirm-pending-tickets-proxy.mts or payment flow. Marking as processed to prevent retries.`);
         }
 
-        // Fallback: mark as credited without side effects to avoid infinite retries
-        console.log(`[process-balance-payments][${requestId}] Unknown transaction type, marking as credited:`, transaction.type);
+        // Mark transaction as wallet_credited to prevent reprocessing
+        // NOTE: For crypto entry purchases, "wallet_credited" is a misnomer - it just means "processed".
+        // No actual wallet/balance crediting occurs for entry purchases - the field name is reused
+        // for transaction state management across multiple payment types.
         await supabase
           .from('user_transactions')
           .update({ wallet_credited: true })
@@ -182,10 +163,10 @@ Deno.serve(async (req) => {
 
         results.push({
           transactionId: transaction.id,
-          status: 'marked_credited_unknown_type',
-          type: transaction.type,
+          status: 'entry_purchase_via_crypto',
+          message: 'Entry purchase via crypto - no balance change needed',
+          entryExists: !!existingEntry,
         });
-
         processed++;
 
       } catch (error) {
