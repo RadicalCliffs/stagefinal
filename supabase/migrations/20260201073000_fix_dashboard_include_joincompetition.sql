@@ -161,8 +161,6 @@ BEGIN
 END;
 $$;
 
-COMMIT;
-
 -- Drop existing function first to avoid return type conflicts
 DROP FUNCTION IF EXISTS get_user_competition_entries(TEXT) CASCADE;
 
@@ -242,3 +240,5 @@ BEGIN
   ORDER BY ae.competition_id, ae.latest_purchase_at DESC;
 END;
 $$;
+
+COMMIT;
