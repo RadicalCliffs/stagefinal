@@ -1141,8 +1141,10 @@ Deno.serve(async (req: Request) => {
 
     // Choose RPC based on payment method:
     // - 'balance' payments: Use confirm_ticket_purchase (debits sub_account_balance)
-    // - External payments (coinbase, etc): Use confirm_pending_to_sold (no debit - user already paid)
-    const isBalancePayment = paymentProvider === 'balance' || !paymentProvider;
+    // - External payments (base_account, coinbase, etc): Use confirm_pending_to_sold (no debit - user already paid)
+    // CRITICAL: Only explicit 'balance' payments should debit sub_account_balance
+    // Crypto payments (Base, Coinbase, etc.) are already paid on-chain and should NOT touch sub_account_balance
+    const isBalancePayment = paymentProvider === 'balance';
     
     let rpcResult: Record<string, unknown> | null = null;
     let rpcError: Error | null = null;
