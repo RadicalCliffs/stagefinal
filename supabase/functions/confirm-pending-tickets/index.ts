@@ -1241,15 +1241,24 @@ Deno.serve(async (req: Request) => {
     });
 
     // For external crypto payments (non-balance), mark as wallet_credited to prevent reconcile-payments from processing
+    // This is critical for base_account, coinbase_commerce, and other external payment providers
+    // to prevent them from being incorrectly credited as top-ups by the reconcile-payments function
     if (!isBalancePayment && sessionId) {
-      console.log(`[Confirm Tickets] Marking external payment transaction as wallet_credited to prevent double-processing`);
-      await supabase
+      console.log(`[Confirm Tickets] Marking external payment transaction ${sessionId} as wallet_credited to prevent double-processing`);
+      const { error: updateError } = await supabase
         .from('user_transactions')
         .update({ 
-          wallet_credited: true,
-          updated_at: new Date().toISOString()
+          wallet_credited: true
         })
         .eq('id', sessionId);
+      
+      if (updateError) {
+        console.error(`[Confirm Tickets] WARNING: Failed to mark transaction ${sessionId} as wallet_credited:`, updateError);
+        console.error(`[Confirm Tickets] This transaction may be reprocessed by reconcile-payments!`);
+        // Don't fail the entire operation, but log the warning for monitoring
+      } else {
+        console.log(`[Confirm Tickets] Successfully marked transaction ${sessionId} as wallet_credited`);
+      }
     }
 
     // STEP 6: Check for instant win prizes
