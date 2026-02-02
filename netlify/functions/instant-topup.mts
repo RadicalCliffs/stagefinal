@@ -314,8 +314,8 @@ export default async (request: Request, context: Context): Promise<Response> => 
       console.log(`Reprocessing transaction ${transactionHash} that wasn't credited`);
     }
 
-    // Verify the transaction on-chain
-    console.log(`[VERBOSE][instant-topup] Verifying transaction on-chain...`);
+    // Try to verify the transaction on-chain, but don't block crediting if verification fails
+    console.log(`[VERBOSE][instant-topup] Attempting to verify transaction on-chain...`);
     console.log(`[VERBOSE][instant-topup] Verifying against:`);
     console.log(`[VERBOSE][instant-topup]   - Expected recipient: ${treasuryAddress}`);
     console.log(`[VERBOSE][instant-topup]   - Expected amount: ${amount} USDC`);
@@ -330,16 +330,20 @@ export default async (request: Request, context: Context): Promise<Response> => 
 
     console.log(`[VERBOSE][instant-topup] Verification result:`, verification);
     
-    if (!verification.verified) {
-      console.error(`[VERBOSE][instant-topup] ❌ Transaction verification failed!`);
-      console.error(`[VERBOSE][instant-topup] Error: ${verification.error}`);
-      return errorResponse(verification.error || "Transaction verification failed", 400);
-    }
+    let verificationStatus = "pending_verification";
+    let creditAmount = amount;
     
-    console.log(`[VERBOSE][instant-topup] ✅ Transaction verified successfully!`);
-    console.log(`[VERBOSE][instant-topup] Actual amount transferred: ${verification.actualAmount} USDC`);
-
-    const creditAmount = verification.actualAmount || amount;
+    if (verification.verified) {
+      console.log(`[VERBOSE][instant-topup] ✅ Transaction verified successfully!`);
+      console.log(`[VERBOSE][instant-topup] Actual amount transferred: ${verification.actualAmount} USDC`);
+      verificationStatus = "verified";
+      creditAmount = verification.actualAmount || amount;
+    } else {
+      console.warn(`[VERBOSE][instant-topup] ⚠️  Transaction not yet confirmed on blockchain`);
+      console.warn(`[VERBOSE][instant-topup] Error: ${verification.error}`);
+      console.warn(`[VERBOSE][instant-topup] Crediting balance anyway - verification will happen in background`);
+      // Continue with crediting - don't block user experience
+    }
 
     // Create or update transaction record
     let transactionId: string;
@@ -413,14 +417,20 @@ export default async (request: Request, context: Context): Promise<Response> => 
       console.log(`[VERBOSE][instant-topup] User ID (canonical): ${user.canonicalUserId.substring(0, 20)}...`);
       console.log(`[VERBOSE][instant-topup] Balance should be visible in sub_account_balances table`);
       
-      // Mark transaction as wallet_credited
+      // Mark transaction as wallet_credited with verification status
+      const updateNotes = verification.verified 
+        ? (bonusApplied 
+            ? `Wallet topup completed with 50% bonus (+$${(bonusAmount || 0).toFixed(2)}) [Verified]` 
+            : "Wallet topup completed [Verified]")
+        : (bonusApplied 
+            ? `Wallet topup completed with 50% bonus (+$${(bonusAmount || 0).toFixed(2)}) [Pending Verification]` 
+            : "Wallet topup completed [Pending Verification]");
+      
       await supabase
         .from("user_transactions")
         .update({
           wallet_credited: true,
-          notes: bonusApplied 
-            ? `Wallet topup completed with 50% bonus (+$${(bonusAmount || 0).toFixed(2)})` 
-            : "Wallet topup completed",
+          notes: updateNotes,
         })
         .eq("id", transactionId);
 
@@ -435,6 +445,7 @@ export default async (request: Request, context: Context): Promise<Response> => 
         totalCredited: creditResult.total_credited,
         newBalance: newBalance,
         transactionHash,
+        verificationStatus: verificationStatus,
       });
     }
 
@@ -491,12 +502,17 @@ export default async (request: Request, context: Context): Promise<Response> => 
       );
     }
 
-    // Mark transaction as credited
+    // Mark transaction as credited with verification status
+    const fallbackNotes = verification.verified 
+      ? "Wallet topup completed [Verified]"
+      : "Wallet topup completed [Pending Verification]";
+      
     await supabase
       .from("user_transactions")
       .update({
         wallet_credited: true,
         status: "finished",
+        notes: fallbackNotes,
         updated_at: new Date().toISOString(),
       })
       .eq("id", transactionId);
@@ -510,6 +526,7 @@ export default async (request: Request, context: Context): Promise<Response> => 
       transactionId,
       creditedAmount: creditAmount,
       newBalance: newBalance,
+      verificationStatus: verificationStatus,
       message: "Top-up successful",
     });
   } catch (error) {

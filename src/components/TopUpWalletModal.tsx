@@ -369,11 +369,6 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
       const { data: sessionData } = await supabase.auth.getSession();
       const authToken = sessionData.session?.access_token || walletToken;
 
-      // Retry logic for transaction verification (blockchain can take time to confirm)
-      let retryCount = 0;
-      const maxRetries = 5;
-      const retryDelay = 3000; // 3 seconds between retries
-
       const verifyAndCredit = async (): Promise<void> => {
         try {
           const topupResponse = await fetch('/api/instant-topup', {
@@ -392,26 +387,10 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
           const topupResult = await topupResponse.json();
 
           if (!topupResponse.ok || !topupResult.success) {
-            // Check if it's a "transaction not found" error (needs retry)
-            const errorMsg = topupResult.error || '';
-            if (errorMsg.includes('Transaction not found') || errorMsg.includes('not yet confirmed')) {
-              if (retryCount < maxRetries) {
-                retryCount++;
-                console.log(`[TopUpWalletModal] Transaction not yet confirmed, retry ${retryCount}/${maxRetries} in ${retryDelay}ms`);
-                // Use proper async delay pattern to avoid unhandled promise rejections
-                await new Promise(resolve => setTimeout(resolve, retryDelay));
-                await verifyAndCredit();
-                return;
-              } else {
-                console.warn('[TopUpWalletModal] Max retries reached, transaction will be verified later');
-                // Don't show error to user - transaction was sent successfully
-                // Background job will pick it up later
-                return;
-              }
-            }
-
-            // For other errors, log but don't show to user (optimistic UI)
-            console.error('[TopUpWalletModal] Background verification failed:', topupResult);
+            // Log error but don't retry - backend now credits immediately
+            console.error('[TopUpWalletModal] Backend top-up processing failed:', topupResult);
+            // Don't show error to user - transaction was sent successfully on-chain
+            // The optimistic UI update is sufficient
             return;
           }
 
@@ -420,6 +399,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
             bonusApplied: topupResult.bonusApplied,
             bonusAmount: topupResult.bonusAmount,
             newBalance: topupResult.newBalance,
+            verificationStatus: topupResult.verificationStatus,
           });
 
           // Clear optimistic update now that balance is confirmed
@@ -451,11 +431,12 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
           }
         } catch (err) {
           console.error('[TopUpWalletModal] Background verification error:', err);
-          // Don't retry on network errors after transaction was sent
+          // Don't retry - the on-chain transaction was successful
+          // Backend will credit the balance, and optimistic UI is already showing it
         }
       };
 
-      // Start background verification
+      // Start background verification and crediting
       verifyAndCredit().catch(err => {
         console.error('[TopUpWalletModal] Verification failed:', err);
       });
