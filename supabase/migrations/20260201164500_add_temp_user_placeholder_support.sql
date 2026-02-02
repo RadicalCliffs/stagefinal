@@ -210,7 +210,7 @@ CREATE OR REPLACE FUNCTION upsert_canonical_user(
   p_country TEXT DEFAULT NULL,
   p_avatar_url TEXT DEFAULT NULL,
   p_auth_provider TEXT DEFAULT NULL,
-  p_wallet_linked TEXT DEFAULT NULL
+  p_wallet_linked BOOLEAN DEFAULT FALSE
 )
 RETURNS JSONB
 LANGUAGE plpgsql
