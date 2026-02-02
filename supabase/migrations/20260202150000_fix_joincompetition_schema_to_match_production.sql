@@ -11,11 +11,12 @@
 BEGIN;
 
 -- Add missing columns to joincompetition table
+-- EXACT schema from production INSERT statement
 ALTER TABLE IF EXISTS public.joincompetition
   ADD COLUMN IF NOT EXISTS wallet_address TEXT,
   ADD COLUMN IF NOT EXISTS purchasedate TIMESTAMPTZ DEFAULT NOW(),
   ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active',
-  ADD COLUMN IF NOT EXISTS uid TEXT,
+  ADD COLUMN IF NOT EXISTS uid UUID,
   ADD COLUMN IF NOT EXISTS chain TEXT,
   ADD COLUMN IF NOT EXISTS transactionhash TEXT,
   ADD COLUMN IF NOT EXISTS numberoftickets INTEGER,
