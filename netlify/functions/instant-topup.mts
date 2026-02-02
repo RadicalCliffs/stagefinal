@@ -20,6 +20,27 @@ import { toPrizePid, normalizeWalletAddress } from "./_shared/userId.mts";
  * - POST /api/instant-topup - Process an instant top-up
  */
 
+// Verification status constants
+const VERIFICATION_STATUS = {
+  VERIFIED: "verified",
+  PENDING: "pending_verification",
+} as const;
+
+// Helper function to construct transaction notes
+function constructTransactionNotes(
+  isVerified: boolean,
+  bonusApplied: boolean,
+  bonusAmount: number
+): string {
+  const verificationLabel = isVerified ? "[Verified]" : "[Pending Verification]";
+  
+  if (bonusApplied) {
+    return `Wallet topup completed with 50% bonus (+$${bonusAmount.toFixed(2)}) ${verificationLabel}`;
+  }
+  
+  return `Wallet topup completed ${verificationLabel}`;
+}
+
 // Response helpers
 function jsonResponse(data: object, status: number = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -330,13 +351,13 @@ export default async (request: Request, context: Context): Promise<Response> => 
 
     console.log(`[VERBOSE][instant-topup] Verification result:`, verification);
     
-    let verificationStatus = "pending_verification";
+    let verificationStatus = VERIFICATION_STATUS.PENDING;
     let creditAmount = amount;
     
     if (verification.verified) {
       console.log(`[VERBOSE][instant-topup] ✅ Transaction verified successfully!`);
       console.log(`[VERBOSE][instant-topup] Actual amount transferred: ${verification.actualAmount} USDC`);
-      verificationStatus = "verified";
+      verificationStatus = VERIFICATION_STATUS.VERIFIED;
       creditAmount = verification.actualAmount || amount;
     } else {
       console.warn(`[VERBOSE][instant-topup] ⚠️  Transaction not yet confirmed on blockchain`);
@@ -418,13 +439,11 @@ export default async (request: Request, context: Context): Promise<Response> => 
       console.log(`[VERBOSE][instant-topup] Balance should be visible in sub_account_balances table`);
       
       // Mark transaction as wallet_credited with verification status
-      const updateNotes = verification.verified 
-        ? (bonusApplied 
-            ? `Wallet topup completed with 50% bonus (+$${(bonusAmount || 0).toFixed(2)}) [Verified]` 
-            : "Wallet topup completed [Verified]")
-        : (bonusApplied 
-            ? `Wallet topup completed with 50% bonus (+$${(bonusAmount || 0).toFixed(2)}) [Pending Verification]` 
-            : "Wallet topup completed [Pending Verification]");
+      const updateNotes = constructTransactionNotes(
+        verification.verified,
+        bonusApplied,
+        bonusAmount || 0
+      );
       
       await supabase
         .from("user_transactions")
@@ -503,9 +522,11 @@ export default async (request: Request, context: Context): Promise<Response> => 
     }
 
     // Mark transaction as credited with verification status
-    const fallbackNotes = verification.verified 
-      ? "Wallet topup completed [Verified]"
-      : "Wallet topup completed [Pending Verification]";
+    const fallbackNotes = constructTransactionNotes(
+      verification.verified,
+      false, // No bonus in fallback path
+      0
+    );
       
     await supabase
       .from("user_transactions")
