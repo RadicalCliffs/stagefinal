@@ -262,6 +262,44 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // FALLBACK: Try to find by user_id + competition_id + amount (for entry purchases)
+    if (!transaction && userId && competitionId) {
+      console.log(`[commerce-webhook][${requestId}] Trying fallback: user_id=${userId}, competition_id=${competitionId}`);
+      
+      // Get the payment amount from Coinbase data
+      const paymentAmount = eventData.pricing?.local?.amount || 
+                           eventData.pricing?.settlement?.amount ||
+                           eventData.pricing?.['USDC']?.amount;
+      
+      if (paymentAmount) {
+        // Find recent matching transactions (within last 30 minutes)
+        const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+        const { data, error } = await supabase
+          .from("user_transactions")
+          .select("*")
+          .eq("user_id", userId)
+          .eq("competition_id", competitionId)
+          .eq("amount", Number(paymentAmount))
+          .gte("created_at", thirtyMinutesAgo)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!error && data) {
+          transaction = data;
+          console.log(`[commerce-webhook][${requestId}] ✅ Found transaction by fallback lookup: ${transaction.id}`);
+          
+          // Update the tx_id to link this transaction to the Coinbase charge
+          await supabase
+            .from("user_transactions")
+            .update({ tx_id: eventData.id })
+            .eq("id", transaction.id);
+        } else if (error) {
+          console.error(`[commerce-webhook][${requestId}] Error in fallback lookup:`, error);
+        }
+      }
+    }
+
     if (!transaction) {
       console.warn(`[commerce-webhook][${requestId}] ⚠️ Transaction not found for charge ${eventData.id}`);
       console.warn(`[commerce-webhook][${requestId}]    - Searched by transaction_id: ${transactionId}`);
