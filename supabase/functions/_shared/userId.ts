@@ -86,13 +86,23 @@ export function toPrizePid(inputUserId: string | null | undefined): string {
   }
 
   // Check if it's a UUID pattern
+  // CRITICAL: Bare UUIDs should NOT be accepted as canonical IDs
+  // They create wrong-format IDs like prize:pid:{uuid} instead of prize:pid:0x{wallet}
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (uuidPattern.test(trimmedId)) {
-    return `prize:pid:${trimmedId.toLowerCase()}`;
+    throw new Error(
+      `UUID cannot be used as canonical_user_id: ${trimmedId}. ` +
+      `Use allocate_temp_canonical_user() for users without wallets, ` +
+      `or provide a wallet address to create prize:pid:0x{wallet} format.`
+    );
   }
 
-  // For any other identifier format, generate a new UUID
-  return `prize:pid:${generateUuid()}`;
+  // For any other identifier format, this is an error
+  // Don't silently generate UUIDs - force proper ID allocation
+  throw new Error(
+    `Invalid user identifier format: ${trimmedId}. ` +
+    `Must be wallet address (0x...) or already in prize:pid: format.`
+  );
 }
 
 /**
