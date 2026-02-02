@@ -115,21 +115,24 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
                   .filter((t: number) => !isNaN(t));
 
                 ticketNumbers.forEach((ticketNum: number) => {
-                  transformedEntries.push({
-                    ticketNumber: ticketNum,
-                    date: new Date(entry.purchasedate).toLocaleString('en-US', {
-                      year: 'numeric',
-                      month: '2-digit',
-                      day: '2-digit',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      second: '2-digit',
-                      hour12: false
-                    }),
-                    walletAddress: wallet || 'Unknown',
-                    username: entry.username || undefined,
-                    transactionHash: txHash || undefined
-                  });
+                  // Check if this ticket already exists (avoid duplicates)
+                  if (!transformedEntries.some(e => e.ticketNumber === ticketNum)) {
+                    transformedEntries.push({
+                      ticketNumber: ticketNum,
+                      date: new Date(entry.purchasedate).toLocaleString('en-US', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false
+                      }),
+                      walletAddress: wallet || 'Unknown',
+                      username: entry.username || undefined,
+                      transactionHash: txHash || undefined
+                    });
+                  }
                 });
               }
             });
