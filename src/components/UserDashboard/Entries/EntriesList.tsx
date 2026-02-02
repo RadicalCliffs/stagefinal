@@ -116,10 +116,31 @@ export default function EntriesList() {
     setError(null);
 
     try {
+      console.log('[Dashboard.Entries] Fetching entries:', {
+        canonicalUserId,
+        isBackgroundRefresh,
+        timestamp: new Date().toISOString()
+      });
+
       // Try fetching from competition_entries table first (new unified source)
       // Falls back to legacy getUserEntries if the new RPC is not available
       // Use canonicalUserId (prize:pid:<wallet>) to match database records
       const data = await database.getUserEntriesFromCompetitionEntries(canonicalUserId);
+      
+      console.log('[Dashboard.Entries] Fetched entries:', {
+        count: data?.length || 0,
+        sampleEntry: data?.[0] ? {
+          id: data[0].id,
+          competition_id: data[0].competition_id,
+          title: data[0].title,
+          status: data[0].status,
+          ticket_numbers: data[0].ticket_numbers,
+          amount_spent: data[0].amount_spent,
+          image: data[0].image?.substring(0, 50) + '...'
+        } : null,
+        allTitles: data?.map((e: any) => e.title).filter(Boolean)
+      });
+
       setEntries(data || []);
       initialLoadDoneRef.current = true;
       // Reset consecutive error counter on success
@@ -135,20 +156,22 @@ export default function EntriesList() {
             .filter(id => id && !id.startsWith('legacy-') && !id.startsWith('entry-'))
         )];
         if (competitionIds.length > 0) {
+          console.log('[Dashboard.Entries] Syncing competition statuses:', { count: competitionIds.length });
           // Run sync in background - don't await to avoid blocking UI
           database.syncStaleCompetitionStatuses(competitionIds).then(result => {
             if (result.updated.length > 0) {
               // If any competitions were updated, refresh entries to get updated status
-              console.log('[EntriesList] Synced stale competitions, refreshing...');
+              console.log('[Dashboard.Entries] Synced stale competitions, refreshing...', { updated: result.updated.length });
               debouncedFetchEntries();
             }
-          }).catch(() => {
+          }).catch((syncErr) => {
             // Ignore errors - stale status sync is a nice-to-have
+            console.warn('[Dashboard.Entries] Sync failed (non-critical):', syncErr);
           });
         }
       }
     } catch (err) {
-      console.error("Error fetching entries:", err);
+      console.error('[Dashboard.Entries] Error fetching entries:', err);
 
       // ISSUE 8A FIX: Show toast notification for errors instead of silently failing
       // Only show toast on first error or after 3 consecutive errors to avoid spam

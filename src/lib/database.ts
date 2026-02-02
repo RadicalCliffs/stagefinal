@@ -2079,6 +2079,18 @@ export const database = {
 
       databaseLogger.success(`getUserEntries: Found ${entries.length} entries for user`);
 
+      console.log('[Database.getUserEntries] Raw entries before formatting:', {
+        count: entries.length,
+        sampleEntry: entries[0] ? {
+          id: entries[0].id,
+          competition_id: entries[0].competition_id,
+          title: entries[0].title,
+          image: entries[0].image?.substring(0, 50),
+          ticket_numbers: entries[0].ticket_numbers,
+          amount_spent: entries[0].amount_spent || entries[0].total_amount_spent
+        } : null
+      });
+
       // Format entries for display (data already includes competition details from RPC)
       const formattedEntries = entries.map((entry: any) => {
         // Filter out entries with missing required data (no id AND no competition_id)
@@ -2550,6 +2562,8 @@ export const database = {
         }
 
         if (orderFilters.length > 0) {
+          // FIXED: Query orders without JOIN to competitions (relationship doesn't exist)
+          // Fetch competition data separately
           const { data: ordersData, error: ordersError } = await supabase
             .from('orders')
             .select(`
@@ -2562,19 +2576,7 @@ export const database = {
               payment_status,
               payment_tx_hash,
               created_at,
-              completed_at,
-              competitions (
-                id,
-                uid,
-                title,
-                description,
-                image_url,
-                status,
-                prize_value,
-                is_instant_win,
-                end_date,
-                winner_address
-              )
+              completed_at
             `)
             .or(orderFilters.join(','))
             // Include ALL valid completed statuses (including 'success')
@@ -2583,8 +2585,24 @@ export const database = {
             .order('created_at', { ascending: false });
 
           if (!ordersError && ordersData && ordersData.length > 0) {
+            // Fetch competition data separately for all orders
+            const competitionIds = [...new Set(ordersData.map((o: any) => o.competition_id).filter(Boolean))];
+            let competitionsMap = new Map<string, any>();
+            
+            if (competitionIds.length > 0) {
+              const { data: compData } = await supabase
+                .from('competitions')
+                .select('id, uid, title, description, image_url, status, prize_value, is_instant_win, end_date, winner_address')
+                .in('id', competitionIds);
+              if (compData) {
+                compData.forEach((c: any) => {
+                  competitionsMap.set(c.id, c);
+                });
+              }
+            }
+
             ordersData.forEach((order: any) => {
-              const comp = order.competitions;
+              const comp = competitionsMap.get(order.competition_id);
               const entry = {
                 id: order.id,
                 competition_id: order.competition_id,
@@ -2621,39 +2639,35 @@ export const database = {
 
     // ===== SOURCE 6: Query balance_ledger table =====
     // Balance-based purchases are recorded in balance_ledger with source='purchase'
+    // FIXED: balance_ledger uses canonical_user_id, not user_id
     if (identity.canonicalUserId || identity.walletAddress) {
       try {
-        // First, get the user UUID from canonical_users for balance_ledger lookup
-        let userUuid: string | null = null;
-
+        // Build filter for canonical_user_id
+        const ledgerFilters: string[] = [];
+        
         if (identity.canonicalUserId) {
-          const { data: userData } = await supabase
-            .from('canonical_users')
-            .select('id')
-            .eq('canonical_user_id', identity.canonicalUserId)
-            .maybeSingle();
-          if (userData?.id) {
-            userUuid = userData.id;
-          }
+          ledgerFilters.push(`canonical_user_id.eq.${identity.canonicalUserId}`);
         }
 
-        // Fallback to wallet address lookup
-        if (!userUuid && identity.walletAddress) {
+        // Also try looking up by wallet if we don't have canonical ID
+        if (!identity.canonicalUserId && identity.walletAddress) {
+          // Get canonical_user_id from canonical_users first
           const { data: userData } = await supabase
             .from('canonical_users')
-            .select('id')
+            .select('canonical_user_id')
             .or(`wallet_address.ilike.${identity.walletAddress},base_wallet_address.ilike.${identity.walletAddress}`)
             .maybeSingle();
-          if (userData?.id) {
-            userUuid = userData.id;
+          
+          if (userData?.canonical_user_id) {
+            ledgerFilters.push(`canonical_user_id.eq.${userData.canonical_user_id}`);
           }
         }
 
-        if (userUuid) {
+        if (ledgerFilters.length > 0) {
           const { data: ledgerData, error: ledgerError } = await supabase
             .from('balance_ledger')
             .select('*')
-            .eq('user_id', userUuid)
+            .or(ledgerFilters.join(','))
             .eq('source', 'purchase')
             .lt('amount', 0) // Purchases are negative (debits)
             .not('metadata->competition_id', 'is', null)
@@ -3543,6 +3557,19 @@ export const database = {
 
       databaseLogger.success(`getUserEntriesFromCompetitionEntries: Found ${data.length} entries`);
 
+      console.log('[Database.getUserEntriesFromCompetitionEntries] Raw RPC data:', {
+        count: data.length,
+        sampleEntry: data[0] ? {
+          id: data[0].id,
+          competition_id: data[0].competition_id,
+          competition_title: data[0].competition_title,
+          competition_description: data[0].competition_description,
+          competition_image_url: data[0].competition_image_url,
+          ticket_count: data[0].ticket_count,
+          amount_paid: data[0].amount_paid
+        } : null
+      });
+
       // Transform to the format expected by the frontend
       const formattedEntries = data.map((entry: any) => {
         // Map entry_status to frontend status
@@ -3595,6 +3622,18 @@ export const database = {
           end_date: entry.end_date || entry.competition_end_date,
         };
       }).filter((entry: any) => entry !== null);
+
+      console.log('[Database.getUserEntriesFromCompetitionEntries] Formatted entries:', {
+        count: formattedEntries.length,
+        sampleFormatted: formattedEntries[0] ? {
+          id: formattedEntries[0].id,
+          competition_id: formattedEntries[0].competition_id,
+          title: formattedEntries[0].title,
+          image: formattedEntries[0].image?.substring(0, 50),
+          ticket_numbers: formattedEntries[0].ticket_numbers,
+          amount_spent: formattedEntries[0].amount_spent
+        } : null
+      });
 
       return formattedEntries;
     } catch (error) {
