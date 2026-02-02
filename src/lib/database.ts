@@ -1729,10 +1729,18 @@ export const database = {
   async getUserTransactions(userId: string) {
     try {
       // Use standard RPC function (not bypass_rls) for staging compatibility with anon key
+      console.log('[getUserTransactions] Calling RPC with user_identifier:', userId.substring(0, 20) + '...');
       const { data, error } = await supabase
         .rpc('get_user_transactions', {
           user_identifier: userId.trim()  // Fixed: parameter name is user_identifier, not p_user_identifier
         });
+
+      console.log('[getUserTransactions] RPC response:', { 
+        dataLength: data?.length, 
+        hasError: !!error,
+        errorCode: error?.code,
+        errorMessage: error?.message 
+      });
 
       if (error) {
         // If permission denied or function not found, try fallback direct query
@@ -1746,6 +1754,17 @@ export const database = {
 
       // RPC now returns enriched data with competition_name and competition_image from JOIN
       // No need for separate competition fetch anymore
+      
+      console.log('[getUserTransactions] Processing data:', { 
+        rawDataLength: data?.length,
+        firstItem: data?.[0] ? {
+          id: data[0].id,
+          competition_id: data[0].competition_id,
+          competition_name: data[0].competition_name,
+          amount: data[0].amount,
+          status: data[0].status
+        } : null
+      });
       
       // Format transactions for display - DON'T filter here, let the frontend decide
       // The Orders tab needs ALL transactions including pending ones
@@ -1793,6 +1812,11 @@ export const database = {
             return 'Processing';
           })(),
         };
+      });
+
+      console.log('[getUserTransactions] Formatted transactions:', { 
+        count: formattedTransactions.length,
+        firstFormatted: formattedTransactions[0] || null
       });
 
       return formattedTransactions;

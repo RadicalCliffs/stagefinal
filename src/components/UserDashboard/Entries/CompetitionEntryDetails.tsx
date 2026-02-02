@@ -77,11 +77,11 @@ const CompetitionEntryDetails = () => {
       setError(null);
 
       try {
-        // Fetch all user entries and filter for this competition
-        // Use canonicalUserId (prize:pid:<wallet>) to match database records
-        const allEntries = await database.getUserEntries(canonicalUserId);
+        // FIXED: Use the same data source as EntriesList to ensure consistency
+        // getUserEntriesFromCompetitionEntries uses the new RPC that returns proper data
+        const allEntries = await database.getUserEntriesFromCompetitionEntries(canonicalUserId);
         const competitionEntries = (allEntries || []).filter(
-          (e: any): e is EntryData => e !== null && typeof e === 'object' && 'competition_id' in e && 'expires_at' in e && e.competition_id === competitionId
+          (e: any): e is EntryData => e !== null && typeof e === 'object' && 'competition_id' in e && e.competition_id === competitionId
         ) as EntryData[];
 
         if (competitionEntries && competitionEntries.length > 0) {
