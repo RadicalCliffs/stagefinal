@@ -151,21 +151,21 @@ export interface DashboardEntry {
   competition_id: string;
   title: string;
   description: string;
-  image: null;
+  image: string | null;
   status: string;
   entry_type: string;
-  expires_at: null;
+  expires_at: string | null;
   is_winner: boolean;
   ticket_numbers: string;
   number_of_tickets: number;
   amount_spent: number;
   purchase_date: string;
-  wallet_address: null;
-  transaction_hash: null;
+  wallet_address: string | null;
+  transaction_hash: string | null;
   is_instant_win: boolean;
-  prize_value: null;
+  prize_value: string | null;
   competition_status: string;
-  end_date: null;
+  end_date: string | null;
 }
 
 /**
@@ -190,7 +190,7 @@ export function transformOverviewToEntries(overview: UserOverview | null): Dashb
     entry_type: 'completed',
     expires_at: null,
     is_winner: false,
-    ticket_numbers: entry.ticket_numbers_joined,
+    ticket_numbers: entry.ticket_numbers_csv,
     number_of_tickets: entry.tickets_count,
     amount_spent: entry.amount_paid,
     purchase_date: entry.created_at,

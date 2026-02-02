@@ -16,7 +16,7 @@ SELECT
             'competition_title', ce.competition_title,
             'amount_paid', ce.amount_paid,
             'tickets_count', ce.ticket_count,
-            'ticket_numbers_joined', array_to_string(ce.ticket_numbers, ','),
+            'ticket_numbers_csv', array_to_string(ce.ticket_numbers, ','),
             'created_at', ce.created_at
         )) FILTER (WHERE ce.id IS NOT NULL),
         '[]'::json

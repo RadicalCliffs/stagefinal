@@ -109,7 +109,7 @@ export default function ExampleUserDashboard() {
                 <div className="entry-details">
                   <p>Tickets: {entry.tickets_count}</p>
                   <p>Amount Paid: ${entry.amount_paid.toFixed(2)}</p>
-                  <p>Ticket Numbers: {entry.ticket_numbers_joined}</p>
+                  <p>Ticket Numbers: {entry.ticket_numbers_csv}</p>
                   <p>Date: {new Date(entry.created_at).toLocaleDateString()}</p>
                 </div>
               </div>
