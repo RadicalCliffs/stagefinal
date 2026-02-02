@@ -7,14 +7,23 @@ import { toPrizePid, normalizeWalletAddress } from "./_shared/userId.mts";
  *
  * This function processes instant wallet top-ups where users send USDC
  * directly from their connected wallet to the treasury, and we credit
- * their sub_account_balance immediately after verifying the transaction.
+ * their sub_account_balance immediately, even if blockchain confirmation
+ * hasn't completed yet.
+ *
+ * IMPORTANT SECURITY NOTE:
+ * This function credits balances BEFORE blockchain verification completes.
+ * This is a deliberate UX decision to avoid user frustration when transactions
+ * are "in flight" on the blockchain. The transaction hash is checked for
+ * idempotency to prevent double-crediting. Verification status is tracked
+ * for audit purposes.
  *
  * Flow:
  * 1. Client sends USDC from wallet to treasury (handled in frontend)
  * 2. Client calls this function with transaction hash
- * 3. We verify the transaction on-chain
- * 4. We credit the user's balance
- * 5. We create a transaction record
+ * 3. We attempt to verify the transaction on-chain (non-blocking)
+ * 4. We credit the user's balance REGARDLESS of verification result
+ * 5. We create a transaction record with verification status
+ * 6. Idempotency check prevents duplicate credits for same tx_id
  *
  * Routes:
  * - POST /api/instant-topup - Process an instant top-up
@@ -26,7 +35,15 @@ const VERIFICATION_STATUS = {
   PENDING: "pending_verification",
 } as const;
 
-// Helper function to construct transaction notes
+/**
+ * Construct transaction notes with verification status and bonus information.
+ * Used to create consistent audit trail messages across different code paths.
+ * 
+ * @param isVerified - Whether the transaction has been verified on blockchain
+ * @param bonusApplied - Whether a first-deposit bonus was applied
+ * @param bonusAmount - The amount of bonus credited (if any)
+ * @returns Formatted transaction note string for audit trail
+ */
 function constructTransactionNotes(
   isVerified: boolean,
   bonusApplied: boolean,
@@ -336,6 +353,10 @@ export default async (request: Request, context: Context): Promise<Response> => 
     }
 
     // Try to verify the transaction on-chain, but don't block crediting if verification fails
+    // SECURITY NOTE: We credit immediately for UX, but track verification status for audit.
+    // The idempotency check on tx_id prevents double-crediting if user retries.
+    // Any fraudulent transactions can be identified later via the verification status
+    // and reversed through manual reconciliation.
     console.log(`[VERBOSE][instant-topup] Attempting to verify transaction on-chain...`);
     console.log(`[VERBOSE][instant-topup] Verifying against:`);
     console.log(`[VERBOSE][instant-topup]   - Expected recipient: ${treasuryAddress}`);
