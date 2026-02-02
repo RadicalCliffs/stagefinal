@@ -51,6 +51,9 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
         // Transform data to match expected format
         const transformedEntries: Array<{ ticketNumber: number; date: string; walletAddress: string; username?: string; transactionHash?: string; vrfHash?: string }> = [];
 
+        // Track ticket numbers we've already added to prevent duplicates (O(1) lookup)
+        const seenTicketNumbers = new Set<number>();
+
         // Collect wallet addresses for username lookup
         const walletAddresses = new Set<string>();
 
@@ -115,21 +118,24 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
                   .filter((t: number) => !isNaN(t));
 
                 ticketNumbers.forEach((ticketNum: number) => {
-                  transformedEntries.push({
-                    ticketNumber: ticketNum,
-                    date: new Date(entry.purchasedate).toLocaleString('en-US', {
-                      year: 'numeric',
-                      month: '2-digit',
-                      day: '2-digit',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      second: '2-digit',
-                      hour12: false
-                    }),
-                    walletAddress: wallet || 'Unknown',
-                    username: entry.username || undefined,
-                    transactionHash: txHash || undefined
-                  });
+                  if (!seenTicketNumbers.has(ticketNum)) {
+                    seenTicketNumbers.add(ticketNum);
+                    transformedEntries.push({
+                      ticketNumber: ticketNum,
+                      date: new Date(entry.purchasedate).toLocaleString('en-US', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false
+                      }),
+                      walletAddress: wallet || 'Unknown',
+                      username: entry.username || undefined,
+                      transactionHash: txHash || undefined
+                    });
+                  }
                 });
               }
             });
@@ -242,8 +248,8 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
                   .filter((t: number) => !isNaN(t));
 
                 ticketNumbers.forEach((ticketNum: number) => {
-                  // Check if this ticket already exists (avoid duplicates)
-                  if (!transformedEntries.some(e => e.ticketNumber === ticketNum)) {
+                  if (!seenTicketNumbers.has(ticketNum)) {
+                    seenTicketNumbers.add(ticketNum);
                     transformedEntries.push({
                       ticketNumber: ticketNum,
                       date: entry.purchasedate ? new Date(entry.purchasedate).toLocaleString('en-US', {
@@ -307,7 +313,8 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
 
               if (ticket.ticket_number != null) {
                 const ticketNum = parseInt(ticket.ticket_number);
-                if (!isNaN(ticketNum) && !transformedEntries.some(e => e.ticketNumber === ticketNum)) {
+                if (!isNaN(ticketNum) && !seenTicketNumbers.has(ticketNum)) {
+                  seenTicketNumbers.add(ticketNum);
                   transformedEntries.push({
                     ticketNumber: ticketNum,
                     date: ticket.created_at ? new Date(ticket.created_at).toLocaleString('en-US', {
@@ -378,8 +385,8 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
             }
 
             ticketNumbers.forEach((ticketNum: number) => {
-              // Check if this ticket already exists (avoid duplicates)
-              if (!transformedEntries.some(e => e.ticketNumber === ticketNum)) {
+              if (!seenTicketNumbers.has(ticketNum)) {
+                seenTicketNumbers.add(ticketNum);
                 transformedEntries.push({
                   ticketNumber: ticketNum,
                   date: pending.created_at ? new Date(pending.created_at).toLocaleString('en-US', {
