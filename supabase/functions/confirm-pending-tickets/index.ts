@@ -1240,6 +1240,18 @@ Deno.serve(async (req: Request) => {
       ticketCount: conversionResult.ticket_count
     });
 
+    // For external crypto payments (non-balance), mark as wallet_credited to prevent reconcile-payments from processing
+    if (!isBalancePayment && sessionId) {
+      console.log(`[Confirm Tickets] Marking external payment transaction as wallet_credited to prevent double-processing`);
+      await supabase
+        .from('user_transactions')
+        .update({ 
+          wallet_credited: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', sessionId);
+    }
+
     // STEP 6: Check for instant win prizes
     const instantWins: any[] = [];
     
