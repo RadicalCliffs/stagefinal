@@ -11,6 +11,12 @@ const UserMiniProfile = () => {
   const [showAvatarModal, setShowAvatarModal] = useState(false);
 
   const avatarUrl = useMemo(() => {
+    console.log('[Dashboard.MiniProfile] Avatar resolution:', {
+      hasProfileAvatar: !!profile?.avatar_url,
+      profileAvatarUrl: profile?.avatar_url?.substring(0, 50),
+      hasCachedAvatar: !!userDataService.getCachedAvatarUrl()
+    });
+
     // Always use the avatar_url from profile if available
     // Profile should already have avatar_url set from database on user creation
     if (profile?.avatar_url) {

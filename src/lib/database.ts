@@ -2079,6 +2079,18 @@ export const database = {
 
       databaseLogger.success(`getUserEntries: Found ${entries.length} entries for user`);
 
+      console.log('[Database.getUserEntries] Raw entries before formatting:', {
+        count: entries.length,
+        sampleEntry: entries[0] ? {
+          id: entries[0].id,
+          competition_id: entries[0].competition_id,
+          title: entries[0].title,
+          image: entries[0].image?.substring(0, 50),
+          ticket_numbers: entries[0].ticket_numbers,
+          amount_spent: entries[0].amount_spent || entries[0].total_amount_spent
+        } : null
+      });
+
       // Format entries for display (data already includes competition details from RPC)
       const formattedEntries = entries.map((entry: any) => {
         // Filter out entries with missing required data (no id AND no competition_id)
@@ -3545,6 +3557,19 @@ export const database = {
 
       databaseLogger.success(`getUserEntriesFromCompetitionEntries: Found ${data.length} entries`);
 
+      console.log('[Database.getUserEntriesFromCompetitionEntries] Raw RPC data:', {
+        count: data.length,
+        sampleEntry: data[0] ? {
+          id: data[0].id,
+          competition_id: data[0].competition_id,
+          competition_title: data[0].competition_title,
+          competition_description: data[0].competition_description,
+          competition_image_url: data[0].competition_image_url,
+          ticket_count: data[0].ticket_count,
+          amount_paid: data[0].amount_paid
+        } : null
+      });
+
       // Transform to the format expected by the frontend
       const formattedEntries = data.map((entry: any) => {
         // Map entry_status to frontend status
@@ -3597,6 +3622,18 @@ export const database = {
           end_date: entry.end_date || entry.competition_end_date,
         };
       }).filter((entry: any) => entry !== null);
+
+      console.log('[Database.getUserEntriesFromCompetitionEntries] Formatted entries:', {
+        count: formattedEntries.length,
+        sampleFormatted: formattedEntries[0] ? {
+          id: formattedEntries[0].id,
+          competition_id: formattedEntries[0].competition_id,
+          title: formattedEntries[0].title,
+          image: formattedEntries[0].image?.substring(0, 50),
+          ticket_numbers: formattedEntries[0].ticket_numbers,
+          amount_spent: formattedEntries[0].amount_spent
+        } : null
+      });
 
       return formattedEntries;
     } catch (error) {

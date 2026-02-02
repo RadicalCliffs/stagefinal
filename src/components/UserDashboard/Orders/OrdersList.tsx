@@ -73,9 +73,27 @@ export default function OrdersList() {
     }
 
     try {
+      console.log('[Dashboard.Orders] Fetching orders:', {
+        canonicalUserId,
+        isBackgroundRefresh,
+        timestamp: new Date().toISOString()
+      });
+
       // Fetch from user_transactions table for purchases (includes Base and other payments)
       // Use canonicalUserId (prize:pid:<wallet>) to match database records
       const purchasesData = await database.getUserTransactions(canonicalUserId);
+
+      console.log('[Dashboard.Orders] Fetched transactions:', {
+        count: purchasesData?.length || 0,
+        sampleTransaction: purchasesData?.[0] ? {
+          id: purchasesData[0].id,
+          competition_id: purchasesData[0].competition_id,
+          competition_name: purchasesData[0].competition_name,
+          amount: purchasesData[0].amount,
+          status: purchasesData[0].status,
+          payment_status: purchasesData[0].payment_status
+        } : null
+      });
 
       // For entries tab, use the same user_transactions data but filter out top-ups
       // This ensures both tabs pull from the same source for consistency
