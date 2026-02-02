@@ -1729,10 +1729,18 @@ export const database = {
   async getUserTransactions(userId: string) {
     try {
       // Use standard RPC function (not bypass_rls) for staging compatibility with anon key
+      console.log('[getUserTransactions] Calling RPC with user_identifier:', userId.substring(0, 20) + '...');
       const { data, error } = await supabase
         .rpc('get_user_transactions', {
-          p_user_identifier: userId.trim()
+          user_identifier: userId.trim()  // Fixed: parameter name is user_identifier, not p_user_identifier
         });
+
+      console.log('[getUserTransactions] RPC response:', { 
+        dataLength: data?.length, 
+        hasError: !!error,
+        errorCode: error?.code,
+        errorMessage: error?.message 
+      });
 
       if (error) {
         // If permission denied or function not found, try fallback direct query
@@ -1744,42 +1752,36 @@ export const database = {
         return [];
       }
 
-      // Get unique competition IDs to fetch competition details separately
-      const competitionIds = [...new Set((data || []).map((tx: any) => tx.competition_id).filter(Boolean))];
+      // RPC now returns enriched data with competition_name and competition_image from JOIN
+      // No need for separate competition fetch anymore
       
-      let competitionsMap: { [key: string]: any } = {};
-      if (competitionIds.length > 0) {
-        const { data: competitions } = await supabase
-          .from('competitions')
-          .select('id, uid, title, image_url, prize_value')
-          .in('id', competitionIds);
-        
-        if (competitions) {
-          competitionsMap = competitions.reduce((map: { [key: string]: any }, comp: any) => {
-            map[comp.id] = comp;
-            return map;
-          }, {});
-        }
-      }
-
-      // Format transactions for display - filter out incomplete/cancelled transactions
+      console.log('[getUserTransactions] Processing data:', { 
+        rawDataLength: data?.length,
+        firstItem: data?.[0] ? {
+          id: data[0].id,
+          competition_id: data[0].competition_id,
+          competition_name: data[0].competition_name,
+          amount: data[0].amount,
+          status: data[0].status
+        } : null
+      });
+      
+      // Format transactions for display - DON'T filter here, let the frontend decide
+      // The Orders tab needs ALL transactions including pending ones
       const formattedTransactions = (data || [])
-        .filter((tx: any) => {
-          // Only show completed/finished transactions, not pending/failed/cancelled
-          const status = (tx.status || '').toLowerCase();
-          return status === 'completed' || status === 'finished' || status === 'confirmed' || status === 'success';
-        })
         .map((tx: any) => {
-        const competition = competitionsMap[tx.competition_id];
-        // Recognize top-ups: no competition_id OR webhook_ref starts with 'TOPUP_'
-        const isTopUp = !tx.competition_id || (tx.webhook_ref && tx.webhook_ref.startsWith('TOPUP_'));
+        // Use is_topup flag from RPC if available, otherwise calculate it
+        const isTopUp = tx.is_topup ?? (!tx.competition_id || (tx.webhook_ref && tx.webhook_ref.startsWith('TOPUP_')));
+        
         return {
           id: tx.id,
           user_id: tx.user_id,
           competition_id: tx.competition_id,
-          competition_name: isTopUp ? 'Wallet Top-Up' : (competition?.title || 'Unknown Competition'),
-          competition_image: competition?.image_url ? getImageUrl(competition.image_url) : null,
+          // Use competition_name and competition_image from RPC (already enriched)
+          competition_name: tx.competition_name || (isTopUp ? 'Wallet Top-Up' : 'Unknown Competition'),
+          competition_image: tx.competition_image ? getImageUrl(tx.competition_image) : null,
           ticket_count: tx.ticket_count || 0,
+          ticket_numbers: tx.ticket_numbers,
           amount: tx.amount || 0,
           amount_usd: tx.currency === 'usd' || tx.currency === 'USDC' || tx.currency === 'USD'
             ? `$${Number(tx.amount || 0).toFixed(2)}`
@@ -1800,14 +1802,21 @@ export const database = {
           payment_provider: tx.payment_provider || 'unknown',
           metadata: tx.metadata,
           transaction_hash: tx.transaction_hash,
+          webhook_ref: tx.webhook_ref,
+          order_id: tx.order_id,
           action: (() => {
-            const statusLower = (tx.status || '').toLowerCase().trim();
+            const statusLower = (tx.status || tx.payment_status || '').toLowerCase().trim();
             if (statusLower === 'completed' || statusLower === 'finished' || statusLower === 'confirmed' || statusLower === 'success') return 'View';
             if (statusLower === 'pending') return 'Pending';
             if (statusLower === 'failed' || statusLower === 'cancelled' || statusLower === 'expired') return 'Failed';
             return 'Processing';
           })(),
         };
+      });
+
+      console.log('[getUserTransactions] Formatted transactions:', { 
+        count: formattedTransactions.length,
+        firstFormatted: formattedTransactions[0] || null
       });
 
       return formattedTransactions;
@@ -3573,17 +3582,17 @@ export const database = {
           ticket_numbers: Array.isArray(entry.ticket_numbers)
             ? entry.ticket_numbers.join(',')
             : entry.ticket_numbers || '',
-          number_of_tickets: entry.ticket_count || 0,
-          amount_spent: entry.amount_paid || 0,
-          purchase_date: entry.created_at,
+          number_of_tickets: entry.tickets_count || entry.ticket_count || 0,
+          amount_spent: entry.amount_spent || entry.amount_paid || 0,
+          purchase_date: entry.latest_purchase_at || entry.created_at,
           wallet_address: entry.wallet_address,
           transaction_hash: entry.transaction_hash,
-          is_instant_win: entry.competition_is_instant_win || false,
-          prize_value: entry.competition_prize_value
-            ? `$${Number(entry.competition_prize_value).toLocaleString()}`
+          is_instant_win: entry.is_instant_win || entry.competition_is_instant_win || false,
+          prize_value: entry.prize_value || entry.competition_prize_value
+            ? `$${Number(entry.prize_value || entry.competition_prize_value).toLocaleString()}`
             : null,
           competition_status: entry.competition_status || 'active',
-          end_date: entry.competition_end_date,
+          end_date: entry.end_date || entry.competition_end_date,
         };
       }).filter((entry: any) => entry !== null);
 
