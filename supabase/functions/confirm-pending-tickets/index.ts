@@ -1141,8 +1141,10 @@ Deno.serve(async (req: Request) => {
 
     // Choose RPC based on payment method:
     // - 'balance' payments: Use confirm_ticket_purchase (debits sub_account_balance)
-    // - External payments (coinbase, etc): Use confirm_pending_to_sold (no debit - user already paid)
-    const isBalancePayment = paymentProvider === 'balance' || !paymentProvider;
+    // - External payments (base_account, coinbase, etc): Use confirm_pending_to_sold (no debit - user already paid)
+    // CRITICAL: Only explicit 'balance' payments should debit sub_account_balance
+    // Crypto payments (Base, Coinbase, etc.) are already paid on-chain and should NOT touch sub_account_balance
+    const isBalancePayment = paymentProvider === 'balance';
     
     let rpcResult: Record<string, unknown> | null = null;
     let rpcError: Error | null = null;
@@ -1237,6 +1239,27 @@ Deno.serve(async (req: Request) => {
       ticketsInserted: conversionResult.tickets_inserted,
       ticketCount: conversionResult.ticket_count
     });
+
+    // For external crypto payments (non-balance), mark as wallet_credited to prevent reconcile-payments from processing
+    // This is critical for base_account, coinbase_commerce, and other external payment providers
+    // to prevent them from being incorrectly credited as top-ups by the reconcile-payments function
+    if (!isBalancePayment && sessionId) {
+      console.log(`[Confirm Tickets] Marking external payment transaction ${sessionId} as wallet_credited to prevent double-processing`);
+      const { error: updateError } = await supabase
+        .from('user_transactions')
+        .update({ 
+          wallet_credited: true
+        })
+        .eq('id', sessionId);
+      
+      if (updateError) {
+        console.error(`[Confirm Tickets] WARNING: Failed to mark transaction ${sessionId} as wallet_credited:`, updateError);
+        console.error(`[Confirm Tickets] This transaction may be reprocessed by reconcile-payments!`);
+        // Don't fail the entire operation, but log the warning for monitoring
+      } else {
+        console.log(`[Confirm Tickets] Successfully marked transaction ${sessionId} as wallet_credited`);
+      }
+    }
 
     // STEP 6: Check for instant win prizes
     const instantWins: any[] = [];
