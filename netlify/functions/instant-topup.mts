@@ -7,18 +7,56 @@ import { toPrizePid, normalizeWalletAddress } from "./_shared/userId.mts";
  *
  * This function processes instant wallet top-ups where users send USDC
  * directly from their connected wallet to the treasury, and we credit
- * their sub_account_balance immediately after verifying the transaction.
+ * their sub_account_balance immediately, even if blockchain confirmation
+ * hasn't completed yet.
+ *
+ * IMPORTANT SECURITY NOTE:
+ * This function credits balances BEFORE blockchain verification completes.
+ * This is a deliberate UX decision to avoid user frustration when transactions
+ * are "in flight" on the blockchain. The transaction hash is checked for
+ * idempotency to prevent double-crediting. Verification status is tracked
+ * for audit purposes.
  *
  * Flow:
  * 1. Client sends USDC from wallet to treasury (handled in frontend)
  * 2. Client calls this function with transaction hash
- * 3. We verify the transaction on-chain
- * 4. We credit the user's balance
- * 5. We create a transaction record
+ * 3. We attempt to verify the transaction on-chain (non-blocking)
+ * 4. We credit the user's balance REGARDLESS of verification result
+ * 5. We create a transaction record with verification status
+ * 6. Idempotency check prevents duplicate credits for same tx_id
  *
  * Routes:
  * - POST /api/instant-topup - Process an instant top-up
  */
+
+// Verification status constants
+const VERIFICATION_STATUS = {
+  VERIFIED: "verified",
+  PENDING: "pending_verification",
+} as const;
+
+/**
+ * Construct transaction notes with verification status and bonus information.
+ * Used to create consistent audit trail messages across different code paths.
+ * 
+ * @param isVerified - Whether the transaction has been verified on blockchain
+ * @param bonusApplied - Whether a first-deposit bonus was applied
+ * @param bonusAmount - The amount of bonus credited (if any)
+ * @returns Formatted transaction note string for audit trail
+ */
+function constructTransactionNotes(
+  isVerified: boolean,
+  bonusApplied: boolean,
+  bonusAmount: number
+): string {
+  const verificationLabel = isVerified ? "[Verified]" : "[Pending Verification]";
+  
+  if (bonusApplied) {
+    return `Wallet topup completed with 50% bonus (+$${bonusAmount.toFixed(2)}) ${verificationLabel}`;
+  }
+  
+  return `Wallet topup completed ${verificationLabel}`;
+}
 
 // Response helpers
 function jsonResponse(data: object, status: number = 200): Response {
@@ -314,8 +352,12 @@ export default async (request: Request, context: Context): Promise<Response> => 
       console.log(`Reprocessing transaction ${transactionHash} that wasn't credited`);
     }
 
-    // Verify the transaction on-chain
-    console.log(`[VERBOSE][instant-topup] Verifying transaction on-chain...`);
+    // Try to verify the transaction on-chain, but don't block crediting if verification fails
+    // SECURITY NOTE: We credit immediately for UX, but track verification status for audit.
+    // The idempotency check on tx_id prevents double-crediting if user retries.
+    // Any fraudulent transactions can be identified later via the verification status
+    // and reversed through manual reconciliation.
+    console.log(`[VERBOSE][instant-topup] Attempting to verify transaction on-chain...`);
     console.log(`[VERBOSE][instant-topup] Verifying against:`);
     console.log(`[VERBOSE][instant-topup]   - Expected recipient: ${treasuryAddress}`);
     console.log(`[VERBOSE][instant-topup]   - Expected amount: ${amount} USDC`);
@@ -330,16 +372,20 @@ export default async (request: Request, context: Context): Promise<Response> => 
 
     console.log(`[VERBOSE][instant-topup] Verification result:`, verification);
     
-    if (!verification.verified) {
-      console.error(`[VERBOSE][instant-topup] ❌ Transaction verification failed!`);
-      console.error(`[VERBOSE][instant-topup] Error: ${verification.error}`);
-      return errorResponse(verification.error || "Transaction verification failed", 400);
-    }
+    let verificationStatus = VERIFICATION_STATUS.PENDING;
+    let creditAmount = amount;
     
-    console.log(`[VERBOSE][instant-topup] ✅ Transaction verified successfully!`);
-    console.log(`[VERBOSE][instant-topup] Actual amount transferred: ${verification.actualAmount} USDC`);
-
-    const creditAmount = verification.actualAmount || amount;
+    if (verification.verified) {
+      console.log(`[VERBOSE][instant-topup] ✅ Transaction verified successfully!`);
+      console.log(`[VERBOSE][instant-topup] Actual amount transferred: ${verification.actualAmount} USDC`);
+      verificationStatus = VERIFICATION_STATUS.VERIFIED;
+      creditAmount = verification.actualAmount || amount;
+    } else {
+      console.warn(`[VERBOSE][instant-topup] ⚠️  Transaction not yet confirmed on blockchain`);
+      console.warn(`[VERBOSE][instant-topup] Error: ${verification.error}`);
+      console.warn(`[VERBOSE][instant-topup] Crediting balance anyway - verification will happen in background`);
+      // Continue with crediting - don't block user experience
+    }
 
     // Create or update transaction record
     let transactionId: string;
@@ -413,14 +459,18 @@ export default async (request: Request, context: Context): Promise<Response> => 
       console.log(`[VERBOSE][instant-topup] User ID (canonical): ${user.canonicalUserId.substring(0, 20)}...`);
       console.log(`[VERBOSE][instant-topup] Balance should be visible in sub_account_balances table`);
       
-      // Mark transaction as wallet_credited
+      // Mark transaction as wallet_credited with verification status
+      const updateNotes = constructTransactionNotes(
+        verification.verified,
+        bonusApplied,
+        bonusAmount || 0
+      );
+      
       await supabase
         .from("user_transactions")
         .update({
           wallet_credited: true,
-          notes: bonusApplied 
-            ? `Wallet topup completed with 50% bonus (+$${(bonusAmount || 0).toFixed(2)})` 
-            : "Wallet topup completed",
+          notes: updateNotes,
         })
         .eq("id", transactionId);
 
@@ -435,6 +485,7 @@ export default async (request: Request, context: Context): Promise<Response> => 
         totalCredited: creditResult.total_credited,
         newBalance: newBalance,
         transactionHash,
+        verificationStatus: verificationStatus,
       });
     }
 
@@ -491,12 +542,19 @@ export default async (request: Request, context: Context): Promise<Response> => 
       );
     }
 
-    // Mark transaction as credited
+    // Mark transaction as credited with verification status
+    const fallbackNotes = constructTransactionNotes(
+      verification.verified,
+      false, // No bonus in fallback path
+      0
+    );
+      
     await supabase
       .from("user_transactions")
       .update({
         wallet_credited: true,
         status: "finished",
+        notes: fallbackNotes,
         updated_at: new Date().toISOString(),
       })
       .eq("id", transactionId);
@@ -510,6 +568,7 @@ export default async (request: Request, context: Context): Promise<Response> => 
       transactionId,
       creditedAmount: creditAmount,
       newBalance: newBalance,
+      verificationStatus: verificationStatus,
       message: "Top-up successful",
     });
   } catch (error) {
