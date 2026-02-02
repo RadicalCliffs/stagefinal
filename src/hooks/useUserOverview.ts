@@ -38,17 +38,23 @@ export function useUserOverview(
 ) {
   const [overview, setOverview] = useState<UserOverview | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const { autoFetch = true, refreshInterval, enabled = true } = options;
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (isRefresh = false) => {
     if (!canonicalUserId || !enabled) {
       setLoading(false);
       return;
     }
 
     try {
-      setLoading(true);
+      // Only show loading on initial fetch, use refreshing for subsequent fetches
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       setError(null);
       const data = await fetchUserOverview(canonicalUserId);
       setOverview(data);
@@ -57,19 +63,20 @@ export function useUserOverview(
       console.error('[useUserOverview] Error:', err);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [canonicalUserId, enabled]);
 
   useEffect(() => {
     if (autoFetch && enabled) {
-      fetchData();
+      fetchData(false); // Initial fetch
     }
   }, [autoFetch, enabled, fetchData]);
 
   // Set up refresh interval if specified
   useEffect(() => {
     if (refreshInterval && refreshInterval > 0 && canonicalUserId && enabled) {
-      const interval = setInterval(fetchData, refreshInterval);
+      const interval = setInterval(() => fetchData(true), refreshInterval); // Refresh fetch
       return () => clearInterval(interval);
     }
   }, [refreshInterval, canonicalUserId, enabled, fetchData]);
@@ -77,8 +84,9 @@ export function useUserOverview(
   return {
     overview,
     loading,
+    refreshing,
     error,
-    refetch: fetchData,
+    refetch: () => fetchData(true), // Manual refetch should use refreshing state
     // Convenience getters
     entries: overview?.entries_json || [],
     tickets: overview?.tickets_json || [],

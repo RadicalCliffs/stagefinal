@@ -144,13 +144,38 @@ export function getEntriesByCompetition(
 }
 
 /**
+ * Transformed entry for dashboard compatibility
+ */
+export interface DashboardEntry {
+  id: string;
+  competition_id: string;
+  title: string;
+  description: string;
+  image: null;
+  status: string;
+  entry_type: string;
+  expires_at: null;
+  is_winner: boolean;
+  ticket_numbers: string;
+  number_of_tickets: number;
+  amount_spent: number;
+  purchase_date: string;
+  wallet_address: null;
+  transaction_hash: null;
+  is_instant_win: boolean;
+  prize_value: null;
+  competition_status: string;
+  end_date: null;
+}
+
+/**
  * Transform user_overview entries to the format expected by the dashboard
  * This adapter ensures compatibility with existing dashboard components
  * 
  * @param overview - UserOverview data
  * @returns Entries in dashboard format
  */
-export function transformOverviewToEntries(overview: UserOverview | null): any[] {
+export function transformOverviewToEntries(overview: UserOverview | null): DashboardEntry[] {
   if (!overview || !overview.entries_json) {
     return [];
   }
@@ -165,7 +190,7 @@ export function transformOverviewToEntries(overview: UserOverview | null): any[]
     entry_type: 'completed',
     expires_at: null,
     is_winner: false,
-    ticket_numbers: entry.ticket_numbers_csv,
+    ticket_numbers: entry.ticket_numbers_joined,
     number_of_tickets: entry.tickets_count,
     amount_spent: entry.amount_paid,
     purchase_date: entry.created_at,

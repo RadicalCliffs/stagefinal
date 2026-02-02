@@ -14,7 +14,7 @@ export interface UserOverviewEntry {
   competition_title: string | null;
   amount_paid: number;
   tickets_count: number;
-  ticket_numbers_csv: string;
+  ticket_numbers_joined: string;
   created_at: string;
 }
 

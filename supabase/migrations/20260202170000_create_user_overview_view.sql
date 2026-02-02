@@ -7,14 +7,16 @@ SELECT
     cu.canonical_user_id,
     
     -- Aggregate entries data as JSON array
+    -- Note: Using json_agg without DISTINCT to preserve all entries
+    -- Duplicates should be handled at application level if needed
     COALESCE(
-        json_agg(DISTINCT jsonb_build_object(
+        json_agg(jsonb_build_object(
             'entry_id', ce.id,
             'competition_id', ce.competition_id,
             'competition_title', ce.competition_title,
             'amount_paid', ce.amount_paid,
             'tickets_count', ce.ticket_count,
-            'ticket_numbers_csv', array_to_string(ce.ticket_numbers, ','),
+            'ticket_numbers_joined', array_to_string(ce.ticket_numbers, ','),
             'created_at', ce.created_at
         )) FILTER (WHERE ce.id IS NOT NULL),
         '[]'::json
@@ -22,7 +24,7 @@ SELECT
     
     -- Aggregate tickets data as JSON array
     COALESCE(
-        json_agg(DISTINCT jsonb_build_object(
+        json_agg(jsonb_build_object(
             'ticket_id', t.id,
             'competition_id', t.competition_id,
             'ticket_number', t.ticket_number,
@@ -33,7 +35,7 @@ SELECT
     
     -- Aggregate transactions data as JSON array
     COALESCE(
-        json_agg(DISTINCT jsonb_build_object(
+        json_agg(jsonb_build_object(
             'transaction_id', ut.id,
             'type', ut.transaction_type,
             'amount', ut.amount,
@@ -58,7 +60,7 @@ SELECT
     
     -- Aggregate ledger data as JSON array
     COALESCE(
-        json_agg(DISTINCT jsonb_build_object(
+        json_agg(jsonb_build_object(
             'ledger_id', wl.id,
             'reference_id', wl.reference_id,
             'transaction_type', wl.transaction_type,
