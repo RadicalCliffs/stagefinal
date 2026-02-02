@@ -2550,6 +2550,8 @@ export const database = {
         }
 
         if (orderFilters.length > 0) {
+          // FIXED: Query orders without JOIN to competitions (relationship doesn't exist)
+          // Fetch competition data separately
           const { data: ordersData, error: ordersError } = await supabase
             .from('orders')
             .select(`
@@ -2562,19 +2564,7 @@ export const database = {
               payment_status,
               payment_tx_hash,
               created_at,
-              completed_at,
-              competitions (
-                id,
-                uid,
-                title,
-                description,
-                image_url,
-                status,
-                prize_value,
-                is_instant_win,
-                end_date,
-                winner_address
-              )
+              completed_at
             `)
             .or(orderFilters.join(','))
             // Include ALL valid completed statuses (including 'success')
@@ -2583,8 +2573,24 @@ export const database = {
             .order('created_at', { ascending: false });
 
           if (!ordersError && ordersData && ordersData.length > 0) {
+            // Fetch competition data separately for all orders
+            const competitionIds = [...new Set(ordersData.map((o: any) => o.competition_id).filter(Boolean))];
+            let competitionsMap = new Map<string, any>();
+            
+            if (competitionIds.length > 0) {
+              const { data: compData } = await supabase
+                .from('competitions')
+                .select('id, uid, title, description, image_url, status, prize_value, is_instant_win, end_date, winner_address')
+                .in('id', competitionIds);
+              if (compData) {
+                compData.forEach((c: any) => {
+                  competitionsMap.set(c.id, c);
+                });
+              }
+            }
+
             ordersData.forEach((order: any) => {
-              const comp = order.competitions;
+              const comp = competitionsMap.get(order.competition_id);
               const entry = {
                 id: order.id,
                 competition_id: order.competition_id,
@@ -2621,39 +2627,35 @@ export const database = {
 
     // ===== SOURCE 6: Query balance_ledger table =====
     // Balance-based purchases are recorded in balance_ledger with source='purchase'
+    // FIXED: balance_ledger uses canonical_user_id, not user_id
     if (identity.canonicalUserId || identity.walletAddress) {
       try {
-        // First, get the user UUID from canonical_users for balance_ledger lookup
-        let userUuid: string | null = null;
-
+        // Build filter for canonical_user_id
+        const ledgerFilters: string[] = [];
+        
         if (identity.canonicalUserId) {
-          const { data: userData } = await supabase
-            .from('canonical_users')
-            .select('id')
-            .eq('canonical_user_id', identity.canonicalUserId)
-            .maybeSingle();
-          if (userData?.id) {
-            userUuid = userData.id;
-          }
+          ledgerFilters.push(`canonical_user_id.eq.${identity.canonicalUserId}`);
         }
 
-        // Fallback to wallet address lookup
-        if (!userUuid && identity.walletAddress) {
+        // Also try looking up by wallet if we don't have canonical ID
+        if (!identity.canonicalUserId && identity.walletAddress) {
+          // Get canonical_user_id from canonical_users first
           const { data: userData } = await supabase
             .from('canonical_users')
-            .select('id')
+            .select('canonical_user_id')
             .or(`wallet_address.ilike.${identity.walletAddress},base_wallet_address.ilike.${identity.walletAddress}`)
             .maybeSingle();
-          if (userData?.id) {
-            userUuid = userData.id;
+          
+          if (userData?.canonical_user_id) {
+            ledgerFilters.push(`canonical_user_id.eq.${userData.canonical_user_id}`);
           }
         }
 
-        if (userUuid) {
+        if (ledgerFilters.length > 0) {
           const { data: ledgerData, error: ledgerError } = await supabase
             .from('balance_ledger')
             .select('*')
-            .eq('user_id', userUuid)
+            .or(ledgerFilters.join(','))
             .eq('source', 'purchase')
             .lt('amount', 0) // Purchases are negative (debits)
             .not('metadata->competition_id', 'is', null)
