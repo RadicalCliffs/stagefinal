@@ -14,6 +14,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { X, CheckCircle, AlertCircle, Loader2, User, Mail, Globe, Wallet as WalletIcon, ArrowRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { setSignupData } from '../utils/signupGuard';
 
 // Constants
 const MODAL_TRANSITION_DELAY_MS = 100; // Delay to ensure modal closes before opening new one
