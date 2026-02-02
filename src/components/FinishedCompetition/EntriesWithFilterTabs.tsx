@@ -118,7 +118,6 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
                   .filter((t: number) => !isNaN(t));
 
                 ticketNumbers.forEach((ticketNum: number) => {
-                  // Check if this ticket already exists (avoid duplicates)
                   if (!seenTicketNumbers.has(ticketNum)) {
                     seenTicketNumbers.add(ticketNum);
                     transformedEntries.push({
@@ -249,7 +248,6 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
                   .filter((t: number) => !isNaN(t));
 
                 ticketNumbers.forEach((ticketNum: number) => {
-                  // Check if this ticket already exists (avoid duplicates)
                   if (!seenTicketNumbers.has(ticketNum)) {
                     seenTicketNumbers.add(ticketNum);
                     transformedEntries.push({
@@ -387,7 +385,6 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
             }
 
             ticketNumbers.forEach((ticketNum: number) => {
-              // Check if this ticket already exists (avoid duplicates)
               if (!seenTicketNumbers.has(ticketNum)) {
                 seenTicketNumbers.add(ticketNum);
                 transformedEntries.push({
