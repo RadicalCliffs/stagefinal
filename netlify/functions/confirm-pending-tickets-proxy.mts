@@ -789,6 +789,59 @@ function isValidUserId(userId: string): boolean {
         supabase.from("tickets").upsert(ticketRows, { onConflict: "competition_id,ticket_number" })
       );
 
+      // URGENT FIX: Update user_transactions with allocated ticket numbers
+      // This is critical for base_account payments where payment succeeds but tickets weren't allocated
+      if (sessionId) {
+        try {
+          await supabase
+            .from("user_transactions")
+            .update({
+              notes: `Tickets allocated: ${ticketNumbers.join(", ")}`,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", sessionId);
+          console.log(`[Confirm Tickets] PATH A: Updated user_transaction ${sessionId} with ticket numbers`);
+        } catch (updateErr) {
+          console.warn(`[Confirm Tickets] PATH A: Failed to update user_transaction ${sessionId}:`, updateErr);
+        }
+      }
+
+      // URGENT FIX: Log incident when fallback path is triggered for base_account
+      // This helps track when payments succeeded but reservation was missing
+      if (paymentProvider === "base_account") {
+        const incidentId = `base-account-fallback-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+        console.log(`[Confirm Tickets] PATH A: Base Account fallback triggered, incident ID: ${incidentId}`);
+        
+        try {
+          await supabase.rpc("log_confirmation_incident", {
+            p_incident_id: incidentId,
+            p_source: "netlify_proxy",
+            p_endpoint: "/api/confirm-pending-tickets",
+            p_error_type: "BaseAccountFallbackPath",
+            p_error_message: "Base Account payment used fallback allocation (no reservation)",
+            p_error_stack: null,
+            p_user_id: canonicalUserId,
+            p_competition_id: competitionId,
+            p_reservation_id: null,
+            p_session_id: sessionId,
+            p_transaction_hash: finalTransactionHash,
+            p_env_context: {
+              paymentProvider: "base_account",
+              ticketCount: ticketNumbers.length,
+              ticketNumbers: ticketNumbers.join(","),
+              hadWalletAddress: !!walletAddress,
+            },
+            p_metadata: {
+              timestamp: new Date().toISOString(),
+              origin: origin || "unknown",
+              allocatedTickets: ticketNumbers,
+            },
+          });
+        } catch (logErr) {
+          console.warn("[Confirm Tickets] PATH A: Failed to log base_account fallback incident:", logErr);
+        }
+      }
+
       // instant wins (best effort)
       const instantWins: any[] = [];
       if ((compPrice as any)?.is_instant_win) {
