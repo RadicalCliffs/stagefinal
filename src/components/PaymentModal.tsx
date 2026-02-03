@@ -757,7 +757,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     setPaymentAttempted(true);
 
     try {
-      console.log('[PaymentModal] Starting Base Account payment flow');
+      console.log('[PaymentModal] Starting Base Account payment flow', {
+        walletAddress: walletAddress ? walletAddress.substring(0, 10) + '...' : 'none',
+        reservationId: effectiveReservationId || 'none',
+        ticketCount,
+      });
 
       const result = await BaseAccountPaymentService.purchaseTickets({
         userId: baseUser?.id,
@@ -766,7 +770,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         ticketPrice,
         selectedTickets,
         walletAddress: walletAddress || undefined,
-        reservationId,
+        reservationId: effectiveReservationId,
       });
 
       console.log('[PaymentModal] Base Account payment result:', result);

@@ -1,3 +1,54 @@
+/**
+ * Payments Auto-Heal Edge Function
+ * 
+ * Automatically heals completed payments that have missing ticket allocations.
+ * This is critical for base_account payments where payment succeeds but tickets weren't allocated
+ * due to missing/null reservationId.
+ * 
+ * USAGE:
+ * 
+ * 1. Dry Run (check what would be healed without making changes):
+ *    curl -X POST \
+ *      -H "Authorization: Bearer YOUR_SUPABASE_ANON_KEY" \
+ *      -H "Content-Type: application/json" \
+ *      -d '{"dryRun": true, "limit": 50}' \
+ *      https://YOUR_PROJECT.supabase.co/functions/v1/payments-auto-heal
+ * 
+ * 2. Live Run (heal transactions):
+ *    curl -X POST \
+ *      -H "Authorization: Bearer YOUR_SUPABASE_ANON_KEY" \
+ *      -H "Content-Type: application/json" \
+ *      -d '{"dryRun": false, "limit": 50}' \
+ *      https://YOUR_PROJECT.supabase.co/functions/v1/payments-auto-heal
+ * 
+ * 3. Heal specific transaction:
+ *    curl -X POST \
+ *      -H "Authorization: Bearer YOUR_SUPABASE_ANON_KEY" \
+ *      -H "Content-Type: application/json" \
+ *      -d '{"transactionId": "TRANSACTION_UUID"}' \
+ *      https://YOUR_PROJECT.supabase.co/functions/v1/payments-auto-heal
+ * 
+ * 4. Heal transactions for specific user:
+ *    curl -X POST \
+ *      -H "Authorization: Bearer YOUR_SUPABASE_ANON_KEY" \
+ *      -H "Content-Type: application/json" \
+ *      -d '{"userId": "USER_ID"}' \
+ *      https://YOUR_PROJECT.supabase.co/functions/v1/payments-auto-heal
+ * 
+ * OPTIONS:
+ * - dryRun: boolean (default: false) - if true, only reports what would be healed
+ * - limit: number (default: 100) - max transactions to process
+ * - transactionId: string (optional) - heal specific transaction
+ * - userId: string (optional) - heal transactions for specific user
+ * 
+ * WHAT IT DOES:
+ * - Queries completed user_transactions with missing ticket allocations
+ * - Includes base_account payments (payment_provider='base_account')
+ * - Allocates tickets using the same logic as confirm-pending-tickets
+ * - Creates joincompetition/competition_entries records
+ * - Updates user_transactions with allocated ticket numbers
+ * - Ensures idempotency (won't double-allocate)
+ */
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { toPrizePid, isWalletAddress } from "../_shared/userId.ts";
@@ -298,6 +349,8 @@ Deno.serve(async (req: Request) => {
     // 1. Status is 'finished', 'completed', or 'confirmed' (payment succeeded)
     // 2. It's an 'entry' type transaction (competition purchase, not top-up)
     // 3. Has a competition_id
+    // URGENT FIX: Now includes base_account payments (payment_provider='base_account')
+    //             These often succeed but miss ticket allocation when reservationId is null
     let query = supabase
       .from("user_transactions")
       .select("*")
