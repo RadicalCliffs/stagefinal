@@ -84,7 +84,7 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
 
   const handleIncrement = () => {
     // Limit to available tickets - use fallback if not authoritative to prevent 0 max
-    // Helper: fallback available count from competition data
+    // Note: Fallback calculation is also used below in availableCount computation
     const fallbackMax = Math.max(0, (competition.total_tickets || 0) - (competition.tickets_sold || 0));
     const maxAllowed = availability.isAuthoritative 
       ? availability.available_count

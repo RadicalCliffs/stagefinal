@@ -88,6 +88,8 @@ export function useAuthoritativeAvailability(options: {
   const log = useCallback(
     (...args: unknown[]) => {
       if (debug) {
+        // Debug logs include full competitionId for developer troubleshooting
+        // Competition IDs are public (visible in URLs) and not sensitive
         console.log('[AuthoritativeAvailability]', ...args);
       }
     },
@@ -96,6 +98,7 @@ export function useAuthoritativeAvailability(options: {
 
   /**
    * Core fetch function with stale-response protection
+   * Note: Debug logs include full competitionId; user-facing errors use redacted IDs
    */
   const fetchAvailability = useCallback(async () => {
     if (!competitionId || !isMountedRef.current) return;
@@ -104,7 +107,7 @@ export function useAuthoritativeAvailability(options: {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(competitionId)) {
       const errorMsg = `Invalid competition ID format (not a full UUID): ${competitionId.substring(0, 8)}...`;
-      log(errorMsg);
+      log(`UUID validation failed for competition ${competitionId}`);
       setError(errorMsg);
       setIsLoading(false);
       return;
