@@ -21,6 +21,52 @@ import { reserveTicketsWithRedundancy } from "../../lib/reserve-tickets-redundan
 // Lazy load PaymentModal - only loaded when user initiates payment
 const PaymentModal = lazy(() => import("../PaymentModal"));
 
+/**
+ * Helper function to determine when to show the "Tickets temporarily unavailable" banner.
+ * 
+ * The banner should only show when tickets are genuinely unavailable to the user,
+ * not just because an authoritative RPC failed while fallback data shows availability.
+ * 
+ * @param params.availableCount - The computed available count (uses fallback when authoritative fails)
+ * @param params.isSoldOut - Whether the competition is sold out
+ * @param params.availabilityError - Error from authoritative availability fetch
+ * @param params.isAuthoritative - Whether availability data is from authoritative source
+ * @returns true if the "temporarily unavailable" banner should be shown
+ * 
+ * @example
+ * // Case 1: RPC succeeds with 0 available - SHOW banner
+ * shouldShowUnavailableBanner({ availableCount: 0, isSoldOut: false, availabilityError: null, isAuthoritative: true })
+ * // => true
+ * 
+ * @example
+ * // Case 2: RPC fails but fallback shows 2000 available - DON'T show banner
+ * shouldShowUnavailableBanner({ availableCount: 2000, isSoldOut: false, availabilityError: "HTTP 400", isAuthoritative: false })
+ * // => false
+ * 
+ * @example
+ * // Case 3: Competition sold out - DON'T show unavailable banner (sold out banner shows instead)
+ * shouldShowUnavailableBanner({ availableCount: 0, isSoldOut: true, availabilityError: null, isAuthoritative: true })
+ * // => false
+ */
+export function shouldShowUnavailableBanner(params: {
+  availableCount: number;
+  isSoldOut: boolean;
+  availabilityError: string | null;
+  isAuthoritative: boolean;
+}): boolean {
+  const { availableCount, isSoldOut, availabilityError, isAuthoritative } = params;
+  
+  // Never show unavailable banner if sold out (sold out banner takes precedence)
+  if (isSoldOut) {
+    return false;
+  }
+  
+  // Show banner only when the COMPUTED availableCount is 0
+  // This uses fallback when authoritative fails, so we only show the banner
+  // when tickets are truly unavailable according to best available data
+  return availableCount === 0 && availabilityError !== null;
+}
+
 const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {competition: CompetitionWrapper['competition'], onEntriesRefresh?: () => void}) => {
   const { baseUser } = useAuthUser();
 
@@ -336,19 +382,6 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
     ? availability.available_count 
     : fallbackAvailableCount;
 
-  // Debug: Log ticket availability state from authoritative source
-  console.log('[HeroSection] Authoritative ticket availability:', {
-    isAuthoritative: availability.isAuthoritative,
-    soldCount,
-    totalTickets,
-    availableCount,
-    pendingCount: availability.pending_count,
-    competitionTotalTickets: competition.total_tickets,
-    competitionTicketsSold: competition.tickets_sold,
-    availabilityError,
-    availabilityLoading,
-  });
-
   // Check if competition is sold out
   const isSoldOut = totalTickets > 0 && soldCount >= totalTickets;
 
@@ -357,6 +390,41 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
   
   // Slider and buttons should be disabled only when tickets are unavailable
   const isSelectionDisabled = isSoldOut || availableCount === 0;
+  
+  // Determine if we should show the "temporarily unavailable" banner
+  const showUnavailableBanner = shouldShowUnavailableBanner({
+    availableCount,
+    isSoldOut,
+    availabilityError,
+    isAuthoritative: availability.isAuthoritative,
+  });
+
+  // Enhanced debug logging to track availability logic
+  console.log('[HeroSection] Ticket availability state:', {
+    // Authoritative data
+    isAuthoritative: availability.isAuthoritative,
+    authoritativeAvailableCount: availability.available_count,
+    authoritativeSoldCount: availability.sold_count,
+    authoritativeTotalTickets: availability.total_tickets,
+    
+    // Fallback data
+    fallbackAvailableCount,
+    competitionTotalTickets: competition.total_tickets,
+    competitionTicketsSold: competition.tickets_sold,
+    
+    // Computed values (uses fallback when not authoritative)
+    soldCount,
+    totalTickets,
+    availableCount,
+    pendingCount: availability.pending_count,
+    
+    // UI state
+    isSoldOut,
+    isSelectionDisabled,
+    showUnavailableBanner,
+    availabilityError,
+    availabilityLoading,
+  });
 
   const progressPercent = totalTickets > 0
     ? Math.max(10, Math.min(100, (soldCount / totalTickets) * 100))
@@ -413,9 +481,10 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
                   </p>
                 </div>
               )}
-              {/* Only show "temporarily unavailable" when there's an explicit error
-                  AND authoritative available count is 0 (not fallback) */}
-              {!isSoldOut && availabilityError && availability.available_count === 0 && (
+              {/* Show "temporarily unavailable" banner only when tickets are genuinely unavailable.
+                  Uses computed availableCount which includes fallback, so banner won't show when
+                  authoritative RPC fails but fallback indicates tickets remain. */}
+              {showUnavailableBanner && (
                 <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg px-3 py-2 mb-3">
                   <p className="text-orange-400 text-sm sequel-45 text-center">
                     Tickets temporarily unavailable - please refresh
