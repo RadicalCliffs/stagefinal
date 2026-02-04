@@ -1096,10 +1096,28 @@ Deno.serve(async (req: Request) => {
       }
 
       // Reservation is in unexpected state
-      console.error(`[Confirm Tickets] Failed to acquire lock on reservation ${reservation.id}, status: ${currentReservation?.status}`);
+      // Only return 409 for truly invalid states (expired, canceled, released)
+      if (currentReservation?.status === 'expired' || currentReservation?.status === 'canceled' || currentReservation?.status === 'released') {
+        console.error(`[Confirm Tickets] Reservation ${reservation.id} is in invalid state: ${currentReservation?.status}`);
+        return new Response(
+          JSON.stringify({ success: false, error: `Reservation has been ${currentReservation?.status}. Please create a new reservation.` }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // For any other state, treat as "in progress" to avoid breaking retry logic
+      console.log(`[Confirm Tickets] Reservation ${reservation.id} in state ${currentReservation?.status}, treating as in-progress`);
       return new Response(
-        JSON.stringify({ success: false, error: "Reservation is no longer available for confirmation." }),
-        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({
+          success: true,
+          reservationId: reservation.id,
+          ticketNumbers,
+          ticketCount: ticketNumbers.length,
+          totalAmount: reservation.total_amount,
+          message: `Confirmation processing for ${ticketNumbers.length} tickets.`,
+          confirmationInProgress: true,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 

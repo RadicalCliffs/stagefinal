@@ -13,7 +13,7 @@ import type {CompetitionWrapper } from "../../models/models";
 import { database } from "../../lib/database";
 import { supabase } from "../../lib/supabase";
 import { useAuthUser } from "../../contexts/AuthContext";
-import { useTicketBroadcast, type TicketStats } from "../../hooks/useTicketBroadcast";
+import { useAuthoritativeAvailability } from "../../hooks/useAuthoritativeAvailability";
 import { ticketReservationLogger, requestTracker, showDebugHintOnError } from "../../lib/debug-console";
 import { canEnterCompetition } from "../CompetitionStatusIndicator";
 import { reserveTicketsWithRedundancy } from "../../lib/reserve-tickets-redundant";
@@ -37,149 +37,17 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
   const [reserving, setReserving] = useState(false);
   const [reservationError, setReservationError] = useState<string | null>(null);
 
-  // Accurate ticket availability state
-  const [ticketAvailability, setTicketAvailability] = useState<{
-    sold_count: number;
-    available_count: number;
-    pending_count: number;
-    total_tickets: number;
-  } | null>(null);
-
-  // Track whether the RPC fetch has completed (to avoid showing stale fallback data)
-  const [availabilityFetched, setAvailabilityFetched] = useState(false);
-  // Track if the RPC call itself succeeded (not just returned data)
-  const [rpcSuccess, setRpcSuccess] = useState(false);
-
-  // Subscribe to broadcast channel for instant ticket updates
-  const handleBroadcastEvent = useCallback((stats: TicketStats) => {
-    setTicketAvailability({
-      sold_count: stats.sold_count,
-      available_count: stats.available_count,
-      pending_count: stats.pending_count,
-      total_tickets: stats.total_tickets,
-    });
-  }, []);
-
-  useTicketBroadcast({
+  // Use authoritative availability hook - single source of truth, no fallbacks
+  const { availability, refresh: refreshAvailability } = useAuthoritativeAvailability({
     competitionId: competition?.id || '',
-    onEvent: (event) => {
-      if (event.stats) {
-        handleBroadcastEvent(event.stats);
-      }
-    },
+    debug: true, // Enable debug logging for tracking
   });
 
-  // Fetch accurate ticket availability
-  const fetchTicketAvailability = useCallback(async () => {
-    if (!competition?.id) return;
-
-    console.log('[HeroSection] fetchTicketAvailability called for', competition.id);
-
-    // Get the competition's stored tickets_sold value for validation
-    const storedTicketsSold = competition.tickets_sold || 0;
-    const totalTickets = competition.total_tickets || 0;
-
-    try {
-      // Try the RPC function - this is the source of truth
-      const availability = await database.getAccurateTicketAvailability(competition.id);
-      console.log('[HeroSection] RPC result:', availability);
-
-      if (availability && typeof availability.available_count === 'number') {
-        // Validate RPC result against stored tickets_sold
-        // If RPC returns 0 sold but competition has tickets_sold > 0, use stored value
-        const rpcSoldCount = availability.sold_count;
-        const effectiveSoldCount = (rpcSoldCount === 0 && storedTicketsSold > 0)
-          ? storedTicketsSold
-          : rpcSoldCount;
-        const effectiveAvailableCount = totalTickets - effectiveSoldCount;
-
-        if (rpcSoldCount === 0 && storedTicketsSold > 0) {
-          console.log('[HeroSection] RPC returned 0 sold but competition has tickets_sold, using stored value:', {
-            rpcSoldCount,
-            storedTicketsSold,
-            effectiveSoldCount
-          });
-        }
-
-        // RPC succeeded and returned valid data - use it directly (with validation)
-        setTicketAvailability({
-          sold_count: effectiveSoldCount,
-          available_count: effectiveAvailableCount,
-          pending_count: 0, // Will be updated by broadcast
-          total_tickets: availability.total_tickets
-        });
-        setRpcSuccess(true);
-        setAvailabilityFetched(true);
-        console.log('[HeroSection] RPC success! Available:', effectiveAvailableCount);
-        return;
-      }
-
-      // RPC returned null or invalid - use direct fallback query
-      console.log('[HeroSection] RPC returned null, using fallback method');
-      
-      // Fetch unavailable tickets directly
-      const { data: unavailableData } = await supabase
-        .rpc('get_unavailable_tickets', { p_competition_id: competition.id });
-      
-      const unavailable = unavailableData || [];
-
-      // Validate fallback result against stored tickets_sold
-      // If fallback returns 0 unavailable but competition has tickets_sold > 0, use stored value
-      const fallbackSoldCount = unavailable.length;
-      const effectiveSoldCount = (fallbackSoldCount === 0 && storedTicketsSold > 0)
-        ? storedTicketsSold
-        : fallbackSoldCount;
-      const fallbackAvailableCount = totalTickets - effectiveSoldCount;
-
-      if (fallbackSoldCount === 0 && storedTicketsSold > 0) {
-        console.log('[HeroSection] Fallback returned 0 sold but competition has tickets_sold, using stored value:', {
-          fallbackSoldCount,
-          storedTicketsSold,
-          effectiveSoldCount
-        });
-      }
-
-      console.log('[HeroSection] Fallback result:', { unavailableCount: unavailable.length, totalTickets, fallbackAvailableCount, effectiveSoldCount });
-
-      setTicketAvailability({
-        sold_count: effectiveSoldCount,
-        available_count: fallbackAvailableCount,
-        pending_count: 0,
-        total_tickets: totalTickets
-      });
-      setRpcSuccess(false); // RPC didn't work, but fallback did
-      setAvailabilityFetched(true);
-    } catch (error) {
-      console.error('Error fetching ticket availability:', error);
-      // Both RPC and fallback failed - use competition data as last resort
-      // This is the ONLY case where "temporarily unavailable" might be appropriate
-      const ticketsSold = storedTicketsSold;
-      const lastResortAvailable = Math.max(0, totalTickets - ticketsSold);
-
-      console.log('[HeroSection] Both methods failed, using competition data:', {
-        totalTickets,
-        ticketsSold,
-        lastResortAvailable
-      });
-
-      setTicketAvailability({
-        sold_count: ticketsSold,
-        available_count: lastResortAvailable,
-        pending_count: 0,
-        total_tickets: totalTickets
-      });
-      setRpcSuccess(false);
-      setAvailabilityFetched(true);
-    }
-  }, [competition?.id, competition?.total_tickets, competition?.tickets_sold]);
-
-  // Fetch ticket availability on mount and set up real-time subscription for competition status
+  // Set up real-time subscription for competition status (availability is now handled by useAuthoritativeAvailability)
   useEffect(() => {
-    fetchTicketAvailability();
-
     if (competition?.id) {
       // Real-time subscription for competition status changes (e.g., when drawn)
-      // Note: Ticket availability is now handled by broadcast channel (useTicketBroadcast)
+      // Note: Ticket availability is now handled by useAuthoritativeAvailability hook
       const statusChannel = supabase
         .channel(`competition-status-hero-${competition.id}`)
         .on(
@@ -205,18 +73,18 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
         supabase.removeChannel(statusChannel);
       };
     }
-  }, [competition?.id, fetchTicketAvailability]);
+  }, [competition?.id]);
 
   // Cap ticket count if availability decreases (e.g., someone else bought tickets)
   useEffect(() => {
-    if (ticketAvailability && ticketCount > ticketAvailability.available_count) {
-      setTicketCount(Math.max(0, ticketAvailability.available_count));
+    if (availability.isAuthoritative && ticketCount > availability.available_count) {
+      setTicketCount(Math.max(0, availability.available_count));
     }
-  }, [ticketAvailability, ticketCount]);
+  }, [availability, ticketCount]);
 
   const handleIncrement = () => {
-    // Limit to available tickets (not hardcoded 1500)
-    const maxAllowed = ticketAvailability?.available_count ?? (competition.total_tickets || 0);
+    // Limit to available tickets from authoritative source
+    const maxAllowed = availability.available_count;
     if (ticketCount < maxAllowed) {
       const newCount = ticketCount + 1;
       const adjustedCount = handleMinimumPurchaseCheck(newCount);
@@ -446,19 +314,21 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
     }
   };
 
-  // Use accurate data from ticket availability, with fallback to competition data
-  const soldCount = ticketAvailability?.sold_count ?? (competition.tickets_sold || 0);
-  const totalTickets = ticketAvailability?.total_tickets ?? (competition.total_tickets || 1);
-  const availableCount = ticketAvailability?.available_count ?? (totalTickets - soldCount);
+  // Use authoritative availability data - NO fallbacks once RPC succeeds
+  // This ensures a single source of truth and prevents "bouncing" between values
+  const soldCount = availability.sold_count;
+  const totalTickets = availability.total_tickets;
+  const availableCount = availability.available_count;
 
-  // Debug: Log ticket availability state
-  console.log('[HeroSection] Ticket availability:', {
-    ticketAvailabilityState: ticketAvailability,
-    availabilityFetched,
-    rpcSuccess,
+  // Debug: Log ticket availability state from authoritative source
+  console.log('[HeroSection] Authoritative ticket availability:', {
+    isAuthoritative: availability.isAuthoritative,
+    soldCount,
+    totalTickets,
+    availableCount,
+    pendingCount: availability.pending_count,
     competitionTotalTickets: competition.total_tickets,
     competitionTicketsSold: competition.tickets_sold,
-    computed: { soldCount, totalTickets, availableCount }
   });
 
   // Check if competition is sold out
@@ -527,7 +397,7 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
               )}
               {/* Only show "temporarily unavailable" banner AFTER we've tried to fetch data
                   AND both RPC and fallback resulted in 0 available tickets */}
-              {!isSoldOut && availabilityFetched && availableCount === 0 && (
+              {!isSoldOut && availability.isAuthoritative && availableCount === 0 && (
                 <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg px-3 py-2 mb-3">
                   <p className="text-orange-400 text-sm sequel-45 text-center">
                     Tickets temporarily unavailable - please refresh
@@ -733,8 +603,9 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
               setReservationId(null);
               setReservedTickets([]);
               setTicketCount(0);
-              // Refresh ticket availability to show newly purchased tickets as sold
-              fetchTicketAvailability();
+              // Refresh ticket availability immediately to show newly purchased tickets as sold
+              // This ensures UI reflects the updated state without requiring reload
+              refreshAvailability();
               onEntriesRefresh?.();
             }}
             maxAvailableTickets={availableCount}
