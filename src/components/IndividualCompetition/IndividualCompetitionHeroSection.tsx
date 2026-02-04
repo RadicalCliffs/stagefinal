@@ -13,7 +13,7 @@ import type {CompetitionWrapper } from "../../models/models";
 import { database } from "../../lib/database";
 import { supabase } from "../../lib/supabase";
 import { useAuthUser } from "../../contexts/AuthContext";
-import { useAuthoritativeAvailability } from "../../hooks/useAuthoritativeAvailability";
+import { omnipotentData } from "../../lib/omnipotent-data-service";
 import { ticketReservationLogger, requestTracker, showDebugHintOnError } from "../../lib/debug-console";
 import { canEnterCompetition } from "../CompetitionStatusIndicator";
 import { reserveTicketsWithRedundancy } from "../../lib/reserve-tickets-redundant";
@@ -83,11 +83,52 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
   const [reserving, setReserving] = useState(false);
   const [reservationError, setReservationError] = useState<string | null>(null);
 
-  // Use authoritative availability hook - single source of truth, no fallbacks
-  const { availability, error: availabilityError, isLoading: availabilityLoading, refresh: refreshAvailability } = useAuthoritativeAvailability({
-    competitionId: competition?.id || '',
-    debug: true, // Enable debug logging for tracking
+  // CONSOLIDATED: Use omnipotentData as single source of truth for availability
+  // Removed duplicate useAuthoritativeAvailability system
+  const [availability, setAvailability] = useState({
+    total_tickets: competition?.total_tickets || 0,
+    sold_count: 0,
+    pending_count: 0,
+    available_count: competition?.total_tickets || 0,
+    isAuthoritative: false,
   });
+  const [availabilityLoading, setAvailabilityLoading] = useState(true);
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
+
+  // Fetch availability using omnipotentData
+  const refreshAvailability = useCallback(async () => {
+    if (!competition?.id) return;
+    
+    setAvailabilityLoading(true);
+    try {
+      const unavailable = await omnipotentData.getUnavailableTickets(competition.id);
+      const totalTickets = competition.total_tickets || 0;
+      const availableCount = totalTickets - unavailable.length;
+      
+      setAvailability({
+        total_tickets: totalTickets,
+        sold_count: unavailable.length,
+        pending_count: 0,
+        available_count: availableCount,
+        isAuthoritative: true,
+      });
+      setAvailabilityError(null);
+    } catch (err) {
+      console.error('[HeroSection] Failed to fetch availability:', err);
+      setAvailabilityError(err instanceof Error ? err.message : 'Failed to fetch availability');
+    } finally {
+      setAvailabilityLoading(false);
+    }
+  }, [competition?.id, competition?.total_tickets]);
+
+  // Initial fetch and periodic refresh
+  useEffect(() => {
+    refreshAvailability();
+    
+    // Refresh every 5 seconds to stay in sync
+    const interval = setInterval(refreshAvailability, 5000);
+    return () => clearInterval(interval);
+  }, [refreshAvailability]);
 
   // Set up real-time subscription for competition status (availability is now handled by useAuthoritativeAvailability)
   useEffect(() => {

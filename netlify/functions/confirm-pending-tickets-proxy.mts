@@ -981,17 +981,39 @@ function isValidUserId(userId: string): boolean {
     // ----------------------
     // PATH B: Reservation exists
     // ----------------------
-    if (reservation.expires_at && new Date(reservation.expires_at) < new Date()) {
+    
+    // GRACE PERIOD FIX: Allow recently expired reservations with valid payment proof
+    // This prevents "reservation expired" errors during on-chain payment processing
+    const expiresAt = new Date(reservation.expires_at);
+    const now = new Date();
+    const gracePeriodMs = 5 * 60 * 1000; // 5 minute grace period
+    const isExpired = expiresAt < now;
+    const isWithinGracePeriod = isExpired && (now.getTime() - expiresAt.getTime()) < gracePeriodMs;
+    
+    if (isExpired && !isWithinGracePeriod) {
+      // Truly expired - beyond grace period
       await supabase
         .from("pending_tickets")
         .update({ status: "expired", updated_at: new Date().toISOString() })
         .eq("id", reservation.id);
 
       return json(
-        { success: false, error: "Reservation has expired. Please select tickets again.", expiredAt: reservation.expires_at },
+        { 
+          success: false, 
+          error: "Reservation has expired. Please select tickets again.", 
+          expiredAt: reservation.expires_at 
+        },
         410,
         origin
       );
+    }
+    
+    if (isWithinGracePeriod) {
+      console.log(`[Confirm Tickets] PATH B: Reservation expired but within grace period, allowing confirmation:`, {
+        reservationId: reservation.id,
+        expiredAt: reservation.expires_at,
+        gracePeriodRemaining: Math.round((gracePeriodMs - (now.getTime() - expiresAt.getTime())) / 1000) + 's'
+      });
     }
 
     const ticketNumbers: number[] = (reservation.ticket_numbers || []).map((n: any) => Number(n));

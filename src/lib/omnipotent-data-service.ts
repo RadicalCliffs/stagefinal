@@ -647,6 +647,10 @@ class OmnipotentDataService {
   /**
    * Reserve tickets for a user with aggressive retry logic
    *
+   * CRITICAL FIX: Now reselects fresh tickets on conflict instead of retrying same failed tickets.
+   * When tickets are unavailable, fetches fresh available pool and picks new random tickets.
+   * Only fails when truly insufficient tickets remain, with honest error message.
+   *
    * Uses direct database operations with automatic retry and cleanup.
    * Implements exponential backoff and proactive error recovery.
    */
@@ -667,6 +671,16 @@ class OmnipotentDataService {
 
     let lastError: string = '';
     let retried = false;
+    let currentSelection = [...ticketNumbers];
+
+    // Get total tickets for the competition (needed for reselection)
+    const { data: competition } = await supabase
+      .from('competitions')
+      .select('total_tickets')
+      .eq('id', competitionId)
+      .single();
+    
+    const totalTickets = competition?.total_tickets || 0;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       if (attempt > 1) {
@@ -680,7 +694,7 @@ class OmnipotentDataService {
         await this.cleanupExpiredReservations(competitionId);
       }
 
-      const result = await this.reserveTickets(userIdentifier, competitionId, ticketNumbers);
+      const result = await this.reserveTickets(userIdentifier, competitionId, currentSelection);
       
       if (result.success) {
         databaseLogger.info('[OmnipotentData] Reservation succeeded', { 
@@ -700,6 +714,45 @@ class OmnipotentDataService {
           lastError.includes('out of range')) {
         databaseLogger.warn('[OmnipotentData] Non-retryable error', { error: lastError });
         return result;
+      }
+
+      // CRITICAL FIX: If tickets are unavailable, reselect from fresh available pool
+      if (lastError.includes('no longer available') && attempt < maxRetries) {
+        databaseLogger.info('[OmnipotentData] Tickets unavailable, fetching fresh pool', { attempt });
+        
+        try {
+          // Get fresh list of available tickets
+          const freshAvailable = await this.getAvailableTickets(competitionId, totalTickets);
+          
+          if (freshAvailable.length < ticketNumbers.length) {
+            // Not enough tickets - fail with honest message
+            const honestError = `Only ${freshAvailable.length} tickets available, but you requested ${ticketNumbers.length}. Please reduce your selection.`;
+            databaseLogger.warn('[OmnipotentData] Insufficient tickets for reselection', { 
+              available: freshAvailable.length, 
+              requested: ticketNumbers.length 
+            });
+            return {
+              success: false,
+              error: honestError,
+              retried
+            };
+          }
+          
+          // Pick NEW random tickets from fresh available pool
+          const shuffled = [...freshAvailable].sort(() => Math.random() - 0.5);
+          currentSelection = shuffled.slice(0, ticketNumbers.length);
+          
+          databaseLogger.info('[OmnipotentData] Reselected fresh tickets', { 
+            newSelection: currentSelection.slice(0, 5).concat(currentSelection.length > 5 ? ['...'] : []),
+            totalSelected: currentSelection.length
+          });
+          
+          // Continue to next retry attempt with fresh selection
+          continue;
+        } catch (err) {
+          databaseLogger.error('[OmnipotentData] Failed to fetch fresh tickets for reselection', err);
+          // Fall through to normal retry logic
+        }
       }
 
       databaseLogger.warn('[OmnipotentData] Reservation attempt failed', { 
@@ -742,7 +795,7 @@ class OmnipotentDataService {
 
     try {
       const reservationId = crypto.randomUUID();
-      const expiresAt = new Date(Date.now() + 2 * 60 * 1000); // 2 minutes
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes (extended from 2 to prevent expiry during payment)
       const userId = identity.canonicalUserId;
       const normalizedUserId = userId.toLowerCase();
 
