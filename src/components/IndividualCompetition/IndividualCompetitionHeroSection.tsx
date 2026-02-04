@@ -38,7 +38,7 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
   const [reservationError, setReservationError] = useState<string | null>(null);
 
   // Use authoritative availability hook - single source of truth, no fallbacks
-  const { availability, refresh: refreshAvailability } = useAuthoritativeAvailability({
+  const { availability, error: availabilityError, isLoading: availabilityLoading, refresh: refreshAvailability } = useAuthoritativeAvailability({
     competitionId: competition?.id || '',
     debug: true, // Enable debug logging for tracking
   });
@@ -83,8 +83,13 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
   }, [availability, ticketCount]);
 
   const handleIncrement = () => {
-    // Limit to available tickets from authoritative source
-    const maxAllowed = availability.available_count;
+    // Limit to available tickets - use fallback if not authoritative to prevent 0 max
+    // Note: Fallback calculation is also used below in availableCount computation
+    const fallbackMax = Math.max(0, (competition.total_tickets || 0) - (competition.tickets_sold || 0));
+    const maxAllowed = availability.isAuthoritative 
+      ? availability.available_count
+      : fallbackMax;
+    
     if (ticketCount < maxAllowed) {
       const newCount = ticketCount + 1;
       const adjustedCount = handleMinimumPurchaseCheck(newCount);
@@ -314,11 +319,22 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
     }
   };
 
-  // Use authoritative availability data - NO fallbacks once RPC succeeds
-  // This ensures a single source of truth and prevents "bouncing" between values
-  const soldCount = availability.sold_count;
-  const totalTickets = availability.total_tickets;
-  const availableCount = availability.available_count;
+  // Use authoritative availability data with conservative fallback when non-authoritative
+  // This ensures a single source of truth while preventing 0/0 display during loading
+  const soldCount = availability.isAuthoritative 
+    ? availability.sold_count 
+    : (competition.tickets_sold || 0);
+  
+  const totalTickets = availability.isAuthoritative 
+    ? availability.total_tickets 
+    : (competition.total_tickets || 0);
+  
+  // Helper: Calculate fallback available count from competition data
+  const fallbackAvailableCount = Math.max(0, (competition.total_tickets || 0) - (competition.tickets_sold || 0));
+  
+  const availableCount = availability.isAuthoritative 
+    ? availability.available_count 
+    : fallbackAvailableCount;
 
   // Debug: Log ticket availability state from authoritative source
   console.log('[HeroSection] Authoritative ticket availability:', {
@@ -329,6 +345,8 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
     pendingCount: availability.pending_count,
     competitionTotalTickets: competition.total_tickets,
     competitionTicketsSold: competition.tickets_sold,
+    availabilityError,
+    availabilityLoading,
   });
 
   // Check if competition is sold out
@@ -395,9 +413,9 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
                   </p>
                 </div>
               )}
-              {/* Only show "temporarily unavailable" banner AFTER we've tried to fetch data
-                  AND both RPC and fallback resulted in 0 available tickets */}
-              {!isSoldOut && availability.isAuthoritative && availableCount === 0 && (
+              {/* Only show "temporarily unavailable" when there's an explicit error
+                  AND authoritative available count is 0 (not fallback) */}
+              {!isSoldOut && availabilityError && availability.available_count === 0 && (
                 <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg px-3 py-2 mb-3">
                   <p className="text-orange-400 text-sm sequel-45 text-center">
                     Tickets temporarily unavailable - please refresh
