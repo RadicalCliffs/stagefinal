@@ -3,6 +3,23 @@ import { supabase } from '../lib/supabase';
 import { useTicketBroadcast, type TicketStats } from './useTicketBroadcast';
 
 /**
+ * RPC response from get_competition_ticket_availability_text
+ */
+interface TicketAvailabilityRPCResponse {
+  competition_id: string;
+  total_tickets: number;
+  sold_count: number;
+  available_count: number;
+}
+
+/**
+ * Error response from RPC function
+ */
+interface RPCErrorResponse {
+  error: string;
+}
+
+/**
  * Authoritative ticket availability state
  * Once RPC data is loaded, fallback values are never used
  */
@@ -105,15 +122,17 @@ export function useAuthoritativeAvailability(options: {
 
       // Check for RPC-level errors
       if (data && typeof data === 'object' && 'error' in data) {
-        throw new Error((data as any).error);
+        const errorData = data as RPCErrorResponse;
+        throw new Error(errorData.error);
       }
 
       if (data && isMountedRef.current) {
+        const rpcData = data as TicketAvailabilityRPCResponse;
         const stats: AuthoritativeAvailability = {
-          total_tickets: (data as any).total_tickets || 0,
-          sold_count: (data as any).sold_count || 0,
+          total_tickets: rpcData.total_tickets || 0,
+          sold_count: rpcData.sold_count || 0,
           pending_count: 0, // Estimated from difference
-          available_count: (data as any).available_count || 0,
+          available_count: rpcData.available_count || 0,
           isAuthoritative: true, // Mark as authoritative once RPC succeeds
         };
         
