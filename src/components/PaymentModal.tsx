@@ -59,6 +59,7 @@ async function confirmTicketsUnified(params: ConfirmTicketsParams): Promise<{
   ticketNumbers?: number[];
   error?: string;
   alreadyConfirmed?: boolean;
+  confirmationInProgress?: boolean;
 }> {
   const {
     reservationId,
@@ -130,6 +131,7 @@ async function confirmTicketsUnified(params: ConfirmTicketsParams): Promise<{
         success: true,
         ticketNumbers: result.ticketNumbers,
         alreadyConfirmed: result.alreadyConfirmed || false,
+        confirmationInProgress: result.confirmationInProgress || false,
       };
     } else {
       console.error('[PaymentModal] Ticket confirmation failed:', result.error);
@@ -910,6 +912,13 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         console.log('[PaymentModal] Spend permission ticket confirmation result:', confirmResult);
 
         if (confirmResult.success) {
+          // Log idempotent confirmation scenarios
+          if (confirmResult.alreadyConfirmed) {
+            console.log('[PaymentModal] Tickets already confirmed (idempotent success)');
+          } else if (confirmResult.confirmationInProgress) {
+            console.log('[PaymentModal] Confirmation in progress by another request (idempotent success)');
+          }
+          
           // ISSUE 9B FIX: Show optimistic success immediately
           setShowOptimisticSuccess(true);
           setBaseTransactionId(reservationId || 'success');
