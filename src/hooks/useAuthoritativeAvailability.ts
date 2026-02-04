@@ -103,7 +103,7 @@ export function useAuthoritativeAvailability(options: {
     // Validate that competitionId is a full UUID (not a masked/prefix ID)
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(competitionId)) {
-      const errorMsg = `Invalid competition ID format (not a full UUID): ${competitionId}`;
+      const errorMsg = `Invalid competition ID format (not a full UUID): ${competitionId.substring(0, 8)}...`;
       log(errorMsg);
       setError(errorMsg);
       setIsLoading(false);

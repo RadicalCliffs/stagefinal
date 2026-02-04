@@ -84,9 +84,11 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
 
   const handleIncrement = () => {
     // Limit to available tickets - use fallback if not authoritative to prevent 0 max
+    // Helper: fallback available count from competition data
+    const fallbackMax = Math.max(0, (competition.total_tickets || 0) - (competition.tickets_sold || 0));
     const maxAllowed = availability.isAuthoritative 
       ? availability.available_count
-      : Math.max(0, (competition.total_tickets || 0) - (competition.tickets_sold || 0));
+      : fallbackMax;
     
     if (ticketCount < maxAllowed) {
       const newCount = ticketCount + 1;
@@ -327,9 +329,12 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
     ? availability.total_tickets 
     : (competition.total_tickets || 0);
   
+  // Helper: Calculate fallback available count from competition data
+  const fallbackAvailableCount = Math.max(0, (competition.total_tickets || 0) - (competition.tickets_sold || 0));
+  
   const availableCount = availability.isAuthoritative 
     ? availability.available_count 
-    : Math.max(0, (competition.total_tickets || 0) - (competition.tickets_sold || 0));
+    : fallbackAvailableCount;
 
   // Debug: Log ticket availability state from authoritative source
   console.log('[HeroSection] Authoritative ticket availability:', {
@@ -409,8 +414,8 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
                 </div>
               )}
               {/* Only show "temporarily unavailable" when there's an explicit error
-                  (not just when non-authoritative) */}
-              {!isSoldOut && availabilityError && availableCount === 0 && (
+                  AND authoritative available count is 0 (not fallback) */}
+              {!isSoldOut && availabilityError && availability.available_count === 0 && (
                 <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg px-3 py-2 mb-3">
                   <p className="text-orange-400 text-sm sequel-45 text-center">
                     Tickets temporarily unavailable - please refresh
