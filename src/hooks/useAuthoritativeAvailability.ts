@@ -100,9 +100,19 @@ export function useAuthoritativeAvailability(options: {
   const fetchAvailability = useCallback(async () => {
     if (!competitionId || !isMountedRef.current) return;
 
+    // Validate that competitionId is a full UUID (not a masked/prefix ID)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(competitionId)) {
+      const errorMsg = `Invalid competition ID format (not a full UUID): ${competitionId}`;
+      log(errorMsg);
+      setError(errorMsg);
+      setIsLoading(false);
+      return;
+    }
+
     // Increment request ID to track this request
     const thisRequestId = ++requestIdRef.current;
-    log(`Fetching availability (request #${thisRequestId})...`);
+    log(`Fetching availability for competition ${competitionId} (request #${thisRequestId})...`);
 
     setIsLoading(true);
     
@@ -112,7 +122,16 @@ export function useAuthoritativeAvailability(options: {
         competition_id_text: competitionId,
       });
 
-      if (rpcError) throw rpcError;
+      if (rpcError) {
+        log(`RPC error (request #${thisRequestId}):`, {
+          competitionId,
+          error: rpcError.message,
+          code: rpcError.code,
+          details: rpcError.details,
+          hint: rpcError.hint
+        });
+        throw rpcError;
+      }
 
       // Check if this response is stale (another request was made after this one)
       if (thisRequestId !== requestIdRef.current) {
@@ -123,10 +142,21 @@ export function useAuthoritativeAvailability(options: {
       // Check for RPC-level errors
       if (data && typeof data === 'object' && 'error' in data) {
         const errorData = data as RPCErrorResponse;
+        log(`RPC returned error response (request #${thisRequestId}):`, {
+          competitionId,
+          error: errorData.error
+        });
         throw new Error(errorData.error);
       }
 
-      if (data && isMountedRef.current) {
+      // Check for no data returned
+      if (!data) {
+        const errorMsg = 'RPC returned no data';
+        log(`${errorMsg} (request #${thisRequestId}):`, { competitionId });
+        throw new Error(errorMsg);
+      }
+
+      if (isMountedRef.current) {
         const rpcData = data as TicketAvailabilityRPCResponse;
         const stats: AuthoritativeAvailability = {
           total_tickets: rpcData.total_tickets || 0,
@@ -139,7 +169,10 @@ export function useAuthoritativeAvailability(options: {
         // Estimate pending count
         stats.pending_count = Math.max(0, stats.total_tickets - stats.sold_count - stats.available_count);
         
-        log(`RPC success (request #${thisRequestId}):`, stats);
+        log(`RPC success (request #${thisRequestId}):`, {
+          competitionId,
+          stats
+        });
         
         setAvailability(stats);
         setLastUpdate(new Date());
@@ -147,7 +180,11 @@ export function useAuthoritativeAvailability(options: {
         hasRpcSucceededRef.current = true;
       }
     } catch (err) {
-      log(`Fetch error (request #${thisRequestId}):`, err);
+      log(`Fetch error (request #${thisRequestId}):`, {
+        competitionId,
+        error: err instanceof Error ? err.message : String(err),
+        errorObj: err
+      });
       
       // Check if this response is stale
       if (thisRequestId !== requestIdRef.current) {
