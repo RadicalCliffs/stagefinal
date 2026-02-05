@@ -986,7 +986,9 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
             {topUps.slice(0, 5).map(t => (
               <div key={t.id} className="flex items-center justify-between bg-[#2A2A2A] rounded-lg px-4 py-3">
                 <div>
-                  <p className="text-white sequel-75 text-sm">${t.amount}</p>
+                  <p className="text-white sequel-75 text-sm">
+                    {Number(t.amount || 0) >= 0 ? '+' : ''}${Math.abs(Number(t.amount || 0)).toFixed(2)}
+                  </p>
                   <p className="text-white/40 sequel-45 text-xs">{t.status}</p>
                 </div>
                 <p className="text-white/60 sequel-45 text-xs">
@@ -1076,7 +1078,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
                     </div>
                     <div className="text-right">
                       <p className={`sequel-75 text-sm ${isPending ? 'text-yellow-400' : 'text-green-400'}`}>
-                        +${Number(tx.amount || 0).toFixed(2)}
+                        {Number(tx.amount || 0) >= 0 ? '+' : ''}${Math.abs(Number(tx.amount || 0)).toFixed(2)}
                       </p>
                       <p className="text-white/30 sequel-45 text-xs mt-0.5 capitalize">
                         {tx.payment_provider || 'Coinbase'}
