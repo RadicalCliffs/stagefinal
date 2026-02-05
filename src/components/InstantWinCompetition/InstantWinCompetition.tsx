@@ -53,7 +53,7 @@ const InstantWinCompetition = ({competition}:CompetitionWrapper) => {
 
     return (
         <div>
-            <div className="custom-individual-competition-page-background bg-full-size absolute inset-0 w-full h-full"></div>
+            <div className="custom-individual-competition-page-background bg-full-size absolute inset-0 w-full h-full -z-10"></div>
             <div>
                 <div className='py-10 xl:px-0 sm:px-4 px-2 relative'>
                     <IndividualCompetitionHeroSection competition={competition}/>
