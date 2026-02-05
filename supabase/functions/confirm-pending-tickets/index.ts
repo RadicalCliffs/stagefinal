@@ -185,6 +185,9 @@ async function assignTickets(params: AssignTicketsParams): Promise<AssignTickets
   const preferred: number[] = Array.isArray(preferredTicketNumbers)
     ? preferredTicketNumbers.map(n => Number(n)).filter(n => Number.isFinite(n) && n >= 1 && n <= maxTickets)
     : [];
+  
+  // Determine if this is a lucky dip (no specific tickets requested)
+  const isLuckyDip = preferred.length === 0;
 
   for (const n of preferred) {
     if (!usedSet.has(n)) {
@@ -210,11 +213,18 @@ async function assignTickets(params: AssignTicketsParams): Promise<AssignTickets
     finalTicketNumbers.push(...picked);
   }
 
-  const maxRetries = 3;
+  // CRITICAL FIX: For lucky dip, use UNLIMITED retries and aggressive conflict resolution
+  // Lucky dip should NEVER fail as long as tickets are available
+  const maxRetries = isLuckyDip ? 999999 : 3; // Effectively unlimited for lucky dip
   let successfullyInserted: number[] = [];
   let remainingToInsert = [...finalTicketNumbers];
+  let retryCount = 0;
+
+  console.log(`assignTickets: Starting allocation - isLuckyDip: ${isLuckyDip}, maxRetries: ${isLuckyDip ? 'UNLIMITED' : maxRetries}`);
 
   for (let attempt = 0; attempt < maxRetries && remainingToInsert.length > 0; attempt++) {
+    retryCount = attempt + 1;
+    
     const rows = remainingToInsert.map(num => ({
       competition_id: competitionId,
       order_id: orderId ?? null,
@@ -227,6 +237,9 @@ async function assignTickets(params: AssignTicketsParams): Promise<AssignTickets
     if (!insertError) {
       successfullyInserted.push(...remainingToInsert);
       remainingToInsert = [];
+      if (retryCount > 1) {
+        console.log(`assignTickets: SUCCESS after ${retryCount} attempts (isLuckyDip: ${isLuckyDip})`);
+      }
       break;
     }
 
@@ -239,7 +252,7 @@ async function assignTickets(params: AssignTicketsParams): Promise<AssignTickets
       throw insertError;
     }
 
-    console.warn(`assignTickets: conflict on attempt ${attempt + 1}, retrying with fresh ticket selection`);
+    console.warn(`assignTickets: conflict on attempt ${attempt + 1} (isLuckyDip: ${isLuckyDip}), retrying with fresh ticket selection`);
 
     const { data: currentUsedTickets, error: refetchError } = await supabase
       .from("tickets")
@@ -255,29 +268,58 @@ async function assignTickets(params: AssignTicketsParams): Promise<AssignTickets
 
     const currentAvailable = maxTickets - currentUsedSet.size;
     if (currentAvailable < remainingToInsert.length) {
-      throw new Error(`assignTickets: competition became sold out during allocation - only ${currentAvailable} tickets remain`);
+      // CRITICAL: Only fail if TRULY sold out
+      if (currentAvailable === 0) {
+        throw new Error(`assignTickets: competition is NOW sold out (no tickets remain)`);
+      }
+      if (!isLuckyDip) {
+        // For specific ticket requests, fail if not enough tickets
+        throw new Error(`assignTickets: competition became sold out during allocation - only ${currentAvailable} tickets remain`);
+      }
+      // For lucky dip, reduce ticket count to what's available
+      console.warn(`assignTickets: Lucky dip reducing from ${remainingToInsert.length} to ${currentAvailable} tickets`);
+      remainingToInsert = remainingToInsert.slice(0, currentAvailable);
     }
 
     const stillAvailable = remainingToInsert.filter(n => !currentUsedSet.has(n));
     const needToReplace = remainingToInsert.length - stillAvailable.length;
 
-    const newAvailable: number[] = [];
-    for (let n = 1; n <= maxTickets && newAvailable.length < needToReplace * 5; n++) {
-      if (!currentUsedSet.has(n) && !stillAvailable.includes(n)) {
-        newAvailable.push(n);
+    if (needToReplace > 0) {
+      // For lucky dip, aggressively find ANY available tickets
+      const newAvailable: number[] = [];
+      for (let n = 1; n <= maxTickets && newAvailable.length < needToReplace * 10; n++) {
+        if (!currentUsedSet.has(n) && !stillAvailable.includes(n)) {
+          newAvailable.push(n);
+        }
+      }
+
+      if (newAvailable.length < needToReplace) {
+        if (isLuckyDip && currentAvailable > 0) {
+          // For lucky dip, take whatever we can get
+          console.warn(`assignTickets: Lucky dip taking partial allocation - ${newAvailable.length + stillAvailable.length} of ${ticketCount} requested`);
+          const replacements = newAvailable;
+          remainingToInsert = [...stillAvailable, ...replacements];
+        } else {
+          throw new Error("assignTickets: not enough available tickets remain after conflict resolution");
+        }
+      } else {
+        const replacements = pickRandomUnique(newAvailable, needToReplace);
+        remainingToInsert = [...stillAvailable, ...replacements];
       }
     }
-
-    if (newAvailable.length < needToReplace) {
-      throw new Error("assignTickets: not enough available tickets remain after conflict resolution");
-    }
-
-    const replacements = pickRandomUnique(newAvailable, needToReplace);
-    remainingToInsert = [...stillAvailable, ...replacements];
+    
     finalTicketNumbers = [...successfullyInserted, ...remainingToInsert];
+    
+    // Add small delay for lucky dip retries to reduce contention
+    if (isLuckyDip && attempt > 0 && attempt % 10 === 0) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
   }
 
   if (remainingToInsert.length > 0) {
+    if (isLuckyDip) {
+      throw new Error(`assignTickets: LUCKY DIP FAILED after ${retryCount} attempts - this should NEVER happen! Available: ${availableCount}, Requested: ${ticketCount}`);
+    }
     throw new Error("assignTickets: failed to insert tickets after multiple retries");
   }
 

@@ -320,16 +320,38 @@ Deno.serve(async (req: Request) => {
         console.log(`[reconcile-payments][${requestId}] Expired ${expiredTopUps.length} pending top-ups`);
       }
 
-      // Clean up expired pending_tickets
+      // Clean up expired pending_tickets using safe cleanup function
+      // CRITICAL: This respects the 15-minute grace period to prevent
+      // premature expiration of active reservations
+      const gracePeriodMinutes = 15;
+      const cutoffTime = new Date(Date.now() - gracePeriodMinutes * 60 * 1000).toISOString();
+      
       const { data: expiredTickets } = await supabase
         .from("pending_tickets")
-        .update({ status: "expired", updated_at: new Date().toISOString() })
+        .update({ 
+          status: "expired", 
+          updated_at: new Date().toISOString(),
+          note: supabase.rpc('concat', { a: 'note', b: ' | Auto-expired by reconcile-payments' })
+        })
         .eq("status", "pending")
         .lt("expires_at", new Date().toISOString())
+        .lt("created_at", cutoffTime) // ONLY expire if created > 15 minutes ago
         .select("id");
 
       if (expiredTickets && expiredTickets.length > 0) {
-        console.log(`[reconcile-payments][${requestId}] Expired ${expiredTickets.length} pending tickets`);
+        console.log(`[reconcile-payments][${requestId}] Expired ${expiredTickets.length} pending tickets (grace period: ${gracePeriodMinutes}min)`);
+      }
+      
+      // Count protected reservations for monitoring
+      const { count: protectedCount } = await supabase
+        .from("pending_tickets")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending")
+        .lt("expires_at", new Date().toISOString())
+        .gte("created_at", cutoffTime);
+      
+      if (protectedCount && protectedCount > 0) {
+        console.log(`[reconcile-payments][${requestId}] Protected ${protectedCount} recent reservations (within ${gracePeriodMinutes}min grace period)`);
       }
     } catch (cleanupErr) {
       console.warn(`[reconcile-payments][${requestId}] Cleanup error (non-fatal):`, cleanupErr);
