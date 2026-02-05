@@ -1162,12 +1162,17 @@ Deno.serve(async (req: Request) => {
     let debitSource: 'sub_account_balances_rpc' | 'sub_account_balances' | 'wallet_balances' | 'canonical_users' = 'sub_account_balances_rpc';
 
     // PRIMARY: Use debit_sub_account_balance RPC for atomic debit
-    // This RPC handles row locking and atomic balance updates
+    // This RPC handles row locking, atomic balance updates, AND ledger entry creation
     console.log("[Balance Debit] Attempting RPC debit_sub_account_balance for:", canonicalUserId);
+    const referenceId = `entry_${competitionId}_${Date.now()}`;
+    const description = `Purchase ${numberOfTickets} tickets for competition`;
+    
     const { data: rpcDebitResult, error: rpcDebitError } = await supabase.rpc("debit_sub_account_balance", {
       p_canonical_user_id: canonicalUserId,
       p_amount: totalCost,
       p_currency: "USD",
+      p_reference_id: referenceId,
+      p_description: description,
     });
 
     if (!rpcDebitError && rpcDebitResult && rpcDebitResult.length > 0 && rpcDebitResult[0].success) {
@@ -1413,31 +1418,33 @@ Deno.serve(async (req: Request) => {
     // Mark that balance has been debited - any error after this point needs rollback
     balanceDebited = true;
 
-    // CRITICAL FIX: Create balance_ledger entry for audit trail
-    // This ensures all balance changes (both credits AND debits) are tracked
-    // Previously, only top-ups created ledger entries; purchases were missing
-    // CORRECT SCHEMA: canonical_user_id, transaction_type, amount, currency, balance_before, balance_after, reference_id, description
-    const ledgerEntry = {
-      canonical_user_id: canonicalUserId,
-      transaction_type: 'debit',
-      amount: -totalCost, // Negative for debit
-      currency: 'USD',
-      balance_before: userBalance,
-      balance_after: newBalance,
-      reference_id: `entry_${competitionId}_${Date.now()}`,
-      description: `Purchase ${numberOfTickets} tickets for competition`,
-      created_at: new Date().toISOString(),
-    };
+    // Create balance_ledger entry for fallback paths (RPC already creates it)
+    if (debitSource !== 'sub_account_balances_rpc') {
+      console.log("[Balance Ledger] Creating ledger entry for fallback debit path:", debitSource);
+      const ledgerEntry = {
+        canonical_user_id: canonicalUserId,
+        transaction_type: 'debit',
+        amount: -totalCost, // Negative for debit
+        currency: 'USD',
+        balance_before: userBalance,
+        balance_after: newBalance,
+        reference_id: referenceId,
+        description: description,
+        created_at: new Date().toISOString(),
+      };
 
-    const { error: ledgerError } = await supabase
-      .from("balance_ledger")
-      .insert(ledgerEntry);
+      const { error: ledgerError } = await supabase
+        .from("balance_ledger")
+        .insert(ledgerEntry);
 
-    if (ledgerError) {
-      // Log but don't fail the transaction - ledger is for audit, not critical path
-      console.warn("[Balance Ledger] Failed to create debit entry:", ledgerError.message);
+      if (ledgerError) {
+        // Log but don't fail the transaction - ledger is for audit, not critical path
+        console.warn("[Balance Ledger] Failed to create debit entry:", ledgerError.message);
+      } else {
+        console.log("[Balance Ledger] Created debit entry for fallback path:", totalCost);
+      }
     } else {
-      console.log("[Balance Ledger] Created debit entry for purchase:", totalCost);
+      console.log("[Balance Ledger] Ledger entry already created by RPC");
     }
 
     try {
