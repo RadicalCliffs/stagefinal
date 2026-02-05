@@ -193,6 +193,100 @@ Deno.serve(async (req: Request) => {
     }
 
     // =====================================================
+    // PART 1.5: PROCESS CDP WEBHOOK TOP-UPS (BASE ACCOUNT)
+    // =====================================================
+    console.log(`[reconcile-payments][${requestId}] Processing CDP webhook top-ups...`);
+
+    try {
+      // Find unprocessed USDC transfers from CDP webhooks
+      // These are from Base Account SDK payments (user top-ups via base_account)
+      const { data: cdpTransfers, error: cdpError } = await supabase
+        .from("cdp_usdcs_transfers_v1")
+        .select("*")
+        .is("processed", null) // Not yet processed
+        .or("processed.eq.false")
+        .eq("status", "COMPLETE") // Only completed transfers
+        .lt("created_at", new Date(Date.now() - 2 * 60 * 1000).toISOString()) // At least 2 min old
+        .order("created_at", { ascending: true })
+        .limit(50);
+
+      if (cdpError) {
+        console.error(`[reconcile-payments][${requestId}] CDP transfer fetch error:`, cdpError);
+        result.errors.push(`CDP transfer fetch error: ${cdpError.message}`);
+      } else if (cdpTransfers && cdpTransfers.length > 0) {
+        console.log(`[reconcile-payments][${requestId}] Found ${cdpTransfers.length} unprocessed CDP transfers`);
+
+        for (const transfer of cdpTransfers) {
+          try {
+            // Extract amount and user from transfer data
+            const amount = Number(transfer.amount) || 0;
+            const userAddress = transfer.to_address || transfer.from_address; // Depending on direction
+            
+            if (amount <= 0 || !userAddress) {
+              console.warn(`[reconcile-payments][${requestId}] Skipping invalid CDP transfer ${transfer.id}`);
+              continue;
+            }
+
+            // Convert address to canonical format
+            const canonicalUserId = toPrizePid(userAddress);
+
+            // Credit the balance via RPC
+            const { data: creditResult, error: creditError } = await supabase.rpc(
+              'credit_sub_account_balance',
+              {
+                p_canonical_user_id: canonicalUserId,
+                p_amount: amount,
+                p_currency: 'USD'
+              }
+            );
+
+            if (creditError) {
+              throw new Error(`RPC error: ${creditError.message}`);
+            }
+
+            const creditSuccess = creditResult?.[0]?.success ?? false;
+
+            if (creditSuccess) {
+              // Mark transfer as processed
+              await supabase
+                .from("cdp_usdcs_transfers_v1")
+                .update({
+                  processed: true,
+                  processed_at: new Date().toISOString(),
+                })
+                .eq("id", transfer.id);
+
+              result.topUpsReconciled++;
+              result.totalAmountCredited += amount;
+              result.transactionsProcessed.push(transfer.id);
+              console.log(`[reconcile-payments][${requestId}] ✅ Credited CDP top-up ${transfer.id}: $${amount} to ${canonicalUserId}`);
+            } else {
+              throw new Error(creditResult?.[0]?.error_message || 'Credit failed');
+            }
+          } catch (err) {
+            const errorMsg = `Failed to process CDP transfer ${transfer.id}: ${(err as Error).message}`;
+            console.error(`[reconcile-payments][${requestId}] ${errorMsg}`);
+            result.errors.push(errorMsg);
+
+            // Mark for review but don't block other transfers
+            await supabase
+              .from("cdp_usdcs_transfers_v1")
+              .update({
+                processed: false,
+                processing_error: (err as Error).message,
+              })
+              .eq("id", transfer.id);
+          }
+        }
+      } else {
+        console.log(`[reconcile-payments][${requestId}] No unprocessed CDP transfers found`);
+      }
+    } catch (cdpErr) {
+      console.error(`[reconcile-payments][${requestId}] CDP processing error:`, cdpErr);
+      result.errors.push(`CDP processing error: ${(cdpErr as Error).message}`);
+    }
+
+    // =====================================================
     // PART 2: RECONCILE COMPETITION ENTRIES
     // =====================================================
     console.log(`[reconcile-payments][${requestId}] Checking for unconfirmed entries...`);

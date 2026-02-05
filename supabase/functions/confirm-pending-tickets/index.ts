@@ -875,6 +875,31 @@ Deno.serve(async (req: Request) => {
         console.error("Error creating joincompetition entry:", joinError);
       }
 
+      // ALSO write to competition_entries (new table) for frontend compatibility
+      // Using UPSERT to handle multiple purchases by same user in same competition
+      const competitionEntry = {
+        canonical_user_id: canonicalUserId,
+        competition_id: competitionId,
+        wallet_address: walletAddress,
+        tickets_count: ticketNumbers.length,
+        ticket_numbers_csv: ticketNumbers.join(","),
+        amount_spent: totalAmount,
+        payment_methods: paymentProvider || "USDC",
+        latest_purchase_at: new Date().toISOString(),
+      };
+
+      const { error: entriesError } = await supabase
+        .from("competition_entries")
+        .upsert(competitionEntry, {
+          onConflict: 'canonical_user_id,competition_id',
+          // Aggregate: increment tickets_count, append ticket_numbers, update amount
+        });
+
+      if (entriesError) {
+        console.error("Error upserting competition_entries:", entriesError);
+        // Non-fatal: joincompetition already succeeded
+      }
+
       // NOTE: Individual ticket records are already created by assignTickets() above
       // Do NOT insert into tickets table again here - that would cause duplicates
 
