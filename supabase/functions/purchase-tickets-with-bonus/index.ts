@@ -1164,7 +1164,10 @@ Deno.serve(async (req: Request) => {
     // PRIMARY: Use debit_sub_account_balance RPC for atomic debit
     // This RPC handles row locking, atomic balance updates, AND ledger entry creation
     console.log("[Balance Debit] Attempting RPC debit_sub_account_balance for:", canonicalUserId);
-    const referenceId = `entry_${competitionId}_${Date.now()}`;
+    
+    // Generate reference ID and description for this purchase (used by both RPC and fallback paths)
+    const purchaseTimestamp = Date.now();
+    const referenceId = `entry_${competitionId}_${purchaseTimestamp}`;
     const description = `Purchase ${numberOfTickets} tickets for competition`;
     
     const { data: rpcDebitResult, error: rpcDebitError } = await supabase.rpc("debit_sub_account_balance", {
