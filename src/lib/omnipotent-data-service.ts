@@ -516,6 +516,31 @@ class OmnipotentDataService {
           });
         }
 
+        // PRODUCTION FIX: Also get pending tickets from pending_tickets.ticket_numbers
+        // Production schema has ticket_numbers column that is actively used
+        // This handles case where pending_ticket_items is empty but pending_tickets has data
+        const { data: pendingTicketsData } = await supabase
+          .from('pending_tickets')
+          .select('ticket_numbers, expires_at, status')
+          .eq('competition_id', competitionId)
+          .in('status', ['pending', 'confirming']);
+
+        if (pendingTicketsData) {
+          const now = new Date();
+          pendingTicketsData.forEach((row: any) => {
+            // Check if reservation is not expired
+            const isExpired = row.expires_at && new Date(row.expires_at) < now;
+            
+            if (!isExpired && Array.isArray(row.ticket_numbers)) {
+              row.ticket_numbers.forEach((n: number) => {
+                if (Number.isFinite(n) && n > 0) {
+                  unavailableSet.add(n);
+                }
+              });
+            }
+          });
+        }
+
         // Get sold tickets from v_joincompetition_active
         // SCHEMA: v_joincompetition_active has: competitionid, ticketnumbers (comma-separated string or array)
         const { data: soldData } = await supabase
@@ -584,23 +609,7 @@ class OmnipotentDataService {
 
       // Get unavailable tickets (this is cached with 5s TTL)
       const unavailable = await this.getUnavailableTickets(competitionId);
-      
-      // CRITICAL DEBUG: Log the type and content of unavailable to diagnose the issue
-      databaseLogger.warn('[OmnipotentData] DEBUG unavailable tickets', {
-        type: typeof unavailable,
-        isArray: Array.isArray(unavailable),
-        length: unavailable?.length,
-        sample: unavailable?.slice?.(0, 5),
-        constructor: unavailable?.constructor?.name
-      });
-      
       const unavailableSet = new Set(unavailable);
-      
-      // CRITICAL DEBUG: Log the Set size to see if it matches
-      databaseLogger.warn('[OmnipotentData] DEBUG unavailableSet', {
-        setSize: unavailableSet.size,
-        unavailableLength: unavailable?.length
-      });
 
       // Calculate available tickets
       const allTickets = Array.from({ length: totalTickets }, (_, i) => i + 1);
