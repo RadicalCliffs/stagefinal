@@ -348,6 +348,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   const [showOptimisticSuccess, setShowOptimisticSuccess] = useState(false);
   // State for TopUpWalletModal
   const [showTopUpModal, setShowTopUpModal] = useState(false);
+  // PAYMENT SUCCESS BUT ALLOCATION PENDING: Track when payment succeeded but tickets not yet allocated
+  const [paymentSucceededButAllocationPending, setPaymentSucceededButAllocationPending] = useState(false);
 
   // WALLET DIAGNOSTIC: Log wallet information for debugging
   useEffect(() => {
@@ -1099,13 +1101,14 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         // Check if this is a payment-succeeded-but-confirmation-failed case
         if (result.paymentSucceeded) {
           // Special case: Payment went through but ticket allocation failed
-          // Show a specific error message with transaction ID for support
+          // Show a specific message with transaction ID for support
           setPaymentError(
             null,
-            `Your payment of $${result.amount.toFixed(2)} was received successfully, but we encountered an issue allocating your tickets. ` +
+            `Your payment of $${result.amount.toFixed(2)} was received successfully, but ticket allocation is still ongoing. ` +
             `Transaction ID: ${result.transactionId}. ` +
-            `Please contact support with this transaction ID, and we'll manually allocate your tickets. ` +
-            `Your funds are safe and have been received.`
+            `Please contact support with this transaction ID if you haven't received your tickets in 10 minutes. ` +
+            `All tickets purchased before a competition cut off time that weren't previously reserved will be honored. Your funds are safe and have been received.`,
+            true // Mark as payment succeeded
           );
           setBaseTransactionId(result.transactionId);
           // Still refresh data in case tickets were partially allocated
@@ -1280,13 +1283,16 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     setErrorInfo(null);
     // ISSUE 9B FIX: Clear optimistic success state
     setShowOptimisticSuccess(false);
+    // Clear payment succeeded but allocation pending state
+    setPaymentSucceededButAllocationPending(false);
   };
 
   // ISSUE 8B FIX: Helper to set payment error with enhanced guidance
-  const setPaymentError = useCallback((error: unknown, fallbackMessage: string) => {
+  const setPaymentError = useCallback((error: unknown, fallbackMessage: string, paymentSucceeded = false) => {
     const info = getPaymentErrorInfo(error, fallbackMessage);
     setErrorMessage(info.message);
     setErrorInfo(info);
+    setPaymentSucceededButAllocationPending(paymentSucceeded);
     setPaymentStep('error');
   }, []);
 
@@ -1710,15 +1716,25 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           {/* ISSUE 8B FIX: Enhanced error display with specific guidance */}
           {paymentStep === 'error' && (
             <div className="py-8 text-center">
-              <div className="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CircleX size={32} className="text-white" />
-              </div>
-              <h3 className="text-white sequel-75 text-xl mb-2">Payment Failed</h3>
+              {paymentSucceededButAllocationPending ? (
+                // Payment succeeded but allocation pending - show blue warning icon (Coinbase style)
+                <div className="w-16 h-16 bg-[#0052FF] rounded-full flex items-center justify-center mx-auto mb-4">
+                  <AlertTriangle size={32} className="text-white" />
+                </div>
+              ) : (
+                // Normal payment failure - show red error icon
+                <div className="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CircleX size={32} className="text-white" />
+                </div>
+              )}
+              <h3 className="text-white sequel-75 text-xl mb-2">
+                {paymentSucceededButAllocationPending ? 'Payment Processing' : 'Payment Failed'}
+              </h3>
               <p className="text-gray-400 sequel-45 mb-2">
                 {errorMessage || "Something went wrong with your payment."}
               </p>
               {/* ISSUE 8B FIX: Show specific guidance based on error type */}
-              {errorInfo?.guidance && (
+              {errorInfo?.guidance && !paymentSucceededButAllocationPending && (
                 <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg px-4 py-3 mb-4 mx-auto max-w-md">
                   <div className="flex items-start gap-2">
                     <AlertTriangle size={18} className="text-amber-400 flex-shrink-0 mt-0.5" />
@@ -1728,13 +1744,13 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                   </div>
                 </div>
               )}
-              {!errorInfo?.guidance && (
+              {!errorInfo?.guidance && !paymentSucceededButAllocationPending && (
                 <p className="text-gray-500 sequel-45 text-sm mb-4">
                   Your tickets have not been charged. Please try again or choose a different payment method.
                 </p>
               )}
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                {errorInfo?.retryable !== false && (
+                {!paymentSucceededButAllocationPending && errorInfo?.retryable !== false && (
                   <button
                     onClick={handleReturn}
                     className="py-4 px-10 bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98]"
@@ -1742,7 +1758,15 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                     Try Again
                   </button>
                 )}
-                {errorInfo?.category === 'availability' && (
+                {paymentSucceededButAllocationPending && (
+                  <button
+                    onClick={handleCloseModal}
+                    className="py-4 px-10 bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    Close
+                  </button>
+                )}
+                {errorInfo?.category === 'availability' && !paymentSucceededButAllocationPending && (
                   <button
                     onClick={() => {
                       handleCloseModal();

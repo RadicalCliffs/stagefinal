@@ -397,7 +397,95 @@ Deno.serve(async (req: Request) => {
     }
 
     // =====================================================
-    // PART 3: CLEAN UP EXPIRED PENDING RECORDS
+    // PART 3: AUTO-ALLOCATE PAID TICKETS (RECOVERY)
+    // =====================================================
+    console.log(`[reconcile-payments][${requestId}] Checking for auto-allocation pending tickets...`);
+
+    try {
+      // Find pending_tickets created by auto_allocate_paid_tickets trigger
+      // These are payments that completed but tickets weren't allocated
+      const { data: autoAllocateTickets, error: autoAllocateError } = await supabase
+        .from("pending_tickets")
+        .select("*")
+        .eq("status", "pending")
+        .like("note", "%Auto-created by auto_allocate_paid_tickets%")
+        .lt("created_at", new Date(Date.now() - 1 * 60 * 1000).toISOString()) // At least 1 min old
+        .order("created_at", { ascending: true })
+        .limit(20);
+
+      if (autoAllocateError) {
+        console.error(`[reconcile-payments][${requestId}] Auto-allocate fetch error:`, autoAllocateError);
+        result.errors.push(`Auto-allocate fetch error: ${autoAllocateError.message}`);
+      } else if (autoAllocateTickets && autoAllocateTickets.length > 0) {
+        console.log(`[reconcile-payments][${requestId}] Found ${autoAllocateTickets.length} auto-allocation tickets`);
+
+        for (const pending of autoAllocateTickets) {
+          try {
+            // Call confirm-pending-tickets to allocate
+            const confirmResponse = await fetch(`${supabaseUrl}/functions/v1/confirm-pending-tickets`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseServiceKey}`,
+              },
+              body: JSON.stringify({
+                reservationId: pending.id,
+                userId: pending.canonical_user_id || pending.user_id,
+                competitionId: pending.competition_id,
+                transactionHash: pending.transaction_hash,
+                paymentProvider: pending.payment_provider || 'balance',
+                walletAddress: pending.wallet_address,
+                ticketCount: pending.ticket_count,
+                sessionId: pending.session_id,
+              }),
+            });
+
+            const confirmResult = await confirmResponse.json();
+
+            if (confirmResult.success) {
+              result.entriesReconciled++;
+              result.transactionsProcessed.push(pending.session_id || pending.id);
+              console.log(`[reconcile-payments][${requestId}] ✅ Auto-allocated tickets for pending ${pending.id}: ${pending.ticket_count} tickets`);
+            } else {
+              throw new Error(confirmResult.error || 'Confirmation failed');
+            }
+          } catch (err) {
+            const errorMsg = `Failed to auto-allocate tickets for ${pending.id}: ${(err as Error).message}`;
+            console.error(`[reconcile-payments][${requestId}] ${errorMsg}`);
+            result.errors.push(errorMsg);
+
+            // Mark as expired so we don't keep retrying forever
+            const retryCount = (pending.note?.match(/retry/gi) || []).length;
+            if (retryCount >= 3) {
+              await supabase
+                .from("pending_tickets")
+                .update({
+                  status: "failed",
+                  note: `${pending.note} | Failed after 3 retries: ${(err as Error).message}`,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", pending.id);
+            } else {
+              await supabase
+                .from("pending_tickets")
+                .update({
+                  note: `${pending.note} | Retry ${retryCount + 1}: ${(err as Error).message}`,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", pending.id);
+            }
+          }
+        }
+      } else {
+        console.log(`[reconcile-payments][${requestId}] No auto-allocation tickets found`);
+      }
+    } catch (autoAllocateErr) {
+      console.error(`[reconcile-payments][${requestId}] Auto-allocate processing error:`, autoAllocateErr);
+      result.errors.push(`Auto-allocate processing error: ${(autoAllocateErr as Error).message}`);
+    }
+
+    // =====================================================
+    // PART 4: CLEAN UP EXPIRED PENDING RECORDS
     // =====================================================
     console.log(`[reconcile-payments][${requestId}] Cleaning up expired pending records...`);
 
