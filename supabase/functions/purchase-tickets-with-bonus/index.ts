@@ -2,6 +2,31 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { toPrizePid, isPrizePid, normalizeWalletAddress } from "../_shared/userId.ts";
 
+/**
+ * Purchase Tickets With Bonus Edge Function
+ * 
+ * This function handles ticket purchases with balance payment.
+ * 
+ * KEY FLOWS:
+ * 
+ * 1. RESERVATION MODE (when reservation_id is provided):
+ *    - Validates reservation exists, is pending, and not expired
+ *    - Uses reserved ticket numbers as authoritative source
+ *    - Finalizes reservation via finalize_pending_tickets_autoreplace RPC
+ *    - RPC automatically replaces any unavailable tickets to prevent failures
+ *    - No double-debit: balance is debited once during finalization
+ * 
+ * 2. NON-RESERVATION MODE (direct purchase without reservation):
+ *    - Uses assignTickets() helper to allocate tickets
+ *    - Handles random selection or specific ticket numbers
+ *    - Balance is debited directly during ticket creation
+ * 
+ * IMPORTANT NOTES:
+ * - Lucky Dip purchases MUST use lucky-dip-reserve for server-side allocation
+ * - Chosen-ticket purchases MUST use reserve-tickets for specific numbers
+ * - Both flows then call this function to finalize with balance payment
+ */
+
 // Inlined CORS configuration (bundler doesn't support shared module imports)
 const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://substage.theprize.io';
 const ALLOWED_ORIGINS = [
