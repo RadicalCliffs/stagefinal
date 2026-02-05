@@ -584,7 +584,23 @@ class OmnipotentDataService {
 
       // Get unavailable tickets (this is cached with 5s TTL)
       const unavailable = await this.getUnavailableTickets(competitionId);
+      
+      // CRITICAL DEBUG: Log the type and content of unavailable to diagnose the issue
+      databaseLogger.warn('[OmnipotentData] DEBUG unavailable tickets', {
+        type: typeof unavailable,
+        isArray: Array.isArray(unavailable),
+        length: unavailable?.length,
+        sample: unavailable?.slice?.(0, 5),
+        constructor: unavailable?.constructor?.name
+      });
+      
       const unavailableSet = new Set(unavailable);
+      
+      // CRITICAL DEBUG: Log the Set size to see if it matches
+      databaseLogger.warn('[OmnipotentData] DEBUG unavailableSet', {
+        setSize: unavailableSet.size,
+        unavailableLength: unavailable?.length
+      });
 
       // Calculate available tickets
       const allTickets = Array.from({ length: totalTickets }, (_, i) => i + 1);
