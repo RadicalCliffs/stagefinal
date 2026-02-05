@@ -230,7 +230,9 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
   };
 
   // Reserve random tickets for lucky dip before payment
-  // This ensures tickets are held atomically and prevents overselling
+  // This uses server-side allocation via lucky-dip-reserve edge function
+  // to prevent race conditions and ensure atomic ticket allocation.
+  // The server picks random available tickets, avoiding client-side selection conflicts.
   const reserveLuckyDipTickets = async (): Promise<boolean> => {
     if (!baseUser?.id || !competition?.id || ticketCount <= 0) {
       ticketReservationLogger.warn('Pre-validation failed', {
@@ -248,7 +250,7 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
     const reservationStartTime = Date.now();
 
     ticketReservationLogger.group(`Lucky Dip Reservation - ${ticketCount} tickets`);
-    ticketReservationLogger.info('Starting reservation', {
+    ticketReservationLogger.info('Starting server-side Lucky Dip reservation', {
       userId: baseUser.id.substring(0, 10) + '...',
       competitionId: competition.id.substring(0, 8) + '...',
       ticketCount,
@@ -256,71 +258,40 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
     });
 
     try {
-      ticketReservationLogger.info('Fetching available tickets');
-
-      // Fetch unavailable tickets directly using RPC
-      const { data: unavailableData, error: unavailableError } = await supabase
-        .rpc('get_unavailable_tickets', { p_competition_id: competition.id });
-
-      if (unavailableError) {
-        throw unavailableError;
-      }
-
-      const unavailableSet = new Set<number>(unavailableData || []);
-      const availableTickets: number[] = [];
-      for (let i = 1; i <= (competition.total_tickets || 0); i++) {
-        if (!unavailableSet.has(i)) {
-          availableTickets.push(i);
-        }
-      }
-
-      ticketReservationLogger.debug('Available tickets fetched', {
-        availableCount: availableTickets.length,
-        requestedCount: ticketCount
+      // CRITICAL: Lucky Dip MUST use server-side allocation to avoid race conditions
+      // Call lucky-dip-reserve edge function which atomically:
+      // 1. Fetches available tickets server-side
+      // 2. Selects random tickets server-side
+      // 3. Creates reservation in one transaction
+      ticketReservationLogger.info('Invoking lucky-dip-reserve edge function', {
+        ticketCount
       });
 
-      if (availableTickets.length < ticketCount) {
-        ticketReservationLogger.warn('Insufficient tickets available', {
-          available: availableTickets.length,
-          requested: ticketCount
-        });
-        setReservationError(`Only ${availableTickets.length} tickets available. Please reduce your selection.`);
-        setReserving(false);
-        ticketReservationLogger.groupEnd();
-        return false;
-      }
-
-      // Pick random tickets from available pool
-      const shuffled = [...availableTickets].sort(() => Math.random() - 0.5);
-      const selectedTickets = shuffled.slice(0, ticketCount);
-
-      ticketReservationLogger.info('Invoking reserve_tickets edge function', {
-        ticketPreview: selectedTickets.slice(0, 5).join(', ') + (selectedTickets.length > 5 ? '...' : ''),
-        totalSelected: selectedTickets.length
-      });
-
-      // Reserve them atomically using the reserve_tickets function
       const edgeFunctionStartTime = Date.now();
-
-      const result = await reserveTicketsWithRedundancy({
-        userId: baseUser.id,
-        competitionId: competition.id,
-        selectedTickets: selectedTickets,
+      
+      const { data, error } = await supabase.functions.invoke('lucky-dip-reserve', {
+        body: {
+          userId: baseUser.id,
+          competitionId: competition.id,
+          count: ticketCount,
+          ticketPrice: Number(competition.ticket_price) || 1,
+          holdMinutes: 15
+        }
       });
 
       const edgeFunctionDuration = Date.now() - edgeFunctionStartTime;
 
       // Handle function invocation errors
-      if (result.error) {
-        ticketReservationLogger.edgeFunctionError('reserve_tickets', result.error, 1, 1);
+      if (error) {
+        ticketReservationLogger.edgeFunctionError('lucky-dip-reserve', error, 1, 1);
         showDebugHintOnError();
 
         requestTracker.addRequest({
           timestamp: Date.now(),
-          endpoint: 'edge:reserve_tickets',
+          endpoint: 'edge:lucky-dip-reserve',
           method: 'EDGE_FUNCTION',
           success: false,
-          error: result.error.message || 'Reservation failed',
+          error: error.message || 'Reservation failed',
           errorCode: 'INVOKE_ERROR',
           duration: edgeFunctionDuration
         });
@@ -331,23 +302,22 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
         return false;
       }
 
-      const response = result.data;
-
-      // Only show success on HTTP 200 with success: true
-      if (response?.success !== true) {
-        const errorMsg = response?.error || "Failed to reserve tickets";
+      // lucky-dip-reserve returns: { success: true, reservationId, ticketNumbers, ticketCount, expiresAt }
+      // or { success: false, error, errorCode }
+      if (!data || data.success !== true) {
+        const errorMsg = data?.error || "Failed to reserve tickets";
         ticketReservationLogger.warn('Application-level error', {
           error: errorMsg,
-          response
+          response: data
         });
 
         requestTracker.addRequest({
           timestamp: Date.now(),
-          endpoint: 'edge:reserve_tickets',
+          endpoint: 'edge:lucky-dip-reserve',
           method: 'EDGE_FUNCTION',
           success: false,
           error: errorMsg,
-          errorCode: 'APP_ERROR',
+          errorCode: data?.errorCode || 'APP_ERROR',
           duration: edgeFunctionDuration
         });
 
@@ -357,41 +327,39 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
         return false;
       }
 
-      // Success!
-      // Handle both old response format (reservationId, ticketNumbers, ticketCount)
-      // and new stub format (ok: true, reserved: [...], competition_id)
-      const reservedTicketNumbers = response.reserved || response.ticketNumbers || selectedTickets;
-      const ticketCountReserved = response.reserved?.length || response.ticketCount || selectedTickets.length;
+      // Success! Server allocated tickets and created reservation
+      const reservedTicketNumbers = data.ticketNumbers || [];
+      const ticketCountReserved = data.ticketCount || reservedTicketNumbers.length;
 
-      ticketReservationLogger.success('Reservation successful', {
+      ticketReservationLogger.success('Server-side Lucky Dip reservation successful', {
         ticketCountReserved,
-        reservationId: response.reservationId || '(none)',
+        reservationId: data.reservationId || '(none)',
+        algorithm: data.algorithm || 'server-side-atomic-random',
         totalDuration: Date.now() - reservationStartTime
       });
 
       requestTracker.addRequest({
         timestamp: Date.now(),
-        endpoint: 'edge:reserve_tickets',
+        endpoint: 'edge:lucky-dip-reserve',
         method: 'EDGE_FUNCTION',
         success: true,
         duration: edgeFunctionDuration
       });
 
-      // Use the actual reservationId from response
-      const actualReservationId = response.reservationId || null;
-      setReservationId(actualReservationId);
+      // Store reservation data
+      setReservationId(data.reservationId || null);
       setReservedTickets(reservedTicketNumbers);
       setReserving(false);
       ticketReservationLogger.groupEnd();
       return true;
 
     } catch (err) {
-      ticketReservationLogger.error('Exception during reservation', err);
+      ticketReservationLogger.error('Exception during Lucky Dip reservation', err);
       showDebugHintOnError();
 
       requestTracker.addRequest({
         timestamp: Date.now(),
-        endpoint: 'edge:reserve_tickets',
+        endpoint: 'edge:lucky-dip-reserve',
         method: 'EDGE_FUNCTION',
         success: false,
         error: err instanceof Error ? err.message : 'Unknown exception',

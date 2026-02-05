@@ -2,6 +2,31 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { toPrizePid, isPrizePid, normalizeWalletAddress } from "../_shared/userId.ts";
 
+/**
+ * Purchase Tickets With Bonus Edge Function
+ * 
+ * This function handles ticket purchases with balance payment.
+ * 
+ * KEY FLOWS:
+ * 
+ * 1. RESERVATION MODE (when reservation_id is provided):
+ *    - Validates reservation exists, is pending, and not expired
+ *    - Uses reserved ticket numbers as authoritative source
+ *    - Finalizes reservation via finalize_pending_tickets_autoreplace RPC
+ *    - RPC automatically replaces any unavailable tickets to prevent failures
+ *    - No double-debit: balance is debited once during finalization
+ * 
+ * 2. NON-RESERVATION MODE (direct purchase without reservation):
+ *    - Uses assignTickets() helper to allocate tickets
+ *    - Handles random selection or specific ticket numbers
+ *    - Balance is debited directly during ticket creation
+ * 
+ * IMPORTANT NOTES:
+ * - Lucky Dip purchases MUST use lucky-dip-reserve for server-side allocation
+ * - Chosen-ticket purchases MUST use reserve-tickets for specific numbers
+ * - Both flows then call this function to finalize with balance payment
+ */
+
 // Inlined CORS configuration (bundler doesn't support shared module imports)
 const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://substage.theprize.io';
 const ALLOWED_ORIGINS = [
@@ -1628,43 +1653,51 @@ Deno.serve(async (req: Request) => {
         console.log("[user_transactions] Created transaction record:", txData?.id || transactionId);
       }
 
-      // STEP 9b: Mark reservation as confirmed (if we used one)
-      // Use confirm_ticket_purchase RPC to atomically debit balance and confirm purchase
+      // STEP 9b: Finalize reservation using new RPC (if we used one)
+      // CRITICAL: Use finalize_pending_tickets_autoreplace which handles unavailable tickets
+      // by automatically replacing them with available ones. This prevents failures when
+      // a reserved ticket becomes unavailable between reservation and purchase.
       if (reservationRecord?.id) {
-        // After inserting pending ticket, confirm and debit immediately
-        const { data: confirmResult } = await supabase.rpc('confirm_ticket_purchase', {
+        console.log("[finalize] Calling finalize_pending_tickets_autoreplace for reservation:", reservationRecord.id);
+        
+        const { data: finalizeResult, error: finalizeError } = await supabase.rpc('finalize_pending_tickets_autoreplace', {
           p_pending_ticket_id: reservationRecord.id,
+          p_expected_user_id: ticketUserId,  // Use ticketUserId (canonical format) for consistency
+          p_expected_competition_id: competitionId,
           p_payment_provider: 'balance'
         });
 
-        if (!confirmResult?.success) {
-          // If RPC fails (e.g., already confirmed or not found), fall back to direct update
-          // This handles cases where the RPC is not available or returns an error
-          if (confirmResult?.already_confirmed) {
-            console.log("Reservation already confirmed via RPC:", reservationRecord.id);
+        if (finalizeError) {
+          console.error("[finalize] RPC error:", finalizeError);
+          // Don't fail the whole purchase - log and continue
+          console.warn("[finalize] Failed to finalize via RPC, using direct update fallback");
+          
+          // Fallback: direct update for backwards compatibility
+          const { error: resUpdateErr } = await supabase
+            .from("pending_tickets")
+            .update({
+              status: "confirmed",
+              transaction_hash: txRef,
+              payment_provider: "balance",
+              confirmed_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", reservationRecord.id);
+
+          if (resUpdateErr) {
+            console.warn("[finalize] Failed to update reservation status (non-critical):", resUpdateErr);
           } else {
-            console.warn("confirm_ticket_purchase RPC failed, using fallback:", confirmResult?.error);
-
-            // Fallback: direct update for backwards compatibility
-            const { error: resUpdateErr } = await supabase
-              .from("pending_tickets")
-              .update({
-                status: "confirmed",
-                transaction_hash: txRef,
-                payment_provider: "balance",
-                confirmed_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              })
-              .eq("id", reservationRecord.id);
-
-            if (resUpdateErr) {
-              console.warn("Failed to update reservation status (non-critical):", resUpdateErr);
-            } else {
-              console.log("Reservation marked as confirmed via fallback:", reservationRecord.id);
-            }
+            console.log("[finalize] Reservation marked as confirmed via fallback:", reservationRecord.id);
           }
         } else {
-          console.log("Reservation confirmed via RPC:", reservationRecord.id, "Balance debited:", confirmResult.amount_debited);
+          console.log("[finalize] Reservation finalized via RPC:", reservationRecord.id);
+          if (finalizeResult) {
+            console.log("[finalize] RPC result:", {
+              success: finalizeResult.success,
+              tickets_assigned: finalizeResult.tickets_assigned,
+              replaced_count: finalizeResult.replaced_count
+            });
+          }
         }
       }
 
