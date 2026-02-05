@@ -1,6 +1,6 @@
 import { monkeyNft, individualLogoToken } from "../../assets/images"
 import Countdown from "../Countdown"
-import type {  CompetitionWrapper } from '../../models/models';
+import type { CompetitionWrapper } from '../../models/models';
 
 const FinishedCompetitionHeroSection = ({competition}:CompetitionWrapper) => {
     const {description,title,created_at,image_url,end_date,draw_date} = competition
@@ -14,7 +14,7 @@ const FinishedCompetitionHeroSection = ({competition}:CompetitionWrapper) => {
                             <Countdown endDate={end_date || draw_date || created_at} isEnded={true} />
                         </div>
                     </div>
-                    <img src={image_url || monkeyNft} alt="competition" className="xl:w-auto w-full" />
+                    <img src={image_url || monkeyNft} alt={`${title} - Competition image`} className="xl:w-auto w-full" />
                     {/* Desktop countdown - below image */}
                     <div className="xl:flex hidden flex-col items-center justify-center mt-5 xl:pb-0 pb-8">
                         <p className="sequel-95 uppercase text-white mb-4 sm:text-3xl text-2xl">
@@ -25,7 +25,7 @@ const FinishedCompetitionHeroSection = ({competition}:CompetitionWrapper) => {
                 </div>
                 <img
                     src={individualLogoToken}
-                    alt="token-logo"
+                    alt="Prize token logo"
                     className="absolute md:block hidden w-96 xl:-right-5 xl:-top-8 bottom-0 right-0"
                 />
 
