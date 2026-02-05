@@ -516,6 +516,31 @@ class OmnipotentDataService {
           });
         }
 
+        // PRODUCTION FIX: Also get pending tickets from pending_tickets.ticket_numbers
+        // Production schema has ticket_numbers column that is actively used
+        // This handles case where pending_ticket_items is empty but pending_tickets has data
+        const { data: pendingTicketsData } = await supabase
+          .from('pending_tickets')
+          .select('ticket_numbers, expires_at, status')
+          .eq('competition_id', competitionId)
+          .in('status', ['pending', 'confirming']);
+
+        if (pendingTicketsData) {
+          const now = new Date();
+          pendingTicketsData.forEach((row: any) => {
+            // Check if reservation is not expired
+            const isExpired = row.expires_at && new Date(row.expires_at) < now;
+            
+            if (!isExpired && Array.isArray(row.ticket_numbers)) {
+              row.ticket_numbers.forEach((n: number) => {
+                if (Number.isFinite(n) && n > 0) {
+                  unavailableSet.add(n);
+                }
+              });
+            }
+          });
+        }
+
         // Get sold tickets from v_joincompetition_active
         // SCHEMA: v_joincompetition_active has: competitionid, ticketnumbers (comma-separated string or array)
         const { data: soldData } = await supabase

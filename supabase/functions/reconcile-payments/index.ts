@@ -34,6 +34,26 @@ interface ReconciliationResult {
   transactionsProcessed: string[];
 }
 
+interface TopUpTransaction {
+  id: string;
+  user_id: string;
+  amount: number;
+  status: string;
+  payment_status: string;
+  wallet_credited: boolean | null;
+  payment_provider: string;
+}
+
+interface EntryTransaction {
+  id: string;
+  user_id: string;
+  competition_id: string;
+  ticket_count: number;
+  amount: number;
+  tx_id: string;
+  payment_provider: string;
+}
+
 Deno.serve(async (req: Request) => {
   const requestId = crypto.randomUUID().slice(0, 8);
   console.log(`[reconcile-payments][${requestId}] Starting reconciliation`);
@@ -73,13 +93,15 @@ Deno.serve(async (req: Request) => {
     // - No competition_id (= top-up)
     // - Not yet credited (wallet_credited = false/null)
     // - At least 5 minutes old (to avoid racing with webhook)
+    // - CRITICAL: ONLY onramp/coinbase_onramp payment providers (NOT base_account, coinbase_commerce, etc.)
     const { data: unconfirmedTopUps, error: topUpError } = await supabase
       .from("user_transactions")
-      .select("id, user_id, amount, status, payment_status, wallet_credited")
+      .select("id, user_id, amount, status, payment_status, wallet_credited, payment_provider")
       .is("competition_id", null)
       .in("payment_status", ["confirmed", "completed"])
       .or("wallet_credited.is.null,wallet_credited.eq.false")
       .neq("status", "needs_reconciliation")
+      .in("payment_provider", ["onramp", "coinbase_onramp"]) // CRITICAL FIX: Only onramp top-ups, NOT base_account!
       .lt("created_at", new Date(Date.now() - 5 * 60 * 1000).toISOString())
       .order("created_at", { ascending: true })
       .limit(50);
@@ -90,11 +112,26 @@ Deno.serve(async (req: Request) => {
     } else if (unconfirmedTopUps && unconfirmedTopUps.length > 0) {
       console.log(`[reconcile-payments][${requestId}] Found ${unconfirmedTopUps.length} unconfirmed top-ups`);
 
-      for (const txn of unconfirmedTopUps) {
+      for (const txn of (unconfirmedTopUps as TopUpTransaction[])) {
         try {
           const amount = Number(txn.amount) || 0;
           if (amount <= 0 || !txn.user_id) {
             console.warn(`[reconcile-payments][${requestId}] Skipping invalid top-up ${txn.id}`);
+            continue;
+          }
+
+          // CRITICAL SAFETY CHECK: Double-check payment_provider
+          // Never credit base_account or other external crypto payments
+          if (!txn.payment_provider || !['onramp', 'coinbase_onramp'].includes(txn.payment_provider)) {
+            console.warn(`[reconcile-payments][${requestId}] SKIPPING non-onramp transaction ${txn.id} with provider: ${txn.payment_provider}`);
+            // Mark as wallet_credited to prevent future processing
+            await supabase
+              .from("user_transactions")
+              .update({
+                wallet_credited: true,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", txn.id);
             continue;
           }
 
@@ -165,9 +202,11 @@ Deno.serve(async (req: Request) => {
     // - Have confirmed payment status
     // - Don't have a matching joincompetition entry
     // - At least 5 minutes old
+    // NOTE: We process ALL payment providers for entries (including base_account) 
+    // because they need joincompetition entries created, but we DON'T credit balance
     const { data: unconfirmedEntries, error: entryError } = await supabase
       .from("user_transactions")
-      .select("id, user_id, competition_id, ticket_count, amount, tx_id")
+      .select("id, user_id, competition_id, ticket_count, amount, tx_id, payment_provider")
       .not("competition_id", "is", null)
       .in("payment_status", ["confirmed", "completed"])
       .neq("status", "needs_reconciliation")
@@ -181,7 +220,7 @@ Deno.serve(async (req: Request) => {
     } else if (unconfirmedEntries && unconfirmedEntries.length > 0) {
       console.log(`[reconcile-payments][${requestId}] Checking ${unconfirmedEntries.length} potential unconfirmed entries`);
 
-      for (const txn of unconfirmedEntries) {
+      for (const txn of (unconfirmedEntries as EntryTransaction[])) {
         try {
           const canonicalUserId = toPrizePid(txn.user_id);
 
