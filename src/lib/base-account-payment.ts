@@ -424,7 +424,7 @@ export class BaseAccountPaymentService {
           status: 'completed',
           amount: totalAmount,
           ticketCount: request.ticketCount,
-          error: 'Payment completed successfully, but ticket allocation failed. Your payment has been received. Please contact support with your transaction ID to get your tickets allocated.',
+          error: 'Payment completed! Your tickets are being allocated automatically. Check "My Entries" in a few moments. If tickets don\'t appear within 5 minutes, contact support with your transaction ID.',
           paymentSucceeded: true,
         };
       }
