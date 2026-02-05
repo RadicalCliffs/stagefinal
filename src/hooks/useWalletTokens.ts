@@ -348,6 +348,10 @@ export function useWalletTokens(walletAddress?: string): UseWalletTokensResult {
 
       // Fetch ERC20 token balances sequentially with delays to avoid rate limiting
       // Using sequential requests instead of batch to prevent RPC rate limit issues
+      // The 300ms delay adds ~1.2s total overhead for 5 tokens, but this is acceptable because:
+      // - Cache (30s TTL) means this only runs once every 30 seconds at most
+      // - This prevents hitting rate limits which causes ALL tokens to fail
+      // - Avoiding rate limits prevents the 60-second backoff penalty
       const REQUEST_DELAY_MS = 300; // 300ms delay between requests to stay under rate limits
 
       try {
@@ -368,8 +372,10 @@ export function useWalletTokens(walletAddress?: string): UseWalletTokensResult {
             await new Promise(resolve => setTimeout(resolve, REQUEST_DELAY_MS));
           }
 
+          // Declare timing variable outside try block to avoid reference errors
+          let requestStartTime = Date.now();
+
           try {
-            const requestStartTime = Date.now();
             const tokenBalanceResponse = await fetch(rpcUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -441,6 +447,14 @@ export function useWalletTokens(walletAddress?: string): UseWalletTokensResult {
                 walletTokensLogger.rateLimitError(tokenAddress, result.error);
                 showDebugHintOnError();
                 // Stop fetching more tokens after hitting rate limit
+                const skippedCount = tokensToCheck.length - i - 1;
+                if (skippedCount > 0) {
+                  walletTokensLogger.warn('Rate limit hit, skipping remaining tokens', {
+                    skipped: skippedCount,
+                    fetched: i + 1,
+                    total: tokensToCheck.length
+                  });
+                }
                 break;
               } else {
                 walletTokensLogger.warn(`Token ${tokenMeta?.symbol || tokenAddress} fetch error`, result.error);
