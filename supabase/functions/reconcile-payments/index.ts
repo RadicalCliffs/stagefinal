@@ -198,44 +198,54 @@ Deno.serve(async (req: Request) => {
     console.log(`[reconcile-payments][${requestId}] Processing CDP webhook top-ups...`);
 
     try {
-      // Find unprocessed USDC transfers from CDP webhooks
-      // These are from Base Account SDK payments (user top-ups via base_account)
-      const { data: cdpTransfers, error: cdpError } = await supabase
-        .from("cdp_usdcs_transfers_v1")
+      // Find unprocessed CDP webhook events that represent USDC transfers
+      // CDP webhooks come through cdp_webhooks_v2 table with transfer data in parameters
+      const { data: cdpWebhooks, error: cdpError } = await supabase
+        .from("cdp_webhooks_v2")
         .select("*")
-        .is("processed", null) // Not yet processed
-        .or("processed.eq.false")
-        .eq("status", "COMPLETE") // Only completed transfers
+        .eq("event_signature", "Transfer") // USDC transfer events
+        .is("parameters->processed", null) // Not yet processed
         .lt("created_at", new Date(Date.now() - 2 * 60 * 1000).toISOString()) // At least 2 min old
         .order("created_at", { ascending: true })
         .limit(50);
 
       if (cdpError) {
-        console.error(`[reconcile-payments][${requestId}] CDP transfer fetch error:`, cdpError);
-        result.errors.push(`CDP transfer fetch error: ${cdpError.message}`);
-      } else if (cdpTransfers && cdpTransfers.length > 0) {
-        console.log(`[reconcile-payments][${requestId}] Found ${cdpTransfers.length} unprocessed CDP transfers`);
+        console.error(`[reconcile-payments][${requestId}] CDP webhook fetch error:`, cdpError);
+        result.errors.push(`CDP webhook fetch error: ${cdpError.message}`);
+      } else if (cdpWebhooks && cdpWebhooks.length > 0) {
+        console.log(`[reconcile-payments][${requestId}] Found ${cdpWebhooks.length} unprocessed CDP webhooks`);
 
-        for (const transfer of cdpTransfers) {
+        for (const webhook of cdpWebhooks) {
           try {
-            // Extract amount and user from transfer data
-            const amount = Number(transfer.amount) || 0;
-            const userAddress = transfer.to_address || transfer.from_address; // Depending on direction
+            // Extract transfer data from parameters
+            const params = webhook.parameters || {};
+            const amount = Number(params.value || params.amount || 0);
+            const toAddress = params.to || params.to_address;
             
-            if (amount <= 0 || !userAddress) {
-              console.warn(`[reconcile-payments][${requestId}] Skipping invalid CDP transfer ${transfer.id}`);
+            if (amount <= 0 || !toAddress) {
+              console.warn(`[reconcile-payments][${requestId}] Skipping invalid CDP webhook ${webhook.id}`);
+              // Mark as processed to skip in future
+              await supabase
+                .from("cdp_webhooks_v2")
+                .update({
+                  parameters: { ...params, processed: true, skipped_reason: 'invalid_data' }
+                })
+                .eq("id", webhook.id);
               continue;
             }
 
             // Convert address to canonical format
-            const canonicalUserId = toPrizePid(userAddress);
+            const canonicalUserId = toPrizePid(toAddress);
+            
+            // Convert from wei/smallest unit to USD (assuming 6 decimals for USDC)
+            const amountUSD = amount / 1_000_000;
 
             // Credit the balance via RPC
             const { data: creditResult, error: creditError } = await supabase.rpc(
               'credit_sub_account_balance',
               {
                 p_canonical_user_id: canonicalUserId,
-                p_amount: amount,
+                p_amount: amountUSD,
                 p_currency: 'USD'
               }
             );
@@ -247,39 +257,38 @@ Deno.serve(async (req: Request) => {
             const creditSuccess = creditResult?.[0]?.success ?? false;
 
             if (creditSuccess) {
-              // Mark transfer as processed
+              // Mark webhook as processed
               await supabase
-                .from("cdp_usdcs_transfers_v1")
+                .from("cdp_webhooks_v2")
                 .update({
-                  processed: true,
-                  processed_at: new Date().toISOString(),
+                  parameters: { ...params, processed: true, processed_at: new Date().toISOString() }
                 })
-                .eq("id", transfer.id);
+                .eq("id", webhook.id);
 
               result.topUpsReconciled++;
-              result.totalAmountCredited += amount;
-              result.transactionsProcessed.push(transfer.id);
-              console.log(`[reconcile-payments][${requestId}] ✅ Credited CDP top-up ${transfer.id}: $${amount} to ${canonicalUserId}`);
+              result.totalAmountCredited += amountUSD;
+              result.transactionsProcessed.push(webhook.id);
+              console.log(`[reconcile-payments][${requestId}] ✅ Credited CDP top-up ${webhook.id}: $${amountUSD} to ${canonicalUserId}`);
             } else {
               throw new Error(creditResult?.[0]?.error_message || 'Credit failed');
             }
           } catch (err) {
-            const errorMsg = `Failed to process CDP transfer ${transfer.id}: ${(err as Error).message}`;
+            const errorMsg = `Failed to process CDP webhook ${webhook.id}: ${(err as Error).message}`;
             console.error(`[reconcile-payments][${requestId}] ${errorMsg}`);
             result.errors.push(errorMsg);
 
-            // Mark for review but don't block other transfers
+            // Mark with error but don't block other webhooks
+            const params = webhook.parameters || {};
             await supabase
-              .from("cdp_usdcs_transfers_v1")
+              .from("cdp_webhooks_v2")
               .update({
-                processed: false,
-                processing_error: (err as Error).message,
+                parameters: { ...params, processed: false, processing_error: (err as Error).message }
               })
-              .eq("id", transfer.id);
+              .eq("id", webhook.id);
           }
         }
       } else {
-        console.log(`[reconcile-payments][${requestId}] No unprocessed CDP transfers found`);
+        console.log(`[reconcile-payments][${requestId}] No unprocessed CDP webhooks found`);
       }
     } catch (cdpErr) {
       console.error(`[reconcile-payments][${requestId}] CDP processing error:`, cdpErr);
