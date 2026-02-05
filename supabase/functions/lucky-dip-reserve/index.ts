@@ -258,9 +258,10 @@ Deno.serve(async (req: Request) => {
       );
 
       if (!unavailableError && unavailableData && Array.isArray(unavailableData)) {
+        // FIXED: The RPC returns INTEGER[] directly, not array of objects
+        // Filter and validate to ensure we only have valid integers
         excludedTickets = unavailableData
-          .filter((row: any) => row.ticket_number != null)
-          .map((row: any) => row.ticket_number);
+          .filter((num: any) => Number.isInteger(num) && num > 0);
         console.log(`[${requestId}] Found ${excludedTickets.length} unavailable tickets`);
       }
     } catch (err) {
