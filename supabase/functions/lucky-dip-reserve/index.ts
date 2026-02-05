@@ -139,51 +139,13 @@ Deno.serve(async (req: Request) => {
       holdMinutes = 15
     } = body;
 
-    // ------------------------------------------------------------------------
-    // JWT validation: require Bearer token and ensure it matches body.userId
-    // ------------------------------------------------------------------------
-    const authHeader = req.headers.get('authorization') || '';
-    const accessToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-    
-    if (!accessToken) {
-      console.warn(`[${requestId}] Missing bearer token`);
-      return errorResponse("Missing bearer token", 401, corsHeaders);
-    }
-
-    // Get Supabase configuration
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
-
-    if (!supabaseUrl || !serviceRoleKey || !anonKey) {
-      return errorResponse("Server configuration error", 500, corsHeaders);
-    }
-
-    // Create a user-bound client to validate the JWT without elevating privileges
-    const userClient = createClient(supabaseUrl, anonKey);
-    await userClient.auth.setAuth(accessToken);
-    const { data: { user: jwtUser }, error: userErr } = await userClient.auth.getUser();
-    
-    if (userErr || !jwtUser) {
-      console.warn(`[${requestId}] Invalid or expired token`, userErr);
-      return errorResponse("Invalid or expired token", 401, corsHeaders);
-    }
-
     // Validate required fields
     if (!userId || typeof userId !== 'string') {
       return errorResponse("userId is required and must be a string", 400, corsHeaders);
     }
 
-    // Convert to canonical prize:pid: format from BOTH body and JWT
-    const canonicalUserIdFromBody = toPrizePid(userId);
-    const canonicalUserIdFromJwt = toPrizePid(jwtUser.id);
-    
-    if (canonicalUserIdFromBody !== canonicalUserIdFromJwt) {
-      console.warn(`[${requestId}] User mismatch: body=${canonicalUserIdFromBody} jwt=${canonicalUserIdFromJwt}`);
-      return errorResponse("User mismatch", 403, corsHeaders);
-    }
-    
-    const canonicalUserId = canonicalUserIdFromJwt;
+    // Convert to canonical prize:pid: format
+    const canonicalUserId = toPrizePid(userId);
     console.log(`[${requestId}] Canonical user ID: ${canonicalUserId}`);
 
     if (!competitionId || typeof competitionId !== 'string') {
@@ -200,6 +162,14 @@ Deno.serve(async (req: Request) => {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(competitionId)) {
       return errorResponse("Invalid competition ID format", 400, corsHeaders);
+    }
+
+    // Get Supabase configuration
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      return errorResponse("Server configuration error", 500, corsHeaders);
     }
 
     // Admin client (service role) for privileged RPCs
