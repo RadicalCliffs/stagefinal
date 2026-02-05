@@ -808,8 +808,15 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         }
         setShowOptimisticSuccess(false);
       } else {
-        // CRITICAL FIX: If payment failed, clear potentially stale reservation
-        if (result.error?.includes('reservation') || result.error?.includes('ticket')) {
+        // CRITICAL FIX: If payment failed with reservation/ticket errors, clear potentially stale reservation
+        // This allows users to retry with a fresh reservation
+        const errorLower = (result.error || '').toLowerCase();
+        if (errorLower.includes('reservation') || 
+            errorLower.includes('ticket') || 
+            errorLower.includes('expired') || 
+            errorLower.includes('not found') ||
+            errorLower.includes('no longer available')) {
+          console.log('[PaymentModal] Clearing stale reservation due to error:', result.error);
           reservationStorage.clearReservation(competitionId);
           setRecoveredReservationId(null);
         }
