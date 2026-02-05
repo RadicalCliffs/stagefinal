@@ -659,11 +659,22 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         
         // Handle specific error types
         if (purchaseResult.errorDetails?.type === 'expired') {
-          // Clear expired reservation
+          // Clear expired reservation from both storage and state
           reservationStorage.clearReservation(competitionId);
+          setRecoveredReservationId(null);
           setErrorMessage('Your reservation expired. Please select your tickets again.');
         } else if (purchaseResult.errorDetails?.type === 'insufficient_balance') {
           setErrorMessage('Insufficient balance. Please top up your wallet.');
+        } else if (purchaseResult.errorDetails?.type === 'conflict') {
+          // Tickets no longer available - clear stale reservation
+          reservationStorage.clearReservation(competitionId);
+          setRecoveredReservationId(null);
+          setErrorMessage('Some tickets are no longer available. Please select different tickets.');
+        } else if (purchaseResult.errorDetails?.type === 'not_found') {
+          // Reservation not found - clear stale reservation
+          reservationStorage.clearReservation(competitionId);
+          setRecoveredReservationId(null);
+          setErrorMessage('Reservation not found. Please select your tickets again.');
         } else {
           setErrorMessage(purchaseResult.error || 'Failed to purchase tickets');
         }
@@ -712,6 +723,9 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       // Clear reservation from storage after successful purchase
       reservationStorage.clearReservation(competitionId);
       console.log('[PaymentModal] Cleared reservation after successful purchase');
+
+      // CRITICAL FIX: Clear the recovered reservation ID to prevent reuse on subsequent purchases
+      setRecoveredReservationId(null);
 
       // Call success callback
       if (onPaymentSuccess) {
@@ -763,6 +777,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         walletAddress: walletAddress ? walletAddress.substring(0, 10) + '...' : 'none',
         reservationId: effectiveReservationId || 'none',
         ticketCount,
+        selectedTickets,
+        totalAmount,
       });
 
       const result = await BaseAccountPaymentService.purchaseTickets({
@@ -781,12 +797,22 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         setShowOptimisticSuccess(true);
         setBaseAccountTransactionId(result.transactionId);
         setPaymentStep('success');
+        
+        // Clear reservation after successful purchase
+        reservationStorage.clearReservation(competitionId);
+        setRecoveredReservationId(null);
+        
         await refreshUserData();
         if (onPaymentSuccess) {
           onPaymentSuccess();
         }
         setShowOptimisticSuccess(false);
       } else {
+        // CRITICAL FIX: If payment failed, clear potentially stale reservation
+        if (result.error?.includes('reservation') || result.error?.includes('ticket')) {
+          reservationStorage.clearReservation(competitionId);
+          setRecoveredReservationId(null);
+        }
         setPaymentError(result.transactionHash || null, result.error || "Base Account payment failed. Please try again.");
       }
     } catch (error) {
