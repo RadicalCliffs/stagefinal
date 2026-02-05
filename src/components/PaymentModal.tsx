@@ -348,6 +348,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   const [showOptimisticSuccess, setShowOptimisticSuccess] = useState(false);
   // State for TopUpWalletModal
   const [showTopUpModal, setShowTopUpModal] = useState(false);
+  // PAYMENT SUCCESS BUT ALLOCATION PENDING: Track when payment succeeded but tickets not yet allocated
+  const [paymentSucceededButAllocationPending, setPaymentSucceededButAllocationPending] = useState(false);
 
   // WALLET DIAGNOSTIC: Log wallet information for debugging
   useEffect(() => {
@@ -355,21 +357,23 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       const userWallet = linkedWallets?.[0]?.address || profile?.wallet_address;
       
       console.log('[PaymentModal] Wallet diagnostic:', {
-        userId: baseUser.id,
-        userWallet,
-        userWalletFull: userWallet, // Show full address for comparison
-        treasuryAddress,
-        treasuryAddressFull: import.meta.env.VITE_TREASURY_ADDRESS, // Show full treasury address
-        isBusinessWallet: userWallet?.toLowerCase() === treasuryAddress,
+        userId: baseUser.id || 'MISSING_USER_ID',
+        userWallet: userWallet || 'MISSING_WALLET',
+        userWalletFull: userWallet || 'MISSING_WALLET', // Show full address for comparison
+        treasuryAddress: treasuryAddress || 'MISSING_TREASURY_ADDRESS',
+        treasuryAddressFull: import.meta.env.VITE_TREASURY_ADDRESS || 'MISSING_ENV_TREASURY', // Show full treasury address
+        isBusinessWallet: userWallet && treasuryAddress ? userWallet.toLowerCase() === treasuryAddress : false,
         linkedWalletsCount: linkedWallets?.length || 0,
         linkedWalletsDetails: linkedWallets?.map(w => ({
-          address: w.address,
-          type: w.type,
-          walletClient: w.walletClient
-        })),
-        profileWallet: profile?.wallet_address,
+          address: w.address || 'MISSING_ADDRESS',
+          type: w.type || 'MISSING_TYPE',
+          walletClient: w.walletClient || 'MISSING_CLIENT'
+        })) || [],
+        profileWallet: profile?.wallet_address || 'NO_PROFILE_WALLET',
+        profileId: profile?.id || 'NO_PROFILE_ID',
         walletClientAvailable: !!walletClient, // Only log boolean, not the object
-        localStorage_cdp_wallet: localStorage.getItem('cdp:wallet_address'),
+        localStorage_cdp_wallet: localStorage.getItem('cdp:wallet_address') || 'NOT_SET',
+        canonicalUserId: toCanonicalUserId(baseUser.id),
         timestamp: new Date().toISOString()
       });
 
@@ -659,11 +663,22 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         
         // Handle specific error types
         if (purchaseResult.errorDetails?.type === 'expired') {
-          // Clear expired reservation
+          // Clear expired reservation from both storage and state
           reservationStorage.clearReservation(competitionId);
+          setRecoveredReservationId(null);
           setErrorMessage('Your reservation expired. Please select your tickets again.');
         } else if (purchaseResult.errorDetails?.type === 'insufficient_balance') {
           setErrorMessage('Insufficient balance. Please top up your wallet.');
+        } else if (purchaseResult.errorDetails?.type === 'conflict') {
+          // Tickets no longer available - clear stale reservation
+          reservationStorage.clearReservation(competitionId);
+          setRecoveredReservationId(null);
+          setErrorMessage('Some tickets are no longer available. Please select different tickets.');
+        } else if (purchaseResult.errorDetails?.type === 'not_found') {
+          // Reservation not found - clear stale reservation
+          reservationStorage.clearReservation(competitionId);
+          setRecoveredReservationId(null);
+          setErrorMessage('Reservation not found. Please select your tickets again.');
         } else {
           setErrorMessage(purchaseResult.error || 'Failed to purchase tickets');
         }
@@ -712,6 +727,9 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       // Clear reservation from storage after successful purchase
       reservationStorage.clearReservation(competitionId);
       console.log('[PaymentModal] Cleared reservation after successful purchase');
+
+      // CRITICAL FIX: Clear the recovered reservation ID to prevent reuse on subsequent purchases
+      setRecoveredReservationId(null);
 
       // Call success callback
       if (onPaymentSuccess) {
@@ -763,6 +781,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         walletAddress: walletAddress ? walletAddress.substring(0, 10) + '...' : 'none',
         reservationId: effectiveReservationId || 'none',
         ticketCount,
+        selectedTickets,
+        totalAmount,
       });
 
       const result = await BaseAccountPaymentService.purchaseTickets({
@@ -781,12 +801,29 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         setShowOptimisticSuccess(true);
         setBaseAccountTransactionId(result.transactionId);
         setPaymentStep('success');
+        
+        // Clear reservation after successful purchase
+        reservationStorage.clearReservation(competitionId);
+        setRecoveredReservationId(null);
+        
         await refreshUserData();
         if (onPaymentSuccess) {
           onPaymentSuccess();
         }
         setShowOptimisticSuccess(false);
       } else {
+        // CRITICAL FIX: If payment failed with reservation/ticket errors, clear potentially stale reservation
+        // This allows users to retry with a fresh reservation
+        const errorLower = (result.error || '').toLowerCase();
+        if (errorLower.includes('reservation') || 
+            errorLower.includes('ticket') || 
+            errorLower.includes('expired') || 
+            errorLower.includes('not found') ||
+            errorLower.includes('no longer available')) {
+          console.log('[PaymentModal] Clearing stale reservation due to error:', result.error);
+          reservationStorage.clearReservation(competitionId);
+          setRecoveredReservationId(null);
+        }
         setPaymentError(result.transactionHash || null, result.error || "Base Account payment failed. Please try again.");
       }
     } catch (error) {
@@ -1064,13 +1101,14 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         // Check if this is a payment-succeeded-but-confirmation-failed case
         if (result.paymentSucceeded) {
           // Special case: Payment went through but ticket allocation failed
-          // Show a specific error message with transaction ID for support
+          // Show a specific message with transaction ID for support
           setPaymentError(
             null,
-            `Your payment of $${result.amount.toFixed(2)} was received successfully, but we encountered an issue allocating your tickets. ` +
+            `Your payment of $${result.amount.toFixed(2)} was received successfully, but ticket allocation is still ongoing. ` +
             `Transaction ID: ${result.transactionId}. ` +
-            `Please contact support with this transaction ID, and we'll manually allocate your tickets. ` +
-            `Your funds are safe and have been received.`
+            `Please contact support with this transaction ID if you haven't received your tickets in 10 minutes. ` +
+            `All tickets purchased before a competition cut off time that weren't previously reserved will be honored. Your funds are safe and have been received.`,
+            true // Mark as payment succeeded
           );
           setBaseTransactionId(result.transactionId);
           // Still refresh data in case tickets were partially allocated
@@ -1245,13 +1283,16 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     setErrorInfo(null);
     // ISSUE 9B FIX: Clear optimistic success state
     setShowOptimisticSuccess(false);
+    // Clear payment succeeded but allocation pending state
+    setPaymentSucceededButAllocationPending(false);
   };
 
   // ISSUE 8B FIX: Helper to set payment error with enhanced guidance
-  const setPaymentError = useCallback((error: unknown, fallbackMessage: string) => {
+  const setPaymentError = useCallback((error: unknown, fallbackMessage: string, paymentSucceeded = false) => {
     const info = getPaymentErrorInfo(error, fallbackMessage);
     setErrorMessage(info.message);
     setErrorInfo(info);
+    setPaymentSucceededButAllocationPending(paymentSucceeded);
     setPaymentStep('error');
   }, []);
 
@@ -1675,15 +1716,25 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           {/* ISSUE 8B FIX: Enhanced error display with specific guidance */}
           {paymentStep === 'error' && (
             <div className="py-8 text-center">
-              <div className="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CircleX size={32} className="text-white" />
-              </div>
-              <h3 className="text-white sequel-75 text-xl mb-2">Payment Failed</h3>
+              {paymentSucceededButAllocationPending ? (
+                // Payment succeeded but allocation pending - show blue warning icon (Coinbase style)
+                <div className="w-16 h-16 bg-[#0052FF] rounded-full flex items-center justify-center mx-auto mb-4">
+                  <AlertTriangle size={32} className="text-white" />
+                </div>
+              ) : (
+                // Normal payment failure - show red error icon
+                <div className="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CircleX size={32} className="text-white" />
+                </div>
+              )}
+              <h3 className="text-white sequel-75 text-xl mb-2">
+                {paymentSucceededButAllocationPending ? 'Payment Processing' : 'Payment Failed'}
+              </h3>
               <p className="text-gray-400 sequel-45 mb-2">
                 {errorMessage || "Something went wrong with your payment."}
               </p>
               {/* ISSUE 8B FIX: Show specific guidance based on error type */}
-              {errorInfo?.guidance && (
+              {errorInfo?.guidance && !paymentSucceededButAllocationPending && (
                 <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg px-4 py-3 mb-4 mx-auto max-w-md">
                   <div className="flex items-start gap-2">
                     <AlertTriangle size={18} className="text-amber-400 flex-shrink-0 mt-0.5" />
@@ -1693,13 +1744,13 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                   </div>
                 </div>
               )}
-              {!errorInfo?.guidance && (
+              {!errorInfo?.guidance && !paymentSucceededButAllocationPending && (
                 <p className="text-gray-500 sequel-45 text-sm mb-4">
                   Your tickets have not been charged. Please try again or choose a different payment method.
                 </p>
               )}
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                {errorInfo?.retryable !== false && (
+                {!paymentSucceededButAllocationPending && errorInfo?.retryable !== false && (
                   <button
                     onClick={handleReturn}
                     className="py-4 px-10 bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98]"
@@ -1707,7 +1758,15 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                     Try Again
                   </button>
                 )}
-                {errorInfo?.category === 'availability' && (
+                {paymentSucceededButAllocationPending && (
+                  <button
+                    onClick={handleCloseModal}
+                    className="py-4 px-10 bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    Close
+                  </button>
+                )}
+                {errorInfo?.category === 'availability' && !paymentSucceededButAllocationPending && (
                   <button
                     onClick={() => {
                       handleCloseModal();

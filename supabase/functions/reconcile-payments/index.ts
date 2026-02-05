@@ -193,6 +193,109 @@ Deno.serve(async (req: Request) => {
     }
 
     // =====================================================
+    // PART 1.5: PROCESS CDP WEBHOOK TOP-UPS (BASE ACCOUNT)
+    // =====================================================
+    console.log(`[reconcile-payments][${requestId}] Processing CDP webhook top-ups...`);
+
+    try {
+      // Find unprocessed CDP webhook events that represent USDC transfers
+      // CDP webhooks come through cdp_webhooks_v2 table with transfer data in parameters
+      const { data: cdpWebhooks, error: cdpError } = await supabase
+        .from("cdp_webhooks_v2")
+        .select("*")
+        .eq("event_signature", "Transfer") // USDC transfer events
+        .is("parameters->processed", null) // Not yet processed
+        .lt("created_at", new Date(Date.now() - 2 * 60 * 1000).toISOString()) // At least 2 min old
+        .order("created_at", { ascending: true })
+        .limit(50);
+
+      if (cdpError) {
+        console.error(`[reconcile-payments][${requestId}] CDP webhook fetch error:`, cdpError);
+        result.errors.push(`CDP webhook fetch error: ${cdpError.message}`);
+      } else if (cdpWebhooks && cdpWebhooks.length > 0) {
+        console.log(`[reconcile-payments][${requestId}] Found ${cdpWebhooks.length} unprocessed CDP webhooks`);
+
+        for (const webhook of cdpWebhooks) {
+          try {
+            // Extract transfer data from parameters
+            const params = webhook.parameters || {};
+            const amount = Number(params.value || params.amount || 0);
+            const toAddress = params.to || params.to_address;
+            
+            if (amount <= 0 || !toAddress) {
+              console.warn(`[reconcile-payments][${requestId}] Skipping invalid CDP webhook ${webhook.id}`);
+              // Mark as processed to skip in future
+              await supabase
+                .from("cdp_webhooks_v2")
+                .update({
+                  parameters: { ...params, processed: true, skipped_reason: 'invalid_data' }
+                })
+                .eq("id", webhook.id);
+              continue;
+            }
+
+            // Convert address to canonical format
+            const canonicalUserId = toPrizePid(toAddress);
+            
+            // Convert from wei/smallest unit to USD (assuming 6 decimals for USDC)
+            const amountUSD = amount / 1_000_000;
+
+            // Credit the balance via RPC
+            const { data: creditResult, error: creditError } = await supabase.rpc(
+              'credit_sub_account_balance',
+              {
+                p_canonical_user_id: canonicalUserId,
+                p_amount: amountUSD,
+                p_currency: 'USD'
+              }
+            );
+
+            if (creditError) {
+              throw new Error(`RPC error: ${creditError.message}`);
+            }
+
+            const creditSuccess = creditResult?.[0]?.success ?? false;
+
+            if (creditSuccess) {
+              // Mark webhook as processed
+              await supabase
+                .from("cdp_webhooks_v2")
+                .update({
+                  parameters: { ...params, processed: true, processed_at: new Date().toISOString() }
+                })
+                .eq("id", webhook.id);
+
+              result.topUpsReconciled++;
+              result.totalAmountCredited += amountUSD;
+              result.transactionsProcessed.push(webhook.id);
+              console.log(`[reconcile-payments][${requestId}] ✅ Credited CDP top-up ${webhook.id}: $${amountUSD} to ${canonicalUserId}`);
+            } else {
+              throw new Error(creditResult?.[0]?.error_message || 'Credit failed');
+            }
+          } catch (err) {
+            const errorMsg = `Failed to process CDP webhook ${webhook.id}: ${(err as Error).message}`;
+            console.error(`[reconcile-payments][${requestId}] ${errorMsg}`);
+            result.errors.push(errorMsg);
+
+            // Mark with error but don't block other webhooks
+            const params = webhook.parameters || {};
+            await supabase
+              .from("cdp_webhooks_v2")
+              .update({
+                parameters: { ...params, processed: false, processing_error: (err as Error).message }
+              })
+              .eq("id", webhook.id);
+          }
+        }
+      } else {
+        console.log(`[reconcile-payments][${requestId}] No unprocessed CDP webhooks found`);
+      }
+    } catch (cdpErr) {
+      console.error(`[reconcile-payments][${requestId}] CDP processing error:`, cdpErr);
+      result.errors.push(`CDP processing error: ${(cdpErr as Error).message}`);
+    }
+
+    // =====================================================
     // PART 2: RECONCILE COMPETITION ENTRIES
     // =====================================================
     console.log(`[reconcile-payments][${requestId}] Checking for unconfirmed entries...`);
@@ -303,7 +406,95 @@ Deno.serve(async (req: Request) => {
     }
 
     // =====================================================
-    // PART 3: CLEAN UP EXPIRED PENDING RECORDS
+    // PART 3: AUTO-ALLOCATE PAID TICKETS (RECOVERY)
+    // =====================================================
+    console.log(`[reconcile-payments][${requestId}] Checking for auto-allocation pending tickets...`);
+
+    try {
+      // Find pending_tickets created by auto_allocate_paid_tickets trigger
+      // These are payments that completed but tickets weren't allocated
+      const { data: autoAllocateTickets, error: autoAllocateError } = await supabase
+        .from("pending_tickets")
+        .select("*")
+        .eq("status", "pending")
+        .like("note", "%Auto-created by auto_allocate_paid_tickets%")
+        .lt("created_at", new Date(Date.now() - 1 * 60 * 1000).toISOString()) // At least 1 min old
+        .order("created_at", { ascending: true })
+        .limit(20);
+
+      if (autoAllocateError) {
+        console.error(`[reconcile-payments][${requestId}] Auto-allocate fetch error:`, autoAllocateError);
+        result.errors.push(`Auto-allocate fetch error: ${autoAllocateError.message}`);
+      } else if (autoAllocateTickets && autoAllocateTickets.length > 0) {
+        console.log(`[reconcile-payments][${requestId}] Found ${autoAllocateTickets.length} auto-allocation tickets`);
+
+        for (const pending of autoAllocateTickets) {
+          try {
+            // Call confirm-pending-tickets to allocate
+            const confirmResponse = await fetch(`${supabaseUrl}/functions/v1/confirm-pending-tickets`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseServiceKey}`,
+              },
+              body: JSON.stringify({
+                reservationId: pending.id,
+                userId: pending.canonical_user_id || pending.user_id,
+                competitionId: pending.competition_id,
+                transactionHash: pending.transaction_hash,
+                paymentProvider: pending.payment_provider || 'balance',
+                walletAddress: pending.wallet_address,
+                ticketCount: pending.ticket_count,
+                sessionId: pending.session_id,
+              }),
+            });
+
+            const confirmResult = await confirmResponse.json();
+
+            if (confirmResult.success) {
+              result.entriesReconciled++;
+              result.transactionsProcessed.push(pending.session_id || pending.id);
+              console.log(`[reconcile-payments][${requestId}] ✅ Auto-allocated tickets for pending ${pending.id}: ${pending.ticket_count} tickets`);
+            } else {
+              throw new Error(confirmResult.error || 'Confirmation failed');
+            }
+          } catch (err) {
+            const errorMsg = `Failed to auto-allocate tickets for ${pending.id}: ${(err as Error).message}`;
+            console.error(`[reconcile-payments][${requestId}] ${errorMsg}`);
+            result.errors.push(errorMsg);
+
+            // Mark as expired so we don't keep retrying forever
+            const retryCount = (pending.note?.match(/retry/gi) || []).length;
+            if (retryCount >= 3) {
+              await supabase
+                .from("pending_tickets")
+                .update({
+                  status: "failed",
+                  note: `${pending.note} | Failed after 3 retries: ${(err as Error).message}`,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", pending.id);
+            } else {
+              await supabase
+                .from("pending_tickets")
+                .update({
+                  note: `${pending.note} | Retry ${retryCount + 1}: ${(err as Error).message}`,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", pending.id);
+            }
+          }
+        }
+      } else {
+        console.log(`[reconcile-payments][${requestId}] No auto-allocation tickets found`);
+      }
+    } catch (autoAllocateErr) {
+      console.error(`[reconcile-payments][${requestId}] Auto-allocate processing error:`, autoAllocateErr);
+      result.errors.push(`Auto-allocate processing error: ${(autoAllocateErr as Error).message}`);
+    }
+
+    // =====================================================
+    // PART 4: CLEAN UP EXPIRED PENDING RECORDS
     // =====================================================
     console.log(`[reconcile-payments][${requestId}] Cleaning up expired pending records...`);
 
@@ -320,16 +511,38 @@ Deno.serve(async (req: Request) => {
         console.log(`[reconcile-payments][${requestId}] Expired ${expiredTopUps.length} pending top-ups`);
       }
 
-      // Clean up expired pending_tickets
+      // Clean up expired pending_tickets using safe cleanup logic
+      // CRITICAL: This respects the 15-minute grace period to prevent
+      // premature expiration of active reservations
+      const gracePeriodMinutes = 15;
+      const cutoffTime = new Date(Date.now() - gracePeriodMinutes * 60 * 1000).toISOString();
+      
       const { data: expiredTickets } = await supabase
         .from("pending_tickets")
-        .update({ status: "expired", updated_at: new Date().toISOString() })
+        .update({ 
+          status: "expired", 
+          updated_at: new Date().toISOString()
+          // Note: Cannot append to note field via simple update - would need RPC
+        })
         .eq("status", "pending")
         .lt("expires_at", new Date().toISOString())
+        .lt("created_at", cutoffTime) // ONLY expire if created > 15 minutes ago
         .select("id");
 
       if (expiredTickets && expiredTickets.length > 0) {
-        console.log(`[reconcile-payments][${requestId}] Expired ${expiredTickets.length} pending tickets`);
+        console.log(`[reconcile-payments][${requestId}] Expired ${expiredTickets.length} pending tickets (grace period: ${gracePeriodMinutes}min)`);
+      }
+      
+      // Count protected reservations for monitoring
+      const { count: protectedCount } = await supabase
+        .from("pending_tickets")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending")
+        .lt("expires_at", new Date().toISOString())
+        .gte("created_at", cutoffTime);
+      
+      if (protectedCount && protectedCount > 0) {
+        console.log(`[reconcile-payments][${requestId}] Protected ${protectedCount} recent reservations (within ${gracePeriodMinutes}min grace period)`);
       }
     } catch (cleanupErr) {
       console.warn(`[reconcile-payments][${requestId}] Cleanup error (non-fatal):`, cleanupErr);
