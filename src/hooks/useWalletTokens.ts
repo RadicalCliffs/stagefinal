@@ -346,56 +346,72 @@ export function useWalletTokens(walletAddress?: string): UseWalletTokensResult {
       // ERC20 balanceOf function signature
       const balanceOfSelector = '0x70a08231';
 
-      // Fetch ERC20 token balances using batch RPC calls
-      const batchRequests = tokensToCheck.map((tokenAddress, index) => ({
-        jsonrpc: '2.0',
-        method: 'eth_call',
-        params: [
-          {
-            to: tokenAddress,
-            data: `${balanceOfSelector}000000000000000000000000${address.slice(2).toLowerCase()}`,
-          },
-          'latest',
-        ],
-        id: index + 2,
-      }));
+      // Fetch ERC20 token balances sequentially with delays to avoid rate limiting
+      // Using sequential requests instead of batch to prevent RPC rate limit issues
+      const REQUEST_DELAY_MS = 300; // 300ms delay between requests to stay under rate limits
 
       try {
         const batchStartTime = Date.now();
-        walletTokensLogger.info('Fetching ERC20 token balances', { tokenCount: tokensToCheck.length });
+        walletTokensLogger.info('Fetching ERC20 token balances sequentially', { tokenCount: tokensToCheck.length });
 
-        const tokenBalanceResponse = await fetch(rpcUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(batchRequests),
-        });
+        let successCount = 0;
+        let rateLimitCount = 0;
+        let errorCount = 0;
 
-        if (!tokenBalanceResponse.ok) {
-          walletTokensLogger.warn('ERC20 batch RPC request failed', { status: tokenBalanceResponse.status });
-          requestTracker.addRequest({
-            timestamp: Date.now(),
-            endpoint: 'eth_call_batch',
-            method: 'RPC',
-            success: false,
-            errorCode: tokenBalanceResponse.status,
-            duration: Date.now() - batchStartTime
-          });
-        } else {
-          const tokenBalanceData = await tokenBalanceResponse.json();
-          const results = Array.isArray(tokenBalanceData) ? tokenBalanceData : [tokenBalanceData];
+        // Fetch each token balance sequentially with delays
+        for (let i = 0; i < tokensToCheck.length; i++) {
+          const tokenAddress = tokensToCheck[i].toLowerCase();
+          const tokenMeta = KNOWN_TOKENS[tokenAddress];
 
-          let successCount = 0;
-          let rateLimitCount = 0;
-          let errorCount = 0;
+          // Add delay between requests (skip delay for first request)
+          if (i > 0) {
+            await new Promise(resolve => setTimeout(resolve, REQUEST_DELAY_MS));
+          }
 
-          results.forEach((result: any, index: number) => {
-            const tokenAddress = tokensToCheck[index].toLowerCase();
-            const tokenMeta = KNOWN_TOKENS[tokenAddress];
+          try {
+            const requestStartTime = Date.now();
+            const tokenBalanceResponse = await fetch(rpcUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                jsonrpc: '2.0',
+                method: 'eth_call',
+                params: [
+                  {
+                    to: tokenAddress,
+                    data: `${balanceOfSelector}000000000000000000000000${address.slice(2).toLowerCase()}`,
+                  },
+                  'latest',
+                ],
+                id: i + 2,
+              }),
+            });
+
+            if (!tokenBalanceResponse.ok) {
+              errorCount++;
+              walletTokensLogger.warn(`Token ${tokenMeta?.symbol || tokenAddress} RPC request failed`, { 
+                status: tokenBalanceResponse.status 
+              });
+              requestTracker.addRequest({
+                timestamp: Date.now(),
+                endpoint: tokenAddress,
+                method: 'RPC',
+                success: false,
+                errorCode: tokenBalanceResponse.status,
+                duration: Date.now() - requestStartTime
+              });
+              continue;
+            }
+
+            const result = await tokenBalanceResponse.json();
 
             if (result.result && result.result !== '0x' && result.result !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
               if (tokenMeta) {
                 const rawBalance = BigInt(result.result).toString();
-                walletTokensLogger.debug(`${tokenMeta.symbol} balance`, { rawBalance, formatted: formatBalance(rawBalance, tokenMeta.decimals) });
+                walletTokensLogger.debug(`${tokenMeta.symbol} balance`, { 
+                  rawBalance, 
+                  formatted: formatBalance(rawBalance, tokenMeta.decimals) 
+                });
                 successCount++;
 
                 if (rawBalance !== '0') {
@@ -409,6 +425,14 @@ export function useWalletTokens(walletAddress?: string): UseWalletTokensResult {
                     logoUrl: tokenMeta.logoUrl,
                   });
                 }
+
+                requestTracker.addRequest({
+                  timestamp: Date.now(),
+                  endpoint: tokenAddress,
+                  method: 'RPC',
+                  success: true,
+                  duration: Date.now() - requestStartTime
+                });
               }
             } else if (result.error) {
               errorCount++;
@@ -416,38 +440,51 @@ export function useWalletTokens(walletAddress?: string): UseWalletTokensResult {
                 rateLimitCount++;
                 walletTokensLogger.rateLimitError(tokenAddress, result.error);
                 showDebugHintOnError();
+                // Stop fetching more tokens after hitting rate limit
+                break;
               } else {
-                walletTokensLogger.warn(`Token ${tokenAddress} fetch error`, result.error);
+                walletTokensLogger.warn(`Token ${tokenMeta?.symbol || tokenAddress} fetch error`, result.error);
               }
-            }
-          });
 
-          // If we hit rate limits, set backoff for this address
-          if (rateLimitCount > 0) {
-            rateLimitBackoff.set(cacheKey, Date.now() + RATE_LIMIT_BACKOFF_MS);
-            walletTokensLogger.warn('Rate limit detected, setting backoff', {
-              address: address.slice(0, 10),
-              backoffSeconds: RATE_LIMIT_BACKOFF_MS / 1000
+              requestTracker.addRequest({
+                timestamp: Date.now(),
+                endpoint: tokenAddress,
+                method: 'RPC',
+                success: false,
+                errorCode: result.error.code,
+                duration: Date.now() - requestStartTime
+              });
+            }
+          } catch (e) {
+            errorCount++;
+            walletTokensLogger.error(`Failed to fetch balance for ${tokenMeta?.symbol || tokenAddress}`, e);
+            requestTracker.addRequest({
+              timestamp: Date.now(),
+              endpoint: tokenAddress,
+              method: 'RPC',
+              success: false,
+              error: e instanceof Error ? e.message : String(e),
+              duration: Date.now() - requestStartTime
             });
           }
+        }
 
-          walletTokensLogger.info('Batch fetch summary', {
-            total: tokensToCheck.length,
-            success: successCount,
-            rateLimited: rateLimitCount,
-            errors: errorCount,
-            duration: Date.now() - batchStartTime
-          });
-
-          requestTracker.addRequest({
-            timestamp: Date.now(),
-            endpoint: 'eth_call_batch',
-            method: 'RPC',
-            success: rateLimitCount === 0 && errorCount === 0,
-            errorCode: rateLimitCount > 0 ? -32016 : undefined,
-            duration: Date.now() - batchStartTime
+        // If we hit rate limits, set backoff for this address
+        if (rateLimitCount > 0) {
+          rateLimitBackoff.set(cacheKey, Date.now() + RATE_LIMIT_BACKOFF_MS);
+          walletTokensLogger.warn('Rate limit detected, setting backoff', {
+            address: address.slice(0, 10),
+            backoffSeconds: RATE_LIMIT_BACKOFF_MS / 1000
           });
         }
+
+        walletTokensLogger.info('Sequential fetch summary', {
+          total: tokensToCheck.length,
+          success: successCount,
+          rateLimited: rateLimitCount,
+          errors: errorCount,
+          duration: Date.now() - batchStartTime
+        });
       } catch (e) {
         walletTokensLogger.error('Failed to fetch token balances', e);
       }
