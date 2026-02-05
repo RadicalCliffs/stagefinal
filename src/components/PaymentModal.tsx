@@ -355,21 +355,23 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       const userWallet = linkedWallets?.[0]?.address || profile?.wallet_address;
       
       console.log('[PaymentModal] Wallet diagnostic:', {
-        userId: baseUser.id,
-        userWallet,
-        userWalletFull: userWallet, // Show full address for comparison
-        treasuryAddress,
-        treasuryAddressFull: import.meta.env.VITE_TREASURY_ADDRESS, // Show full treasury address
-        isBusinessWallet: userWallet?.toLowerCase() === treasuryAddress,
+        userId: baseUser.id || 'MISSING_USER_ID',
+        userWallet: userWallet || 'MISSING_WALLET',
+        userWalletFull: userWallet || 'MISSING_WALLET', // Show full address for comparison
+        treasuryAddress: treasuryAddress || 'MISSING_TREASURY_ADDRESS',
+        treasuryAddressFull: import.meta.env.VITE_TREASURY_ADDRESS || 'MISSING_ENV_TREASURY', // Show full treasury address
+        isBusinessWallet: userWallet && treasuryAddress ? userWallet.toLowerCase() === treasuryAddress : false,
         linkedWalletsCount: linkedWallets?.length || 0,
         linkedWalletsDetails: linkedWallets?.map(w => ({
-          address: w.address,
-          type: w.type,
-          walletClient: w.walletClient
-        })),
-        profileWallet: profile?.wallet_address,
+          address: w.address || 'MISSING_ADDRESS',
+          type: w.type || 'MISSING_TYPE',
+          walletClient: w.walletClient || 'MISSING_CLIENT'
+        })) || [],
+        profileWallet: profile?.wallet_address || 'NO_PROFILE_WALLET',
+        profileId: profile?.id || 'NO_PROFILE_ID',
         walletClientAvailable: !!walletClient, // Only log boolean, not the object
-        localStorage_cdp_wallet: localStorage.getItem('cdp:wallet_address'),
+        localStorage_cdp_wallet: localStorage.getItem('cdp:wallet_address') || 'NOT_SET',
+        canonicalUserId: toCanonicalUserId(baseUser.id),
         timestamp: new Date().toISOString()
       });
 
