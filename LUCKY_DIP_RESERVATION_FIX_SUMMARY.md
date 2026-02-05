@@ -2,11 +2,12 @@
 
 ## Executive Summary
 
-This implementation addresses THREE critical issues reported by the user:
+This implementation addresses TWO critical issues reported by the user:
 
 1. **Lucky Dip Failures**: Lucky dip purchases were failing even when tickets were available
 2. **Premature Reservation Expiration**: Cron jobs and triggers were clearing reservations before they should
-3. **Frontend Schema Issues**: Null values in wallet diagnostics and missing database fields
+
+**Note**: The user confirmed that their production Supabase database already has the complete pending_tickets schema with all fields (canonical_user_id, wallet_address, hold_minutes, etc.), so no schema migrations are needed.
 
 ## Problem Analysis
 
@@ -27,12 +28,12 @@ This implementation addresses THREE critical issues reported by the user:
 
 **User Quote**: "I feel like there's some kind of hidden cron or job that's clearing reservations before or just as we claim them, causing the failure"
 
-### Issue 3: Schema & Frontend Issues
-**Symptom**: Console showing null values in diagnostics, database schema didn't match production.
+### Issue 3: Frontend Null Values
+**Symptom**: Console showing null values in wallet diagnostics.
 
-**Root Cause**: 
-- Frontend not handling undefined/null values properly
-- Database missing 17 fields that exist in production
+**Root Cause**: Frontend not handling undefined/null values properly in logging.
+
+**Note on Database Schema**: User clarified that the production database already has all required fields - the sample data they provided came directly from Supabase, so no schema changes are needed.
 
 ## Solution Implementation
 
@@ -134,43 +135,12 @@ RETURNS TABLE (expired_count INTEGER, protected_count INTEGER);
 - Grace period: 15 minutes
 - **Result**: NOT expired (16 > 15, but within reasonable margin)
 
-### 3. Complete Schema & No Nulls ✅
+### 3. Frontend Diagnostics - No Null Values ✅
 
-**A. Added Missing Database Fields:**
+**Changes Made:**
 
-Created migration `20260205000001_add_pending_tickets_fields.sql` to add:
+Fixed frontend wallet diagnostics to never show null/undefined values by adding fallback strings:
 
-1. `canonical_user_id` - Canonical user identifier
-2. `wallet_address` - User's wallet address
-3. `hold_minutes` - Hold duration (default 15)
-4. `reservation_id` - Unique reservation ID
-5. `session_id` - Session tracking
-6. `ticket_price` - Price per ticket
-7. `confirmed_at` - Confirmation timestamp
-8. `updated_at` - Last update timestamp
-9. `transaction_hash` - Payment transaction hash
-10. `payment_provider` - Payment method
-11. `ticket_numbers` - JSONB array of tickets
-12. `payment_id` - Payment identifier
-13. `idempotency_key` - For idempotent operations
-14. `privy_user_id` - Legacy Privy ID
-15. `user_privy_id` - Another Privy field
-16. `note` - General notes field
-17. Plus indexes for all fields
-
-**B. Fixed Frontend Diagnostics:**
-
-Changed from:
-```typescript
-console.log('[PaymentModal] Wallet diagnostic:', {
-  userId: baseUser.id,
-  userWallet, // Could be undefined
-  treasuryAddress, // Could be undefined
-  // ... other potentially undefined values
-});
-```
-
-To:
 ```typescript
 console.log('[PaymentModal] Wallet diagnostic:', {
   userId: baseUser.id || 'MISSING_USER_ID',
@@ -178,13 +148,26 @@ console.log('[PaymentModal] Wallet diagnostic:', {
   treasuryAddress: treasuryAddress || 'MISSING_TREASURY_ADDRESS',
   profileWallet: profile?.wallet_address || 'NO_PROFILE_WALLET',
   profileId: profile?.id || 'NO_PROFILE_ID',
+  canonicalUserId: toCanonicalUserId(baseUser.id),
   // ... all fields now have fallbacks
 });
 ```
 
+**Note on Database Schema**: The user's production Supabase database already has the complete pending_tickets schema with all required fields. No schema migrations are needed - the fields already exist:
+- canonical_user_id
+- wallet_address
+- hold_minutes
+- reservation_id
+- ticket_numbers
+- transaction_hash
+- payment_provider
+- confirmed_at, updated_at
+- note, session_id
+- And all other fields shown in the user's sample data
+
 ## Files Modified
 
-### Database Migrations (2 new files)
+### Database Migrations (1 new file)
 
 1. **`supabase/migrations/20260205000000_protect_active_reservations.sql`**
    - Updated `auto_expire_reservations()` trigger function
@@ -192,22 +175,15 @@ console.log('[PaymentModal] Wallet diagnostic:', {
    - Added indexes for expiry checks
    - 5,671 bytes
 
-2. **`supabase/migrations/20260205000001_add_pending_tickets_fields.sql`**
-   - Added 17 missing columns to pending_tickets
-   - Added indexes for all new fields
-   - Backfilled canonical_user_id from user_id
-   - Conditional trigger creation
-   - 7,836 bytes
-
 ### Edge Functions (2 updated)
 
-3. **`supabase/functions/reconcile-payments/index.ts`**
+2. **`supabase/functions/reconcile-payments/index.ts`**
    - Added 15-minute grace period check
    - Only expires tickets created > 15 minutes ago
    - Added monitoring for protected reservations
    - Lines changed: ~30
 
-4. **`supabase/functions/confirm-pending-tickets/index.ts`**
+3. **`supabase/functions/confirm-pending-tickets/index.ts`**
    - Added lucky dip detection
    - Changed max retries: 3 → 10,000 for lucky dip
    - Enhanced conflict resolution
@@ -216,11 +192,12 @@ console.log('[PaymentModal] Wallet diagnostic:', {
 
 ### Frontend (1 updated)
 
-5. **`src/components/PaymentModal.tsx`**
+4. **`src/components/PaymentModal.tsx`**
    - Removed all null/undefined values from diagnostics
    - Added fallback strings ('MISSING_X')
    - Added canonicalUserId to output
    - Lines changed: ~20
+
 
 ## Testing Verification
 
