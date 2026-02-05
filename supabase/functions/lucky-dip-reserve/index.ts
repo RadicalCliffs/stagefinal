@@ -110,12 +110,14 @@ Deno.serve(async (req: Request) => {
   }
 
   const corsHeaders = buildCorsHeaders(req.headers.get('origin'));
+  
+  // Attach a short-lived request id to correlate logs and responses
+  const requestId = crypto.randomUUID().slice(0, 8);
 
   if (req.method !== "POST") {
     return errorResponse("Method not allowed", 405, corsHeaders);
   }
 
-  const requestId = crypto.randomUUID().slice(0, 8);
   console.log(`[${requestId}] Lucky dip reserve request started`);
 
   try {
@@ -137,20 +139,60 @@ Deno.serve(async (req: Request) => {
       holdMinutes = 15
     } = body;
 
+    // ------------------------------------------------------------------------
+    // JWT validation: require Bearer token and ensure it matches body.userId
+    // ------------------------------------------------------------------------
+    const authHeader = req.headers.get('authorization') || '';
+    const accessToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    
+    if (!accessToken) {
+      console.warn(`[${requestId}] Missing bearer token`);
+      return errorResponse("Missing bearer token", 401, corsHeaders);
+    }
+
+    // Get Supabase configuration
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+
+    if (!supabaseUrl || !serviceRoleKey || !anonKey) {
+      return errorResponse("Server configuration error", 500, corsHeaders);
+    }
+
+    // Create a user-bound client to validate the JWT without elevating privileges
+    const userClient = createClient(supabaseUrl, anonKey);
+    await userClient.auth.setAuth(accessToken);
+    const { data: { user: jwtUser }, error: userErr } = await userClient.auth.getUser();
+    
+    if (userErr || !jwtUser) {
+      console.warn(`[${requestId}] Invalid or expired token`, userErr);
+      return errorResponse("Invalid or expired token", 401, corsHeaders);
+    }
+
     // Validate required fields
     if (!userId || typeof userId !== 'string') {
       return errorResponse("userId is required and must be a string", 400, corsHeaders);
     }
 
-    // Convert to canonical prize:pid: format
-    const canonicalUserId = toPrizePid(userId);
+    // Convert to canonical prize:pid: format from BOTH body and JWT
+    const canonicalUserIdFromBody = toPrizePid(userId);
+    const canonicalUserIdFromJwt = toPrizePid(jwtUser.id);
+    
+    if (canonicalUserIdFromBody !== canonicalUserIdFromJwt) {
+      console.warn(`[${requestId}] User mismatch: body=${canonicalUserIdFromBody} jwt=${canonicalUserIdFromJwt}`);
+      return errorResponse("User mismatch", 403, corsHeaders);
+    }
+    
+    const canonicalUserId = canonicalUserIdFromJwt;
     console.log(`[${requestId}] Canonical user ID: ${canonicalUserId}`);
 
     if (!competitionId || typeof competitionId !== 'string') {
       return errorResponse("competitionId is required and must be a string", 400, corsHeaders);
     }
 
-    if (!count || typeof count !== 'number' || count < 1 || count > 10000) {
+    // Normalize numeric inputs (defensive against string inputs)
+    const normalizedCount = Number(count);
+    if (!Number.isInteger(normalizedCount) || normalizedCount < 1 || normalizedCount > 10000) {
       return errorResponse("count is required and must be between 1 and 10000", 400, corsHeaders);
     }
 
@@ -160,19 +202,13 @@ Deno.serve(async (req: Request) => {
       return errorResponse("Invalid competition ID format", 400, corsHeaders);
     }
 
-    // Get Supabase configuration
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-    if (!supabaseUrl || !serviceRoleKey) {
-      return errorResponse("Server configuration error", 500, corsHeaders);
-    }
-
+    // Admin client (service role) for privileged RPCs
     const supabase = createClient(supabaseUrl, serviceRoleKey);
     const holdMins = Math.min(Math.max(Number(holdMinutes) || 15, 1), 60);
-    const validTicketPrice = typeof ticketPrice === 'number' && ticketPrice > 0 ? ticketPrice : 1;
+    const normalizedPrice = Number(ticketPrice);
+    const validTicketPrice = Number.isFinite(normalizedPrice) && normalizedPrice > 0 ? normalizedPrice : 1;
 
-    console.log(`[${requestId}] Allocating ${count} lucky dip tickets for competition:`, competitionId);
+    console.log(`[${requestId}] Allocating ${normalizedCount} lucky dip tickets for competition:`, competitionId);
 
     // =========================================================================
     // Configuration for batch processing
@@ -188,14 +224,14 @@ Deno.serve(async (req: Request) => {
     // For small requests (<=100), use the original atomic allocation
     // For large requests (>100), use batch allocation with retries
     // =========================================================================
-    if (count <= 100) {
+    if (normalizedCount <= 100) {
       // Original atomic allocation for small requests
       const { data: rpcResult, error: rpcError } = await supabase.rpc(
         'allocate_lucky_dip_tickets',
         {
           p_user_id: canonicalUserId,
           p_competition_id: competitionId,
-          p_count: count,
+          p_count: normalizedCount,
           p_ticket_price: validTicketPrice,
           p_hold_minutes: holdMins,
           p_session_id: sessionId || null
@@ -221,7 +257,7 @@ Deno.serve(async (req: Request) => {
         if (errorMsg.includes('No tickets available') || errorMsg.includes('Insufficient availability')) {
           return errorResponse(errorMsg, 409, corsHeaders, {
             available_count: result?.available_count || 0,
-            requested_count: result?.requested_count || count
+            requested_count: result?.requested_count || normalizedCount
           });
         }
 
@@ -247,7 +283,7 @@ Deno.serve(async (req: Request) => {
     // BULK ALLOCATION: For large requests (>100 tickets)
     // Uses batching with retries and calls get_competition_unavailable_tickets
     // =========================================================================
-    console.log(`[${requestId}] Using bulk allocation for ${count} tickets`);
+    console.log(`[${requestId}] Using bulk allocation for ${normalizedCount} tickets`);
 
     // Step 1: Fetch all unavailable tickets upfront
     let excludedTickets: number[] = [];
@@ -269,9 +305,9 @@ Deno.serve(async (req: Request) => {
     }
 
     // Step 2: Calculate batches
-    const numBatches = Math.ceil(count / MAX_BATCH_SIZE);
+    const numBatches = Math.ceil(normalizedCount / MAX_BATCH_SIZE);
     const batches: number[] = [];
-    let remaining = count;
+    let remaining = normalizedCount;
     for (let i = 0; i < numBatches; i++) {
       const batchSize = Math.min(remaining, MAX_BATCH_SIZE);
       batches.push(batchSize);
@@ -367,11 +403,11 @@ Deno.serve(async (req: Request) => {
             expiresAt: lastExpiresAt,
             algorithm: 'server-side-batch-random',
             partial: true,
-            requestedCount: count,
+            requestedCount: normalizedCount,
             batchCount: batchIndex,
             retryAttempts: totalRetries,
-            error: `Partial allocation: ${allTicketNumbers.length}/${count} tickets. Batch ${batchIndex + 1} failed: ${lastBatchError}`,
-            message: `Partially reserved ${allTicketNumbers.length}/${count} tickets. Some batches failed.`
+            error: `Partial allocation: ${allTicketNumbers.length}/${normalizedCount} tickets. Batch ${batchIndex + 1} failed: ${lastBatchError}`,
+            message: `Partially reserved ${allTicketNumbers.length}/${normalizedCount} tickets. Some batches failed.`
           }, corsHeaders);
         }
 
@@ -379,7 +415,7 @@ Deno.serve(async (req: Request) => {
         if (lastBatchError.includes('No tickets available') || lastBatchError.includes('Insufficient availability')) {
           return errorResponse(lastBatchError, 409, corsHeaders, {
             available_count: 0,
-            requested_count: count
+            requested_count: normalizedCount
           });
         }
 
@@ -424,3 +460,9 @@ Deno.serve(async (req: Request) => {
     );
   }
 });
+
+// Optional: If the client needs to read custom headers (like a request id),
+// consider adding the following to buildCorsHeaders:
+// 'Access-Control-Expose-Headers': 'request-id',
+// and set it on responses:
+// headers: { ...corsHeaders, "Content-Type": "application/json", "request-id": requestId }
