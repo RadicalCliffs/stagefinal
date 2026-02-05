@@ -34,6 +34,26 @@ interface ReconciliationResult {
   transactionsProcessed: string[];
 }
 
+interface TopUpTransaction {
+  id: string;
+  user_id: string;
+  amount: number;
+  status: string;
+  payment_status: string;
+  wallet_credited: boolean | null;
+  payment_provider: string;
+}
+
+interface EntryTransaction {
+  id: string;
+  user_id: string;
+  competition_id: string;
+  ticket_count: number;
+  amount: number;
+  tx_id: string;
+  payment_provider: string;
+}
+
 Deno.serve(async (req: Request) => {
   const requestId = crypto.randomUUID().slice(0, 8);
   console.log(`[reconcile-payments][${requestId}] Starting reconciliation`);
@@ -92,7 +112,7 @@ Deno.serve(async (req: Request) => {
     } else if (unconfirmedTopUps && unconfirmedTopUps.length > 0) {
       console.log(`[reconcile-payments][${requestId}] Found ${unconfirmedTopUps.length} unconfirmed top-ups`);
 
-      for (const txn of unconfirmedTopUps) {
+      for (const txn of (unconfirmedTopUps as TopUpTransaction[])) {
         try {
           const amount = Number(txn.amount) || 0;
           if (amount <= 0 || !txn.user_id) {
@@ -102,9 +122,8 @@ Deno.serve(async (req: Request) => {
 
           // CRITICAL SAFETY CHECK: Double-check payment_provider
           // Never credit base_account or other external crypto payments
-          const paymentProvider = (txn as any).payment_provider;
-          if (!paymentProvider || !['onramp', 'coinbase_onramp'].includes(paymentProvider)) {
-            console.warn(`[reconcile-payments][${requestId}] SKIPPING non-onramp transaction ${txn.id} with provider: ${paymentProvider}`);
+          if (!txn.payment_provider || !['onramp', 'coinbase_onramp'].includes(txn.payment_provider)) {
+            console.warn(`[reconcile-payments][${requestId}] SKIPPING non-onramp transaction ${txn.id} with provider: ${txn.payment_provider}`);
             // Mark as wallet_credited to prevent future processing
             await supabase
               .from("user_transactions")
@@ -201,7 +220,7 @@ Deno.serve(async (req: Request) => {
     } else if (unconfirmedEntries && unconfirmedEntries.length > 0) {
       console.log(`[reconcile-payments][${requestId}] Checking ${unconfirmedEntries.length} potential unconfirmed entries`);
 
-      for (const txn of unconfirmedEntries) {
+      for (const txn of (unconfirmedEntries as EntryTransaction[])) {
         try {
           const canonicalUserId = toPrizePid(txn.user_id);
 
