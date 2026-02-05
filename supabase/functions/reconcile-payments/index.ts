@@ -320,7 +320,7 @@ Deno.serve(async (req: Request) => {
         console.log(`[reconcile-payments][${requestId}] Expired ${expiredTopUps.length} pending top-ups`);
       }
 
-      // Clean up expired pending_tickets using safe cleanup function
+      // Clean up expired pending_tickets using safe cleanup logic
       // CRITICAL: This respects the 15-minute grace period to prevent
       // premature expiration of active reservations
       const gracePeriodMinutes = 15;
@@ -330,8 +330,8 @@ Deno.serve(async (req: Request) => {
         .from("pending_tickets")
         .update({ 
           status: "expired", 
-          updated_at: new Date().toISOString(),
-          note: supabase.rpc('concat', { a: 'note', b: ' | Auto-expired by reconcile-payments' })
+          updated_at: new Date().toISOString()
+          // Note: Cannot append to note field via simple update - would need RPC
         })
         .eq("status", "pending")
         .lt("expires_at", new Date().toISOString())

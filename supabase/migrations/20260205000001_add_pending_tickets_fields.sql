@@ -244,13 +244,28 @@ WHERE canonical_user_id IS NULL
 -- =====================================================
 -- UPDATE TRIGGER FOR UPDATED_AT
 -- =====================================================
--- Ensure updated_at is set on modifications (if trigger exists)
+-- Ensure updated_at is set on modifications
+-- Only create trigger if the function already exists
 
-DROP TRIGGER IF EXISTS update_pending_tickets_updated_at_v2 ON pending_tickets;
-CREATE TRIGGER update_pending_tickets_updated_at_v2
-  BEFORE UPDATE ON pending_tickets
-  FOR EACH ROW
-  EXECUTE FUNCTION update_updated_at_column();
+DO $$
+BEGIN
+  -- Check if the update_updated_at_column function exists
+  IF EXISTS (
+    SELECT 1 FROM pg_proc 
+    WHERE proname = 'update_updated_at_column'
+  ) THEN
+    -- Drop and recreate the trigger
+    DROP TRIGGER IF EXISTS update_pending_tickets_updated_at_v2 ON pending_tickets;
+    CREATE TRIGGER update_pending_tickets_updated_at_v2
+      BEFORE UPDATE ON pending_tickets
+      FOR EACH ROW
+      EXECUTE FUNCTION update_updated_at_column();
+    
+    RAISE NOTICE 'Created trigger update_pending_tickets_updated_at_v2';
+  ELSE
+    RAISE NOTICE 'Skipped trigger creation - update_updated_at_column function does not exist';
+  END IF;
+END $$;
 
 COMMIT;
 

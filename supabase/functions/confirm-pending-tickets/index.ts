@@ -215,12 +215,16 @@ async function assignTickets(params: AssignTicketsParams): Promise<AssignTickets
 
   // CRITICAL FIX: For lucky dip, use UNLIMITED retries and aggressive conflict resolution
   // Lucky dip should NEVER fail as long as tickets are available
-  const maxRetries = isLuckyDip ? 999999 : 3; // Effectively unlimited for lucky dip
+  // Using large number (not truly infinite) to prevent infinite loops in edge cases
+  const MAX_LUCKY_DIP_RETRIES = 10000; // 10,000 attempts should be more than enough
+  const MAX_SPECIFIC_TICKET_RETRIES = 3; // Original retry count for specific tickets
+  const maxRetries = isLuckyDip ? MAX_LUCKY_DIP_RETRIES : MAX_SPECIFIC_TICKET_RETRIES;
+  
   let successfullyInserted: number[] = [];
   let remainingToInsert = [...finalTicketNumbers];
   let retryCount = 0;
 
-  console.log(`assignTickets: Starting allocation - isLuckyDip: ${isLuckyDip}, maxRetries: ${isLuckyDip ? 'UNLIMITED' : maxRetries}`);
+  console.log(`assignTickets: Starting allocation - isLuckyDip: ${isLuckyDip}, maxRetries: ${maxRetries}`);
 
   for (let attempt = 0; attempt < maxRetries && remainingToInsert.length > 0; attempt++) {
     retryCount = attempt + 1;
