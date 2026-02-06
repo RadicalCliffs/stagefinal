@@ -9,7 +9,7 @@ const FinishedCompetitionHeroSection = ({competition}:CompetitionWrapper) => {
             <div className="flex xl:flex-row flex-col lg:gap-8 gap-4 relative overflow-hidden">
                 <div className="bg-[#111111] rounded-2xl w-full relative">
                     {/* Mobile countdown - on top of image */}
-                    <div className="xl:hidden absolute top-4 left-0 right-0 z-10">
+                    <div className="xl:hidden absolute top-4 left-0 right-0">
                         <div className="flex flex-col items-center justify-center">
                             <Countdown endDate={end_date || draw_date || created_at} isEnded={true} />
                         </div>
