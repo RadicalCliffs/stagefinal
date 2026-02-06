@@ -11,7 +11,7 @@ import type {  CompetitionWrapper } from '../../models/models';
 const FinishedCompetition = ({competition}:CompetitionWrapper) => {
   return (
     <>
-      <div className="custom-finished-competition-page-background bg-full-size absolute inset-0 w-full h-full -z-10"></div>
+      <div className="custom-finished-competition-page-background bg-full-size absolute inset-0 w-full h-full"></div>
       <div className="relative py-10">
         <div className="xl:px-0 px-4">
           <FinishedCompetitionHeroSection competition={competition}/>
