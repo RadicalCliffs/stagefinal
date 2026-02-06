@@ -1,0 +1,328 @@
+schema_name,table_name,index_name,is_primary,is_unique,is_live,is_valid,is_clustered,predicate,comment,indexdef
+auth,audit_log_entries,audit_log_entries_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX audit_log_entries_pkey ON auth.audit_log_entries USING btree (id)
+auth,audit_log_entries,audit_logs_instance_id_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX audit_logs_instance_id_idx ON auth.audit_log_entries USING btree (instance_id)
+auth,flow_state,flow_state_created_at_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX flow_state_created_at_idx ON auth.flow_state USING btree (created_at DESC)
+auth,flow_state,flow_state_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX flow_state_pkey ON auth.flow_state USING btree (id)
+auth,flow_state,idx_auth_code,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_auth_code ON auth.flow_state USING btree (auth_code)
+auth,flow_state,idx_user_id_auth_method,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_user_id_auth_method ON auth.flow_state USING btree (user_id, authentication_method)"
+auth,identities,identities_email_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,Auth: Ensures indexed queries on the email column,CREATE INDEX identities_email_idx ON auth.identities USING btree (email text_pattern_ops)
+auth,identities,identities_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX identities_pkey ON auth.identities USING btree (id)
+auth,identities,identities_provider_id_provider_unique,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,"CREATE UNIQUE INDEX identities_provider_id_provider_unique ON auth.identities USING btree (provider_id, provider)"
+auth,identities,identities_user_id_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX identities_user_id_idx ON auth.identities USING btree (user_id)
+auth,instances,instances_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX instances_pkey ON auth.instances USING btree (id)
+auth,mfa_amr_claims,amr_id_pk,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX amr_id_pk ON auth.mfa_amr_claims USING btree (id)
+auth,mfa_amr_claims,mfa_amr_claims_session_id_authentication_method_pkey,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,"CREATE UNIQUE INDEX mfa_amr_claims_session_id_authentication_method_pkey ON auth.mfa_amr_claims USING btree (session_id, authentication_method)"
+auth,mfa_challenges,mfa_challenge_created_at_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX mfa_challenge_created_at_idx ON auth.mfa_challenges USING btree (created_at DESC)
+auth,mfa_challenges,mfa_challenges_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX mfa_challenges_pkey ON auth.mfa_challenges USING btree (id)
+auth,mfa_factors,factor_id_created_at_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX factor_id_created_at_idx ON auth.mfa_factors USING btree (user_id, created_at)"
+auth,mfa_factors,mfa_factors_last_challenged_at_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX mfa_factors_last_challenged_at_key ON auth.mfa_factors USING btree (last_challenged_at)
+auth,mfa_factors,mfa_factors_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX mfa_factors_pkey ON auth.mfa_factors USING btree (id)
+auth,mfa_factors,mfa_factors_user_friendly_name_unique,FALSE,TRUE,TRUE,TRUE,FALSE,(TRIM(BOTH FROM friendly_name) <> ''::text),null,"CREATE UNIQUE INDEX mfa_factors_user_friendly_name_unique ON auth.mfa_factors USING btree (friendly_name, user_id) WHERE (TRIM(BOTH FROM friendly_name) <> ''::text)"
+auth,mfa_factors,mfa_factors_user_id_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX mfa_factors_user_id_idx ON auth.mfa_factors USING btree (user_id)
+auth,mfa_factors,unique_phone_factor_per_user,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,"CREATE UNIQUE INDEX unique_phone_factor_per_user ON auth.mfa_factors USING btree (user_id, phone)"
+auth,oauth_authorizations,oauth_auth_pending_exp_idx,FALSE,FALSE,TRUE,TRUE,FALSE,(status = 'pending'::auth.oauth_authorization_status),null,CREATE INDEX oauth_auth_pending_exp_idx ON auth.oauth_authorizations USING btree (expires_at) WHERE (status = 'pending'::auth.oauth_authorization_status)
+auth,oauth_authorizations,oauth_authorizations_authorization_code_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX oauth_authorizations_authorization_code_key ON auth.oauth_authorizations USING btree (authorization_code)
+auth,oauth_authorizations,oauth_authorizations_authorization_id_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX oauth_authorizations_authorization_id_key ON auth.oauth_authorizations USING btree (authorization_id)
+auth,oauth_authorizations,oauth_authorizations_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX oauth_authorizations_pkey ON auth.oauth_authorizations USING btree (id)
+auth,oauth_client_states,idx_oauth_client_states_created_at,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_oauth_client_states_created_at ON auth.oauth_client_states USING btree (created_at)
+auth,oauth_client_states,oauth_client_states_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX oauth_client_states_pkey ON auth.oauth_client_states USING btree (id)
+auth,oauth_clients,oauth_clients_deleted_at_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX oauth_clients_deleted_at_idx ON auth.oauth_clients USING btree (deleted_at)
+auth,oauth_clients,oauth_clients_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX oauth_clients_pkey ON auth.oauth_clients USING btree (id)
+auth,oauth_consents,oauth_consents_active_client_idx,FALSE,FALSE,TRUE,TRUE,FALSE,(revoked_at IS NULL),null,CREATE INDEX oauth_consents_active_client_idx ON auth.oauth_consents USING btree (client_id) WHERE (revoked_at IS NULL)
+auth,oauth_consents,oauth_consents_active_user_client_idx,FALSE,FALSE,TRUE,TRUE,FALSE,(revoked_at IS NULL),null,"CREATE INDEX oauth_consents_active_user_client_idx ON auth.oauth_consents USING btree (user_id, client_id) WHERE (revoked_at IS NULL)"
+auth,oauth_consents,oauth_consents_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX oauth_consents_pkey ON auth.oauth_consents USING btree (id)
+auth,oauth_consents,oauth_consents_user_client_unique,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,"CREATE UNIQUE INDEX oauth_consents_user_client_unique ON auth.oauth_consents USING btree (user_id, client_id)"
+auth,oauth_consents,oauth_consents_user_order_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX oauth_consents_user_order_idx ON auth.oauth_consents USING btree (user_id, granted_at DESC)"
+auth,one_time_tokens,one_time_tokens_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX one_time_tokens_pkey ON auth.one_time_tokens USING btree (id)
+auth,one_time_tokens,one_time_tokens_relates_to_hash_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX one_time_tokens_relates_to_hash_idx ON auth.one_time_tokens USING hash (relates_to)
+auth,one_time_tokens,one_time_tokens_token_hash_hash_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX one_time_tokens_token_hash_hash_idx ON auth.one_time_tokens USING hash (token_hash)
+auth,one_time_tokens,one_time_tokens_user_id_token_type_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,"CREATE UNIQUE INDEX one_time_tokens_user_id_token_type_key ON auth.one_time_tokens USING btree (user_id, token_type)"
+auth,refresh_tokens,refresh_tokens_instance_id_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX refresh_tokens_instance_id_idx ON auth.refresh_tokens USING btree (instance_id)
+auth,refresh_tokens,refresh_tokens_instance_id_user_id_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX refresh_tokens_instance_id_user_id_idx ON auth.refresh_tokens USING btree (instance_id, user_id)"
+auth,refresh_tokens,refresh_tokens_parent_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX refresh_tokens_parent_idx ON auth.refresh_tokens USING btree (parent)
+auth,refresh_tokens,refresh_tokens_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX refresh_tokens_pkey ON auth.refresh_tokens USING btree (id)
+auth,refresh_tokens,refresh_tokens_session_id_revoked_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX refresh_tokens_session_id_revoked_idx ON auth.refresh_tokens USING btree (session_id, revoked)"
+auth,refresh_tokens,refresh_tokens_token_unique,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX refresh_tokens_token_unique ON auth.refresh_tokens USING btree (token)
+auth,refresh_tokens,refresh_tokens_updated_at_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX refresh_tokens_updated_at_idx ON auth.refresh_tokens USING btree (updated_at DESC)
+auth,saml_providers,saml_providers_entity_id_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX saml_providers_entity_id_key ON auth.saml_providers USING btree (entity_id)
+auth,saml_providers,saml_providers_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX saml_providers_pkey ON auth.saml_providers USING btree (id)
+auth,saml_providers,saml_providers_sso_provider_id_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX saml_providers_sso_provider_id_idx ON auth.saml_providers USING btree (sso_provider_id)
+auth,saml_relay_states,saml_relay_states_created_at_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX saml_relay_states_created_at_idx ON auth.saml_relay_states USING btree (created_at DESC)
+auth,saml_relay_states,saml_relay_states_for_email_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX saml_relay_states_for_email_idx ON auth.saml_relay_states USING btree (for_email)
+auth,saml_relay_states,saml_relay_states_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX saml_relay_states_pkey ON auth.saml_relay_states USING btree (id)
+auth,saml_relay_states,saml_relay_states_sso_provider_id_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX saml_relay_states_sso_provider_id_idx ON auth.saml_relay_states USING btree (sso_provider_id)
+auth,schema_migrations,schema_migrations_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX schema_migrations_pkey ON auth.schema_migrations USING btree (version)
+auth,sessions,sessions_not_after_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX sessions_not_after_idx ON auth.sessions USING btree (not_after DESC)
+auth,sessions,sessions_oauth_client_id_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX sessions_oauth_client_id_idx ON auth.sessions USING btree (oauth_client_id)
+auth,sessions,sessions_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX sessions_pkey ON auth.sessions USING btree (id)
+auth,sessions,sessions_user_id_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX sessions_user_id_idx ON auth.sessions USING btree (user_id)
+auth,sessions,user_id_created_at_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX user_id_created_at_idx ON auth.sessions USING btree (user_id, created_at)"
+auth,sso_domains,sso_domains_domain_idx,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX sso_domains_domain_idx ON auth.sso_domains USING btree (lower(domain))
+auth,sso_domains,sso_domains_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX sso_domains_pkey ON auth.sso_domains USING btree (id)
+auth,sso_domains,sso_domains_sso_provider_id_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX sso_domains_sso_provider_id_idx ON auth.sso_domains USING btree (sso_provider_id)
+auth,sso_providers,sso_providers_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX sso_providers_pkey ON auth.sso_providers USING btree (id)
+auth,sso_providers,sso_providers_resource_id_idx,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX sso_providers_resource_id_idx ON auth.sso_providers USING btree (lower(resource_id))
+auth,sso_providers,sso_providers_resource_id_pattern_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX sso_providers_resource_id_pattern_idx ON auth.sso_providers USING btree (resource_id text_pattern_ops)
+auth,users,confirmation_token_idx,FALSE,TRUE,TRUE,TRUE,FALSE,((confirmation_token)::text !~ '^[0-9 ]*$'::text),null,CREATE UNIQUE INDEX confirmation_token_idx ON auth.users USING btree (confirmation_token) WHERE ((confirmation_token)::text !~ '^[0-9 ]*$'::text)
+auth,users,email_change_token_current_idx,FALSE,TRUE,TRUE,TRUE,FALSE,((email_change_token_current)::text !~ '^[0-9 ]*$'::text),null,CREATE UNIQUE INDEX email_change_token_current_idx ON auth.users USING btree (email_change_token_current) WHERE ((email_change_token_current)::text !~ '^[0-9 ]*$'::text)
+auth,users,email_change_token_new_idx,FALSE,TRUE,TRUE,TRUE,FALSE,((email_change_token_new)::text !~ '^[0-9 ]*$'::text),null,CREATE UNIQUE INDEX email_change_token_new_idx ON auth.users USING btree (email_change_token_new) WHERE ((email_change_token_new)::text !~ '^[0-9 ]*$'::text)
+auth,users,reauthentication_token_idx,FALSE,TRUE,TRUE,TRUE,FALSE,((reauthentication_token)::text !~ '^[0-9 ]*$'::text),null,CREATE UNIQUE INDEX reauthentication_token_idx ON auth.users USING btree (reauthentication_token) WHERE ((reauthentication_token)::text !~ '^[0-9 ]*$'::text)
+auth,users,recovery_token_idx,FALSE,TRUE,TRUE,TRUE,FALSE,((recovery_token)::text !~ '^[0-9 ]*$'::text),null,CREATE UNIQUE INDEX recovery_token_idx ON auth.users USING btree (recovery_token) WHERE ((recovery_token)::text !~ '^[0-9 ]*$'::text)
+auth,users,users_email_partial_key,FALSE,TRUE,TRUE,TRUE,FALSE,(is_sso_user = false),Auth: A partial unique index that applies only when is_sso_user is false,CREATE UNIQUE INDEX users_email_partial_key ON auth.users USING btree (email) WHERE (is_sso_user = false)
+auth,users,users_instance_id_email_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX users_instance_id_email_idx ON auth.users USING btree (instance_id, lower((email)::text))"
+auth,users,users_instance_id_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX users_instance_id_idx ON auth.users USING btree (instance_id)
+auth,users,users_is_anonymous_idx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX users_is_anonymous_idx ON auth.users USING btree (is_anonymous)
+auth,users,users_phone_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX users_phone_key ON auth.users USING btree (phone)
+auth,users,users_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX users_pkey ON auth.users USING btree (id)
+public,Prize_Instantprizes,Prize_Instantprizes_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,"CREATE UNIQUE INDEX ""Prize_Instantprizes_pkey"" ON public.""Prize_Instantprizes"" USING btree (""UID"")"
+public,Prize_Instantprizes,idx_instant_prizes_winning_ticket,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_instant_prizes_winning_ticket ON public.""Prize_Instantprizes"" USING btree (""competitionId"", ""winningTicket"")"
+public,_entries_progress,_entries_progress_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,"CREATE UNIQUE INDEX _entries_progress_pkey ON public._entries_progress USING btree (competition_id, canonical_user_id)"
+public,_payment_settings,_payment_settings_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX _payment_settings_pkey ON public._payment_settings USING btree (key)
+public,admin_sessions,admin_sessions_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX admin_sessions_pkey ON public.admin_sessions USING btree (id)
+public,admin_sessions,admin_sessions_token_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX admin_sessions_token_key ON public.admin_sessions USING btree (token)
+public,admin_users,admin_users_email_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX admin_users_email_key ON public.admin_users USING btree (email)
+public,admin_users,admin_users_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX admin_users_pkey ON public.admin_users USING btree (id)
+public,admin_users_audit,admin_users_audit_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX admin_users_audit_pkey ON public.admin_users_audit USING btree (id)
+public,balance_ledger,balance_ledger_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX balance_ledger_pkey ON public.balance_ledger USING btree (id)
+public,balance_ledger,balance_ledger_reference_unique,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX balance_ledger_reference_unique ON public.balance_ledger USING btree (reference_id)
+public,balance_ledger,idx_balance_ledger_canonical,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_balance_ledger_canonical ON public.balance_ledger USING btree (canonical_user_id)
+public,balance_ledger,idx_balance_ledger_cuid,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_balance_ledger_cuid ON public.balance_ledger USING btree (canonical_user_id)
+public,balance_ledger,idx_balance_ledger_user_created,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_balance_ledger_user_created ON public.balance_ledger USING btree (canonical_user_id, created_at DESC)"
+public,balance_ledger,idx_ledger_user_created,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_ledger_user_created ON public.balance_ledger USING btree (canonical_user_id, created_at)"
+public,balance_ledger,u_balance_ledger_reference_id,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX u_balance_ledger_reference_id ON public.balance_ledger USING btree (reference_id)
+public,bonus_award_audit,bonus_award_audit_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX bonus_award_audit_pkey ON public.bonus_award_audit USING btree (id)
+public,canonical_users,canonical_users_base_wallet_address_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX canonical_users_base_wallet_address_key ON public.canonical_users USING btree (base_wallet_address)
+public,canonical_users,canonical_users_canonical_user_id_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX canonical_users_canonical_user_id_key ON public.canonical_users USING btree (canonical_user_id)
+public,canonical_users,canonical_users_email_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX canonical_users_email_key ON public.canonical_users USING btree (email)
+public,canonical_users,canonical_users_eth_wallet_address_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX canonical_users_eth_wallet_address_key ON public.canonical_users USING btree (eth_wallet_address)
+public,canonical_users,canonical_users_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX canonical_users_pkey ON public.canonical_users USING btree (id)
+public,canonical_users,canonical_users_uid_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX canonical_users_uid_key ON public.canonical_users USING btree (uid)
+public,canonical_users,canonical_users_wallet_address_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX canonical_users_wallet_address_key ON public.canonical_users USING btree (wallet_address)
+public,canonical_users,idx_canonical_users_canonical_id,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_canonical_users_canonical_id ON public.canonical_users USING btree (canonical_user_id)
+public,canonical_users,idx_canonical_users_cuid,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_canonical_users_cuid ON public.canonical_users USING btree (canonical_user_id)
+public,canonical_users,idx_canonical_users_privy_user_id,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_canonical_users_privy_user_id ON public.canonical_users USING btree (privy_user_id)
+public,canonical_users,idx_canonical_users_wallet,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_canonical_users_wallet ON public.canonical_users USING btree (wallet_address)
+public,canonical_users,idx_cu_wallet,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_cu_wallet ON public.canonical_users USING btree (wallet_address)
+public,canonical_users,uq_canonical_users_canonical,FALSE,TRUE,TRUE,TRUE,FALSE,(canonical_user_id IS NOT NULL),null,CREATE UNIQUE INDEX uq_canonical_users_canonical ON public.canonical_users USING btree (canonical_user_id) WHERE (canonical_user_id IS NOT NULL)
+public,cdp_event_queue,cdp_event_queue_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX cdp_event_queue_pkey ON public.cdp_event_queue USING btree (id)
+public,cdp_webhooks_v2,cdp_webhooks_v2_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX cdp_webhooks_v2_pkey ON public.cdp_webhooks_v2 USING btree (id)
+public,cdp_webhooks_v2,idx_cdp2_block_ts,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_cdp2_block_ts ON public.cdp_webhooks_v2 USING btree (block_timestamp)
+public,cdp_webhooks_v2,idx_cdp2_contract,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_cdp2_contract ON public.cdp_webhooks_v2 USING btree (contract_address)
+public,cdp_webhooks_v2,idx_cdp2_event_sig,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_cdp2_event_sig ON public.cdp_webhooks_v2 USING btree (event_signature)
+public,cdp_webhooks_v2,idx_cdp2_params_from,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_cdp2_params_from ON public.cdp_webhooks_v2 USING btree (((parameters ->> 'from'::text)))
+public,cdp_webhooks_v2,idx_cdp2_params_payout,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_cdp2_params_payout ON public.cdp_webhooks_v2 USING btree (((parameters ->> 'payoutRecipient'::text)))
+public,cdp_webhooks_v2,idx_cdp2_params_to,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_cdp2_params_to ON public.cdp_webhooks_v2 USING btree (((parameters ->> 'to'::text)))
+public,cdp_webhooks_v2,idx_cdp2_tx,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_cdp2_tx ON public.cdp_webhooks_v2 USING btree (tx_hash)
+public,competition_entries,competition_entries_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX competition_entries_pkey ON public.competition_entries USING btree (id)
+public,competition_entries,idx_ce_user_comp_latest,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_ce_user_comp_latest ON public.competition_entries USING btree (canonical_user_id, competition_id, latest_purchase_at DESC)"
+public,competition_entries,idx_competition_entries_cuid,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_competition_entries_cuid ON public.competition_entries USING btree (canonical_user_id)
+public,competition_entries,idx_competition_entries_key,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_competition_entries_key ON public.competition_entries USING btree (canonical_user_id, competition_id)"
+public,competition_entries,idx_competition_entries_updated_at,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_competition_entries_updated_at ON public.competition_entries USING btree (updated_at)
+public,competition_entries,ux_competition_entries_comp_user,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,"CREATE UNIQUE INDEX ux_competition_entries_comp_user ON public.competition_entries USING btree (competition_id, canonical_user_id)"
+public,competition_entries_purchases,competition_entries_purchases_canonical_user_id_competition_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,"CREATE UNIQUE INDEX competition_entries_purchases_canonical_user_id_competition_key ON public.competition_entries_purchases USING btree (canonical_user_id, competition_id, purchase_key)"
+public,competition_entries_purchases,competition_entries_purchases_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX competition_entries_purchases_pkey ON public.competition_entries_purchases USING btree (id)
+public,competition_entries_purchases,idx_cep_comp,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_cep_comp ON public.competition_entries_purchases USING btree (competition_id)
+public,competition_entries_purchases,idx_cep_comp_user,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_cep_comp_user ON public.competition_entries_purchases USING btree (competition_id, canonical_user_id)"
+public,competition_entries_purchases,idx_cep_user,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_cep_user ON public.competition_entries_purchases USING btree (canonical_user_id)
+public,competition_entries_purchases,idx_cep_user_comp,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_cep_user_comp ON public.competition_entries_purchases USING btree (canonical_user_id, competition_id)"
+public,competition_entries_purchases,idx_cep_user_comp_latest,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_cep_user_comp_latest ON public.competition_entries_purchases USING btree (canonical_user_id, competition_id, purchased_at DESC)"
+public,competition_entries_purchases,uq_cep_user_comp_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,"CREATE UNIQUE INDEX uq_cep_user_comp_key ON public.competition_entries_purchases USING btree (canonical_user_id, competition_id, purchase_key)"
+public,competitions,competitions_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX competitions_pkey ON public.competitions USING btree (id)
+public,competitions,idx_competitions_end_date,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_competitions_end_date ON public.competitions USING btree (end_date)
+public,competitions,idx_competitions_status,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_competitions_status ON public.competitions USING btree (status)
+public,competitions,idx_competitions_status_dates,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_competitions_status_dates ON public.competitions USING btree (status, start_time, end_time)"
+public,competitions,idx_competitions_vrf_completed_at,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_competitions_vrf_completed_at ON public.competitions USING btree (vrf_completed_at)
+public,competitions,idx_competitions_vrf_draw_requested_at,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_competitions_vrf_draw_requested_at ON public.competitions USING btree (vrf_draw_requested_at)
+public,confirmation_incident_log,confirmation_incident_log_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX confirmation_incident_log_pkey ON public.confirmation_incident_log USING btree (id)
+public,custody_transactions,custody_transactions_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX custody_transactions_pkey ON public.custody_transactions USING btree (id)
+public,custody_transactions,idx_custody_transactions_canonical,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_custody_transactions_canonical ON public.custody_transactions USING btree (canonical_user_id)
+public,custody_transactions,idx_custody_transactions_status,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_custody_transactions_status ON public.custody_transactions USING btree (status)
+public,custody_transactions,idx_custody_tx_user_status_type_created,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_custody_tx_user_status_type_created ON public.custody_transactions USING btree (user_id, status, transaction_type, created_at)"
+public,email_auth_sessions,email_auth_sessions_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX email_auth_sessions_pkey ON public.email_auth_sessions USING btree (id)
+public,email_auth_sessions,idx_email_auth_sessions_email,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_email_auth_sessions_email ON public.email_auth_sessions USING btree (email)
+public,enqueue_cdp_event,cdp_outbox_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX cdp_outbox_pkey ON public.enqueue_cdp_event USING btree (id)
+public,faqs,faqs_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX faqs_pkey ON public.faqs USING btree (id)
+public,hero_competitions,hero_competitions_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX hero_competitions_pkey ON public.hero_competitions USING btree (id)
+public,hero_competitions,idx_hero_competitions_competition_id,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_hero_competitions_competition_id ON public.hero_competitions USING btree (competition_id)
+public,instant_win_grids,idx_instant_win_grids_competition_id,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_instant_win_grids_competition_id ON public.instant_win_grids USING btree (competition_id)
+public,instant_win_grids,idx_instant_win_grids_is_active,FALSE,FALSE,TRUE,TRUE,FALSE,(is_active = true),null,CREATE INDEX idx_instant_win_grids_is_active ON public.instant_win_grids USING btree (is_active) WHERE (is_active = true)
+public,instant_win_grids,instant_win_grids_competition_id_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX instant_win_grids_competition_id_key ON public.instant_win_grids USING btree (competition_id)
+public,instant_win_grids,instant_win_grids_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX instant_win_grids_pkey ON public.instant_win_grids USING btree (id)
+public,internal_transfers,internal_transfers_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX internal_transfers_pkey ON public.internal_transfers USING btree (id)
+public,internal_transfers,internal_transfers_transfer_id_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX internal_transfers_transfer_id_key ON public.internal_transfers USING btree (transfer_id)
+public,joincompetition,idx_joincompetition_canonical_user_id,FALSE,FALSE,TRUE,TRUE,FALSE,(canonical_user_id IS NOT NULL),null,CREATE INDEX idx_joincompetition_canonical_user_id ON public.joincompetition USING btree (canonical_user_id) WHERE (canonical_user_id IS NOT NULL)
+public,joincompetition,idx_joincompetition_comp,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_joincompetition_comp ON public.joincompetition USING btree (competitionid)
+public,joincompetition,idx_joincompetition_comp_user_wallet,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_joincompetition_comp_user_wallet ON public.joincompetition USING btree (competitionid, userid, canonical_user_id, wallet_address)"
+public,joincompetition,idx_joincompetition_competitionid,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_joincompetition_competitionid ON public.joincompetition USING btree (competitionid)
+public,joincompetition,idx_joincompetition_competitionid_tickets,FALSE,FALSE,TRUE,TRUE,FALSE,((ticketnumbers IS NOT NULL) AND (TRIM(BOTH FROM ticketnumbers) <> ''::text)),null,CREATE INDEX idx_joincompetition_competitionid_tickets ON public.joincompetition USING btree (competitionid) WHERE ((ticketnumbers IS NOT NULL) AND (TRIM(BOTH FROM ticketnumbers) <> ''::text))
+public,joincompetition,idx_joincompetition_cuid,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_joincompetition_cuid ON public.joincompetition USING btree (canonical_user_id)
+public,joincompetition,idx_joincompetition_privy_user_id,FALSE,FALSE,TRUE,TRUE,FALSE,(privy_user_id IS NOT NULL),null,CREATE INDEX idx_joincompetition_privy_user_id ON public.joincompetition USING btree (privy_user_id) WHERE (privy_user_id IS NOT NULL)
+public,joincompetition,idx_joincompetition_purchasedate,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_joincompetition_purchasedate ON public.joincompetition USING btree (purchasedate DESC)
+public,joincompetition,idx_joincompetition_transactionhash,FALSE,FALSE,TRUE,TRUE,FALSE,(transactionhash IS NOT NULL),null,CREATE INDEX idx_joincompetition_transactionhash ON public.joincompetition USING btree (transactionhash) WHERE (transactionhash IS NOT NULL)
+public,joincompetition,idx_joincompetition_user_comp,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_joincompetition_user_comp ON public.joincompetition USING btree (canonical_user_id, competitionid)"
+public,joincompetition,idx_joincompetition_userid,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_joincompetition_userid ON public.joincompetition USING btree (userid)
+public,joincompetition,idx_joincompetition_wallet,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_joincompetition_wallet ON public.joincompetition USING btree (wallet_address)
+public,joincompetition,idx_joincompetition_wallet_address,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_joincompetition_wallet_address ON public.joincompetition USING btree (wallet_address)
+public,joincompetition,idx_joincompetition_walletaddress_lower,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_joincompetition_walletaddress_lower ON public.joincompetition USING btree (lower(wallet_address))
+public,joincompetition,joincompetition_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX joincompetition_pkey ON public.joincompetition USING btree (id)
+public,joincompetition,joincompetition_unique_user_competition,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,"CREATE UNIQUE INDEX joincompetition_unique_user_competition ON public.joincompetition USING btree (canonical_user_id, competitionid)"
+public,joincompetition,uniq_joincompetition_tx_comp,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,"CREATE UNIQUE INDEX uniq_joincompetition_tx_comp ON public.joincompetition USING btree (transactionhash, competitionid)"
+public,joincompetition_ticket_claims,joincompetition_ticket_claims_competitionid_ticket_number_s_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,"CREATE UNIQUE INDEX joincompetition_ticket_claims_competitionid_ticket_number_s_key ON public.joincompetition_ticket_claims USING btree (competitionid, ticket_number, status)"
+public,joincompetition_ticket_claims,joincompetition_ticket_claims_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX joincompetition_ticket_claims_pkey ON public.joincompetition_ticket_claims USING btree (id)
+public,joined_competitions,idx_joined_competitions_canonical,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_joined_competitions_canonical ON public.joined_competitions USING btree (canonical_user_id)
+public,joined_competitions,idx_joined_competitions_competition_id,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_joined_competitions_competition_id ON public.joined_competitions USING btree (competition_id)
+public,joined_competitions,joined_competitions_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX joined_competitions_pkey ON public.joined_competitions USING btree (id)
+public,notifications,idx_notifications_cuid,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_notifications_cuid ON public.notifications USING btree (canonical_user_id)
+public,notifications,idx_notifications_read,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_notifications_read ON public.notifications USING btree (user_id, read)"
+public,notifications,notifications_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX notifications_pkey ON public.notifications USING btree (id)
+public,order_tickets,order_tickets_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX order_tickets_pkey ON public.order_tickets USING btree (id)
+public,orders,idx_orders_canonical_user_id,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_orders_canonical_user_id ON public.orders USING btree (canonical_user_id)
+public,orders,idx_orders_competition_id,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_orders_competition_id ON public.orders USING btree (competition_id)
+public,orders,orders_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX orders_pkey ON public.orders USING btree (id)
+public,orders,orders_unique_order_key_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX orders_unique_order_key_key ON public.orders USING btree (unique_order_key)
+public,participants,idx_participants_canonical,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_participants_canonical ON public.participants USING btree (canonical_user_id)
+public,participants,idx_participants_competition_id,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_participants_competition_id ON public.participants USING btree (competition_id)
+public,participants,participants_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX participants_pkey ON public.participants USING btree (id)
+public,partners,partners_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX partners_pkey ON public.partners USING btree (id)
+public,payment_idempotency,idx_payment_idempotency_key,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_payment_idempotency_key ON public.payment_idempotency USING btree (idempotency_key)
+public,payment_idempotency,payment_idempotency_idempotency_key_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX payment_idempotency_idempotency_key_key ON public.payment_idempotency USING btree (idempotency_key)
+public,payment_idempotency,payment_idempotency_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX payment_idempotency_pkey ON public.payment_idempotency USING btree (id)
+public,payment_webhook_events,idx_payment_webhook_events_created_at,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_payment_webhook_events_created_at ON public.payment_webhook_events USING btree (created_at)
+public,payment_webhook_events,idx_pwe_received_time,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_pwe_received_time ON public.payment_webhook_events USING btree (received_at DESC)
+public,payment_webhook_events,payment_webhook_events_event_id_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX payment_webhook_events_event_id_key ON public.payment_webhook_events USING btree (event_id)
+public,payment_webhook_events,payment_webhook_events_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX payment_webhook_events_pkey ON public.payment_webhook_events USING btree (id)
+public,payments,idx_payments_idem,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX idx_payments_idem ON public.payments USING btree (idempotency_key)
+public,payments,idx_payments_reservation,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_payments_reservation ON public.payments USING btree (reservation_id)
+public,payments,payments_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX payments_pkey ON public.payments USING btree (id)
+public,payments_jobs,payments_jobs_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX payments_jobs_pkey ON public.payments_jobs USING btree (id)
+public,pending_ticket_items,idx_pending_items_competition_ticket,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_pending_items_competition_ticket ON public.pending_ticket_items USING btree (competition_id, ticket_number)"
+public,pending_ticket_items,idx_pending_items_pending,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_pending_items_pending ON public.pending_ticket_items USING btree (pending_ticket_id)
+public,pending_ticket_items,idx_pending_ticket_items_header,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_pending_ticket_items_header ON public.pending_ticket_items USING btree (pending_ticket_id)
+public,pending_ticket_items,idx_pti_pending_not_exp,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_pti_pending_not_exp ON public.pending_ticket_items USING btree (status, expires_at)"
+public,pending_ticket_items,pending_ticket_items_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX pending_ticket_items_pkey ON public.pending_ticket_items USING btree (id)
+public,pending_ticket_items,uq_pending_ticket_items_active,FALSE,TRUE,TRUE,TRUE,FALSE,(status = 'pending'::text),null,"CREATE UNIQUE INDEX uq_pending_ticket_items_active ON public.pending_ticket_items USING btree (competition_id, ticket_number, expires_at) WHERE (status = 'pending'::text)"
+public,pending_ticket_items,ux_pending_pending_hold,FALSE,TRUE,TRUE,TRUE,FALSE,(status = 'pending'::text),null,"CREATE UNIQUE INDEX ux_pending_pending_hold ON public.pending_ticket_items USING btree (competition_id, ticket_number) WHERE (status = 'pending'::text)"
+public,pending_tickets,idx_pending_tickets_active_partial,FALSE,FALSE,TRUE,TRUE,FALSE,"(status = ANY (ARRAY['pending'::text, 'awaiting_payment'::text]))",null,"CREATE INDEX idx_pending_tickets_active_partial ON public.pending_tickets USING btree (competition_id, expires_at) WHERE (status = ANY (ARRAY['pending'::text, 'awaiting_payment'::text]))"
+public,pending_tickets,idx_pending_tickets_canonical_user_id,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_pending_tickets_canonical_user_id ON public.pending_tickets USING btree (canonical_user_id)
+public,pending_tickets,idx_pending_tickets_comp_id,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_pending_tickets_comp_id ON public.pending_tickets USING btree (competition_id)
+public,pending_tickets,idx_pending_tickets_comp_status,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_pending_tickets_comp_status ON public.pending_tickets USING btree (competition_id, status)"
+public,pending_tickets,idx_pending_tickets_comp_status_exp,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_pending_tickets_comp_status_exp ON public.pending_tickets USING btree (competition_id, status, expires_at)"
+public,pending_tickets,idx_pending_tickets_comp_status_user,FALSE,FALSE,TRUE,TRUE,FALSE,(status = 'pending'::text),null,"CREATE INDEX idx_pending_tickets_comp_status_user ON public.pending_tickets USING btree (competition_id, status, user_id) WHERE (status = 'pending'::text)"
+public,pending_tickets,idx_pending_tickets_comp_user,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_pending_tickets_comp_user ON public.pending_tickets USING btree (competition_id, user_id, canonical_user_id)"
+public,pending_tickets,idx_pending_tickets_competition,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_pending_tickets_competition ON public.pending_tickets USING btree (competition_id)
+public,pending_tickets,idx_pending_tickets_expires,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_pending_tickets_expires ON public.pending_tickets USING btree (expires_at)
+public,pending_tickets,idx_pending_tickets_expiry_check,FALSE,FALSE,TRUE,TRUE,FALSE,(status = 'pending'::text),null,"CREATE INDEX idx_pending_tickets_expiry_check ON public.pending_tickets USING btree (status, expires_at, created_at) WHERE (status = 'pending'::text)"
+public,pending_tickets,idx_pending_tickets_hold_minutes,FALSE,FALSE,TRUE,TRUE,FALSE,(status = 'pending'::text),null,CREATE INDEX idx_pending_tickets_hold_minutes ON public.pending_tickets USING btree (hold_minutes) WHERE (status = 'pending'::text)
+public,pending_tickets,idx_pending_tickets_identifiers,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_pending_tickets_identifiers ON public.pending_tickets USING btree (canonical_user_id, user_id)"
+public,pending_tickets,idx_pending_tickets_privy,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_pending_tickets_privy ON public.pending_tickets USING btree (lower(user_id))
+public,pending_tickets,idx_pending_tickets_reservation,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_pending_tickets_reservation ON public.pending_tickets USING btree (reservation_id)
+public,pending_tickets,idx_pending_tickets_session_id,FALSE,FALSE,TRUE,TRUE,FALSE,(session_id IS NOT NULL),null,CREATE INDEX idx_pending_tickets_session_id ON public.pending_tickets USING btree (session_id) WHERE (session_id IS NOT NULL)
+public,pending_tickets,idx_pending_tickets_status,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_pending_tickets_status ON public.pending_tickets USING btree (status)
+public,pending_tickets,idx_pending_tickets_status_expires,FALSE,FALSE,TRUE,TRUE,FALSE,(status = 'pending'::text),null,"CREATE INDEX idx_pending_tickets_status_expires ON public.pending_tickets USING btree (status, expires_at) WHERE (status = 'pending'::text)"
+public,pending_tickets,idx_pending_tickets_wallet_lower,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_pending_tickets_wallet_lower ON public.pending_tickets USING btree (lower(wallet_address))
+public,pending_tickets,pending_tickets_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX pending_tickets_pkey ON public.pending_tickets USING btree (id)
+public,pending_tickets,ux_pending_tickets_reservation_id,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX ux_pending_tickets_reservation_id ON public.pending_tickets USING btree (reservation_id)
+public,platform_statistics,platform_statistics_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX platform_statistics_pkey ON public.platform_statistics USING btree (id)
+public,profiles,idx_profiles_canonical_user_id,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_profiles_canonical_user_id ON public.profiles USING btree (canonical_user_id)
+public,profiles,profiles_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX profiles_pkey ON public.profiles USING btree (id)
+public,purchase_idempotency,purchase_idempotency_idempotency_key_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX purchase_idempotency_idempotency_key_key ON public.purchase_idempotency USING btree (idempotency_key)
+public,purchase_idempotency,purchase_idempotency_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX purchase_idempotency_pkey ON public.purchase_idempotency USING btree (id)
+public,purchase_requests,purchase_requests_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX purchase_requests_pkey ON public.purchase_requests USING btree (request_id)
+public,reservations,reservations_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX reservations_pkey ON public.reservations USING btree (id)
+public,rng_logs,idx_rng_logs_competition_id,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_rng_logs_competition_id ON public.rng_logs USING btree (competition_id)
+public,rng_logs,idx_rng_logs_competition_type,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_rng_logs_competition_type ON public.rng_logs USING btree (competition_type)
+public,rng_logs,idx_rng_logs_is_winner,FALSE,FALSE,TRUE,TRUE,FALSE,(is_winner = true),null,CREATE INDEX idx_rng_logs_is_winner ON public.rng_logs USING btree (is_winner) WHERE (is_winner = true)
+public,rng_logs,idx_rng_logs_outcome,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_rng_logs_outcome ON public.rng_logs USING btree (outcome)
+public,rng_logs,idx_rng_logs_timestamp,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_rng_logs_timestamp ON public.rng_logs USING btree (""timestamp"" DESC)"
+public,rng_logs,rng_logs_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX rng_logs_pkey ON public.rng_logs USING btree (id)
+public,site_metadata,site_metadata_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX site_metadata_pkey ON public.site_metadata USING btree (id)
+public,site_stats,site_stats_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX site_stats_pkey ON public.site_stats USING btree (id)
+public,sub_account_balances,idx_sub_account_balances_canonical,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_sub_account_balances_canonical ON public.sub_account_balances USING btree (canonical_user_id)
+public,sub_account_balances,idx_sub_account_balances_cuid,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_sub_account_balances_cuid ON public.sub_account_balances USING btree (canonical_user_id)
+public,sub_account_balances,idx_sub_account_balances_currency,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_sub_account_balances_currency ON public.sub_account_balances USING btree (currency)
+public,sub_account_balances,idx_sub_account_balances_privy_user_id,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_sub_account_balances_privy_user_id ON public.sub_account_balances USING btree (privy_user_id)
+public,sub_account_balances,idx_sub_account_balances_user_id,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_sub_account_balances_user_id ON public.sub_account_balances USING btree (user_id)
+public,sub_account_balances,idx_sub_account_balances_wallet_address,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_sub_account_balances_wallet_address ON public.sub_account_balances USING btree (wallet_address)
+public,sub_account_balances,idx_sub_bal_wallet_currency,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_sub_bal_wallet_currency ON public.sub_account_balances USING btree (wallet_address, currency, last_updated DESC)"
+public,sub_account_balances,idx_sub_balances_cuid_currency,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_sub_balances_cuid_currency ON public.sub_account_balances USING btree (canonical_user_id, currency)"
+public,sub_account_balances,sub_account_balances_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX sub_account_balances_pkey ON public.sub_account_balances USING btree (id)
+public,sub_account_balances,uniq_sub_account_balances_cuid_currency,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,"CREATE UNIQUE INDEX uniq_sub_account_balances_cuid_currency ON public.sub_account_balances USING btree (canonical_user_id, currency)"
+public,sub_account_balances,uq_sub_balances_user_currency,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,"CREATE UNIQUE INDEX uq_sub_balances_user_currency ON public.sub_account_balances USING btree (user_id, currency)"
+public,testimonials,testimonials_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX testimonials_pkey ON public.testimonials USING btree (id)
+public,tickets,idx_tickets_canonical_user,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_tickets_canonical_user ON public.tickets USING btree (canonical_user_id)
+public,tickets,idx_tickets_canonical_user_id,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_tickets_canonical_user_id ON public.tickets USING btree (canonical_user_id)
+public,tickets,idx_tickets_comp_status_active,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_tickets_comp_status_active ON public.tickets USING btree (competition_id, status, is_active)"
+public,tickets,idx_tickets_comp_ticket,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_tickets_comp_ticket ON public.tickets USING btree (competition_id, ticket_number)"
+public,tickets,idx_tickets_competition,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_tickets_competition ON public.tickets USING btree (competition_id)
+public,tickets,idx_tickets_competition_status_tn,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_tickets_competition_status_tn ON public.tickets USING btree (competition_id, status, ticket_number)"
+public,tickets,idx_tickets_cuid,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_tickets_cuid ON public.tickets USING btree (canonical_user_id)
+public,tickets,idx_tickets_cuid_purchased_at,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_tickets_cuid_purchased_at ON public.tickets USING btree (canonical_user_id, purchased_at DESC)"
+public,tickets,idx_tickets_purchased_at,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_tickets_purchased_at ON public.tickets USING btree (purchased_at)
+public,tickets,idx_tickets_status,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_tickets_status ON public.tickets USING btree (status)
+public,tickets,idx_tickets_transaction_hash,FALSE,FALSE,TRUE,TRUE,FALSE,(transaction_hash IS NOT NULL),null,CREATE INDEX idx_tickets_transaction_hash ON public.tickets USING btree (transaction_hash) WHERE (transaction_hash IS NOT NULL)
+public,tickets,idx_tickets_tx_id,FALSE,FALSE,TRUE,TRUE,FALSE,(tx_id IS NOT NULL),null,CREATE INDEX idx_tickets_tx_id ON public.tickets USING btree (tx_id) WHERE (tx_id IS NOT NULL)
+public,tickets,idx_tickets_user_comp,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_tickets_user_comp ON public.tickets USING btree (canonical_user_id, competition_id)"
+public,tickets,idx_tickets_user_id_lower,FALSE,FALSE,TRUE,TRUE,FALSE,(user_id IS NOT NULL),null,CREATE INDEX idx_tickets_user_id_lower ON public.tickets USING btree (lower(user_id)) WHERE (user_id IS NOT NULL)
+public,tickets,idx_tickets_wallet,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_tickets_wallet ON public.tickets USING btree (wallet_address)
+public,tickets,tickets_competition_id_ticket_number_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,"CREATE UNIQUE INDEX tickets_competition_id_ticket_number_key ON public.tickets USING btree (competition_id, ticket_number)"
+public,tickets,tickets_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX tickets_pkey ON public.tickets USING btree (id)
+public,tickets,uq_ticket_purchase_once_active,FALSE,TRUE,TRUE,TRUE,FALSE,"(COALESCE(is_active, true) = true)",null,"CREATE UNIQUE INDEX uq_ticket_purchase_once_active ON public.tickets USING btree (canonical_user_id, competition_id, purchase_key) WHERE (COALESCE(is_active, true) = true)"
+public,tickets_sold,tickets_sold_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,"CREATE UNIQUE INDEX tickets_sold_pkey ON public.tickets_sold USING btree (competition_id, ticket_number)"
+public,topup_providers,topup_providers_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX topup_providers_pkey ON public.topup_providers USING btree (code)
+public,user_notifications,idx_user_notifications_user_id,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_user_notifications_user_id ON public.user_notifications USING btree (user_id)
+public,user_notifications,user_notifications_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX user_notifications_pkey ON public.user_notifications USING btree (id)
+public,user_transactions,idx_user_transactions_canonical,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_user_transactions_canonical ON public.user_transactions USING btree (canonical_user_id)
+public,user_transactions,idx_user_transactions_competition_id,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_user_transactions_competition_id ON public.user_transactions USING btree (competition_id)
+public,user_transactions,idx_user_transactions_created_at,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_user_transactions_created_at ON public.user_transactions USING btree (created_at DESC)
+public,user_transactions,idx_user_transactions_cuid,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_user_transactions_cuid ON public.user_transactions USING btree (canonical_user_id)
+public,user_transactions,idx_user_transactions_identifiers,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_user_transactions_identifiers ON public.user_transactions USING btree (canonical_user_id, user_id, user_privy_id)"
+public,user_transactions,idx_user_transactions_status,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_user_transactions_status ON public.user_transactions USING btree (status)
+public,user_transactions,idx_user_transactions_tx_id,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_user_transactions_tx_id ON public.user_transactions USING btree (tx_id)
+public,user_transactions,idx_user_transactions_type,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_user_transactions_type ON public.user_transactions USING btree (type)
+public,user_transactions,idx_user_transactions_type_txid,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_user_transactions_type_txid ON public.user_transactions USING btree (type, tx_id)"
+public,user_transactions,idx_user_transactions_user,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_user_transactions_user ON public.user_transactions USING btree (user_id)
+public,user_transactions,idx_user_transactions_user_comp,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_user_transactions_user_comp ON public.user_transactions USING btree (canonical_user_id, competition_id)"
+public,user_transactions,idx_user_transactions_wallet,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_user_transactions_wallet ON public.user_transactions USING btree (wallet_address)
+public,user_transactions,idx_user_transactions_wallet_credited,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_user_transactions_wallet_credited ON public.user_transactions USING btree (canonical_user_id, created_at DESC)"
+public,user_transactions,idx_user_tx_competition_completed,FALSE,FALSE,TRUE,TRUE,FALSE,(status = 'completed'::text),null,"CREATE INDEX idx_user_tx_competition_completed ON public.user_transactions USING btree (competition_id, created_at DESC) WHERE (status = 'completed'::text)"
+public,user_transactions,idx_user_tx_topup_txid_unique,FALSE,TRUE,TRUE,TRUE,FALSE,(type = 'topup'::text),null,CREATE UNIQUE INDEX idx_user_tx_topup_txid_unique ON public.user_transactions USING btree (tx_id) WHERE (type = 'topup'::text)
+public,user_transactions,idx_user_tx_user_created,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_user_tx_user_created ON public.user_transactions USING btree (canonical_user_id, created_at)"
+public,user_transactions,idx_user_tx_user_currency_created,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_user_tx_user_currency_created ON public.user_transactions USING btree (canonical_user_id, currency, created_at, id)"
+public,user_transactions,idx_ut_status_type,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_ut_status_type ON public.user_transactions USING btree (status, type)"
+public,user_transactions,user_transactions_charge_id_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX user_transactions_charge_id_key ON public.user_transactions USING btree (charge_id)
+public,user_transactions,user_transactions_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX user_transactions_pkey ON public.user_transactions USING btree (id)
+public,user_transactions,user_transactions_webhook_ref_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX user_transactions_webhook_ref_key ON public.user_transactions USING btree (webhook_ref)
+public,users,users_email_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX users_email_key ON public.users USING btree (email)
+public,users,users_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)
+public,users,users_privy_id_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX users_privy_id_key ON public.users USING btree (privy_id)
+public,users,users_user_id_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX users_user_id_key ON public.users USING btree (user_id)
+public,users,users_wallet_address_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX users_wallet_address_key ON public.users USING btree (wallet_address)
+public,wallet_balances_table_backup,idx_wallet_balances_canonical,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_wallet_balances_canonical ON public.wallet_balances_table_backup USING btree (canonical_user_id)
+public,wallet_balances_table_backup,wallet_balances_canonical_user_id_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX wallet_balances_canonical_user_id_key ON public.wallet_balances_table_backup USING btree (canonical_user_id)
+public,wallet_balances_table_backup,wallet_balances_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX wallet_balances_pkey ON public.wallet_balances_table_backup USING btree (id)
+public,webhook_logs,idx_webhook_logs_status,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_webhook_logs_status ON public.webhook_logs USING btree (status)
+public,webhook_logs,idx_webhook_logs_type_created,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,"CREATE INDEX idx_webhook_logs_type_created ON public.webhook_logs USING btree (webhook_type, created_at DESC)"
+public,webhook_logs,webhook_logs_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX webhook_logs_pkey ON public.webhook_logs USING btree (id)
+public,winners,idx_winners_competition,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX idx_winners_competition ON public.winners USING btree (competition_id)
+public,winners,winners_competition_prize_position_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,"CREATE UNIQUE INDEX winners_competition_prize_position_key ON public.winners USING btree (competition_id, prize_position)"
+public,winners,winners_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX winners_pkey ON public.winners USING btree (id)
+realtime,messages,messages_inserted_at_topic_index,FALSE,FALSE,TRUE,TRUE,FALSE,((extension = 'broadcast'::text) AND (private IS TRUE)),null,"CREATE INDEX messages_inserted_at_topic_index ON ONLY realtime.messages USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE))"
+realtime,messages,messages_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,"CREATE UNIQUE INDEX messages_pkey ON ONLY realtime.messages USING btree (id, inserted_at)"
+realtime,messages_2026_02_02,messages_2026_02_02_inserted_at_topic_idx,FALSE,FALSE,TRUE,TRUE,FALSE,((extension = 'broadcast'::text) AND (private IS TRUE)),null,"CREATE INDEX messages_2026_02_02_inserted_at_topic_idx ON realtime.messages_2026_02_02 USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE))"
+realtime,messages_2026_02_02,messages_2026_02_02_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,"CREATE UNIQUE INDEX messages_2026_02_02_pkey ON realtime.messages_2026_02_02 USING btree (id, inserted_at)"
+realtime,messages_2026_02_03,messages_2026_02_03_inserted_at_topic_idx,FALSE,FALSE,TRUE,TRUE,FALSE,((extension = 'broadcast'::text) AND (private IS TRUE)),null,"CREATE INDEX messages_2026_02_03_inserted_at_topic_idx ON realtime.messages_2026_02_03 USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE))"
+realtime,messages_2026_02_03,messages_2026_02_03_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,"CREATE UNIQUE INDEX messages_2026_02_03_pkey ON realtime.messages_2026_02_03 USING btree (id, inserted_at)"
+realtime,messages_2026_02_04,messages_2026_02_04_inserted_at_topic_idx,FALSE,FALSE,TRUE,TRUE,FALSE,((extension = 'broadcast'::text) AND (private IS TRUE)),null,"CREATE INDEX messages_2026_02_04_inserted_at_topic_idx ON realtime.messages_2026_02_04 USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE))"
+realtime,messages_2026_02_04,messages_2026_02_04_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,"CREATE UNIQUE INDEX messages_2026_02_04_pkey ON realtime.messages_2026_02_04 USING btree (id, inserted_at)"
+realtime,messages_2026_02_05,messages_2026_02_05_inserted_at_topic_idx,FALSE,FALSE,TRUE,TRUE,FALSE,((extension = 'broadcast'::text) AND (private IS TRUE)),null,"CREATE INDEX messages_2026_02_05_inserted_at_topic_idx ON realtime.messages_2026_02_05 USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE))"
+realtime,messages_2026_02_05,messages_2026_02_05_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,"CREATE UNIQUE INDEX messages_2026_02_05_pkey ON realtime.messages_2026_02_05 USING btree (id, inserted_at)"
+realtime,messages_2026_02_06,messages_2026_02_06_inserted_at_topic_idx,FALSE,FALSE,TRUE,TRUE,FALSE,((extension = 'broadcast'::text) AND (private IS TRUE)),null,"CREATE INDEX messages_2026_02_06_inserted_at_topic_idx ON realtime.messages_2026_02_06 USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE))"
+realtime,messages_2026_02_06,messages_2026_02_06_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,"CREATE UNIQUE INDEX messages_2026_02_06_pkey ON realtime.messages_2026_02_06 USING btree (id, inserted_at)"
+realtime,messages_2026_02_07,messages_2026_02_07_inserted_at_topic_idx,FALSE,FALSE,TRUE,TRUE,FALSE,((extension = 'broadcast'::text) AND (private IS TRUE)),null,"CREATE INDEX messages_2026_02_07_inserted_at_topic_idx ON realtime.messages_2026_02_07 USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE))"
+realtime,messages_2026_02_07,messages_2026_02_07_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,"CREATE UNIQUE INDEX messages_2026_02_07_pkey ON realtime.messages_2026_02_07 USING btree (id, inserted_at)"
+realtime,messages_2026_02_08,messages_2026_02_08_inserted_at_topic_idx,FALSE,FALSE,TRUE,TRUE,FALSE,((extension = 'broadcast'::text) AND (private IS TRUE)),null,"CREATE INDEX messages_2026_02_08_inserted_at_topic_idx ON realtime.messages_2026_02_08 USING btree (inserted_at DESC, topic) WHERE ((extension = 'broadcast'::text) AND (private IS TRUE))"
+realtime,messages_2026_02_08,messages_2026_02_08_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,"CREATE UNIQUE INDEX messages_2026_02_08_pkey ON realtime.messages_2026_02_08 USING btree (id, inserted_at)"
+realtime,schema_migrations,schema_migrations_pkey,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX schema_migrations_pkey ON realtime.schema_migrations USING btree (version)
+realtime,subscription,ix_realtime_subscription_entity,FALSE,FALSE,TRUE,TRUE,FALSE,null,null,CREATE INDEX ix_realtime_subscription_entity ON realtime.subscription USING btree (entity)
+realtime,subscription,pk_subscription,TRUE,TRUE,TRUE,TRUE,FALSE,null,null,CREATE UNIQUE INDEX pk_subscription ON realtime.subscription USING btree (id)
+realtime,subscription,subscription_subscription_id_entity_filters_action_filter_key,FALSE,TRUE,TRUE,TRUE,FALSE,null,null,"CREATE UNIQUE INDEX subscription_subscription_id_entity_filters_action_filter_key ON realtime.subscription USING btree (subscription_id, entity, filters, action_filter)"

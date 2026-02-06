@@ -1,0 +1,2895 @@
+schema_name,table_name,trigger_name,enabled,trigger_def,function_schema,function_name,function_def,comment
+public,balance_ledger,AAA_CHECKTHISFIRST__AAA_balance_ledger_trg,O,"CREATE TRIGGER ""AAA_CHECKTHISFIRST__AAA_balance_ledger_trg"" BEFORE INSERT OR UPDATE ON balance_ledger FOR EACH ROW EXECUTE FUNCTION ""AAA_CHECKTHISFIRST__AAA_balance_ledger""()",public,AAA_CHECKTHISFIRST__AAA_balance_ledger,"CREATE OR REPLACE FUNCTION public.""AAA_CHECKTHISFIRST__AAA_balance_ledger""()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+  v_type text := lower(new.type);
+  v_provider text := lower(coalesce(new.payment_provider, ''));
+BEGIN
+  v_type := trim(v_type);
+  v_provider := trim(v_provider);
+
+  -- type sanity
+  IF v_type NOT IN ('entry','purchase','topup') THEN
+    RAISE EXCEPTION 'AAA_CHECKTHISFIRST__AAA: invalid type: % (expected entry|purchase|topup)', new.type;
+  END IF;
+
+  -- topup must always credit
+  IF v_type = 'topup' THEN
+    IF new.amount <= 0 THEN
+      RAISE EXCEPTION 'AAA_CHECKTHISFIRST__AAA: topup must CREDIT internal balance (amount > 0), got %', new.amount;
+    END IF;
+  END IF;
+
+  -- payment_provider = balance_payment must always debit
+  IF v_provider = 'balance_payment' THEN
+    IF new.amount >= 0 THEN
+      RAISE EXCEPTION 'AAA_CHECKTHISFIRST__AAA: balance_payment must always DEBIT (amount < 0), got %', new.amount;
+    END IF;
+  END IF;
+
+  -- Only when type=topup & payment_provider=base_account do we credit from base
+  IF v_provider = 'base_account' THEN
+    IF v_type = 'topup' THEN
+      IF new.amount <= 0 THEN
+        RAISE EXCEPTION 'AAA_CHECKTHISFIRST__AAA: base_account topup must CREDIT (amount > 0), got %', new.amount;
+      END IF;
+    ELSE
+      -- For entry/purchase with base_account, do not change internal balance
+      IF new.amount <> 0 THEN
+        RAISE EXCEPTION 'AAA_CHECKTHISFIRST__AAA: base_account % must not change internal balance (amount = 0), got %', v_type, new.amount;
+      END IF;
+    END IF;
+  END IF;
+
+  RETURN new;
+END;
+$function$
+",null
+public,balance_ledger,bl_guard_reference_id,O,CREATE TRIGGER bl_guard_reference_id BEFORE INSERT ON balance_ledger FOR EACH ROW EXECUTE FUNCTION _bl_guard_reference_id(),public,_bl_guard_reference_id,"CREATE OR REPLACE FUNCTION public._bl_guard_reference_id()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.type IN ('entry','purchase') AND NEW.reference_id IS NULL THEN
+    RAISE EXCEPTION 'balance_ledger.reference_id must not be NULL for type %, amount %, desc %',
+      NEW.type, NEW.amount, NEW.description;
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,balance_ledger,trg_balance_ledger_sync_wallet,O,CREATE TRIGGER trg_balance_ledger_sync_wallet AFTER INSERT ON balance_ledger FOR EACH ROW EXECUTE FUNCTION balance_ledger_sync_wallet(),public,balance_ledger_sync_wallet,"CREATE OR REPLACE FUNCTION public.balance_ledger_sync_wallet()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+DECLARE
+  v_delta numeric;
+  v_before numeric;
+  v_after numeric;
+BEGIN
+  IF NEW.canonical_user_id IS NULL THEN
+    RETURN NEW; -- nothing we can do
+  END IF;
+
+  IF NEW.amount IS NULL OR NEW.amount = 0 THEN
+    RETURN NEW;
+  END IF;
+
+  v_delta := public._wallet_delta_from_txn(NEW.transaction_type, NEW.amount);
+
+  SELECT balance_before, balance_after INTO v_before, v_after
+  FROM public._apply_wallet_delta(NEW.canonical_user_id, COALESCE(NEW.currency,'USD'), v_delta);
+
+  -- Backfill before/after if not set
+  IF NEW.balance_before IS NULL OR NEW.balance_after IS NULL THEN
+    UPDATE public.balance_ledger
+    SET balance_before = COALESCE(NEW.balance_before, v_before),
+        balance_after  = COALESCE(NEW.balance_after,  v_after)
+    WHERE id = NEW.id;
+  END IF;
+
+  RETURN NEW;
+END;
+$function$
+",null
+public,balance_ledger,trg_orders_from_balance_ledger,O,CREATE TRIGGER trg_orders_from_balance_ledger AFTER INSERT ON balance_ledger FOR EACH ROW EXECUTE FUNCTION _orders_from_balance_ledger(),public,_orders_from_balance_ledger,"CREATE OR REPLACE FUNCTION public._orders_from_balance_ledger()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  INSERT INTO public.orders (
+    canonical_user_id, competition_id, amount, currency, status,
+    ticket_count, created_at, updated_at, order_type, ledger_ref,
+    source, source_id, unique_order_key, bonus_amount, cash_amount, bonus_currency,
+    completed_at
+  ) VALUES (
+    NEW.canonical_user_id,
+    NULL,
+    NEW.amount,
+    COALESCE(NEW.currency, 'USD'),
+    'completed',
+    0,
+    COALESCE(NEW.created_at, now()),
+    COALESCE(NEW.created_at, now()),
+    CASE WHEN NEW.transaction_type IN ('bonus_award','bonus_credit','credit') THEN 'bonus_credit'
+         WHEN NEW.transaction_type IN ('bonus_spend','bonus_debit','debit') THEN 'bonus_spend'
+         ELSE 'ledger' END,
+    NEW.reference_id,
+    'balance_ledger',
+    NEW.id,
+    ('bl:' || NEW.id::text),
+    CASE WHEN NEW.amount > 0 THEN NEW.amount ELSE 0 END,
+    CASE WHEN NEW.amount < 0 THEN ABS(NEW.amount) ELSE 0 END,
+    COALESCE(NEW.currency, 'USD'),
+    COALESCE(NEW.created_at, now())
+  )
+  ON CONFLICT (unique_order_key) DO NOTHING;
+  RETURN NEW;
+END;$function$
+",null
+public,canonical_users,canonical_users_broadcast,O,CREATE TRIGGER canonical_users_broadcast AFTER INSERT OR DELETE OR UPDATE ON canonical_users FOR EACH ROW EXECUTE FUNCTION broadcast_table_changes(),public,broadcast_table_changes,"CREATE OR REPLACE FUNCTION public.broadcast_table_changes()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+      BEGIN
+        PERFORM pg_notify(
+          'table_changes',
+          json_build_object(
+            'table', TG_TABLE_NAME,
+            'operation', TG_OP,
+            'timestamp', NOW(),
+            'data', CASE
+              WHEN TG_OP = 'DELETE' THEN row_to_json(OLD)
+              ELSE row_to_json(NEW)
+            END
+          )::text
+        );
+        RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+      END;
+      $function$
+",null
+public,canonical_users,canonical_users_normalize_before_write,O,CREATE TRIGGER canonical_users_normalize_before_write BEFORE INSERT OR UPDATE ON canonical_users FOR EACH ROW EXECUTE FUNCTION canonical_users_normalize_before_write(),public,canonical_users_normalize_before_write,"CREATE OR REPLACE FUNCTION public.canonical_users_normalize_before_write()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  -- Normalize wallet_address using util function
+  IF NEW.wallet_address IS NOT NULL THEN
+    NEW.wallet_address := util.normalize_evm_address(NEW.wallet_address);
+  END IF;
+
+  -- Set canonical_user_id based on wallet_address
+  IF NEW.wallet_address IS NOT NULL THEN
+    NEW.canonical_user_id := 'prize:pid:' || NEW.wallet_address;
+  -- IMPORTANT: Only extract wallet from canonical_user_id if it's NOT a temporary placeholder
+  ELSIF NEW.canonical_user_id IS NOT NULL AND NEW.canonical_user_id NOT LIKE 'prize:pid:temp%' THEN
+    IF POSITION('prize:pid:' IN NEW.canonical_user_id) = 1 THEN
+      -- Use SUBSTRING to safely extract the wallet address part
+      NEW.wallet_address := SUBSTRING(NEW.canonical_user_id FROM 11);
+      -- Only normalize if it looks like a valid address (starts with 0x)
+      IF NEW.wallet_address LIKE '0x%' THEN
+        NEW.wallet_address := util.normalize_evm_address(NEW.wallet_address);
+        NEW.canonical_user_id := 'prize:pid:' || NEW.wallet_address;
+      END IF;
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$function$
+",null
+public,canonical_users,cu_normalize_and_enforce_trg,O,CREATE TRIGGER cu_normalize_and_enforce_trg BEFORE INSERT OR UPDATE ON canonical_users FOR EACH ROW EXECUTE FUNCTION cu_normalize_and_enforce(),public,cu_normalize_and_enforce,"CREATE OR REPLACE FUNCTION public.cu_normalize_and_enforce()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  -- Normalize all wallet fields using util function for consistency
+  IF NEW.wallet_address IS NOT NULL THEN
+    NEW.wallet_address := util.normalize_evm_address(NEW.wallet_address);
+  END IF;
+  
+  IF NEW.base_wallet_address IS NOT NULL THEN
+    NEW.base_wallet_address := util.normalize_evm_address(NEW.base_wallet_address);
+  END IF;
+  
+  IF NEW.eth_wallet_address IS NOT NULL THEN
+    NEW.eth_wallet_address := util.normalize_evm_address(NEW.eth_wallet_address);
+  END IF;
+
+  -- If primary wallet is missing but alternates exist, pick first non-null
+  IF NEW.wallet_address IS NULL THEN
+    IF NEW.base_wallet_address IS NOT NULL THEN
+      NEW.wallet_address := NEW.base_wallet_address;
+    ELSIF NEW.eth_wallet_address IS NOT NULL THEN
+      NEW.wallet_address := NEW.eth_wallet_address;
+    END IF;
+  END IF;
+
+  -- Enforce canonical_user_id when we have a wallet
+  -- IMPORTANT: Only set if NOT a temporary placeholder
+  IF NEW.wallet_address IS NOT NULL AND (NEW.canonical_user_id IS NULL OR NEW.canonical_user_id NOT LIKE 'prize:pid:temp%') THEN
+    NEW.canonical_user_id := 'prize:pid:' || NEW.wallet_address;
+  END IF;
+
+  RETURN NEW;
+END;
+$function$
+",null
+public,canonical_users,tr_set_canonical_user_id,O,CREATE TRIGGER tr_set_canonical_user_id BEFORE INSERT OR UPDATE ON canonical_users FOR EACH ROW EXECUTE FUNCTION set_canonical_user_id_from_wallet(),public,set_canonical_user_id_from_wallet,"CREATE OR REPLACE FUNCTION public.set_canonical_user_id_from_wallet()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.canonical_user_id IS NULL AND NEW.wallet_address IS NOT NULL THEN
+    -- normalize wallet to lowercase
+    NEW.wallet_address := lower(NEW.wallet_address);
+    IF NEW.wallet_address ~ '^0x[a-f0-9]{40}$' THEN
+      NEW.canonical_user_id := 'prize:pid:' || NEW.wallet_address;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;$function$
+",null
+public,canonical_users,trg_block_specific_cuid,O,CREATE TRIGGER trg_block_specific_cuid BEFORE INSERT OR UPDATE ON canonical_users FOR EACH ROW EXECUTE FUNCTION block_specific_canonical_user('prize:pid:0xb70e516aecda554dd77f1ae845b1322968034aef'),public,block_specific_canonical_user,"CREATE OR REPLACE FUNCTION public.block_specific_canonical_user()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF (TG_OP = 'INSERT' AND NEW.canonical_user_id = TG_ARGV[0]) OR
+     (TG_OP = 'UPDATE' AND NEW.canonical_user_id = TG_ARGV[0]) THEN
+    RAISE EXCEPTION 'Insert/Update blocked for canonical_user_id: %', TG_ARGV[0];
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,canonical_users,trg_canonical_users_normalize,O,CREATE TRIGGER trg_canonical_users_normalize BEFORE INSERT OR UPDATE ON canonical_users FOR EACH ROW EXECUTE FUNCTION canonical_users_normalize(),public,canonical_users_normalize,"CREATE OR REPLACE FUNCTION public.canonical_users_normalize()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  -- Normalize all wallet address fields using util function for consistency
+  IF NEW.wallet_address IS NOT NULL THEN
+    NEW.wallet_address := util.normalize_evm_address(NEW.wallet_address);
+  END IF;
+  
+  IF NEW.base_wallet_address IS NOT NULL THEN
+    NEW.base_wallet_address := util.normalize_evm_address(NEW.base_wallet_address);
+  END IF;
+  
+  IF NEW.eth_wallet_address IS NOT NULL THEN
+    NEW.eth_wallet_address := util.normalize_evm_address(NEW.eth_wallet_address);
+  END IF;
+
+  -- Auto-generate canonical_user_id if missing and we have a wallet address
+  -- IMPORTANT: Skip this if canonical_user_id is a temporary placeholder (prize:pid:temp<N>)
+  IF NEW.canonical_user_id IS NULL AND COALESCE(NEW.wallet_address, NEW.base_wallet_address, NEW.eth_wallet_address) IS NOT NULL THEN
+    NEW.canonical_user_id := 'prize:pid:' || COALESCE(NEW.wallet_address, NEW.base_wallet_address, NEW.eth_wallet_address);
+  END IF;
+
+  RETURN NEW;
+END;
+$function$
+",null
+public,canonical_users,trg_init_sub_balance,O,CREATE TRIGGER trg_init_sub_balance AFTER INSERT ON canonical_users FOR EACH ROW EXECUTE FUNCTION init_sub_balance_after_canonical_user(),public,init_sub_balance_after_canonical_user,"CREATE OR REPLACE FUNCTION public.init_sub_balance_after_canonical_user()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  INSERT INTO public.sub_account_balances (canonical_user_id, user_id, currency, available_balance, pending_balance, last_updated)
+  VALUES (NEW.canonical_user_id, NEW.uid, 'USD', 0, 0, now())
+  ON CONFLICT DO NOTHING;
+  RETURN NEW;
+END;
+$function$
+",null
+public,canonical_users,trg_provision_sub_account_balance,O,CREATE TRIGGER trg_provision_sub_account_balance AFTER INSERT ON canonical_users FOR EACH ROW EXECUTE FUNCTION handle_canonical_user_insert(),public,handle_canonical_user_insert,"CREATE OR REPLACE FUNCTION public.handle_canonical_user_insert()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+begin
+  insert into public.sub_account_balances (
+    user_id,
+    canonical_user_id,
+    currency,
+    available_balance,
+    pending_balance,
+    last_updated
+  ) values (
+    new.id::text,
+    new.canonical_user_id,
+    'USDC',
+    0,
+    0,
+    now()
+  )
+  on conflict (canonical_user_id, currency)
+  do update set last_updated = excluded.last_updated;
+
+  return new;
+end;
+$function$
+",null
+public,canonical_users,update_canonical_users_updated_at,O,CREATE TRIGGER update_canonical_users_updated_at BEFORE UPDATE ON canonical_users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(),public,update_updated_at_column,"CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
+$function$
+",null
+public,competition_entries,competition_entries_normalize_wallet,O,CREATE TRIGGER competition_entries_normalize_wallet BEFORE INSERT OR UPDATE ON competition_entries FOR EACH ROW EXECUTE FUNCTION trg_competition_entries_normalize_wallet(),public,trg_competition_entries_normalize_wallet,"CREATE OR REPLACE FUNCTION public.trg_competition_entries_normalize_wallet()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  NEW.wallet_address := public.normalize_wallet_address(NEW.wallet_address);
+  RETURN NEW;
+END;
+$function$
+",null
+public,competition_entries,trg_set_competition_entries_username,O,CREATE TRIGGER trg_set_competition_entries_username BEFORE INSERT OR UPDATE OF canonical_user_id ON competition_entries FOR EACH ROW EXECUTE FUNCTION set_competition_entries_username(),public,set_competition_entries_username,"CREATE OR REPLACE FUNCTION public.set_competition_entries_username()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  -- On INSERT or when canonical_user_id changes, copy username from canonical_users
+  IF (TG_OP = 'INSERT') OR (NEW.canonical_user_id IS DISTINCT FROM OLD.canonical_user_id) THEN
+    SELECT cu.username INTO NEW.username
+    FROM public.canonical_users cu
+    WHERE cu.canonical_user_id = NEW.canonical_user_id;
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,competition_entries,trg_sync_entries_on_entries,O,"CREATE TRIGGER trg_sync_entries_on_entries AFTER INSERT OR UPDATE OF competition_id, amount_spent ON competition_entries FOR EACH ROW EXECUTE FUNCTION sync_competition_entry_cached_fields()",public,sync_competition_entry_cached_fields,"CREATE OR REPLACE FUNCTION public.sync_competition_entry_cached_fields()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  -- When competition_id or amount_spent changes on entries, resync
+  IF TG_TABLE_NAME = 'competition_entries' THEN
+    UPDATE public.competition_entries ce
+    SET competition_title = c.title,
+        competition_description = c.description,
+        amount_paid = NEW.amount_spent
+    FROM public.competitions c
+    WHERE ce.id = NEW.id AND c.id = NEW.competition_id;
+    RETURN NEW;
+  END IF;
+
+  -- When competitions table changes, cascade to entries
+  IF TG_TABLE_NAME = 'competitions' THEN
+    UPDATE public.competition_entries ce
+    SET competition_title = NEW.title,
+        competition_description = NEW.description
+    WHERE ce.competition_id = NEW.id;
+    RETURN NEW;
+  END IF;
+
+  RETURN NEW;
+END;$function$
+",null
+public,competition_entries_purchases,trg_after_cep_change,O,CREATE TRIGGER trg_after_cep_change AFTER INSERT OR DELETE OR UPDATE ON competition_entries_purchases FOR EACH ROW EXECUTE FUNCTION after_cep_change(),public,after_cep_change,"CREATE OR REPLACE FUNCTION public.after_cep_change()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  PERFORM public.recompute_competition_entry(NEW.canonical_user_id, NEW.competition_id);
+  RETURN NEW;
+END;
+$function$
+",null
+public,competitions,competitions_broadcast_trigger,O,CREATE TRIGGER competitions_broadcast_trigger AFTER INSERT OR DELETE OR UPDATE ON competitions FOR EACH ROW EXECUTE FUNCTION util.broadcast_table_changes(),util,broadcast_table_changes,"CREATE OR REPLACE FUNCTION util.broadcast_table_changes()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+BEGIN
+  PERFORM realtime.broadcast_changes(
+    'table:' || TG_TABLE_NAME,
+    TG_OP,
+    TG_OP,
+    TG_TABLE_NAME,
+    TG_TABLE_SCHEMA,
+    NEW,
+    OLD
+  );
+  RETURN COALESCE(NEW, OLD);
+END;
+$function$
+",null
+public,competitions,competitions_sync_num_winners_trg,O,CREATE TRIGGER competitions_sync_num_winners_trg BEFORE INSERT OR UPDATE ON competitions FOR EACH ROW EXECUTE FUNCTION competitions_sync_num_winners(),public,competitions_sync_num_winners,"CREATE OR REPLACE FUNCTION public.competitions_sync_num_winners()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  -- Before insert/update, if only one is provided, copy to the other
+  IF TG_OP IN ('INSERT','UPDATE') THEN
+    IF NEW.num_winners IS NULL AND NEW.winner_count IS NOT NULL THEN
+      NEW.num_winners := NEW.winner_count;
+    ELSIF NEW.winner_count IS NULL AND NEW.num_winners IS NOT NULL THEN
+      NEW.winner_count := NEW.num_winners;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,competitions,competitions_sync_tickets_sold_trg,O,CREATE TRIGGER competitions_sync_tickets_sold_trg BEFORE INSERT OR UPDATE ON competitions FOR EACH ROW EXECUTE FUNCTION competitions_sync_tickets_sold(),public,competitions_sync_tickets_sold,"CREATE OR REPLACE FUNCTION public.competitions_sync_tickets_sold()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF TG_OP IN ('INSERT','UPDATE') THEN
+    IF NEW.tickets_sold IS NULL AND NEW.sold_tickets IS NOT NULL THEN
+      NEW.tickets_sold := NEW.sold_tickets;
+    ELSIF NEW.sold_tickets IS NULL AND NEW.tickets_sold IS NOT NULL THEN
+      NEW.sold_tickets := NEW.tickets_sold;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,competitions,trg_sync_entries_on_competitions,O,"CREATE TRIGGER trg_sync_entries_on_competitions AFTER UPDATE OF title, description ON competitions FOR EACH ROW EXECUTE FUNCTION sync_competition_entry_cached_fields()",public,sync_competition_entry_cached_fields,"CREATE OR REPLACE FUNCTION public.sync_competition_entry_cached_fields()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  -- When competition_id or amount_spent changes on entries, resync
+  IF TG_TABLE_NAME = 'competition_entries' THEN
+    UPDATE public.competition_entries ce
+    SET competition_title = c.title,
+        competition_description = c.description,
+        amount_paid = NEW.amount_spent
+    FROM public.competitions c
+    WHERE ce.id = NEW.id AND c.id = NEW.competition_id;
+    RETURN NEW;
+  END IF;
+
+  -- When competitions table changes, cascade to entries
+  IF TG_TABLE_NAME = 'competitions' THEN
+    UPDATE public.competition_entries ce
+    SET competition_title = NEW.title,
+        competition_description = NEW.description
+    WHERE ce.competition_id = NEW.id;
+    RETURN NEW;
+  END IF;
+
+  RETURN NEW;
+END;$function$
+",null
+public,competitions,update_competitions_updated_at,O,CREATE TRIGGER update_competitions_updated_at BEFORE UPDATE ON competitions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(),public,update_updated_at_column,"CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
+$function$
+",null
+public,custody_transactions,trg_award_first_topup_bonus,O,"CREATE TRIGGER trg_award_first_topup_bonus AFTER UPDATE ON custody_transactions FOR EACH ROW WHEN (old.status IS DISTINCT FROM new.status AND new.status = 'completed'::text AND (new.transaction_type = ANY (ARRAY['deposit'::text, 'top_up'::text])) AND new.currency ~~* 'USD%'::text) EXECUTE FUNCTION award_first_topup_bonus()",public,award_first_topup_bonus,"CREATE OR REPLACE FUNCTION public.award_first_topup_bonus()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+DECLARE
+  v_first_tx_id uuid;
+  v_first_amount numeric;
+  v_bonus numeric;
+  v_cu_id uuid;
+  v_canonical_user_id text;
+  v_wallet_address text;
+  v_privy_user_id text;
+BEGIN
+  -- Only react to transitions to completed
+  IF TG_OP <> 'UPDATE' OR (OLD.status = NEW.status) OR NEW.status <> 'completed' THEN
+    RETURN NEW;
+  END IF;
+
+  -- Only deposits/top_up in USD sub-account
+  IF NEW.transaction_type NOT IN ('deposit','top_up') OR NEW.currency IS NULL OR NEW.currency NOT ILIKE 'USD%' THEN
+    RETURN NEW;
+  END IF;
+
+  -- Map user
+  SELECT cu.id, cu.canonical_user_id, cu.wallet_address, cu.privy_user_id
+    INTO v_cu_id, v_canonical_user_id, v_wallet_address, v_privy_user_id
+  FROM public.canonical_users cu
+  WHERE cu.id = NEW.user_id;
+
+  IF v_cu_id IS NULL THEN
+    -- No matching canonical user; nothing to do
+    RETURN NEW;
+  END IF;
+
+  -- Skip if user already used bonus
+  PERFORM 1 FROM public.canonical_users cu
+   WHERE cu.id = v_cu_id AND cu.has_used_new_user_bonus = true;
+  IF FOUND THEN
+    RETURN NEW;
+  END IF;
+
+  -- Identify the true first completed USD deposit/top_up for this user
+  SELECT ct.id, ct.amount
+    INTO v_first_tx_id, v_first_amount
+  FROM public.custody_transactions ct
+  WHERE ct.user_id = v_cu_id
+    AND ct.status = 'completed'
+    AND ct.transaction_type IN ('deposit','top_up')
+    AND ct.currency ILIKE 'USD%'
+  ORDER BY ct.created_at ASC, ct.id ASC
+  LIMIT 1;
+
+  -- If none found or current row isn't the first, exit
+  IF v_first_tx_id IS NULL OR v_first_tx_id <> NEW.id THEN
+    RETURN NEW;
+  END IF;
+
+  -- Compute 50% bonus (no cap)
+  v_bonus := COALESCE(v_first_amount, 0) * 0.5;
+  IF v_bonus <= 0 THEN
+    RETURN NEW;
+  END IF;
+
+  -- Atomically mark bonus used and credit balance
+  UPDATE public.canonical_users cu
+     SET bonus_balance = COALESCE(cu.bonus_balance, 0) + v_bonus,
+         has_used_new_user_bonus = true,
+         updated_at = now()
+   WHERE cu.id = v_cu_id;
+
+  -- Log user transaction with audit fields
+  INSERT INTO public.user_transactions (
+    user_id,
+    canonical_user_id,
+    wallet_address,
+    user_privy_id,
+    type,
+    amount,
+    currency,
+    description
+  ) VALUES (
+    v_cu_id::text,
+    v_canonical_user_id,
+    v_wallet_address,
+    v_privy_user_id,
+    'bonus_credit',
+    v_bonus,
+    'USD',
+    'First deposit 50% bonus'
+  );
+
+  RETURN NEW;
+END;
+$function$
+",null
+public,email_auth_sessions,trg_email_auth_sessions_verified,O,CREATE TRIGGER trg_email_auth_sessions_verified AFTER UPDATE ON email_auth_sessions FOR EACH ROW WHEN (new.verified_at IS NOT NULL OR new.used_at IS NOT NULL) EXECUTE FUNCTION on_email_verification_merge(),public,on_email_verification_merge,"CREATE OR REPLACE FUNCTION public.on_email_verification_merge()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_email text;
+  v_row public.canonical_users;
+begin
+  -- Only act when verification succeeds; prefer verified_at, fallback to used_at
+  if (NEW.verified_at is not null) or (NEW.used_at is not null) then
+    v_email := lower(trim(NEW.email));
+    if v_email is not null and v_email <> '' then
+      -- Call the canonical upsert with just the email for now
+      v_row := public.ensure_canonical_user(p_email => v_email);
+    end if;
+  end if;
+  return NEW;
+end;
+$function$
+",null
+public,instant_win_grids,trigger_instant_win_grids_updated_at,O,CREATE TRIGGER trigger_instant_win_grids_updated_at BEFORE UPDATE ON instant_win_grids FOR EACH ROW EXECUTE FUNCTION update_instant_win_grids_updated_at(),public,update_instant_win_grids_updated_at,"CREATE OR REPLACE FUNCTION public.update_instant_win_grids_updated_at()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$function$
+",null
+public,joincompetition,joincompetition_broadcast_trigger,O,CREATE TRIGGER joincompetition_broadcast_trigger AFTER INSERT OR DELETE OR UPDATE ON joincompetition FOR EACH ROW EXECUTE FUNCTION util.broadcast_table_changes(),util,broadcast_table_changes,"CREATE OR REPLACE FUNCTION util.broadcast_table_changes()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+BEGIN
+  PERFORM realtime.broadcast_changes(
+    'table:' || TG_TABLE_NAME,
+    TG_OP,
+    TG_OP,
+    TG_TABLE_NAME,
+    TG_TABLE_SCHEMA,
+    NEW,
+    OLD
+  );
+  RETURN COALESCE(NEW, OLD);
+END;
+$function$
+",null
+public,joincompetition,trg_joincompetition_balance_guard,O,CREATE TRIGGER trg_joincompetition_balance_guard BEFORE INSERT ON joincompetition FOR EACH ROW EXECUTE FUNCTION joincompetition_balance_guard(),public,joincompetition_balance_guard,"CREATE OR REPLACE FUNCTION public.joincompetition_balance_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.chain = 'balance' THEN
+    IF NEW.canonical_user_id IS NULL THEN
+      NEW.canonical_user_id := COALESCE(NEW.userid, NEW.wallet_address, NEW.uid);
+    END IF;
+    IF NEW.purchasedate IS NULL THEN
+      NEW.purchasedate := now();
+    END IF;
+    IF NEW.numberoftickets IS NULL THEN
+      NEW.numberoftickets := CASE
+        WHEN NEW.ticketnumbers IS NULL OR NEW.ticketnumbers = '' THEN 0
+        ELSE array_length(string_to_array(NEW.ticketnumbers, ','), 1)
+      END;
+    END IF;
+    IF NEW.amountspent IS NULL THEN
+      NEW.amountspent := 0;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,joincompetition,trg_joincompetition_balance_sync_bridge,O,CREATE TRIGGER trg_joincompetition_balance_sync_bridge AFTER INSERT ON joincompetition FOR EACH ROW EXECUTE FUNCTION _sync_entries_if_balance(),public,_sync_entries_if_balance,"CREATE OR REPLACE FUNCTION public._sync_entries_if_balance()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.chain = 'balance' THEN
+    -- Reuse existing logic by performing an UPDATE to trigger existing AFTER trigger
+    UPDATE public.joincompetition
+    SET updated_at = now()
+    WHERE id = NEW.id;
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,joincompetition,trg_joincompetition_balance_tx,O,CREATE TRIGGER trg_joincompetition_balance_tx AFTER INSERT ON joincompetition FOR EACH ROW EXECUTE FUNCTION _log_balance_purchase_tx(),public,_log_balance_purchase_tx,"CREATE OR REPLACE FUNCTION public._log_balance_purchase_tx()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.chain = 'balance' THEN
+    INSERT INTO public.user_transactions(
+      canonical_user_id,
+      competition_id,
+      payment_provider,
+      type,
+      amount,
+      ticket_count,
+      tx_id,
+      metadata
+    )
+    VALUES (
+      NEW.canonical_user_id,
+      NEW.competitionid,
+      'balance_payment',
+      'purchase',
+      NEW.amountspent,
+      NEW.numberoftickets,
+      NEW.transactionhash,
+      jsonb_build_object('source', 'joincompetition')
+    )
+    ON CONFLICT DO NOTHING;
+  END IF;
+
+  RETURN NEW;
+END;
+$function$
+",null
+public,joincompetition,trg_joincompetition_normalize,O,CREATE TRIGGER trg_joincompetition_normalize BEFORE INSERT OR UPDATE ON joincompetition FOR EACH ROW EXECUTE FUNCTION joincompetition_normalize(),public,joincompetition_normalize,"CREATE OR REPLACE FUNCTION public.joincompetition_normalize()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+  norm text;
+  cnt int;
+BEGIN
+  -- normalize CSV
+  norm := public.normalize_ticket_csv(NEW.ticketnumbers);
+  NEW.ticketnumbers := norm;
+
+  -- set numberoftickets to distinct count
+  IF norm IS NULL OR norm = '' THEN
+    NEW.numberoftickets := 0;
+  ELSE
+    SELECT count(*) INTO cnt FROM unnest(string_to_array(norm, ',')) AS x;
+    NEW.numberoftickets := cnt;
+  END IF;
+
+  RETURN NEW;
+END;
+$function$
+",null
+public,joincompetition,trg_joincompetition_set_cuid,O,CREATE TRIGGER trg_joincompetition_set_cuid BEFORE INSERT OR UPDATE ON joincompetition FOR EACH ROW EXECUTE FUNCTION util.trg_set_cuid_from_context(),util,trg_set_cuid_from_context,"CREATE OR REPLACE FUNCTION util.trg_set_cuid_from_context()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.canonical_user_id IS NULL THEN
+    NEW.canonical_user_id := util.resolve_canonical_user_id(
+      NEW.wallet_address,
+      COALESCE(NEW.privy_user_id, NEW.user_privy_id)
+    );
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,joincompetition,trg_joincompetition_wallet_bi,O,"CREATE TRIGGER trg_joincompetition_wallet_bi BEFORE INSERT OR UPDATE OF canonical_user_id, wallet_address ON joincompetition FOR EACH ROW EXECUTE FUNCTION joincompetition_sync_wallet()",public,joincompetition_sync_wallet,"CREATE OR REPLACE FUNCTION public.joincompetition_sync_wallet()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.canonical_user_id IS NOT NULL AND (NEW.wallet_address IS NULL OR NEW.wallet_address = '') THEN
+    NEW.wallet_address := replace(NEW.canonical_user_id, 'prize:pid:', '');
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,joincompetition,trg_set_joincompetition_uid_ins,O,CREATE TRIGGER trg_set_joincompetition_uid_ins BEFORE INSERT ON joincompetition FOR EACH ROW EXECUTE FUNCTION set_joincompetition_uid(),public,set_joincompetition_uid,"CREATE OR REPLACE FUNCTION public.set_joincompetition_uid()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.canonical_user_id IS NOT NULL THEN
+    SELECT cu.uid
+      INTO NEW.uid
+      FROM public.canonical_users cu
+     WHERE cu.canonical_user_id = NEW.canonical_user_id;
+  END IF;
+
+  RETURN NEW;
+END;
+$function$
+",null
+public,joincompetition,trg_set_joincompetition_uid_upd,O,CREATE TRIGGER trg_set_joincompetition_uid_upd BEFORE UPDATE OF canonical_user_id ON joincompetition FOR EACH ROW EXECUTE FUNCTION set_joincompetition_uid(),public,set_joincompetition_uid,"CREATE OR REPLACE FUNCTION public.set_joincompetition_uid()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.canonical_user_id IS NOT NULL THEN
+    SELECT cu.uid
+      INTO NEW.uid
+      FROM public.canonical_users cu
+     WHERE cu.canonical_user_id = NEW.canonical_user_id;
+  END IF;
+
+  RETURN NEW;
+END;
+$function$
+",null
+public,joincompetition,trigger_joincompetition_updated_at,O,CREATE TRIGGER trigger_joincompetition_updated_at BEFORE UPDATE ON joincompetition FOR EACH ROW EXECUTE FUNCTION update_joincompetition_updated_at(),public,update_joincompetition_updated_at,"CREATE OR REPLACE FUNCTION public.update_joincompetition_updated_at()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$function$
+",null
+public,orders,orders_broadcast,O,CREATE TRIGGER orders_broadcast AFTER INSERT OR DELETE OR UPDATE ON orders FOR EACH ROW EXECUTE FUNCTION broadcast_table_changes(),public,broadcast_table_changes,"CREATE OR REPLACE FUNCTION public.broadcast_table_changes()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+      BEGIN
+        PERFORM pg_notify(
+          'table_changes',
+          json_build_object(
+            'table', TG_TABLE_NAME,
+            'operation', TG_OP,
+            'timestamp', NOW(),
+            'data', CASE
+              WHEN TG_OP = 'DELETE' THEN row_to_json(OLD)
+              ELSE row_to_json(NEW)
+            END
+          )::text
+        );
+        RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+      END;
+      $function$
+",null
+public,orders,orders_to_user_transactions_trigger,O,CREATE TRIGGER orders_to_user_transactions_trigger AFTER INSERT OR UPDATE ON orders FOR EACH ROW EXECUTE FUNCTION orders_to_user_transactions(),public,orders_to_user_transactions,"CREATE OR REPLACE FUNCTION public.orders_to_user_transactions()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+BEGIN
+  IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE') AND NEW.status = 'completed' THEN
+    INSERT INTO public.user_transactions (
+      user_id,
+      canonical_user_id,
+      type,
+      amount,
+      currency,
+      competition_id,
+      order_id,
+      status,
+      created_at
+    ) VALUES (
+      NULL,
+      NEW.canonical_user_id,
+      COALESCE(NULLIF(NEW.order_type, ''), 'purchase'),
+      NEW.amount,
+      COALESCE(NEW.currency, 'USD'),
+      NEW.competition_id,
+      NEW.id,
+      'completed',
+      COALESCE(NEW.updated_at, now())
+    );
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,orders,trg_auto_debit_on_balance_order,O,CREATE TRIGGER trg_auto_debit_on_balance_order AFTER INSERT OR UPDATE ON orders FOR EACH ROW EXECUTE FUNCTION auto_debit_on_balance_order(),public,auto_debit_on_balance_order,"CREATE OR REPLACE FUNCTION public.auto_debit_on_balance_order()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+  v_amount numeric;
+  v_tx json;
+BEGIN
+  IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE') AND
+     (NEW.payment_method = 'balance' OR NEW.order_type = 'balance') AND
+     (NEW.status ILIKE 'completed' OR COALESCE(NEW.payment_status,'') ILIKE 'paid%') THEN
+
+    v_amount := COALESCE(NEW.amount_usd, NEW.amount);
+    v_tx := public.debit_balance_and_confirm_tickets(
+      NEW.user_id,
+      NEW.id,
+      NEW.competition_id,
+      v_amount,
+      md5(NEW.id::text || '-balance'),
+      'USD'
+    );
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,payment_webhook_events,payment_webhook_events_broadcast,O,CREATE TRIGGER payment_webhook_events_broadcast AFTER INSERT OR DELETE OR UPDATE ON payment_webhook_events FOR EACH ROW EXECUTE FUNCTION broadcast_table_changes(),public,broadcast_table_changes,"CREATE OR REPLACE FUNCTION public.broadcast_table_changes()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+      BEGIN
+        PERFORM pg_notify(
+          'table_changes',
+          json_build_object(
+            'table', TG_TABLE_NAME,
+            'operation', TG_OP,
+            'timestamp', NOW(),
+            'data', CASE
+              WHEN TG_OP = 'DELETE' THEN row_to_json(OLD)
+              ELSE row_to_json(NEW)
+            END
+          )::text
+        );
+        RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+      END;
+      $function$
+",null
+public,payments,payments_broadcast,O,CREATE TRIGGER payments_broadcast AFTER INSERT OR UPDATE ON payments FOR EACH ROW EXECUTE FUNCTION payment_broadcast_trigger(),public,payment_broadcast_trigger,"CREATE OR REPLACE FUNCTION public.payment_broadcast_trigger()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+DECLARE
+  topic text;
+BEGIN
+  topic := 'user:' || NEW.owner_canonical_id || ':payments';
+  PERFORM realtime.send(
+    topic,
+    'payment_status',
+    jsonb_build_object(
+      'reservation_id', NEW.reservation_id,
+      'payment_id', NEW.id,
+      'status', NEW.status,
+      'error_code', NEW.error_code,
+      'idempotency_key', NEW.idempotency_key
+    ),
+    true
+  );
+  RETURN NEW;
+END;
+$function$
+",null
+public,payments,payments_set_updated_at,O,CREATE TRIGGER payments_set_updated_at BEFORE UPDATE ON payments FOR EACH ROW EXECUTE FUNCTION set_payments_updated_at(),public,set_payments_updated_at,"CREATE OR REPLACE FUNCTION public.set_payments_updated_at()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  NEW.updated_at := now();
+  RETURN NEW;
+END;$function$
+",null
+public,pending_ticket_items,trg_expire_hold_on_write,O,CREATE TRIGGER trg_expire_hold_on_write BEFORE INSERT OR UPDATE ON pending_ticket_items FOR EACH ROW EXECUTE FUNCTION expire_hold_if_needed(),public,expire_hold_if_needed,"CREATE OR REPLACE FUNCTION public.expire_hold_if_needed()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.expires_at <= now() AND NEW.status = 'pending' THEN
+    NEW.status := 'expired';
+  END IF;
+  RETURN NEW;
+END $function$
+",null
+public,pending_tickets,check_reservation_expiry,O,CREATE TRIGGER check_reservation_expiry BEFORE INSERT OR UPDATE ON pending_tickets FOR EACH ROW EXECUTE FUNCTION auto_expire_reservations(),public,auto_expire_reservations,"CREATE OR REPLACE FUNCTION public.auto_expire_reservations()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+  v_grace_period_minutes INTEGER := 15; -- Default grace period
+  v_hold_minutes INTEGER;
+  v_time_since_creation INTERVAL;
+  v_should_expire BOOLEAN := FALSE;
+BEGIN
+  -- Called on INSERT or UPDATE
+  -- Only process if expires_at is set and status is pending
+  IF NEW.expires_at IS NOT NULL AND NEW.status = 'pending' THEN
+    
+    -- Get the hold_minutes value (default to 15 if not set)
+    v_hold_minutes := COALESCE(NEW.hold_minutes, v_grace_period_minutes);
+    
+    -- Calculate time since creation
+    v_time_since_creation := NOW() - NEW.created_at;
+    
+    -- Determine if reservation should expire
+    -- CRITICAL: NEVER expire if within hold_minutes window
+    -- This protects active reservations from premature expiration
+    IF NEW.expires_at < NOW() THEN
+      -- Check if we're past the grace period
+      IF v_time_since_creation > (v_hold_minutes || ' minutes')::INTERVAL THEN
+        v_should_expire := TRUE;
+      END IF;
+    END IF;
+    
+    -- Only mark as expired if truly past the grace period
+    IF v_should_expire THEN
+      NEW.status := 'expired';
+      RAISE NOTICE 'Reservation % expired after % minutes (hold window: % minutes)', 
+        NEW.id, 
+        EXTRACT(EPOCH FROM v_time_since_creation) / 60,
+        v_hold_minutes;
+    ELSE
+      -- Log that we're protecting this reservation
+      IF NEW.expires_at < NOW() THEN
+        RAISE NOTICE 'Reservation % protected from expiration (within %min grace period, age: %min)', 
+          NEW.id,
+          v_hold_minutes,
+          EXTRACT(EPOCH FROM v_time_since_creation) / 60;
+      END IF;
+    END IF;
+  END IF;
+  
+  RETURN NEW;
+END;
+$function$
+",null
+public,pending_tickets,pending_tickets_broadcast_trigger,O,CREATE TRIGGER pending_tickets_broadcast_trigger AFTER INSERT OR DELETE OR UPDATE ON pending_tickets FOR EACH ROW EXECUTE FUNCTION util.broadcast_table_changes(),util,broadcast_table_changes,"CREATE OR REPLACE FUNCTION util.broadcast_table_changes()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+BEGIN
+  PERFORM realtime.broadcast_changes(
+    'table:' || TG_TABLE_NAME,
+    TG_OP,
+    TG_OP,
+    TG_TABLE_NAME,
+    TG_TABLE_SCHEMA,
+    NEW,
+    OLD
+  );
+  RETURN COALESCE(NEW, OLD);
+END;
+$function$
+",null
+public,pending_tickets,trg_confirm_pending_tickets,O,CREATE TRIGGER trg_confirm_pending_tickets AFTER UPDATE ON pending_tickets FOR EACH ROW EXECUTE FUNCTION trg_fn_confirm_pending_tickets(),public,trg_fn_confirm_pending_tickets,"CREATE OR REPLACE FUNCTION public.trg_fn_confirm_pending_tickets()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+  tnum int;
+BEGIN
+  IF (TG_OP = 'UPDATE') AND (OLD.confirmed_at IS NULL) AND (NEW.confirmed_at IS NOT NULL) THEN
+    FOREACH tnum IN ARRAY COALESCE(NEW.ticket_numbers, ARRAY[]::int[]) LOOP
+      INSERT INTO public.tickets (
+        competition_id, ticket_number, status, purchased_at, order_id,
+        canonical_user_id, wallet_address
+      ) VALUES (
+        NEW.competition_id, tnum, 'sold', NEW.confirmed_at, NULL,
+        NEW.canonical_user_id,
+        COALESCE(NEW.wallet_address,
+                 (SELECT cu.wallet_address FROM public.canonical_users cu
+                  WHERE cu.canonical_user_id = NEW.canonical_user_id))
+      )
+      ON CONFLICT (competition_id, ticket_number) DO UPDATE
+      SET status = 'sold',
+          purchased_at = EXCLUDED.purchased_at,
+          canonical_user_id = EXCLUDED.canonical_user_id,
+          wallet_address = EXCLUDED.wallet_address;
+    END LOOP;
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,pending_tickets,trg_pending_sync_joincompetition,O,CREATE TRIGGER trg_pending_sync_joincompetition AFTER INSERT OR UPDATE ON pending_tickets FOR EACH ROW EXECUTE FUNCTION trg_sync_joincompetition_from_pending(),public,trg_sync_joincompetition_from_pending,"CREATE OR REPLACE FUNCTION public.trg_sync_joincompetition_from_pending()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.transaction_hash IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  -- Recompute aggregates for this tx
+  PERFORM public.upsert_joincompetition_by_tx(NEW.transaction_hash);
+  RETURN NEW;
+END;
+$function$
+",null
+public,pending_tickets,trg_pending_tickets_autofill_cuid,O,"CREATE TRIGGER trg_pending_tickets_autofill_cuid BEFORE INSERT OR UPDATE OF user_id, canonical_user_id ON pending_tickets FOR EACH ROW EXECUTE FUNCTION pending_tickets_autofill_cuid()",public,pending_tickets_autofill_cuid,"CREATE OR REPLACE FUNCTION public.pending_tickets_autofill_cuid()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+BEGIN
+  IF NEW.canonical_user_id IS NULL AND NEW.user_id IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1 FROM public.canonical_users cu
+      WHERE cu.canonical_user_id = NEW.user_id
+    ) THEN
+      NEW.canonical_user_id := NEW.user_id;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,pending_tickets,trg_pending_tickets_enforce_expiry_biu,O,CREATE TRIGGER trg_pending_tickets_enforce_expiry_biu BEFORE INSERT OR UPDATE ON pending_tickets FOR EACH ROW EXECUTE FUNCTION pending_tickets_enforce_expiry(),public,pending_tickets_enforce_expiry,"CREATE OR REPLACE FUNCTION public.pending_tickets_enforce_expiry()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.expires_at IS NULL THEN
+    NEW.expires_at := COALESCE(NEW.created_at, now()) + interval '5 minutes';
+  END IF;
+  IF NEW.status = 'pending' AND now() > NEW.expires_at THEN
+    NEW.status := 'expired';
+    NEW.updated_at := now();
+    NEW.note := coalesce(NEW.note, '') || CASE WHEN NEW.note IS NULL OR NEW.note = '' THEN '' ELSE ' | ' END ||
+      'auto-expired by trigger at ' || to_char(now(), 'YYYY-MM-DD HH24:MI:SS TZ');
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,pending_tickets,trg_pending_tickets_set_cuid,O,CREATE TRIGGER trg_pending_tickets_set_cuid BEFORE INSERT OR UPDATE ON pending_tickets FOR EACH ROW EXECUTE FUNCTION util.trg_set_cuid_from_context(),util,trg_set_cuid_from_context,"CREATE OR REPLACE FUNCTION util.trg_set_cuid_from_context()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.canonical_user_id IS NULL THEN
+    NEW.canonical_user_id := util.resolve_canonical_user_id(
+      NEW.wallet_address,
+      COALESCE(NEW.privy_user_id, NEW.user_privy_id)
+    );
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,pending_tickets,update_pending_tickets_updated_at,O,CREATE TRIGGER update_pending_tickets_updated_at BEFORE UPDATE ON pending_tickets FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(),public,update_updated_at_column,"CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
+$function$
+",null
+public,profiles,trg_profiles_after_upsert,O,CREATE TRIGGER trg_profiles_after_upsert AFTER INSERT OR UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION call_profiles_processor_async(),public,call_profiles_processor_async,"CREATE OR REPLACE FUNCTION public.call_profiles_processor_async()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  PERFORM net.http_post(
+    url := current_setting('app.settings.supabase_url', true) || '/functions/v1/profiles-processor',
+    headers := jsonb_build_object(
+      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true),
+      'Content-Type', 'application/json'
+    ),
+    body := '{}'::jsonb
+  );
+  RETURN NEW;
+END;
+$function$
+",null
+public,reservations,reservations_broadcast,O,CREATE TRIGGER reservations_broadcast AFTER INSERT OR DELETE OR UPDATE ON reservations FOR EACH ROW EXECUTE FUNCTION reservation_broadcast_trigger(),public,reservation_broadcast_trigger,"CREATE OR REPLACE FUNCTION public.reservation_broadcast_trigger()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+BEGIN
+  PERFORM realtime.broadcast_changes(
+    'reservation:' || COALESCE(NEW.id, OLD.id)::text,
+    TG_OP,
+    TG_OP,
+    TG_TABLE_NAME,
+    TG_TABLE_SCHEMA,
+    NEW,
+    OLD
+  );
+  RETURN COALESCE(NEW, OLD);
+END;
+$function$
+",null
+public,sub_account_balances,sub_account_balances_award_insert,O,CREATE TRIGGER sub_account_balances_award_insert AFTER INSERT ON sub_account_balances FOR EACH ROW EXECUTE FUNCTION sub_account_bonus_trigger(),public,sub_account_bonus_trigger,"CREATE OR REPLACE FUNCTION public.sub_account_bonus_trigger()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+  v_prev numeric := COALESCE((CASE WHEN TG_OP = 'UPDATE' THEN OLD.available_balance ELSE NULL END), 0);
+  v_new numeric := COALESCE(NEW.available_balance, 0);
+BEGIN
+  -- Only USD rows and only when crossing strictly above 3
+  IF NEW.currency = 'USD' AND v_new > 3 AND COALESCE(v_prev, 0) <= 3 THEN
+    PERFORM public.award_welcome_bonus(NEW.wallet_address, 3, 100);
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,sub_account_balances,sub_account_balances_award_update,O,CREATE TRIGGER sub_account_balances_award_update AFTER UPDATE OF available_balance ON sub_account_balances FOR EACH ROW EXECUTE FUNCTION sub_account_bonus_trigger(),public,sub_account_bonus_trigger,"CREATE OR REPLACE FUNCTION public.sub_account_bonus_trigger()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+  v_prev numeric := COALESCE((CASE WHEN TG_OP = 'UPDATE' THEN OLD.available_balance ELSE NULL END), 0);
+  v_new numeric := COALESCE(NEW.available_balance, 0);
+BEGIN
+  -- Only USD rows and only when crossing strictly above 3
+  IF NEW.currency = 'USD' AND v_new > 3 AND COALESCE(v_prev, 0) <= 3 THEN
+    PERFORM public.award_welcome_bonus(NEW.wallet_address, 3, 100);
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,sub_account_balances,sub_account_balances_broadcast_trigger,O,CREATE TRIGGER sub_account_balances_broadcast_trigger AFTER INSERT OR DELETE OR UPDATE ON sub_account_balances FOR EACH ROW EXECUTE FUNCTION util.broadcast_table_changes(),util,broadcast_table_changes,"CREATE OR REPLACE FUNCTION util.broadcast_table_changes()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+BEGIN
+  PERFORM realtime.broadcast_changes(
+    'table:' || TG_TABLE_NAME,
+    TG_OP,
+    TG_OP,
+    TG_TABLE_NAME,
+    TG_TABLE_SCHEMA,
+    NEW,
+    OLD
+  );
+  RETURN COALESCE(NEW, OLD);
+END;
+$function$
+",null
+public,sub_account_balances,sync_balance_to_canonical_users,O,CREATE TRIGGER sync_balance_to_canonical_users AFTER INSERT OR UPDATE OF available_balance ON sub_account_balances FOR EACH ROW EXECUTE FUNCTION sync_canonical_user_balance(),public,sync_canonical_user_balance,"CREATE OR REPLACE FUNCTION public.sync_canonical_user_balance()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+BEGIN
+  UPDATE public.canonical_users cu
+  SET 
+    usdc_balance = NEW.available_balance,
+    updated_at = now()
+  WHERE cu.canonical_user_id = NEW.canonical_user_id;
+  RETURN NEW;
+END;
+$function$
+",null
+public,sub_account_balances,trg_normalize_sub_account_currency,O,CREATE TRIGGER trg_normalize_sub_account_currency BEFORE INSERT OR UPDATE ON sub_account_balances FOR EACH ROW EXECUTE FUNCTION normalize_sub_account_currency(),public,normalize_sub_account_currency,"CREATE OR REPLACE FUNCTION public.normalize_sub_account_currency()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  -- Default NULL to USD
+  IF NEW.currency IS NULL THEN
+    NEW.currency := 'USD';
+  END IF;
+
+  -- Normalize case/whitespace
+  NEW.currency := upper(btrim(NEW.currency));
+
+  -- Allow known currencies; reject everything else to avoid silent corruption
+  IF NEW.currency NOT IN ('USD', 'USDC') THEN
+    RAISE EXCEPTION 'Unsupported currency for sub_account_balances: %', NEW.currency;
+  END IF;
+
+  RETURN NEW;
+END
+$function$
+",null
+public,sub_account_balances,trg_sub_account_balances_sync_ids,O,CREATE TRIGGER trg_sub_account_balances_sync_ids BEFORE INSERT OR UPDATE ON sub_account_balances FOR EACH ROW EXECUTE FUNCTION sub_account_balances_sync_ids(),public,sub_account_balances_sync_ids,"CREATE OR REPLACE FUNCTION public.sub_account_balances_sync_ids()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.user_id IS NOT NULL THEN
+    NEW.user_id := 'prize:pid:' || lower(replace(NEW.user_id::text, 'prize:pid:', ''));
+    NEW.canonical_user_id := NEW.user_id;
+  ELSIF NEW.canonical_user_id IS NOT NULL THEN
+    NEW.canonical_user_id := 'prize:pid:' || lower(replace(NEW.canonical_user_id::text, 'prize:pid:', ''));
+    NEW.user_id := NEW.canonical_user_id;
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,sub_account_balances,trg_sync_cu_usdc_from_sab,D,"CREATE TRIGGER trg_sync_cu_usdc_from_sab AFTER INSERT OR UPDATE OF available_balance, currency ON sub_account_balances FOR EACH ROW EXECUTE FUNCTION sync_cu_usdc_from_sab()",public,sync_cu_usdc_from_sab,"CREATE OR REPLACE FUNCTION public.sync_cu_usdc_from_sab()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$BEGIN
+
+END;$function$
+",null
+public,tickets,tickets_broadcast_trigger,O,CREATE TRIGGER tickets_broadcast_trigger AFTER INSERT OR DELETE OR UPDATE ON tickets FOR EACH ROW EXECUTE FUNCTION util.broadcast_table_changes(),util,broadcast_table_changes,"CREATE OR REPLACE FUNCTION util.broadcast_table_changes()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+BEGIN
+  PERFORM realtime.broadcast_changes(
+    'table:' || TG_TABLE_NAME,
+    TG_OP,
+    TG_OP,
+    TG_TABLE_NAME,
+    TG_TABLE_SCHEMA,
+    NEW,
+    OLD
+  );
+  RETURN COALESCE(NEW, OLD);
+END;
+$function$
+",null
+public,tickets,trg_bcast_ticket_changes,O,CREATE TRIGGER trg_bcast_ticket_changes AFTER INSERT OR DELETE OR UPDATE ON tickets FOR EACH ROW EXECUTE FUNCTION bcast_ticket_changes(),public,bcast_ticket_changes,"CREATE OR REPLACE FUNCTION public.bcast_ticket_changes()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+BEGIN
+  PERFORM realtime.broadcast_changes(
+    'competition:' || COALESCE(NEW.competition_id, OLD.competition_id)::text || ':tickets',
+    TG_OP,
+    TG_OP,
+    TG_TABLE_NAME,
+    TG_TABLE_SCHEMA,
+    NEW,
+    OLD
+  );
+  RETURN COALESCE(NEW, OLD);
+END;
+$function$
+",null
+public,tickets,trg_check_sold_out_on_ticket_insert,O,CREATE TRIGGER trg_check_sold_out_on_ticket_insert AFTER INSERT ON tickets FOR EACH ROW EXECUTE FUNCTION trigger_check_competition_sold_out(),public,trigger_check_competition_sold_out,"CREATE OR REPLACE FUNCTION public.trigger_check_competition_sold_out()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  IF TG_OP = 'INSERT' AND NEW.competition_id IS NOT NULL THEN
+    PERFORM check_and_mark_competition_sold_out(NEW.competition_id);
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,tickets,trg_tickets_finalize_spend,O,"CREATE TRIGGER trg_tickets_finalize_spend AFTER INSERT OR UPDATE OF status, payment_amount ON tickets FOR EACH ROW EXECUTE FUNCTION tickets_finalize_spend_trigger()",public,tickets_finalize_spend_trigger,"CREATE OR REPLACE FUNCTION public.tickets_finalize_spend_trigger()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+  v_finalized boolean;
+  v_amount numeric;
+  v_cuid text;
+  v_provider text;
+BEGIN
+  -- Only act after insert or update to a finalized state
+  v_finalized := (NEW.status IN ('sold','purchased')) AND NEW.payment_amount IS NOT NULL;
+  IF NOT v_finalized THEN
+    RETURN NEW;
+  END IF;
+
+  v_amount := NEW.payment_amount;
+  v_cuid := public._ticket_cuid(NEW.user_id, NEW.canonical_user_id, NEW.wallet_address);
+  v_provider := NEW.payment_provider; -- may be null; acceptable
+
+  -- Ensure we only process once per ticket id
+  -- Type-safe comparison: match by canonical_user_id when present, otherwise compare user_id::text
+  PERFORM 1 FROM public.user_transactions ut
+  WHERE ut.type = 'entry'
+    AND ut.status = 'completed'
+    AND ut.amount = v_amount
+    AND (ut.order_id = NEW.order_id OR (NEW.order_id IS NULL AND ut.order_id IS NULL))
+    AND (ut.description = NEW.id::text OR ut.description IS NULL)
+    AND (
+      (ut.canonical_user_id IS NOT NULL AND ut.canonical_user_id = v_cuid)
+      OR (ut.canonical_user_id IS NULL AND ut.user_id IS NOT NULL AND ut.user_id::text = v_cuid)
+    );
+  IF FOUND THEN
+    RETURN NEW;
+  END IF;
+
+  -- Insert transaction (v_cuid is canonical text id)
+  PERFORM public._insert_user_spend_tx(v_cuid, v_amount, NEW.competition_id, NEW.order_id, NEW.id, v_provider, NEW.wallet_address);
+
+  -- Deduct from balance using canonical id text
+  PERFORM public._deduct_sub_account_balance(v_cuid, v_amount);
+
+  RETURN NEW;
+END;
+$function$
+",null
+public,tickets,trg_tickets_set_cuid,O,CREATE TRIGGER trg_tickets_set_cuid BEFORE INSERT OR UPDATE ON tickets FOR EACH ROW EXECUTE FUNCTION util.trg_set_cuid_from_context(),util,trg_set_cuid_from_context,"CREATE OR REPLACE FUNCTION util.trg_set_cuid_from_context()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.canonical_user_id IS NULL THEN
+    NEW.canonical_user_id := util.resolve_canonical_user_id(
+      NEW.wallet_address,
+      COALESCE(NEW.privy_user_id, NEW.user_privy_id)
+    );
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,tickets,trg_tickets_txid_fill,O,CREATE TRIGGER trg_tickets_txid_fill BEFORE INSERT ON tickets FOR EACH ROW EXECUTE FUNCTION tickets_tx_id_fill(),public,tickets_tx_id_fill,"CREATE OR REPLACE FUNCTION public.tickets_tx_id_fill()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.tx_id IS NULL OR NEW.tx_id = '' THEN
+    NEW.tx_id := public.gen_ticket_tx_id(
+      NEW.id::uuid,
+      NEW.competition_id::uuid,
+      NEW.ticket_number::bigint,
+      COALESCE(NEW.canonical_user_id, '')::text,
+      COALESCE(NEW.wallet_address, '')::text,
+      COALESCE(NEW.payment_provider, '')::text,
+      COALESCE(NEW.payment_amount, 0)::numeric,
+      COALESCE(NEW.payment_tx_hash, '')::text,
+      COALESCE(NEW.created_at, now())::timestamptz
+    );
+  END IF;
+  RETURN NEW;
+END;$function$
+",null
+public,tickets,trg_tickets_upsert_entries,O,"CREATE TRIGGER trg_tickets_upsert_entries AFTER INSERT OR UPDATE OF status, purchase_price, payment_amount, purchased_at, purchase_date, wallet_address, canonical_user_id, ticket_number ON tickets FOR EACH ROW WHEN (new.status = ANY (ARRAY['sold'::text, 'purchased'::text])) EXECUTE FUNCTION _upsert_competition_entry_from_ticket()",public,_upsert_competition_entry_from_ticket,"CREATE OR REPLACE FUNCTION public._upsert_competition_entry_from_ticket()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+  v_cuid text;
+  v_comp uuid;
+  v_wallet text;
+  v_price numeric;
+  v_ts timestamptz := now();
+  v_num int;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+
+  -- Use NEW only
+  v_cuid := COALESCE(NEW.canonical_user_id, NEW.user_id, NEW.wallet_address);
+  v_comp := NEW.competition_id;
+  v_wallet := COALESCE(NEW.wallet_address, replace(NEW.canonical_user_id, 'prize:pid:', ''));
+  v_price := COALESCE(NEW.purchase_price, NEW.payment_amount, 0);
+  v_num := NEW.ticket_number;
+
+  IF v_cuid IS NULL OR v_comp IS NULL OR v_num IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  -- Only act on finalized tickets
+  IF COALESCE(NEW.status,'') NOT IN ('sold','purchased') THEN
+    RETURN NEW;
+  END IF;
+
+  INSERT INTO public.competition_entries AS ce (
+    id, canonical_user_id, competition_id, wallet_address, tickets_count, ticket_numbers_csv, amount_spent, latest_purchase_at, created_at, updated_at
+  ) VALUES (
+    gen_random_uuid(), v_cuid, v_comp, v_wallet, 1, v_num::text, v_price, COALESCE(NEW.purchase_date, NEW.purchased_at, NEW.created_at, v_ts), v_ts, v_ts
+  )
+  ON CONFLICT (canonical_user_id, competition_id)
+  DO UPDATE SET
+    tickets_count = ce.tickets_count + 1,
+    amount_spent = COALESCE(ce.amount_spent,0) + v_price,
+    ticket_numbers_csv = CASE
+      WHEN ce.ticket_numbers_csv IS NULL OR ce.ticket_numbers_csv = '' THEN v_num::text
+      ELSE ce.ticket_numbers_csv || ',' || v_num::text
+    END,
+    wallet_address = COALESCE(ce.wallet_address, v_wallet),
+    latest_purchase_at = GREATEST(COALESCE(ce.latest_purchase_at, v_ts), COALESCE(NEW.purchase_date, NEW.purchased_at, NEW.created_at, v_ts)),
+    updated_at = v_ts;
+
+  RETURN NEW;
+END;
+$function$
+",null
+public,tickets,trg_tickets_wallet_bi,O,"CREATE TRIGGER trg_tickets_wallet_bi BEFORE INSERT OR UPDATE OF canonical_user_id, wallet_address ON tickets FOR EACH ROW EXECUTE FUNCTION tickets_sync_wallet()",public,tickets_sync_wallet,"CREATE OR REPLACE FUNCTION public.tickets_sync_wallet()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.canonical_user_id IS NOT NULL AND (NEW.wallet_address IS NULL OR NEW.wallet_address = '') THEN
+    NEW.wallet_address := replace(NEW.canonical_user_id, 'prize:pid:', '');
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,topup_providers,set_topup_providers_updated_at,O,CREATE TRIGGER set_topup_providers_updated_at BEFORE UPDATE ON topup_providers FOR EACH ROW EXECUTE FUNCTION set_updated_at(),public,set_updated_at,"CREATE OR REPLACE FUNCTION public.set_updated_at()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$function$
+",null
+public,user_transactions,trg_apply_user_tx_usdc,D,CREATE TRIGGER trg_apply_user_tx_usdc BEFORE INSERT ON user_transactions FOR EACH ROW EXECUTE FUNCTION apply_user_tx_usdc(),public,apply_user_tx_usdc,"CREATE OR REPLACE FUNCTION public.apply_user_tx_usdc()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  -- Staging: do nothing (prevent split-brain overwrites via user_id)
+  RETURN NEW;
+END;
+$function$
+",null
+public,user_transactions,trg_apply_user_tx_usdc_balance,D,CREATE TRIGGER trg_apply_user_tx_usdc_balance BEFORE INSERT ON user_transactions FOR EACH ROW EXECUTE FUNCTION apply_user_tx_usdc_balance(),public,apply_user_tx_usdc_balance,"CREATE OR REPLACE FUNCTION public.apply_user_tx_usdc_balance()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+  v_uid text;
+  current_balance numeric;
+BEGIN
+  -- Only enforce for USDC
+  IF NEW.currency <> 'USDC' THEN
+    RETURN NEW;
+  END IF;
+
+  -- Resolve user identifier used in sub_account_balances
+  v_uid := COALESCE(NEW.canonical_user_id, NEW.user_id::text);
+
+  -- Lock SAB row; create if missing
+  SELECT available_balance
+    INTO current_balance
+    FROM public.sub_account_balances
+   WHERE user_id = v_uid AND currency = 'USDC'
+   FOR UPDATE;
+
+  IF current_balance IS NULL THEN
+    current_balance := 0;
+
+    INSERT INTO public.sub_account_balances(
+      id, user_id, currency, available_balance, pending_balance, last_updated, canonical_user_id
+    )
+    VALUES (
+      gen_random_uuid(), v_uid, 'USDC', current_balance, 0, NOW(), v_uid
+    )
+    ON CONFLICT (user_id, currency) DO NOTHING;
+
+    SELECT available_balance
+      INTO current_balance
+      FROM public.sub_account_balances
+     WHERE user_id = v_uid AND currency = 'USDC'
+     FOR UPDATE;
+  END IF;
+
+  NEW.balance_before := current_balance;
+  NEW.balance_after  := current_balance + NEW.amount;
+
+  -- Update SAB as source of truth
+  UPDATE public.sub_account_balances
+     SET available_balance = NEW.balance_after,
+         last_updated = NOW()
+   WHERE user_id = v_uid AND currency = 'USDC';
+
+  -- Mirror to canonical_users.usdc_balance
+  UPDATE public.canonical_users cu
+     SET usdc_balance = NEW.balance_after,
+         updated_at = NOW()
+   WHERE cu.canonical_user_id = v_uid
+      OR cu.id::text = v_uid;
+
+  RETURN NEW;
+END;
+$function$
+",null
+public,user_transactions,trg_auto_credit_on_external_topup,D,CREATE TRIGGER trg_auto_credit_on_external_topup BEFORE INSERT ON user_transactions FOR EACH ROW EXECUTE FUNCTION auto_credit_on_external_topup(),public,auto_credit_on_external_topup,"CREATE OR REPLACE FUNCTION public.auto_credit_on_external_topup()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$begin
+end$function$
+",null
+public,user_transactions,trg_complete_topup_on_webhook_ref_ins,O,CREATE TRIGGER trg_complete_topup_on_webhook_ref_ins BEFORE INSERT ON user_transactions FOR EACH ROW EXECUTE FUNCTION complete_topup_on_webhook_ref(),public,complete_topup_on_webhook_ref,"CREATE OR REPLACE FUNCTION public.complete_topup_on_webhook_ref()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+BEGIN
+  -- Only for coinbase topups
+  IF (COALESCE(NEW.provider,'') = 'coinbase' AND COALESCE(NEW.type,'') = 'topup') THEN
+    -- If webhook_ref is present and status is not already completed, flip to completed
+    IF COALESCE(NEW.webhook_ref, '') <> '' AND NEW.status <> 'completed' THEN
+      NEW.status := 'completed';
+      NEW.completed_at := COALESCE(NEW.completed_at, NOW());
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,user_transactions,trg_complete_topup_on_webhook_ref_upd,O,"CREATE TRIGGER trg_complete_topup_on_webhook_ref_upd BEFORE UPDATE OF webhook_ref, status, provider, type ON user_transactions FOR EACH ROW EXECUTE FUNCTION complete_topup_on_webhook_ref()",public,complete_topup_on_webhook_ref,"CREATE OR REPLACE FUNCTION public.complete_topup_on_webhook_ref()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+BEGIN
+  -- Only for coinbase topups
+  IF (COALESCE(NEW.provider,'') = 'coinbase' AND COALESCE(NEW.type,'') = 'topup') THEN
+    -- If webhook_ref is present and status is not already completed, flip to completed
+    IF COALESCE(NEW.webhook_ref, '') <> '' AND NEW.status <> 'completed' THEN
+      NEW.status := 'completed';
+      NEW.completed_at := COALESCE(NEW.completed_at, NOW());
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,user_transactions,trg_credit_sub_account_on_instant_wallet_topup,D,"CREATE TRIGGER trg_credit_sub_account_on_instant_wallet_topup AFTER INSERT OR UPDATE OF status, payment_status ON user_transactions FOR EACH ROW WHEN (new.payment_provider = 'instant_wallet_topup'::text AND new.status = 'completed'::text) EXECUTE FUNCTION fn_credit_sub_account_on_instant_wallet_topup()",public,fn_credit_sub_account_on_instant_wallet_topup,"CREATE OR REPLACE FUNCTION public.fn_credit_sub_account_on_instant_wallet_topup()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+  v_user text;
+  v_currency text;
+  v_amount numeric;
+BEGIN
+  IF NOT (
+    NEW.payment_provider = 'instant_wallet_topup' AND
+    NEW.status = 'completed' AND
+    COALESCE(NEW.payment_status, 'confirmed') IN ('confirmed','succeeded') AND
+    NEW.amount > 0
+  ) THEN
+    RETURN NEW;
+  END IF;
+
+  v_user := NEW.canonical_user_id;
+  v_currency := CASE UPPER(COALESCE(NEW.currency, 'USD')) WHEN 'USDC' THEN 'USD' ELSE UPPER(NEW.currency) END;
+  IF v_currency IS NULL THEN v_currency := 'USD'; END IF;
+  v_amount := NEW.amount;
+
+  INSERT INTO public.sub_account_balances (
+    canonical_user_id, currency, available_balance, pending_balance, last_updated
+  ) VALUES (
+    v_user, v_currency, 0, COALESCE((SELECT pending_balance FROM public.sub_account_balances WHERE canonical_user_id = v_user AND currency = v_currency), 0), now()
+  )
+  ON CONFLICT (canonical_user_id, currency) DO NOTHING;
+
+  UPDATE public.sub_account_balances
+     SET available_balance = COALESCE(available_balance, 0) + v_amount,
+         last_updated = now()
+   WHERE canonical_user_id = v_user AND currency = v_currency;
+
+  -- Removed ledger insert to avoid unrelated triggers
+  RETURN NEW;
+END;
+$function$
+",null
+public,user_transactions,trg_enforce_user_transactions_balance,D,CREATE TRIGGER trg_enforce_user_transactions_balance BEFORE INSERT OR UPDATE ON user_transactions FOR EACH ROW EXECUTE FUNCTION enforce_user_transactions_balance(),public,enforce_user_transactions_balance,"CREATE OR REPLACE FUNCTION public.enforce_user_transactions_balance()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+  seed_balance numeric := 0;
+  running_prior numeric := 0;
+  v_is_completed boolean;
+BEGIN
+  -- Only enforce when canonical_user_id and currency are present
+  IF NEW.canonical_user_id IS NULL OR NEW.currency IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  v_is_completed :=
+    (lower(COALESCE(NEW.status,'')) IN ('completed','confirmed')
+     OR lower(COALESCE(NEW.payment_status,'')) IN ('completed','confirmed'));
+
+  IF NEW.type = 'topup' THEN
+    -- Seed from sub_account_balances
+    SELECT sab.available_balance
+      INTO seed_balance
+    FROM public.sub_account_balances sab
+    WHERE sab.canonical_user_id = NEW.canonical_user_id
+      AND sab.currency = NEW.currency
+    ORDER BY sab.last_updated DESC NULLS LAST
+    LIMIT 1;
+
+    seed_balance := COALESCE(seed_balance, 0);
+
+    -- Sum prior topups for this user/currency strictly before this row's created_at/id
+    SELECT COALESCE(SUM(t.amount), 0) INTO running_prior
+    FROM public.user_transactions t
+    WHERE t.canonical_user_id = NEW.canonical_user_id
+      AND t.currency = NEW.currency
+      AND t.type = 'topup'
+      AND (t.created_at < COALESCE(NEW.created_at, now())
+           OR (t.created_at = COALESCE(NEW.created_at, now()) AND t.id < COALESCE(NEW.id, gen_random_uuid())));
+
+    NEW.balance_before := seed_balance + running_prior;
+    NEW.balance_after  := NEW.balance_before + COALESCE(NEW.amount, 0);
+
+    -- CRITICAL: only mark posted when truly completed
+    NEW.posted_to_balance := v_is_completed;
+  ELSE
+    NEW.balance_before := COALESCE(OLD.balance_before, NEW.balance_before);
+    NEW.balance_after  := COALESCE(OLD.balance_after, NEW.balance_after);
+  END IF;
+
+  RETURN NEW;
+END;
+$function$
+",null
+public,user_transactions,trg_finalize_pending_user_transactions,O,CREATE TRIGGER trg_finalize_pending_user_transactions BEFORE INSERT ON user_transactions FOR EACH ROW EXECUTE FUNCTION util.finalize_pending_user_transactions(),util,finalize_pending_user_transactions,"CREATE OR REPLACE FUNCTION util.finalize_pending_user_transactions()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+DECLARE
+  v_curr_balance numeric;
+BEGIN
+  IF NEW.status = 'pending' THEN
+    SELECT COALESCE(sab.available_balance, 0)
+      INTO v_curr_balance
+      FROM public.sub_account_balances sab
+     WHERE sab.canonical_user_id = NEW.canonical_user_id
+       AND sab.currency = NEW.currency
+     LIMIT 1;
+
+    NEW.balance_before := COALESCE(v_curr_balance, 0);
+    NEW.balance_after  := COALESCE(v_curr_balance, 0) + COALESCE(NEW.amount, 0);
+    NEW.status := 'completed';
+    NEW.completed_at := NOW();
+    NEW.posted_to_balance := true;
+
+    -- Upsert balance atomically
+    INSERT INTO public.sub_account_balances (
+      user_id, canonical_user_id, currency, available_balance, pending_balance, last_updated
+    ) VALUES (
+      NEW.user_id, NEW.canonical_user_id, NEW.currency, COALESCE(NEW.amount,0), 0, NOW()
+    )
+    ON CONFLICT (canonical_user_id, currency)
+    DO UPDATE SET available_balance = public.sub_account_balances.available_balance + EXCLUDED.available_balance,
+                  last_updated = NOW();
+  END IF;
+
+  RETURN NEW;
+END;
+$function$
+",null
+public,user_transactions,trg_orders_from_user_transactions,O,CREATE TRIGGER trg_orders_from_user_transactions AFTER INSERT OR UPDATE OF payment_status ON user_transactions FOR EACH ROW EXECUTE FUNCTION _orders_from_user_transactions(),public,_orders_from_user_transactions,"CREATE OR REPLACE FUNCTION public._orders_from_user_transactions()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  -- Require canonical_user_id; skip if missing
+  IF NEW.canonical_user_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  INSERT INTO public.orders (
+    canonical_user_id, user_wallet_address, user_privy_id,
+    competition_id, amount, amount_usd, currency, status, payment_status,
+    payment_provider, payment_method, payment_intent_id, payment_session_id,
+    payment_url, payment_tx_hash, ticket_count, created_at, updated_at,
+    completed_at, order_type, transaction_ref, source, source_id,
+    unique_order_key
+  ) VALUES (
+    NEW.canonical_user_id,
+    NEW.wallet_address,
+    NEW.user_privy_id,
+    NEW.competition_id,
+    NEW.amount,
+    NULL,
+    COALESCE(NEW.currency, 'USDC'),
+    CASE WHEN NEW.payment_status IN ('completed','success','paid') THEN 'completed' ELSE 'pending' END,
+    NEW.payment_status,
+    NEW.payment_provider,
+    NEW.method,
+    NEW.charge_id,
+    NEW.webhook_ref,
+    NEW.checkout_url,
+    NEW.tx_id,
+    COALESCE(NEW.ticket_count,0),
+    COALESCE(NEW.created_at, now()),
+    COALESCE(NEW.updated_at, now()),
+    NEW.completed_at,
+    'cash',
+    COALESCE(NEW.tx_ref, NEW.webhook_ref, NEW.charge_id, NEW.tx_id),
+    'user_transactions',
+    NEW.id,
+    ('ut:' || NEW.id::text)
+  )
+  ON CONFLICT (unique_order_key) DO NOTHING;
+  RETURN NEW;
+END;$function$
+",null
+public,user_transactions,trg_repair_topup_provider_and_status,O,"CREATE TRIGGER trg_repair_topup_provider_and_status BEFORE INSERT OR UPDATE OF posted_to_balance, metadata, charge_id, webhook_ref ON user_transactions FOR EACH ROW EXECUTE FUNCTION repair_topup_provider_and_status()",public,repair_topup_provider_and_status,"CREATE OR REPLACE FUNCTION public.repair_topup_provider_and_status()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+DECLARE
+  has_coinbase boolean := false;
+  ev_id_suffix text;
+  new_meta jsonb;
+  new_status text;
+BEGIN
+  -- Only for topups; do not affect entries
+  IF NEW.type <> 'topup' THEN
+    RETURN NEW;
+  END IF;
+
+  -- Determine if Coinbase webhook exists for this transaction
+  ev_id_suffix := NEW.id::text;
+
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.payment_webhook_events pwe
+    WHERE pwe.provider = 'coinbase-commerce'
+      AND (
+        (NEW.charge_id IS NOT NULL AND pwe.transaction_id = NEW.charge_id)
+        OR (pwe.event_id LIKE 'TOPUP_%_' || ev_id_suffix)
+      )
+  ) INTO has_coinbase;
+
+  new_meta := COALESCE(NEW.metadata, '{}'::jsonb);
+
+  IF has_coinbase THEN
+    IF COALESCE(new_meta->>'provider', '') <> 'coinbase' THEN
+      new_meta := new_meta || jsonb_build_object('provider', 'coinbase');
+    END IF;
+  END IF;
+
+  -- Auto-confirm when posted_to_balance is true
+  IF NEW.posted_to_balance IS TRUE THEN
+    new_status := 'confirmed';
+  ELSE
+    new_status := COALESCE(NEW.payment_status, 'pending');
+  END IF;
+
+  IF new_meta IS DISTINCT FROM NEW.metadata OR new_status IS DISTINCT FROM NEW.payment_status THEN
+    NEW.metadata := new_meta;
+    NEW.payment_status := new_status;
+  END IF;
+
+  RETURN NEW;
+END;
+$function$
+",null
+public,user_transactions,trg_staging_force_credit_topup_overwrite_balances,D,"CREATE TRIGGER trg_staging_force_credit_topup_overwrite_balances BEFORE INSERT OR UPDATE OF status, payment_status, amount, currency ON user_transactions FOR EACH ROW EXECUTE FUNCTION staging_force_credit_topup_overwrite_balances()",public,staging_force_credit_topup_overwrite_balances,"CREATE OR REPLACE FUNCTION public.staging_force_credit_topup_overwrite_balances()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+DECLARE
+  v_amount numeric := COALESCE(NEW.amount, 0);
+  v_currency text := COALESCE(NEW.currency, 'USDC');
+  v_now timestamptz := now();
+  v_bal_id uuid;
+BEGIN
+  -- Only act on completed topups
+  IF lower(COALESCE(NEW.type,'')) <> 'topup' THEN
+    RETURN NEW;
+  END IF;
+
+  IF NOT (
+    lower(COALESCE(NEW.status,'')) IN ('completed','confirmed')
+    OR lower(COALESCE(NEW.payment_status,'')) IN ('completed','confirmed')
+  ) THEN
+    RETURN NEW;
+  END IF;
+
+  -- Normalize currency to USDC
+  IF v_currency IN ('USD','USDC') THEN
+    v_currency := 'USDC';
+  END IF;
+
+  -- Ensure sub_account_balances row exists (by canonical_user_id)
+  PERFORM public.ensure_sub_account_balance_row(NEW.canonical_user_id, v_currency);
+
+  SELECT id INTO v_bal_id
+  FROM public.sub_account_balances
+  WHERE canonical_user_id = NEW.canonical_user_id
+    AND currency = v_currency
+  LIMIT 1;
+
+  -- OVERWRITE / CREDIT: just add amount to available_balance
+  UPDATE public.sub_account_balances b
+  SET available_balance = COALESCE(b.available_balance, 0) + v_amount,
+      last_updated = v_now
+  WHERE b.id = v_bal_id;
+
+  -- Mirror into canonical_users.usdc_balance (aggressive overwrite)
+  UPDATE public.canonical_users cu
+  SET usdc_balance = (
+        SELECT b.available_balance
+        FROM public.sub_account_balances b
+        WHERE b.id = v_bal_id
+      ),
+      updated_at = v_now
+  WHERE cu.canonical_user_id = NEW.canonical_user_id;
+
+  -- Mark posted so other posting triggers don't fight us
+  NEW.posted_to_balance := true;
+  NEW.completed_at := COALESCE(NEW.completed_at, v_now);
+
+  RETURN NEW;
+END;
+$function$
+",null
+public,user_transactions,trg_sync_identity_user_tx,O,CREATE TRIGGER trg_sync_identity_user_tx BEFORE INSERT OR UPDATE ON user_transactions FOR EACH ROW EXECUTE FUNCTION sync_identity_columns(),public,sync_identity_columns,"CREATE OR REPLACE FUNCTION public.sync_identity_columns()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+    v_row_json jsonb;
+    v_canonical_user canonical_users%ROWTYPE;
+    v_lookup_id text;
+    v_found boolean := false;
+BEGIN
+    -- Convert the incoming row to JSON to check available fields
+    v_row_json := to_jsonb(NEW);
+
+    -- Only proceed if we need to fill in missing identity information
+    -- Check if canonical_user_id is NULL and we have something to look up
+    IF (v_row_json ? 'canonical_user_id' AND (v_row_json->>'canonical_user_id') IS NULL) OR
+       (v_row_json ? 'wallet_address' AND (v_row_json->>'wallet_address') IS NULL) THEN
+
+        -- Try lookup by canonical_user_id first (if present and not null)
+        IF v_row_json ? 'canonical_user_id' AND (v_row_json->>'canonical_user_id') IS NOT NULL THEN
+            v_lookup_id := v_row_json->>'canonical_user_id';
+            SELECT * INTO v_canonical_user
+            FROM canonical_users
+            WHERE canonical_user_id = v_lookup_id
+            LIMIT 1;
+            v_found := FOUND;
+        END IF;
+
+        -- Try lookup by privy_user_id if not found and field exists
+        IF NOT v_found AND v_row_json ? 'privy_user_id' AND (v_row_json->>'privy_user_id') IS NOT NULL THEN
+            v_lookup_id := v_row_json->>'privy_user_id';
+            SELECT * INTO v_canonical_user
+            FROM canonical_users
+            WHERE privy_user_id = v_lookup_id
+            LIMIT 1;
+            v_found := FOUND;
+        END IF;
+
+        -- Try lookup by user_id if not found and field exists (might be a wallet or canonical ID)
+        IF NOT v_found AND v_row_json ? 'user_id' AND (v_row_json->>'user_id') IS NOT NULL THEN
+            v_lookup_id := v_row_json->>'user_id';
+            -- Try as canonical_user_id first
+            SELECT * INTO v_canonical_user
+            FROM canonical_users
+            WHERE canonical_user_id = v_lookup_id
+            LIMIT 1;
+            v_found := FOUND;
+
+            -- Try as wallet_address (case insensitive)
+            IF NOT v_found AND v_lookup_id LIKE '0x%' THEN
+                SELECT * INTO v_canonical_user
+                FROM canonical_users
+                WHERE LOWER(wallet_address) = LOWER(v_lookup_id)
+                   OR LOWER(base_wallet_address) = LOWER(v_lookup_id)
+                LIMIT 1;
+                v_found := FOUND;
+            END IF;
+
+            -- Try as privy_user_id
+            IF NOT v_found THEN
+                SELECT * INTO v_canonical_user
+                FROM canonical_users
+                WHERE privy_user_id = v_lookup_id
+                LIMIT 1;
+                v_found := FOUND;
+            END IF;
+
+            -- Try as uid
+            IF NOT v_found THEN
+                SELECT * INTO v_canonical_user
+                FROM canonical_users
+                WHERE uid::text = v_lookup_id
+                LIMIT 1;
+                v_found := FOUND;
+            END IF;
+        END IF;
+
+        -- Try lookup by wallet_address if not found and field exists
+        IF NOT v_found AND v_row_json ? 'wallet_address' AND (v_row_json->>'wallet_address') IS NOT NULL THEN
+            v_lookup_id := v_row_json->>'wallet_address';
+            SELECT * INTO v_canonical_user
+            FROM canonical_users
+            WHERE LOWER(wallet_address) = LOWER(v_lookup_id)
+               OR LOWER(base_wallet_address) = LOWER(v_lookup_id)
+            LIMIT 1;
+            v_found := FOUND;
+        END IF;
+
+        -- Try lookup by uid if not found and field exists
+        IF NOT v_found AND v_row_json ? 'uid' AND (v_row_json->>'uid') IS NOT NULL THEN
+            v_lookup_id := v_row_json->>'uid';
+            SELECT * INTO v_canonical_user
+            FROM canonical_users
+            WHERE uid::text = v_lookup_id
+            LIMIT 1;
+            v_found := FOUND;
+        END IF;
+
+        -- If we found a matching canonical user, enrich the row
+        IF v_found THEN
+            -- Fill canonical_user_id if column exists and is NULL
+            IF v_row_json ? 'canonical_user_id' AND (v_row_json->>'canonical_user_id') IS NULL THEN
+                IF v_canonical_user.canonical_user_id IS NOT NULL THEN
+                    NEW.canonical_user_id := v_canonical_user.canonical_user_id;
+                END IF;
+            END IF;
+
+            -- Fill wallet_address if column exists and is NULL
+            IF v_row_json ? 'wallet_address' AND (v_row_json->>'wallet_address') IS NULL THEN
+                IF v_canonical_user.wallet_address IS NOT NULL THEN
+                    NEW.wallet_address := v_canonical_user.wallet_address;
+                ELSIF v_canonical_user.base_wallet_address IS NOT NULL THEN
+                    NEW.wallet_address := v_canonical_user.base_wallet_address;
+                END IF;
+            END IF;
+        END IF;
+    END IF;
+
+    RETURN NEW;
+END;
+$function$
+",Trigger to automatically sync identity columns on user_transactions inserts/updates
+public,user_transactions,trg_user_transactions_cdp_enqueue,O,CREATE TRIGGER trg_user_transactions_cdp_enqueue AFTER INSERT ON user_transactions FOR EACH ROW EXECUTE FUNCTION user_transactions_cdp_enqueue(),public,user_transactions_cdp_enqueue,"CREATE OR REPLACE FUNCTION public.user_transactions_cdp_enqueue()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+BEGIN
+  PERFORM public.enqueue_cdp_event(
+    'transaction_created',
+    jsonb_build_object(
+      'id', NEW.id,
+      'user_id', NEW.user_id,
+      'canonical_user_id', NEW.canonical_user_id,
+      'wallet_address', NEW.wallet_address,
+      'type', NEW.type,
+      'amount', NEW.amount,
+      'currency', NEW.currency,
+      'status', NEW.status,
+      'competition_id', NEW.competition_id,
+      'order_id', NEW.order_id,
+      'tx_ref', NEW.tx_ref,
+      'created_at', NEW.created_at
+    )
+  );
+  RETURN NEW;
+END;
+$function$
+",null
+public,user_transactions,trg_user_transactions_post_to_wallet,D,"CREATE TRIGGER trg_user_transactions_post_to_wallet AFTER INSERT OR UPDATE OF status, amount, type ON user_transactions FOR EACH ROW EXECUTE FUNCTION user_transactions_post_to_wallet()",public,user_transactions_post_to_wallet,"CREATE OR REPLACE FUNCTION public.user_transactions_post_to_wallet()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+DECLARE
+  v_before numeric := 0;
+  v_after numeric := 0;
+  v_delta numeric := 0;
+  v_currency text;
+  v_uid text;
+BEGIN
+  IF (TG_OP <> 'INSERT' AND TG_OP <> 'UPDATE') THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.posted_to_balance IS TRUE THEN
+    RETURN NEW;
+  END IF;
+
+  IF lower(COALESCE(NEW.status,'')) <> 'completed' THEN
+    RETURN NEW;
+  END IF;
+
+  IF lower(COALESCE(NEW.type,'')) = 'entry'
+     AND lower(COALESCE(NEW.payment_provider,'')) <> 'balance' THEN
+    NEW.balance_before := NULL;
+    NEW.balance_after := NULL;
+    RETURN NEW;
+  END IF;
+
+  v_currency := upper(btrim(COALESCE(NEW.currency, 'USDC')));
+
+  -- normalize user id to match sub_account_balances_sync_ids()
+  v_uid := 'prize:pid:' || lower(replace(COALESCE(NEW.canonical_user_id,'')::text, 'prize:pid:', ''));
+
+  IF v_uid = 'prize:pid:' THEN
+    NEW.balance_before := NULL;
+    NEW.balance_after := NULL;
+    NEW.posted_to_balance := false;
+    RETURN NEW;
+  END IF;
+
+  IF lower(COALESCE(NEW.type,'')) = 'topup' THEN
+    v_delta := abs(COALESCE(NEW.amount,0));
+  ELSIF lower(COALESCE(NEW.type,'')) = 'entry' THEN
+    v_delta := -abs(COALESCE(NEW.amount,0));
+  ELSE
+    RETURN NEW;
+  END IF;
+
+  INSERT INTO public.sub_account_balances (canonical_user_id, currency, available_balance, last_updated)
+  VALUES (v_uid, v_currency, 0, now())
+  ON CONFLICT (canonical_user_id, currency) DO NOTHING;
+
+  SELECT COALESCE(available_balance,0)
+    INTO v_before
+  FROM public.sub_account_balances
+  WHERE canonical_user_id = v_uid
+    AND currency = v_currency
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    NEW.balance_before := NULL;
+    NEW.balance_after := NULL;
+    NEW.posted_to_balance := false;
+    RETURN NEW;
+  END IF;
+
+  v_after := v_before + v_delta;
+
+  IF v_delta < 0 AND v_after < 0 THEN
+    RAISE EXCEPTION 'Not enough balance';
+  END IF;
+
+  UPDATE public.sub_account_balances
+     SET available_balance = v_after,
+         last_updated = now()
+   WHERE canonical_user_id = v_uid
+     AND currency = v_currency;
+
+  IF v_currency = 'USDC' THEN
+    UPDATE public.canonical_users
+       SET usdc_balance = v_after,
+           updated_at = now()
+     WHERE canonical_user_id = v_uid;
+  END IF;
+
+  NEW.balance_before := v_before;
+  NEW.balance_after := v_after;
+  NEW.posted_to_balance := true;
+  NEW.completed_at := COALESCE(NEW.completed_at, now());
+
+  -- optionally also normalize the transaction row’s canonical_user_id to match
+  NEW.canonical_user_id := v_uid;
+
+  RETURN NEW;
+END;
+$function$
+",null
+public,user_transactions,trg_user_transactions_set_cuid,O,CREATE TRIGGER trg_user_transactions_set_cuid BEFORE INSERT OR UPDATE ON user_transactions FOR EACH ROW EXECUTE FUNCTION util.trg_set_cuid_from_context(),util,trg_set_cuid_from_context,"CREATE OR REPLACE FUNCTION util.trg_set_cuid_from_context()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.canonical_user_id IS NULL THEN
+    NEW.canonical_user_id := util.resolve_canonical_user_id(
+      NEW.wallet_address,
+      COALESCE(NEW.privy_user_id, NEW.user_privy_id)
+    );
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,user_transactions,trg_user_transactions_txid_fill,O,CREATE TRIGGER trg_user_transactions_txid_fill BEFORE INSERT ON user_transactions FOR EACH ROW EXECUTE FUNCTION user_transactions_tx_id_fill(),public,user_transactions_tx_id_fill,"CREATE OR REPLACE FUNCTION public.user_transactions_tx_id_fill()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.tx_id IS NULL OR NEW.tx_id = '' THEN
+    IF coalesce(NEW.payment_provider,'') = 'unknown' THEN
+      NEW.tx_id := public.gen_deterministic_tx_id(
+        NEW.id::uuid,
+        NEW.order_id::text,
+        NEW.canonical_user_id::text,
+        NEW.wallet_address::text,
+        NEW.type::text,
+        NEW.method::text,
+        NEW.amount::numeric,
+        NEW.currency::text,
+        COALESCE(NEW.created_at, now())::timestamptz
+      );
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,user_transactions,trg_user_transactions_wallet_bi,O,"CREATE TRIGGER trg_user_transactions_wallet_bi BEFORE INSERT OR UPDATE OF canonical_user_id, wallet_address ON user_transactions FOR EACH ROW EXECUTE FUNCTION user_transactions_sync_wallet()",public,user_transactions_sync_wallet,"CREATE OR REPLACE FUNCTION public.user_transactions_sync_wallet()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.canonical_user_id IS NOT NULL AND (NEW.wallet_address IS NULL OR NEW.wallet_address = '') THEN
+    NEW.wallet_address := replace(NEW.canonical_user_id, 'prize:pid:', '');
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,user_transactions,trg_user_tx_autocomplete_bi,O,CREATE TRIGGER trg_user_tx_autocomplete_bi BEFORE INSERT ON user_transactions FOR EACH ROW EXECUTE FUNCTION user_tx_autocomplete_if_expired(),public,user_tx_autocomplete_if_expired,"CREATE OR REPLACE FUNCTION public.user_tx_autocomplete_if_expired()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.status = 'pending' AND NEW.expires_at IS NOT NULL AND NEW.expires_at <= NOW() THEN
+    NEW.status := 'completed';
+    NEW.completed_at := NOW();
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,user_transactions,trg_user_tx_autocomplete_bu,O,"CREATE TRIGGER trg_user_tx_autocomplete_bu BEFORE UPDATE OF expires_at, status ON user_transactions FOR EACH ROW EXECUTE FUNCTION user_tx_autocomplete_if_expired()",public,user_tx_autocomplete_if_expired,"CREATE OR REPLACE FUNCTION public.user_tx_autocomplete_if_expired()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.status = 'pending' AND NEW.expires_at IS NOT NULL AND NEW.expires_at <= NOW() THEN
+    NEW.status := 'completed';
+    NEW.completed_at := NOW();
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,user_transactions,trg_user_tx_base_account_sync,O,CREATE TRIGGER trg_user_tx_base_account_sync AFTER INSERT ON user_transactions FOR EACH ROW EXECUTE FUNCTION _sync_base_account_purchase(),public,_sync_base_account_purchase,"CREATE OR REPLACE FUNCTION public._sync_base_account_purchase()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+  v_now timestamptz := now();
+  v_ticket_csv text := '';
+BEGIN
+  IF NEW.provider = 'base_account' AND NEW.type = 'purchase' THEN
+    -- Insert joincompetition if not already present for this tx
+    INSERT INTO public.joincompetition (
+      userid,
+      wallet_address,
+      competitionid,
+      ticketnumbers,
+      purchasedate,
+      status,
+      created_at,
+      uid,
+      chain,
+      transactionhash,
+      numberoftickets,
+      amountspent,
+      canonical_user_id,
+      privy_user_id,
+      updated_at
+    )
+    VALUES (
+      COALESCE(NEW.canonical_user_id, NEW.user_id),
+      COALESCE(NEW.wallet_address, NEW.canonical_user_id, NEW.user_id),
+      NEW.competition_id,
+      v_ticket_csv,
+      COALESCE(NEW.completed_at, v_now),
+      'sold',
+      v_now,
+      (gen_random_uuid())::text,
+      'base_account',
+      COALESCE(NEW.tx_id, NEW.tx_ref),
+      COALESCE(NEW.ticket_count, 0),
+      COALESCE(NEW.amount, 0),
+      NEW.canonical_user_id,
+      NEW.user_privy_id,
+      v_now
+    )
+    ON CONFLICT DO NOTHING;
+
+    -- Upsert competition_entries
+    INSERT INTO public.competition_entries AS ce (
+      id,
+      canonical_user_id,
+      competition_id,
+      wallet_address,
+      tickets_count,
+      ticket_numbers_csv,
+      amount_spent,
+      amount_paid,
+      payment_methods,
+      latest_purchase_at,
+      created_at,
+      updated_at
+    )
+    VALUES (
+      gen_random_uuid(),
+      NEW.canonical_user_id,
+      NEW.competition_id,
+      COALESCE(NEW.wallet_address, NEW.canonical_user_id),
+      COALESCE(NEW.ticket_count, 0),
+      v_ticket_csv,
+      COALESCE(NEW.amount, 0),
+      COALESCE(NEW.amount, 0),
+      'base_account',
+      COALESCE(NEW.completed_at, v_now),
+      v_now,
+      v_now
+    )
+    ON CONFLICT (canonical_user_id, competition_id)
+    DO UPDATE
+    SET tickets_count = ce.tickets_count + EXCLUDED.tickets_count,
+        ticket_numbers_csv = CASE
+          WHEN ce.ticket_numbers_csv IS NULL OR ce.ticket_numbers_csv = '' THEN EXCLUDED.ticket_numbers_csv
+          WHEN EXCLUDED.ticket_numbers_csv IS NULL OR EXCLUDED.ticket_numbers_csv = '' THEN ce.ticket_numbers_csv
+          ELSE ce.ticket_numbers_csv || ',' || EXCLUDED.ticket_numbers_csv
+        END,
+        amount_spent = ce.amount_spent + EXCLUDED.amount_spent,
+        amount_paid = ce.amount_paid + EXCLUDED.amount_paid,
+        payment_methods = CASE
+          WHEN ce.payment_methods IS NULL OR ce.payment_methods = '' THEN EXCLUDED.payment_methods
+          WHEN POSITION(EXCLUDED.payment_methods IN ce.payment_methods) > 0 THEN ce.payment_methods
+          ELSE ce.payment_methods || ',' || EXCLUDED.payment_methods
+        END,
+        latest_purchase_at = GREATEST(ce.latest_purchase_at, EXCLUDED.latest_purchase_at),
+        updated_at = v_now;
+  END IF;
+
+  RETURN NEW;
+END;
+$function$
+",null
+public,user_transactions,trg_user_tx_before_insert,O,CREATE TRIGGER trg_user_tx_before_insert BEFORE INSERT ON user_transactions FOR EACH ROW EXECUTE FUNCTION user_tx_before_insert(),public,user_tx_before_insert,"CREATE OR REPLACE FUNCTION public.user_tx_before_insert()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  NEW.type := lower(COALESCE(NEW.type, 'entry'));
+  NEW.status := lower(COALESCE(NEW.status, 'pending'));
+
+  IF NEW.status = 'pending' AND NEW.expires_at IS NULL THEN
+    NEW.expires_at := NOW() + INTERVAL '2 minutes';
+  END IF;
+
+  RETURN NEW;
+END;
+$function$
+",null
+public,user_transactions,trg_user_tx_guard_bu,O,CREATE TRIGGER trg_user_tx_guard_bu BEFORE UPDATE ON user_transactions FOR EACH ROW EXECUTE FUNCTION user_tx_guard_no_double_post(),public,user_tx_guard_no_double_post,"CREATE OR REPLACE FUNCTION public.user_tx_guard_no_double_post()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF OLD.posted_to_balance = true AND NEW.status = 'completed' THEN
+    NEW.posted_to_balance := true;
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,user_transactions,trg_user_tx_post_ai,D,CREATE TRIGGER trg_user_tx_post_ai BEFORE INSERT ON user_transactions FOR EACH ROW EXECUTE FUNCTION post_user_transaction_to_balance(),public,post_user_transaction_to_balance,"CREATE OR REPLACE FUNCTION public.post_user_transaction_to_balance()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+  v_currency text;
+  v_effect numeric;
+  v_bal_id uuid;
+  v_currency_final text;
+BEGIN
+  -- Skip if already posted to balance
+  IF NEW.posted_to_balance = true THEN
+    RETURN NEW;
+  END IF;
+
+  -- Skip if not completed
+  IF NEW.status <> 'completed' THEN
+    RETURN NEW;
+  END IF;
+
+  -- CRITICAL FIX: Skip external crypto payments
+  IF NEW.payment_provider IN (
+    'base_account',
+    'coinbase_commerce',
+    'coinbase',
+    'privy_base_wallet',
+    'onchainkit',
+    'onchainkit_checkout'
+  ) THEN
+    NEW.posted_to_balance := true;
+    RETURN NEW;
+  END IF;
+
+  -- ONLY process balance payments and onramp top-ups
+  IF NEW.payment_provider NOT IN ('balance', 'onramp', 'coinbase_onramp') THEN
+    NEW.posted_to_balance := true;
+    RETURN NEW;
+  END IF;
+
+  -- Determine currency
+  BEGIN
+    EXECUTE 'SELECT ($1).' || quote_ident('currency') INTO v_currency USING NEW;
+  EXCEPTION WHEN others THEN
+    v_currency := NULL;
+  END;
+  v_currency_final := COALESCE(v_currency, NEW.metadata->>'currency', 'USD');
+
+  -- Calculate balance effect
+  IF NEW.type IN ('entry','payment') THEN
+    v_effect := - NEW.amount;
+  ELSIF NEW.type IN ('topup','refund','adjustment') THEN
+    v_effect := NEW.amount;
+  ELSE
+    v_effect := 0;
+  END IF;
+
+  -- Only proceed if there's an effect
+  IF v_effect != 0 THEN
+    PERFORM public.ensure_sub_account_balance_row(NEW.canonical_user_id, v_currency_final);
+
+    SELECT id INTO v_bal_id
+    FROM public.sub_account_balances
+    WHERE canonical_user_id = NEW.canonical_user_id
+      AND currency = v_currency_final
+    LIMIT 1;
+
+    UPDATE public.sub_account_balances b
+    SET available_balance = b.available_balance + v_effect,
+        last_updated = NOW()
+    WHERE b.id = v_bal_id;
+  END IF;
+
+  NEW.posted_to_balance := true;
+  IF NEW.completed_at IS NULL THEN
+    NEW.completed_at := NOW();
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,user_transactions,trg_user_tx_post_au,D,CREATE TRIGGER trg_user_tx_post_au BEFORE UPDATE OF status ON user_transactions FOR EACH ROW EXECUTE FUNCTION post_user_transaction_to_balance(),public,post_user_transaction_to_balance,"CREATE OR REPLACE FUNCTION public.post_user_transaction_to_balance()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+  v_currency text;
+  v_effect numeric;
+  v_bal_id uuid;
+  v_currency_final text;
+BEGIN
+  -- Skip if already posted to balance
+  IF NEW.posted_to_balance = true THEN
+    RETURN NEW;
+  END IF;
+
+  -- Skip if not completed
+  IF NEW.status <> 'completed' THEN
+    RETURN NEW;
+  END IF;
+
+  -- CRITICAL FIX: Skip external crypto payments
+  IF NEW.payment_provider IN (
+    'base_account',
+    'coinbase_commerce',
+    'coinbase',
+    'privy_base_wallet',
+    'onchainkit',
+    'onchainkit_checkout'
+  ) THEN
+    NEW.posted_to_balance := true;
+    RETURN NEW;
+  END IF;
+
+  -- ONLY process balance payments and onramp top-ups
+  IF NEW.payment_provider NOT IN ('balance', 'onramp', 'coinbase_onramp') THEN
+    NEW.posted_to_balance := true;
+    RETURN NEW;
+  END IF;
+
+  -- Determine currency
+  BEGIN
+    EXECUTE 'SELECT ($1).' || quote_ident('currency') INTO v_currency USING NEW;
+  EXCEPTION WHEN others THEN
+    v_currency := NULL;
+  END;
+  v_currency_final := COALESCE(v_currency, NEW.metadata->>'currency', 'USD');
+
+  -- Calculate balance effect
+  IF NEW.type IN ('entry','payment') THEN
+    v_effect := - NEW.amount;
+  ELSIF NEW.type IN ('topup','refund','adjustment') THEN
+    v_effect := NEW.amount;
+  ELSE
+    v_effect := 0;
+  END IF;
+
+  -- Only proceed if there's an effect
+  IF v_effect != 0 THEN
+    PERFORM public.ensure_sub_account_balance_row(NEW.canonical_user_id, v_currency_final);
+
+    SELECT id INTO v_bal_id
+    FROM public.sub_account_balances
+    WHERE canonical_user_id = NEW.canonical_user_id
+      AND currency = v_currency_final
+    LIMIT 1;
+
+    UPDATE public.sub_account_balances b
+    SET available_balance = b.available_balance + v_effect,
+        last_updated = NOW()
+    WHERE b.id = v_bal_id;
+  END IF;
+
+  NEW.posted_to_balance := true;
+  IF NEW.completed_at IS NULL THEN
+    NEW.completed_at := NOW();
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,user_transactions,trigger_auto_allocate_paid_tickets,O,"CREATE TRIGGER trigger_auto_allocate_paid_tickets AFTER INSERT OR UPDATE OF status, payment_status ON user_transactions FOR EACH ROW WHEN ((new.status = ANY (ARRAY['completed'::text, 'confirmed'::text])) AND (new.payment_status = ANY (ARRAY['completed'::text, 'confirmed'::text])) AND new.competition_id IS NOT NULL) EXECUTE FUNCTION auto_allocate_paid_tickets()",public,auto_allocate_paid_tickets,"CREATE OR REPLACE FUNCTION public.auto_allocate_paid_tickets()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+DECLARE
+  v_ticket_count INTEGER;
+  v_existing_tickets INTEGER;
+  v_competition_id TEXT;
+  v_user_id TEXT;
+  v_canonical_user_id TEXT;
+  v_wallet_address TEXT;
+  v_payment_provider TEXT;
+  v_tx_hash TEXT;
+BEGIN
+  -- Only process completed/confirmed payments
+  IF NEW.status NOT IN ('completed', 'confirmed') OR NEW.payment_status NOT IN ('completed', 'confirmed') THEN
+    RETURN NEW;
+  END IF;
+
+  -- Only process entry transactions (not top-ups)
+  IF NEW.competition_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  -- Get transaction details
+  v_competition_id := NEW.competition_id;
+  v_user_id := COALESCE(NEW.user_id, NEW.canonical_user_id);
+  v_canonical_user_id := COALESCE(NEW.canonical_user_id, NEW.user_id);
+  v_wallet_address := NEW.wallet_address;
+  v_payment_provider := COALESCE(NEW.payment_provider, 'unknown');
+  v_tx_hash := COALESCE(NEW.tx_id, NEW.id::text);
+  v_ticket_count := COALESCE(NEW.ticket_count, 1);
+
+  -- Check if tickets already exist for this transaction
+  SELECT COUNT(*)
+  INTO v_existing_tickets
+  FROM tickets
+  WHERE (transaction_hash = v_tx_hash OR tx_id = v_tx_hash)
+    AND competition_id = v_competition_id;
+
+  -- If no tickets exist but payment is completed, we need to allocate
+  IF v_existing_tickets = 0 AND v_ticket_count > 0 THEN
+    RAISE NOTICE '[AutoAllocate] Payment completed but no tickets found. TxID: %, Competition: %, User: %, TicketCount: %',
+      v_tx_hash, v_competition_id, v_user_id, v_ticket_count;
+
+    -- Create a pending_tickets entry for automatic allocation
+    -- The confirm-pending-tickets function will process this
+    INSERT INTO pending_tickets (
+      user_id,
+      canonical_user_id,
+      wallet_address,
+      competition_id,
+      status,
+      hold_minutes,
+      expires_at,
+      reservation_id,
+      ticket_count,
+      ticket_price,
+      total_amount,
+      session_id,
+      payment_provider,
+      transaction_hash,
+      note
+    )
+    VALUES (
+      v_user_id,
+      v_canonical_user_id,
+      v_wallet_address,
+      v_competition_id,
+      'pending',
+      15, -- 15 minute hold
+      NOW() + INTERVAL '15 minutes',
+      gen_random_uuid(),
+      v_ticket_count,
+      COALESCE(NEW.amount / NULLIF(v_ticket_count, 0), 0),
+      NEW.amount,
+      NEW.id,
+      v_payment_provider,
+      v_tx_hash,
+      'Auto-created by auto_allocate_paid_tickets trigger - payment succeeded but no tickets allocated'
+    )
+    ON CONFLICT DO NOTHING; -- Prevent duplicates if trigger fires multiple times
+
+    RAISE NOTICE '[AutoAllocate] Created pending_tickets entry for auto-allocation. Session: %', NEW.id;
+
+    -- Call confirm-pending-tickets via HTTP (background job)
+    -- This will be handled by an edge function or cron job
+    -- For now, just log and the reconcile-payments function will pick it up
+
+  END IF;
+
+  RETURN NEW;
+END;
+$function$
+","Ensures tickets are ALWAYS allocated when payment succeeds.
+Triggers on completed payments with competition_id but no existing tickets."
+public,user_transactions,update_user_transactions_updated_at,O,CREATE TRIGGER update_user_transactions_updated_at BEFORE UPDATE ON user_transactions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(),public,update_updated_at_column,"CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
+$function$
+",null
+public,user_transactions,user_transactions_broadcast_trigger,O,CREATE TRIGGER user_transactions_broadcast_trigger AFTER INSERT OR DELETE OR UPDATE ON user_transactions FOR EACH ROW EXECUTE FUNCTION util.broadcast_table_changes(),util,broadcast_table_changes,"CREATE OR REPLACE FUNCTION util.broadcast_table_changes()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+BEGIN
+  PERFORM realtime.broadcast_changes(
+    'table:' || TG_TABLE_NAME,
+    TG_OP,
+    TG_OP,
+    TG_TABLE_NAME,
+    TG_TABLE_SCHEMA,
+    NEW,
+    OLD
+  );
+  RETURN COALESCE(NEW, OLD);
+END;
+$function$
+",null
+public,user_transactions,zzz_trg_normalize_user_transactions_cuid,O,CREATE TRIGGER zzz_trg_normalize_user_transactions_cuid BEFORE INSERT OR UPDATE OF canonical_user_id ON user_transactions FOR EACH ROW EXECUTE FUNCTION normalize_user_transactions_cuid(),public,normalize_user_transactions_cuid,"CREATE OR REPLACE FUNCTION public.normalize_user_transactions_cuid()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.canonical_user_id IS NOT NULL THEN
+    NEW.canonical_user_id :=
+      'prize:pid:' || lower(replace(NEW.canonical_user_id::text, 'prize:pid:', ''));
+  END IF;
+
+  RETURN NEW;
+END
+$function$
+",null
+public,user_transactions,zzz_trg_user_transactions_post,O,CREATE TRIGGER zzz_trg_user_transactions_post BEFORE INSERT OR UPDATE ON user_transactions FOR EACH ROW EXECUTE FUNCTION user_transactions_post_to_wallet(),public,user_transactions_post_to_wallet,"CREATE OR REPLACE FUNCTION public.user_transactions_post_to_wallet()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+DECLARE
+  v_before numeric := 0;
+  v_after numeric := 0;
+  v_delta numeric := 0;
+  v_currency text;
+  v_uid text;
+BEGIN
+  IF (TG_OP <> 'INSERT' AND TG_OP <> 'UPDATE') THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.posted_to_balance IS TRUE THEN
+    RETURN NEW;
+  END IF;
+
+  IF lower(COALESCE(NEW.status,'')) <> 'completed' THEN
+    RETURN NEW;
+  END IF;
+
+  IF lower(COALESCE(NEW.type,'')) = 'entry'
+     AND lower(COALESCE(NEW.payment_provider,'')) <> 'balance' THEN
+    NEW.balance_before := NULL;
+    NEW.balance_after := NULL;
+    RETURN NEW;
+  END IF;
+
+  v_currency := upper(btrim(COALESCE(NEW.currency, 'USDC')));
+
+  -- normalize user id to match sub_account_balances_sync_ids()
+  v_uid := 'prize:pid:' || lower(replace(COALESCE(NEW.canonical_user_id,'')::text, 'prize:pid:', ''));
+
+  IF v_uid = 'prize:pid:' THEN
+    NEW.balance_before := NULL;
+    NEW.balance_after := NULL;
+    NEW.posted_to_balance := false;
+    RETURN NEW;
+  END IF;
+
+  IF lower(COALESCE(NEW.type,'')) = 'topup' THEN
+    v_delta := abs(COALESCE(NEW.amount,0));
+  ELSIF lower(COALESCE(NEW.type,'')) = 'entry' THEN
+    v_delta := -abs(COALESCE(NEW.amount,0));
+  ELSE
+    RETURN NEW;
+  END IF;
+
+  INSERT INTO public.sub_account_balances (canonical_user_id, currency, available_balance, last_updated)
+  VALUES (v_uid, v_currency, 0, now())
+  ON CONFLICT (canonical_user_id, currency) DO NOTHING;
+
+  SELECT COALESCE(available_balance,0)
+    INTO v_before
+  FROM public.sub_account_balances
+  WHERE canonical_user_id = v_uid
+    AND currency = v_currency
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    NEW.balance_before := NULL;
+    NEW.balance_after := NULL;
+    NEW.posted_to_balance := false;
+    RETURN NEW;
+  END IF;
+
+  v_after := v_before + v_delta;
+
+  IF v_delta < 0 AND v_after < 0 THEN
+    RAISE EXCEPTION 'Not enough balance';
+  END IF;
+
+  UPDATE public.sub_account_balances
+     SET available_balance = v_after,
+         last_updated = now()
+   WHERE canonical_user_id = v_uid
+     AND currency = v_currency;
+
+  IF v_currency = 'USDC' THEN
+    UPDATE public.canonical_users
+       SET usdc_balance = v_after,
+           updated_at = now()
+     WHERE canonical_user_id = v_uid;
+  END IF;
+
+  NEW.balance_before := v_before;
+  NEW.balance_after := v_after;
+  NEW.posted_to_balance := true;
+  NEW.completed_at := COALESCE(NEW.completed_at, now());
+
+  -- optionally also normalize the transaction row’s canonical_user_id to match
+  NEW.canonical_user_id := v_uid;
+
+  RETURN NEW;
+END;
+$function$
+",null
+public,users,trg_users_autolink_before_ins,O,CREATE TRIGGER trg_users_autolink_before_ins BEFORE INSERT ON users FOR EACH ROW EXECUTE FUNCTION users_autolink_canonical_before_ins(),public,users_autolink_canonical_before_ins,"CREATE OR REPLACE FUNCTION public.users_autolink_canonical_before_ins()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_email text := nullif(lower(trim(new.email)), '');
+  v_wallet text := nullif(lower(trim(new.wallet_address)), '');
+  v_row public.canonical_users;
+begin
+  -- If canonical_user_id already provided, allow
+  if new.canonical_user_id is not null and length(new.canonical_user_id) > 0 then
+    return new;
+  end if;
+
+  -- Try to resolve via ensure_canonical_user using whatever is present
+  v_row := public.ensure_canonical_user(
+    p_email => v_email,
+    p_wallet_address => v_wallet
+  );
+
+  new.canonical_user_id := v_row.canonical_user_id;
+
+  if new.canonical_user_id is null then
+    raise exception 'canonical_user_id could not be resolved for email=% wallet=%', v_email, v_wallet;
+  end if;
+
+  return new;
+end;
+$function$
+",null
+public,users,users_normalize_before_write,O,CREATE TRIGGER users_normalize_before_write BEFORE INSERT OR UPDATE ON users FOR EACH ROW EXECUTE FUNCTION users_normalize_before_write(),public,users_normalize_before_write,"CREATE OR REPLACE FUNCTION public.users_normalize_before_write()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  if new.wallet_address is not null then
+    new.wallet_address := util.normalize_evm_address(new.wallet_address);
+  end if;
+
+  if new.wallet_address is not null then
+    new.canonical_user_id := 'prize:pid:' || new.wallet_address;
+  elsif new.canonical_user_id is not null then
+    -- If only canonical provided, try to extract wallet
+    if position('prize:pid:' in new.canonical_user_id) = 1 then
+      new.wallet_address := replace(new.canonical_user_id, 'prize:pid:', '');
+    end if;
+  end if;
+
+  return new;
+end;
+$function$
+",null
+public,winners,trg_bcast_winner_changes,O,CREATE TRIGGER trg_bcast_winner_changes AFTER INSERT OR DELETE OR UPDATE ON winners FOR EACH ROW EXECUTE FUNCTION bcast_winner_changes(),public,bcast_winner_changes,"CREATE OR REPLACE FUNCTION public.bcast_winner_changes()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+BEGIN
+  PERFORM realtime.broadcast_changes(
+    'competition:' || COALESCE(NEW.competition_id, OLD.competition_id)::text || ':winners',
+    TG_OP,
+    TG_OP,
+    TG_TABLE_NAME,
+    TG_TABLE_SCHEMA,
+    NEW,
+    OLD
+  );
+  RETURN COALESCE(NEW, OLD);
+END;
+$function$
+",null
+public,winners,trg_winners_wallet_bi,O,"CREATE TRIGGER trg_winners_wallet_bi BEFORE INSERT OR UPDATE OF user_id, wallet_address ON winners FOR EACH ROW EXECUTE FUNCTION winners_sync_wallet_from_user_id()",public,winners_sync_wallet_from_user_id,"CREATE OR REPLACE FUNCTION public.winners_sync_wallet_from_user_id()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.user_id IS NOT NULL AND NEW.user_id LIKE 'prize:pid:%' AND (NEW.wallet_address IS NULL OR NEW.wallet_address = '') THEN
+    NEW.wallet_address := replace(NEW.user_id, 'prize:pid:', '');
+  END IF;
+  RETURN NEW;
+END;
+$function$
+",null
+public,winners,winners_broadcast_trigger,O,CREATE TRIGGER winners_broadcast_trigger AFTER INSERT OR DELETE OR UPDATE ON winners FOR EACH ROW EXECUTE FUNCTION util.broadcast_table_changes(),util,broadcast_table_changes,"CREATE OR REPLACE FUNCTION util.broadcast_table_changes()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+BEGIN
+  PERFORM realtime.broadcast_changes(
+    'table:' || TG_TABLE_NAME,
+    TG_OP,
+    TG_OP,
+    TG_TABLE_NAME,
+    TG_TABLE_SCHEMA,
+    NEW,
+    OLD
+  );
+  RETURN COALESCE(NEW, OLD);
+END;
+$function$
+",null
+realtime,subscription,tr_check_filters,O,CREATE TRIGGER tr_check_filters BEFORE INSERT OR UPDATE ON realtime.subscription FOR EACH ROW EXECUTE FUNCTION realtime.subscription_check_filters(),realtime,subscription_check_filters,"CREATE OR REPLACE FUNCTION realtime.subscription_check_filters()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+    /*
+    Validates that the user defined filters for a subscription:
+    - refer to valid columns that the claimed role may access
+    - values are coercable to the correct column type
+    */
+    declare
+        col_names text[] = coalesce(
+                array_agg(c.column_name order by c.ordinal_position),
+                '{}'::text[]
+            )
+            from
+                information_schema.columns c
+            where
+                format('%I.%I', c.table_schema, c.table_name)::regclass = new.entity
+                and pg_catalog.has_column_privilege(
+                    (new.claims ->> 'role'),
+                    format('%I.%I', c.table_schema, c.table_name)::regclass,
+                    c.column_name,
+                    'SELECT'
+                );
+        filter realtime.user_defined_filter;
+        col_type regtype;
+
+        in_val jsonb;
+    begin
+        for filter in select * from unnest(new.filters) loop
+            -- Filtered column is valid
+            if not filter.column_name = any(col_names) then
+                raise exception 'invalid column for filter %', filter.column_name;
+            end if;
+
+            -- Type is sanitized and safe for string interpolation
+            col_type = (
+                select atttypid::regtype
+                from pg_catalog.pg_attribute
+                where attrelid = new.entity
+                      and attname = filter.column_name
+            );
+            if col_type is null then
+                raise exception 'failed to lookup type for column %', filter.column_name;
+            end if;
+
+            -- Set maximum number of entries for in filter
+            if filter.op = 'in'::realtime.equality_op then
+                in_val = realtime.cast(filter.value, (col_type::text || '[]')::regtype);
+                if coalesce(jsonb_array_length(in_val), 0) > 100 then
+                    raise exception 'too many values for `in` filter. Maximum 100';
+                end if;
+            else
+                -- raises an exception if value is not coercable to type
+                perform realtime.cast(filter.value, col_type);
+            end if;
+
+        end loop;
+
+        -- Apply consistent order to filters so the unique constraint on
+        -- (subscription_id, entity, filters) can't be tricked by a different filter order
+        new.filters = coalesce(
+            array_agg(f order by f.column_name, f.op, f.value),
+            '{}'
+        ) from unnest(new.filters) f;
+
+        return new;
+    end;
+    $function$
+",null
