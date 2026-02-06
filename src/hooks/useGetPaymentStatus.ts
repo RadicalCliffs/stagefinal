@@ -109,12 +109,14 @@ export function usePaymentStatus(onOpen: () => void) {
       'privy_base_wallet',
       'base-cdp',
       'base_wallet',
+      'base_account',
       'onchainkit',
       'coinbase_commerce',
       // Also include variants without underscores for robustness
       'privybasewallet',
       'basecdp',
       'basewallet',
+      'baseaccount',
       'coinbasecommerce',
     ]);
 
