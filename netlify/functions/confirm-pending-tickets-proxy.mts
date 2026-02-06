@@ -1152,7 +1152,7 @@ function isValidUserId(userId: string): boolean {
         console.log(`[Confirm Tickets] PATH B->A FALLBACK: Attempting direct allocation for ${paymentProvider} payment after reservation lock failed`);
         
         // Log incident for monitoring
-        const incidentId = `base-account-409-fallback-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+        const incidentId = crypto.randomUUID(); // Use crypto.randomUUID() for guaranteed uniqueness
         try {
           await supabase.rpc("log_confirmation_incident", {
             p_incident_id: incidentId,
@@ -1183,6 +1183,11 @@ function isValidUserId(userId: string): boolean {
         // Use reservation's ticket data for fallback allocation
         const fallbackTicketCount = reservation.ticket_count || ticketNumbers.length || requestedTicketCount || 1;
         const fallbackSelectedTickets = reservation.selected_tickets || ticketNumbers || selectedTickets || [];
+        
+        // Warn if falling back to default ticket count
+        if (!reservation.ticket_count && !ticketNumbers.length && !requestedTicketCount) {
+          console.warn(`[Confirm Tickets] PATH B->A FALLBACK: No ticket count found, defaulting to 1 ticket`);
+        }
         
         // Check if tickets already confirmed
         const lookupTxHash = transactionHash || reservation.id;
@@ -1286,7 +1291,7 @@ function isValidUserId(userId: string): boolean {
             ticketnumbers: allocatedTickets.join(","),
             amountspent: totalAmount,
             wallet_address: walletAddress,
-            chain: paymentProvider || "base_account",
+            chain: paymentProvider || "USDC", // Preserve original payment provider or fallback to USDC
             transactionhash: finalTransactionHash,
             purchasedate: new Date().toISOString(),
           });

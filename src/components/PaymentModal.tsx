@@ -145,11 +145,19 @@ async function confirmTicketsUnified(params: ConfirmTicketsParams): Promise<{
       
       try {
         response = await makeConfirmationRequest(false);
-        result = await response.json();
+        
+        // Check if retry response is valid before parsing
+        if (!response.ok) {
+          console.error('[PaymentModal] Retry request failed with status:', response.status);
+          // Let the original error handling below deal with it
+          result = { success: false, error: `Retry failed with HTTP ${response.status}` };
+        } else {
+          result = await response.json();
+        }
         console.log('[PaymentModal] Retry result:', result);
       } catch (retryError) {
         console.error('[PaymentModal] Retry attempt failed:', retryError);
-        // Fall through to return original error
+        // Keep original result for error reporting below
       }
     }
 
