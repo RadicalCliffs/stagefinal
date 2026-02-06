@@ -42,7 +42,7 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
 } {
   const { baseUser } = useAuthUser();
   const [balance, setBalance] = useState(0);
-  const [bonusBalance, setBonusBalance] = useState(0);  // Always 0 - kept for compatibility
+  // bonusBalance removed - always 0, returned as constant in return object
   const [pendingBalance, setPendingBalance] = useState(0);
   const [hasUsedBonus, setHasUsedBonus] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -109,7 +109,7 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
         const balanceData = parseBalanceResponse(rpcBalance);
         
         setBalance(balanceData.balance);
-        setBonusBalance(0);  // Always 0 - bonus is in main balance
+        // bonusBalance no longer tracked - always 0
         setLastUpdate(new Date());
         setError(null);
         console.log('[RealTimeBalance] Balance fetched via RPC from sub_account_balances:', balanceData.balance);
@@ -174,7 +174,7 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
         }
         const balanceValue = Number(record.available_balance) || 0;
         setBalance(balanceValue);
-        setBonusBalance(0);
+        // bonusBalance no longer tracked
         setPendingBalance(Number(record.pending_balance) || 0);
         setLastUpdate(new Date());
         setError(null);
@@ -547,7 +547,7 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
 
   return {
     balance,
-    bonusBalance,  // Always 0 - kept for backward compatibility
+    bonusBalance: 0,  // Always 0 - bonus is in main balance (kept for compatibility)
     totalBalance: balance,  // Same as balance (no separate bonus)
     pendingBalance,
     hasUsedBonus,
