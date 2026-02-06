@@ -1145,6 +1145,206 @@ function isValidUserId(userId: string): boolean {
 
       // Reservation is in unexpected state
       console.error(`[Confirm Tickets] PATH B: Failed to acquire lock on reservation ${reservation.id}, status: ${currentReservation?.status}`);
+      
+      // FALLBACK FOR BASE_ACCOUNT: If reservation is unavailable for on-chain payments,
+      // attempt fallback allocation using PATH A logic to prevent payment loss
+      if (paymentProvider === "base_account" || (paymentProvider && paymentProvider.toLowerCase().includes("base"))) {
+        console.log(`[Confirm Tickets] PATH B->A FALLBACK: Attempting direct allocation for ${paymentProvider} payment after reservation lock failed`);
+        
+        // Log incident for monitoring
+        const incidentId = `base-account-409-fallback-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+        try {
+          await supabase.rpc("log_confirmation_incident", {
+            p_incident_id: incidentId,
+            p_source: "netlify_proxy",
+            p_endpoint: "/api/confirm-pending-tickets",
+            p_error_type: "BaseAccount409Fallback",
+            p_error_message: `Reservation ${reservation.id} unavailable (status: ${currentReservation?.status}), attempting PATH A fallback`,
+            p_error_stack: null,
+            p_user_id: canonicalUserId,
+            p_competition_id: competitionId,
+            p_reservation_id: reservation.id,
+            p_session_id: sessionId,
+            p_transaction_hash: transactionHash,
+            p_env_context: {
+              paymentProvider,
+              reservationStatus: currentReservation?.status,
+              ticketCount: reservation.ticket_count || ticketNumbers.length,
+            },
+            p_metadata: {
+              timestamp: new Date().toISOString(),
+              origin: origin || "unknown",
+            },
+          });
+        } catch (logErr) {
+          console.warn("[Confirm Tickets] Failed to log 409 fallback incident:", logErr);
+        }
+
+        // Use reservation's ticket data for fallback allocation
+        const fallbackTicketCount = reservation.ticket_count || ticketNumbers.length || requestedTicketCount || 1;
+        const fallbackSelectedTickets = reservation.selected_tickets || ticketNumbers || selectedTickets || [];
+        
+        // Check if tickets already confirmed
+        const lookupTxHash = transactionHash || reservation.id;
+        const { data: existingByTxHash } = await supabase
+          .from("joincompetition")
+          .select("uid, ticketnumbers, numberoftickets, amountspent")
+          .or(buildCompetitionIdFilter(finalCompetitionId, finalCompetitionUid))
+          .eq("transactionhash", lookupTxHash)
+          .maybeSingle();
+
+        if (existingByTxHash) {
+          console.log(`[Confirm Tickets] PATH B->A FALLBACK: Tickets already allocated for txHash=${lookupTxHash}`);
+          const existingTicketNumbers = String(existingByTxHash.ticketnumbers || "")
+            .split(",")
+            .map((x: string) => parseInt(x.trim(), 10))
+            .filter((n: number) => Number.isFinite(n));
+
+          return json(
+            {
+              success: true,
+              ticketNumbers: existingTicketNumbers,
+              ticketCount: existingByTxHash.numberoftickets || existingTicketNumbers.length,
+              totalAmount: existingByTxHash.amountspent || 0,
+              message: `Already confirmed ${existingTicketNumbers.length} tickets.`,
+              alreadyConfirmed: true,
+            },
+            200,
+            origin
+          );
+        }
+
+        // Allocate tickets using PATH A logic
+        try {
+          const { data: comp } = await supabase
+            .from("competitions")
+            .select("total_tickets, uid")
+            .eq("id", finalCompetitionId)
+            .maybeSingle();
+
+          if (!comp) {
+            throw new Error("Competition not found for fallback allocation");
+          }
+
+          const maxTickets = Number((comp as any).total_tickets);
+          const competitionUidForFallback = (comp as any).uid;
+
+          // Get currently used tickets
+          const { data: usedTickets } = await supabase
+            .from("tickets")
+            .select("ticket_number")
+            .eq("competition_id", finalCompetitionId);
+
+          const usedSet = new Set<number>((usedTickets || []).map((t: any) => Number(t.ticket_number)));
+          const availablePool: number[] = [];
+          for (let i = 1; i <= maxTickets; i++) {
+            if (!usedSet.has(i)) availablePool.push(i);
+          }
+
+          if (availablePool.length < fallbackTicketCount) {
+            throw new Error(`Insufficient tickets available: ${availablePool.length} < ${fallbackTicketCount}`);
+          }
+
+          // Allocate random tickets
+          const allocatedTickets = pickRandomUnique(availablePool, fallbackTicketCount);
+          
+          // Get ticket price and calculate amount
+          const { data: compPrice } = await supabase
+            .from("competitions")
+            .select("ticket_price")
+            .eq("id", finalCompetitionId)
+            .maybeSingle();
+          const ticketPrice = Number((compPrice as any)?.ticket_price) || 1;
+          const totalAmount = ticketPrice * allocatedTickets.length;
+
+          // Get wallet address
+          let walletAddress: string | null = typeof reqWalletAddress === "string" && reqWalletAddress.trim() ? reqWalletAddress : "";
+          if (!walletAddress && canonicalUserId) {
+            const extractedId = extractPrizePid(canonicalUserId);
+            const isWalletAddr = isValidWalletAddress(extractedId);
+            if (isWalletAddr) {
+              walletAddress = extractedId;
+            } else {
+              const normalizedId = extractedId.toLowerCase();
+              const { data: userConn } = await supabase
+                .from("canonical_users")
+                .select("wallet_address, base_wallet_address")
+                .or(`privy_user_id.eq.${extractedId},wallet_address.ilike.${normalizedId},base_wallet_address.ilike.${normalizedId}`)
+                .maybeSingle();
+              walletAddress = (userConn as any)?.wallet_address || (userConn as any)?.base_wallet_address || null;
+            }
+          }
+
+          // Insert joincompetition entry
+          const finalTransactionHash = transactionHash || reservation.id;
+          await supabase.from("joincompetition").insert({
+            uid: crypto.randomUUID(),
+            competitionid: finalCompetitionId,
+            userid: canonicalUserId,
+            privy_user_id: canonicalUserId,
+            numberoftickets: allocatedTickets.length,
+            ticketnumbers: allocatedTickets.join(","),
+            amountspent: totalAmount,
+            wallet_address: walletAddress,
+            chain: paymentProvider || "base_account",
+            transactionhash: finalTransactionHash,
+            purchasedate: new Date().toISOString(),
+          });
+
+          // Upsert tickets
+          const ticketRows = allocatedTickets.map((num: number) => ({
+            competition_id: finalCompetitionId,
+            order_id: sessionId ?? null,
+            ticket_number: num,
+            privy_user_id: canonicalUserId,
+            purchase_price: ticketPrice,
+            created_at: new Date().toISOString(),
+          }));
+          await supabase.from("tickets").upsert(ticketRows, { onConflict: "competition_id,ticket_number" });
+
+          // Update user_transactions if sessionId available
+          if (sessionId) {
+            try {
+              await supabase
+                .from("user_transactions")
+                .update({
+                  notes: `Tickets allocated (fallback): ${allocatedTickets.join(", ")}`,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", sessionId);
+            } catch (updateErr) {
+              console.warn(`[Confirm Tickets] Failed to update user_transaction ${sessionId}:`, updateErr);
+            }
+          }
+
+          // Update reservation status to confirmed
+          await supabase
+            .from("pending_tickets")
+            .update({ 
+              status: "confirmed", 
+              updated_at: new Date().toISOString() 
+            })
+            .eq("id", reservation.id);
+
+          console.log(`[Confirm Tickets] PATH B->A FALLBACK: Successfully allocated ${allocatedTickets.length} tickets`);
+
+          return json(
+            {
+              success: true,
+              ticketNumbers: allocatedTickets,
+              ticketCount: allocatedTickets.length,
+              totalAmount,
+              message: `Successfully confirmed ${allocatedTickets.length} tickets via fallback.`,
+            },
+            200,
+            origin
+          );
+        } catch (fallbackErr) {
+          console.error("[Confirm Tickets] PATH B->A FALLBACK failed:", fallbackErr);
+          // Fall through to return original 409 error
+        }
+      }
+      
       return json(
         { success: false, error: "Reservation is no longer available for confirmation." },
         409,

@@ -83,13 +83,14 @@ async function confirmTicketsUnified(params: ConfirmTicketsParams): Promise<{
     transactionHash: formatTransactionHash(transactionHash),
   });
 
-  try {
-    const response = await fetch('/api/confirm-pending-tickets', {
+  // Helper function to make the confirmation request
+  const makeConfirmationRequest = async (useReservation: boolean) => {
+    return await fetch('/api/confirm-pending-tickets', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        // Always pass reservationId first - this is the most reliable lookup
-        reservationId: reservationId || null,
+        // On retry, set reservationId to null to force fallback allocation path
+        reservationId: useReservation ? (reservationId || null) : null,
         // User identifier - could be wallet address or Privy DID
         // Send both userId AND userIdentifier for backward compatibility with different function versions
         userId,
@@ -110,6 +111,11 @@ async function confirmTicketsUnified(params: ConfirmTicketsParams): Promise<{
         sessionId: sessionId || null,
       }),
     });
+  };
+
+  try {
+    // First attempt with original reservationId
+    let response = await makeConfirmationRequest(true);
 
     let result: any;
     try {
@@ -125,6 +131,27 @@ async function confirmTicketsUnified(params: ConfirmTicketsParams): Promise<{
     }
     
     console.log('[PaymentModal] confirmTicketsUnified result:', result);
+
+    // Check if we got HTTP 409 with reservation unavailable error
+    const is409Error = response.status === 409;
+    const isReservationError = result.error && (
+      result.error.toLowerCase().includes('reservation is no longer available') ||
+      result.error.toLowerCase().includes('expired')
+    );
+
+    // If first attempt failed with 409 reservation error, retry with null reservationId
+    if (!result.success && is409Error && isReservationError && reservationId) {
+      console.log('[PaymentModal] Got 409 reservation error, retrying with null reservationId for fallback allocation...');
+      
+      try {
+        response = await makeConfirmationRequest(false);
+        result = await response.json();
+        console.log('[PaymentModal] Retry result:', result);
+      } catch (retryError) {
+        console.error('[PaymentModal] Retry attempt failed:', retryError);
+        // Fall through to return original error
+      }
+    }
 
     if (result.success) {
       return {
