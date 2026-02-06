@@ -63,10 +63,9 @@ export default function UserDashboardOverview() {
   // Transform overview data to format expected by existing components
   const transformedEntries = transformOverviewToEntries(overview);
 
-  // Extract USDC and BONUS balances
+  // Extract USDC balance only (bonus is included in USDC balance)
   const usdcBalance = balances.USDC?.available || 0;
-  const bonusBalance = balances.BONUS?.available || 0;
-  const totalBalance = usdcBalance + bonusBalance;
+  const totalBalance = usdcBalance;  // Just one balance
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -85,12 +84,6 @@ export default function UserDashboardOverview() {
         <div className="bg-[#151515] rounded-lg p-6">
           <h3 className="text-sm text-gray-400 mb-2">Wallet Balance</h3>
           <p className="text-3xl font-bold text-white">${totalBalance.toFixed(2)}</p>
-          <div className="text-xs text-gray-400 mt-1">
-            <span>USDC: ${usdcBalance.toFixed(2)}</span>
-            {bonusBalance > 0 && (
-              <span className="ml-2">BONUS: ${bonusBalance.toFixed(2)}</span>
-            )}
-          </div>
         </div>
       </div>
 
