@@ -12,8 +12,8 @@ interface PendingTopUp {
 
 interface RealTimeBalanceState {
   balance: number;
-  bonusBalance: number;
-  totalBalance: number;
+  bonusBalance: number;  // Keep for backward compatibility, but always 0
+  totalBalance: number;  // Same as balance
   pendingBalance: number;
   hasUsedBonus: boolean;
   isLoading: boolean;
@@ -42,7 +42,7 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
 } {
   const { baseUser } = useAuthUser();
   const [balance, setBalance] = useState(0);
-  const [bonusBalance, setBonusBalance] = useState(0);
+  // bonusBalance removed - always 0, returned as constant in return object
   const [pendingBalance, setPendingBalance] = useState(0);
   const [hasUsedBonus, setHasUsedBonus] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -105,13 +105,14 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
 
       if (!rpcError && rpcBalance !== null) {
         // get_user_balance returns JSONB object: { success, balance, bonus_balance, total_balance }
+        // NOTE: bonus_balance is now always 0 - the 50% bonus is added to main balance
         const balanceData = parseBalanceResponse(rpcBalance);
         
         setBalance(balanceData.balance);
-        setBonusBalance(balanceData.bonus_balance);
+        // bonusBalance no longer tracked - always 0
         setLastUpdate(new Date());
         setError(null);
-        console.log('[RealTimeBalance] Balance fetched via RPC from sub_account_balances:', balanceData.balance, 'bonus:', balanceData.bonus_balance);
+        console.log('[RealTimeBalance] Balance fetched via RPC from sub_account_balances:', balanceData.balance);
 
         // Also fetch pending balance and user metadata from sub_account_balances
         const { data: subAccountData } = await supabase
@@ -173,7 +174,7 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
         }
         const balanceValue = Number(record.available_balance) || 0;
         setBalance(balanceValue);
-        setBonusBalance(0);
+        // bonusBalance no longer tracked
         setPendingBalance(Number(record.pending_balance) || 0);
         setLastUpdate(new Date());
         setError(null);
@@ -546,8 +547,8 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
 
   return {
     balance,
-    bonusBalance,
-    totalBalance: balance + bonusBalance,
+    bonusBalance: 0,  // Always 0 - bonus is in main balance (kept for compatibility)
+    totalBalance: balance,  // Same as balance (no separate bonus)
     pendingBalance,
     hasUsedBonus,
     isLoading,

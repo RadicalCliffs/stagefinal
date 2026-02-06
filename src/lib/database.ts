@@ -1771,7 +1771,8 @@ export const database = {
       const formattedTransactions = (data || [])
         .map((tx: any) => {
         // Use is_topup flag from RPC if available, otherwise calculate it
-        const isTopUp = tx.is_topup ?? (!tx.competition_id || (tx.webhook_ref && tx.webhook_ref.startsWith('TOPUP_')));
+        // FIXED: Check type field instead of competition_id to avoid misclassifying base_account entries
+        const isTopUp = tx.is_topup ?? (tx.type === 'topup');
         
         return {
           id: tx.id,
@@ -1873,7 +1874,8 @@ export const database = {
         })
         .map((tx: any) => {
           const competition = competitionsMap[tx.competition_id];
-          const isTopUp = !tx.competition_id || (tx.webhook_ref && tx.webhook_ref.startsWith('TOPUP_'));
+          // FIXED: Check type field instead of competition_id to avoid misclassifying base_account entries
+          const isTopUp = tx.type === 'topup';
           return {
             id: tx.id,
             user_id: tx.user_id,

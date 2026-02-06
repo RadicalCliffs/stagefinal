@@ -140,7 +140,9 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
 
       setTransactionsLoading(true);
       try {
-        // Fetch top-up transactions (transactions without competition_id)
+        // Fetch top-up transactions (type = 'topup')
+        // FIXED: Filter by type = 'topup' instead of competition_id IS NULL
+        // This prevents base_account entries from being misclassified as top-ups
         // Include pending statuses to show transactions immediately after initiation
         // Use ilike for case-insensitive wallet address matching and also check canonical_user_id
         const canonicalId = toPrizePid(baseUser.id);
@@ -149,7 +151,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
         const { data, error } = await supabase
           .from('user_transactions')
           .select('*')
-          .is('competition_id', null)
+          .eq('type', 'topup')
           .in('status', ['pending', 'pending_payment', 'waiting', 'processing', 'finished', 'completed', 'confirmed', 'success'])
           .or(`user_id.eq.${normalizedWallet},canonical_user_id.eq.${canonicalId},wallet_address.eq.${normalizedWallet}`)
           .order('created_at', { ascending: false })
