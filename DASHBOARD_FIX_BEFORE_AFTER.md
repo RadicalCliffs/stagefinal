@@ -214,20 +214,18 @@ const data = activeTab.key === "purchases" ? purchases : topups;
 
 ### is_topup Flag Calculation
 
-**Database (RPC)**:
+**Database (RPC)** - FIXED in migration 20260206120900:
 ```sql
-'is_topup', (
-  ut.competition_id IS NULL OR 
-  (ut.webhook_ref IS NOT NULL AND ut.webhook_ref LIKE 'TOPUP_%')
-)
+'is_topup', (ut.type = 'topup')
 ```
 
 **Frontend Fallback**:
 ```typescript
-const isTopUp = tx.is_topup ?? 
-                (!tx.competition_id || 
-                 (tx.webhook_ref && tx.webhook_ref.startsWith('TOPUP_')));
+const isTopUp = tx.is_topup ?? (tx.type === 'topup');
 ```
+
+**Why This Fix Was Needed**:
+The previous logic used `competition_id IS NULL` to identify top-ups, but this incorrectly classified base_account competition entries (which may have NULL competition_id) as top-ups. The `type` field explicitly indicates the transaction intent and is the correct way to distinguish top-ups from entries.
 
 ### Display Columns
 

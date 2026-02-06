@@ -129,25 +129,34 @@ Fields:
 
 ### is_topup Determination Logic
 
-The `is_topup` flag is computed in the RPC function:
+The `is_topup` flag is computed in the RPC function based on the `type` field:
 
-**Source**: `supabase/migrations/20260202095000_fix_dashboard_data_issues.sql`
+**Source**: `supabase/migrations/20260206120900_fix_topup_classification_by_type.sql`
 
 ```sql
-'is_topup', (ut.competition_id IS NULL OR 
-             (ut.webhook_ref IS NOT NULL AND ut.webhook_ref LIKE 'TOPUP_%'))
+'is_topup', (ut.type = 'topup')
 ```
 
 **Logic**:
-- `competition_id IS NULL` → Top-up (no competition associated)
-- OR `webhook_ref LIKE 'TOPUP_%'` → Explicitly marked as top-up
+- `type = 'topup'` → Top-up (wallet credit transaction)
+- `type = 'entry'` → Competition entry (NOT a top-up)
+- Any other type → NOT a top-up
 
 **Fallback in TypeScript** (database.ts line 1774):
 ```typescript
-const isTopUp = tx.is_topup ?? 
-                (!tx.competition_id || 
-                 (tx.webhook_ref && tx.webhook_ref.startsWith('TOPUP_')));
+const isTopUp = tx.is_topup ?? (tx.type === 'topup');
 ```
+
+**Previous (INCORRECT) Logic**:
+```sql
+-- OLD (WRONG): This misclassified base_account entries as top-ups
+'is_topup', (ut.competition_id IS NULL OR ut.webhook_ref LIKE 'TOPUP_%')
+```
+
+**Why the Change**:
+- Base account entries may have `competition_id = NULL` but are NOT top-ups
+- The `type` field explicitly marks the transaction intent: 'topup' vs 'entry'
+- Using `type` field is more reliable and explicit than inferring from `competition_id`
 
 ---
 
