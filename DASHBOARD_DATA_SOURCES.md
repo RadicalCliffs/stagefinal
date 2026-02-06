@@ -54,8 +54,13 @@ This document outlines the database columns and data sources used by each elemen
 
 ## 2. Orders Tab (OrdersList.tsx / OrdersTable.tsx)
 
+### Tab Structure
+- **Purchases Tab**: Shows competition ticket purchases only (transactions with competition_id)
+- **Top-Ups Tab**: Shows wallet credit transactions only (transactions without competition_id)
+
 ### Data Source
 - **RPC**: `get_user_transactions(user_identifier)`
+- **Filtering**: Frontend separates data based on `is_topup` flag
 
 ### Database Tables Queried
 - `user_transactions` (primary)
@@ -87,14 +92,23 @@ This document outlines the database columns and data sources used by each elemen
 - `image_url` - Competition image → maps to `competition_image`
 
 ### Display Fields in OrdersTable:
+
+#### Purchases Tab (Competition Entries):
 - `competition_name` - From joined competitions.title
-- `competition_image` - From joined competitions.image_url
-- `amount` - From amount
-- `currency` - From currency
-- `ticket_count` - From ticket_count
-- `payment_status` - From payment_status
-- `tx_id` - From tx_id (transaction hash)
-- `created_at` - From created_at
+- `type` - Transaction type
+- `payment_provider` - Payment provider used
+- `created_at` - Purchase timestamp
+- `amount` - Transaction amount
+- `status` - Competition status with action button
+
+#### Top-Ups Tab (Wallet Credits):
+- `competition_name` - Shows "Wallet Top-Up" for top-ups
+- `payment_provider` - Payment provider used
+- `tx_id` - Transaction hash (with copy button)
+- `balance_before` - Balance before transaction
+- `balance_after` - Balance after transaction
+- `completed_at` - Transaction completion time
+- `amount_usd` - Amount in USD
 
 ---
 

@@ -101,7 +101,7 @@ const OrdersTable: FC<OrdersTableProps> = ({ activeTab, data }) => {
   return (
     <div className="border-[2px] border-[#DDE404] rounded-lg mx-auto overflow-hidden relative z-10">
       {/* Desktop Header */}
-      {activeTab.key === "purchases" ? (
+      {activeTab.key === "topups" ? (
         <div className="hidden uppercase lg:grid items-center grid-cols-8 text-white sequel-75 text-xs px-10 py-6 border-b-[2px] border-[#DDE404]">
           <p className="text-center col-span-2">Description</p>
           <p className="text-center">Payment Provider</p>
@@ -129,10 +129,10 @@ const OrdersTable: FC<OrdersTableProps> = ({ activeTab, data }) => {
             data.map((item: any, index) => (
               <div key={index}>
                 {/* Desktop layout */}
-                {activeTab.key === "purchases" ? (
+                {activeTab.key === "topups" ? (
                   <div className="hidden lg:grid grid-cols-8 text-white sequel-45 items-center text-xs">
                     <p className="text-white/60 text-center col-span-2">
-                      {item.is_topup ? item.competition_name : `${item.ticket_count} ticket${item.ticket_count !== 1 ? 's' : ''} - ${item.competition_name}`}
+                      {item.competition_name || 'Wallet Top-Up'}
                     </p>
                     <p className="text-white/60 text-center">{item.payment_provider || 'unknown'}</p>
                     <div className="flex items-center gap-2 justify-center">
@@ -174,10 +174,7 @@ const OrdersTable: FC<OrdersTableProps> = ({ activeTab, data }) => {
                 ) : (
                   <div className="hidden lg:block text-white sequel-45 text-xs">
                     <div className="grid grid-cols-6 items-center gap-2">
-                      {item.transaction_type === 'topup' ? (
-                        <span className="text-green-500 text-center">Wallet Top-Up</span>
-                      ) : (
-                        <p className="text-white/60 truncate max-w-[150px] text-center">{item.title || item.competition_name || 'Unknown Competition'}</p>
+                      <p className="text-white/60 truncate max-w-[150px] text-center">{item.title || item.competition_name || 'Unknown Competition'}</p>
                       )}
                       <p className="text-white/60 text-center">{item.type || '-'}</p>
                       <p className="text-white/60 text-center">{item.payment_provider || 'unknown'}</p>
@@ -227,20 +224,14 @@ const OrdersTable: FC<OrdersTableProps> = ({ activeTab, data }) => {
 
                 {/* Mobile layout */}
                 <div className="lg:hidden text-white sequel-45 space-y-2 border-b border-[#DDE404] pb-4">
-                  {activeTab.key === "purchases" ? (
+                  {activeTab.key === "topups" ? (
                     <>
                       <div className="flex justify-between gap-4">
                         <p className="text-white/60">Description</p>
                         <p className="text-white truncate max-w-[160px] text-right">
-                          {item.is_topup ? item.competition_name : `${item.ticket_count} ticket${item.ticket_count !== 1 ? 's' : ''}`}
+                          {item.competition_name || 'Wallet Top-Up'}
                         </p>
                       </div>
-                      {!item.is_topup && (
-                        <div className="flex justify-between gap-4">
-                          <p className="text-white/60">Competition</p>
-                          <p className="text-white truncate max-w-[160px] text-right">{item.competition_name}</p>
-                        </div>
-                      )}
                       <div className="flex justify-between gap-4">
                         <p className="text-white/60">Payment Provider</p>
                         <p className="text-white">{item.payment_provider || 'unknown'}</p>

@@ -32,7 +32,7 @@ function recordMatchesUser(
 export default function OrdersList() {
   const { activeTab } = useOutletContext<{ activeTab: { key: string } }>();
   const [purchases, setPurchases] = useState<any[]>([]);
-  const [entries, setEntries] = useState<any[]>([]);
+  const [topups, setTopups] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const { baseUser, canonicalUserId } = useAuthUser();
@@ -79,28 +79,31 @@ export default function OrdersList() {
         timestamp: new Date().toISOString()
       });
 
-      // Fetch from user_transactions table for purchases (includes Base and other payments)
+      // Fetch from user_transactions table (includes both competition entries and wallet top-ups)
       // Use canonicalUserId (prize:pid:<wallet>) to match database records
-      const purchasesData = await database.getUserTransactions(canonicalUserId);
+      const allTransactions = await database.getUserTransactions(canonicalUserId);
 
       console.log('[Dashboard.Orders] Fetched transactions:', {
-        count: purchasesData?.length || 0,
-        sampleTransaction: purchasesData?.[0] ? {
-          id: purchasesData[0].id,
-          competition_id: purchasesData[0].competition_id,
-          competition_name: purchasesData[0].competition_name,
-          amount: purchasesData[0].amount,
-          status: purchasesData[0].status,
-          payment_status: purchasesData[0].payment_status
+        count: allTransactions?.length || 0,
+        sampleTransaction: allTransactions?.[0] ? {
+          id: allTransactions[0].id,
+          competition_id: allTransactions[0].competition_id,
+          competition_name: allTransactions[0].competition_name,
+          amount: allTransactions[0].amount,
+          status: allTransactions[0].status,
+          payment_status: allTransactions[0].payment_status,
+          is_topup: allTransactions[0].is_topup
         } : null
       });
 
-      // For entries tab, use the same user_transactions data but filter out top-ups
-      // This ensures both tabs pull from the same source for consistency
-      const entriesData = (purchasesData || []).filter((tx: any) => !tx.is_topup);
+      // Separate transactions into purchases (competition entries) and top-ups (wallet credits)
+      // Purchases tab shows competition ticket purchases only
+      const purchasesData = (allTransactions || []).filter((tx: any) => !tx.is_topup);
+      // Top-Ups tab shows wallet credit transactions only
+      const topupsData = (allTransactions || []).filter((tx: any) => tx.is_topup);
 
       setPurchases(purchasesData || []);
-      setEntries(entriesData || []);
+      setTopups(topupsData || []);
       initialLoadDoneRef.current = true;
     } catch (error) {
       console.error("Error fetching orders:", error);
@@ -227,7 +230,7 @@ export default function OrdersList() {
     navigate('/competitions');
   };
 
-  const data = activeTab.key === "purchases" ? purchases : entries;
+  const data = activeTab.key === "purchases" ? purchases : topups;
 
   // Calculate pagination
   const totalPages = Math.ceil(data.length / ITEMS_PER_PAGE);
@@ -321,7 +324,7 @@ export default function OrdersList() {
       {/* Entry count */}
       {data.length > 0 && (
         <div className="text-center mt-4 text-white/60 sequel-45 text-sm">
-          Showing {startIndex + 1}-{Math.min(endIndex, data.length)} of {data.length} {activeTab.key === "purchases" ? "purchases" : "transactions"}
+          Showing {startIndex + 1}-{Math.min(endIndex, data.length)} of {data.length} {activeTab.key === "purchases" ? "purchases" : "top-ups"}
         </div>
       )}
 
