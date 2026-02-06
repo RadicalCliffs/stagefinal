@@ -97,7 +97,7 @@ BEGIN
     tx_id,
     webhook_ref,
     payment_provider,
-    method,
+    payment_method,
     notes,
     created_at,
     completed_at
@@ -272,7 +272,7 @@ BEGIN
     tx_id,
     webhook_ref,
     payment_provider,
-    method,
+    payment_method,
     notes,
     created_at,
     completed_at
