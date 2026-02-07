@@ -350,6 +350,9 @@ interface ParsedPurchaseParams {
   referenceId: string | null;
   selectedTickets: number[];
   reservationId: string | null;
+  idempotencyKey: string | null;
+  paymentProvider: string | null;
+  type: string | null;
 }
 
 function parseTolerantParams(body: Record<string, unknown>): ParsedPurchaseParams {
@@ -415,6 +418,23 @@ function parseTolerantParams(body: Record<string, unknown>): ParsedPurchaseParam
     body.reservation_id as string | null ||
     null;
 
+  // Idempotency key for proper retry tracking
+  const idempotencyKey =
+    body.idempotencyKey as string | null ||
+    body.idempotency_key as string | null ||
+    null;
+
+  // Payment provider for balance_ledger tracking
+  const paymentProvider =
+    body.paymentProvider as string | null ||
+    body.payment_provider as string | null ||
+    null;
+
+  // Transaction type for balance_ledger tracking
+  const type =
+    body.type as string | null ||
+    null;
+
   return {
     userId,
     walletAddress,
@@ -424,6 +444,9 @@ function parseTolerantParams(body: Record<string, unknown>): ParsedPurchaseParam
     referenceId,
     selectedTickets,
     reservationId,
+    idempotencyKey,
+    paymentProvider,
+    type
   };
 }
 
@@ -487,7 +510,19 @@ Deno.serve(async (req: Request) => {
     });
 
     // Extract parsed values
-    let { userId, walletAddress, competitionId, numberOfTickets, ticketPrice, referenceId, selectedTickets, reservationId } = params;
+    let { 
+      userId, 
+      walletAddress, 
+      competitionId, 
+      numberOfTickets, 
+      ticketPrice, 
+      referenceId, 
+      selectedTickets, 
+      reservationId,
+      idempotencyKey,
+      paymentProvider,
+      type
+    } = params;
 
     // Create supabase client early - needed for reservation lookups and wallet-to-user lookups
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
