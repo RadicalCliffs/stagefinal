@@ -1,16 +1,9 @@
 -- ============================================================================
--- HOTFIX: Fix allocate_lucky_dip_tickets_batch UUID to TEXT casting errors
+-- Fix allocate_lucky_dip_tickets_batch UUID to TEXT casting errors
 -- ============================================================================
--- This file can be manually applied via Supabase SQL Editor to immediately
--- fix the "operator does not exist: uuid = text" error in lucky-dip-reserve.
---
--- Apply this via:
--- 1. Supabase Dashboard → SQL Editor
--- 2. Copy and paste this entire file
--- 3. Click "Run"
---
--- OR via Supabase CLI:
--- supabase db execute -f supabase/HOTFIX_allocate_lucky_dip_tickets_batch_uuid_casting.sql
+-- Issue: "operator does not exist: uuid = text" error in lucky-dip-reserve
+-- Root Cause: Function parameter p_competition_id is UUID but table columns are TEXT
+-- Solution: Cast UUID parameter to TEXT when comparing with TEXT columns
 -- ============================================================================
 
 BEGIN;
@@ -38,7 +31,7 @@ SET search_path = public
 AS $$
 DECLARE
   v_total_tickets INTEGER;
-  v_competition_uid TEXT;
+  v_competition_uid UUID;
   v_competition_id_text TEXT;
   v_available_tickets INTEGER[];
   v_selected_tickets INTEGER[];
@@ -49,7 +42,8 @@ DECLARE
   v_available_count INTEGER;
   v_random_offset INTEGER;
 BEGIN
-  -- Convert UUID to TEXT for comparisons with TEXT columns
+  -- Convert UUID to TEXT ONLY for pending_tickets tables (they still use TEXT)
+  -- competitions.id, competitions.uid, tickets.competition_id are all UUID now
   v_competition_id_text := p_competition_id::TEXT;
 
   -- Validate count (increased limit for batch operations)
@@ -70,6 +64,7 @@ BEGIN
   END IF;
 
   -- Get competition details with row lock
+  -- competitions.id is UUID, competitions.uid is UUID
   SELECT total_tickets, uid
   INTO v_total_tickets, v_competition_uid
   FROM competitions
@@ -91,25 +86,27 @@ BEGIN
   v_unavailable_set := COALESCE(p_excluded_tickets, ARRAY[]::INTEGER[]);
 
   -- Add sold tickets from joincompetition
+  -- joincompetition.competitionid is still TEXT
   SELECT v_unavailable_set || COALESCE(array_agg(DISTINCT ticket_num), ARRAY[]::INTEGER[])
   INTO v_unavailable_set
   FROM (
     SELECT CAST(trim(unnest(string_to_array(ticketnumbers, ','))) AS INTEGER) AS ticket_num
     FROM joincompetition
-    WHERE (competitionid = v_competition_id_text OR competitionid = v_competition_uid)
+    WHERE (competitionid = v_competition_id_text OR competitionid = v_competition_uid::TEXT)
       AND ticketnumbers IS NOT NULL
       AND trim(ticketnumbers) != ''
   ) jc_tickets
   WHERE ticket_num IS NOT NULL AND ticket_num >= 1 AND ticket_num <= v_total_tickets;
 
-  -- Add sold tickets from tickets table (competition_id is TEXT)
+  -- Add sold tickets from tickets table
+  -- tickets.competition_id is UUID (converted by migration 20260202160000)
   SELECT v_unavailable_set || COALESCE(array_agg(ticket_number), ARRAY[]::INTEGER[])
   INTO v_unavailable_set
   FROM tickets
-  WHERE competition_id = v_competition_id_text
+  WHERE competition_id = p_competition_id
     AND ticket_number IS NOT NULL;
 
-  -- Add pending tickets from other users (competition_id is TEXT)
+  -- Add pending tickets from other users
   SELECT v_unavailable_set || COALESCE(array_agg(ticket_num), ARRAY[]::INTEGER[])
   INTO v_unavailable_set
   FROM (
@@ -162,7 +159,8 @@ BEGIN
   -- Select tickets using the randomized array
   v_selected_tickets := v_available_tickets[1:p_count];
 
-  -- Cancel any existing pending reservations for this user on this competition (competition_id is TEXT)
+  -- Cancel any existing pending reservations for this user on this competition
+  -- pending_tickets.competition_id is TEXT (NOT converted to UUID)
   UPDATE pending_tickets
   SET status = 'cancelled', updated_at = NOW()
   WHERE user_id = p_user_id
@@ -174,7 +172,8 @@ BEGIN
   v_expires_at := NOW() + make_interval(mins => LEAST(GREATEST(p_hold_minutes, 1), 60));
   v_total_amount := p_count * p_ticket_price;
 
-  -- Create the pending reservation (competition_id is TEXT in pending_tickets table)
+  -- Create the pending reservation
+  -- pending_tickets.competition_id is TEXT (NOT converted to UUID)
   INSERT INTO pending_tickets (
     id,
     user_id,
@@ -227,37 +226,12 @@ $$;
 GRANT EXECUTE ON FUNCTION allocate_lucky_dip_tickets_batch(TEXT, UUID, INTEGER, NUMERIC, INTEGER, TEXT, INTEGER[]) TO authenticated;
 GRANT EXECUTE ON FUNCTION allocate_lucky_dip_tickets_batch(TEXT, UUID, INTEGER, NUMERIC, INTEGER, TEXT, INTEGER[]) TO service_role;
 
--- Verify function was created
-DO $$
-DECLARE
-  v_count INTEGER;
-BEGIN
-  SELECT COUNT(*) INTO v_count
-  FROM pg_proc 
-  WHERE proname = 'allocate_lucky_dip_tickets_batch';
-  
-  IF v_count >= 1 THEN
-    RAISE NOTICE '✅ allocate_lucky_dip_tickets_batch function created successfully!';
-  ELSE
-    RAISE WARNING '⚠️  allocate_lucky_dip_tickets_batch function was not created';
-  END IF;
-END $$;
-
 -- Comments
 COMMENT ON FUNCTION allocate_lucky_dip_tickets_batch(TEXT, UUID, INTEGER, NUMERIC, INTEGER, TEXT, INTEGER[]) IS 
-'Batch allocation of random tickets with proper UUID to TEXT casting.
-FIXED: UUID to TEXT casting to prevent "operator does not exist: uuid = text" errors.
+'Batch allocation of random tickets with proper type handling.
+FIXED: Correct UUID/TEXT comparisons based on actual schema:
+- competitions.id, competitions.uid, tickets.competition_id are UUID
+- pending_tickets.competition_id, joincompetition.competitionid are TEXT
 Allocates up to 500 tickets per call with randomization and proper locking.';
 
 COMMIT;
-
--- Test the fix (Optional - uncomment to test with actual competition ID)
--- SELECT allocate_lucky_dip_tickets_batch(
---   'prize:pid:test-user-id',
---   '47354b08-8167-471e-959a-5fc114dcc532'::UUID,
---   5,
---   0.25,
---   15,
---   NULL,
---   NULL
--- );
