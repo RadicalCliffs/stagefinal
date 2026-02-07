@@ -3583,8 +3583,8 @@ export const database = {
           competition_title: data[0].competition_title,
           competition_description: data[0].competition_description,
           competition_image_url: data[0].competition_image_url,
-          ticket_count: data[0].ticket_count,
-          amount_paid: data[0].amount_paid
+          ticket_count: data[0].tickets_count,
+          amount_spent: data[0].amount_spent
         } : null
       });
 
