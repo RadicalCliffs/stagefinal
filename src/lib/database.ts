@@ -3185,9 +3185,10 @@ export const database = {
     }
 
     try {
+      // The RPC expects parameters in order: competition_id, user_id (not user_id, competition_id)
       const { data, error } = await supabase.rpc('get_user_tickets_for_competition', {
-        user_id: userId.trim(),
-        competition_id: competitionId.trim()
+        competition_id: competitionId.trim(),
+        user_id: userId.trim()
       });
 
       if (error) {
@@ -3195,7 +3196,17 @@ export const database = {
         return null;
       }
 
-      return (data || []) as any;
+      // The RPC returns JSONB with tickets array
+      if (data && typeof data === 'object' && 'tickets' in data) {
+        return {
+          user_id: userId,
+          competition_id: competitionId,
+          tickets: data.tickets || [],
+          ticket_count: data.tickets?.length || 0
+        };
+      }
+
+      return null;
     } catch (error) {
       handleDatabaseError(error, 'getUserTicketsForCompetition');
       return null;
@@ -3502,19 +3513,22 @@ export const database = {
       for (const competition of staleCompetitions) {
         try {
           // Try calling an RPC to sync status (may not exist in all environments)
+          // NOTE: competition.id could be either UUID or string - ensure proper format
+          const competitionIdParam = competition.id?.toString() || competition.id;
           const { error: rpcError } = await supabase.rpc('sync_competition_status_if_ended', {
-            p_competition_id: competition.id
+            p_competition_id: competitionIdParam
           });
 
           if (rpcError) {
             // RPC doesn't exist or failed - that's OK, we'll handle it client-side
             // The EntriesList already overrides status based on end_date
-            databaseLogger.debug(`[syncStaleCompetitionStatuses] RPC not available for ${competition.id}`);
+            databaseLogger.debug(`[syncStaleCompetitionStatuses] RPC not available for ${competition.id}: ${rpcError.message}`);
             failed.push(competition.id);
           } else {
             updated.push(competition.id);
           }
         } catch (rpcErr) {
+          databaseLogger.warn(`[syncStaleCompetitionStatuses] Error syncing ${competition.id}:`, rpcErr);
           failed.push(competition.id);
         }
       }
