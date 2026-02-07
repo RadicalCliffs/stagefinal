@@ -1,11 +1,11 @@
 -- =====================================================
--- Fix Lucky Dip RPC functions to handle UUID casting
+-- Fix Lucky Dip RPC functions - REMOVE incorrect UUID casts
 -- =====================================================
--- Issue: competition_id changed from TEXT to UUID in some tables
--- but RPC functions still use TEXT parameters
+-- Issue: Previous migration incorrectly assumed competition_id was UUID
+-- but all tables use TEXT for id, uid, competition_id, and competitionid
 -- This causes "operator does not exist: uuid = text" errors
--- Solution: Cast TEXT to UUID when comparing with UUID columns
--- Date: 2026-02-05
+-- Solution: Remove UUID casts since all columns are TEXT
+-- Date: 2026-02-05 (CORRECTED: 2026-02-07)
 -- =====================================================
 
 BEGIN;
@@ -28,10 +28,10 @@ DECLARE
   v_ticket INTEGER;
   v_unavailable INTEGER[];
 BEGIN
-  -- Get competition info (competitions.id is UUID now)
+  -- Get competition info (competitions.id is TEXT)
   SELECT total_tickets, sold_tickets INTO v_total_tickets, v_sold_tickets
   FROM competitions
-  WHERE id = p_competition_id::UUID OR uid = p_competition_id::UUID;
+  WHERE id = p_competition_id OR uid = p_competition_id;
 
   -- Get unavailable tickets (tickets_sold.competition_id is still TEXT)
   SELECT ARRAY_AGG(ticket_number) INTO v_unavailable
@@ -89,7 +89,7 @@ BEGIN
 
   v_ticket_count := array_length(v_ticket_numbers, 1);
 
-  -- Create tickets (tickets.competition_id is UUID now)
+  -- Create tickets (tickets.competition_id is TEXT)
   FOREACH v_ticket_number IN ARRAY v_ticket_numbers
   LOOP
     INSERT INTO tickets (
@@ -100,7 +100,7 @@ BEGIN
       status,
       purchase_price
     ) VALUES (
-      p_competition_id::UUID,  -- Cast to UUID
+      p_competition_id,  -- TEXT field
       v_ticket_number,
       p_user_id,
       v_canonical_user_id,
@@ -114,10 +114,10 @@ BEGIN
     ON CONFLICT DO NOTHING;
   END LOOP;
 
-  -- Update competition sold_tickets count (competitions.id is UUID now)
+  -- Update competition sold_tickets count (competitions.id is TEXT)
   UPDATE competitions
   SET sold_tickets = sold_tickets + v_ticket_count
-  WHERE id = p_competition_id::UUID OR uid = p_competition_id::UUID;
+  WHERE id = p_competition_id OR uid = p_competition_id;
 
   -- Delete pending tickets (pending_ticket_items.competition_id is still TEXT)
   DELETE FROM pending_ticket_items WHERE pending_ticket_id = p_reservation_id;
@@ -158,7 +158,7 @@ BEGIN
   EXCEPTION WHEN invalid_text_representation THEN
     SELECT c.id, c.uid INTO v_competition_uuid, v_comp_uid
     FROM competitions c
-    WHERE c.uid = p_competition_id::UUID
+    WHERE c.uid = p_competition_id
     LIMIT 1;
 
     IF v_competition_uuid IS NULL THEN
@@ -181,7 +181,7 @@ BEGIN
     FROM joincompetition
     WHERE (
       competitionid = v_competition_uuid::TEXT
-      OR (v_comp_uid IS NOT NULL AND competitionid = v_comp_uid::TEXT)
+      OR (v_comp_uid IS NOT NULL AND competitionid = v_comp_uid)
       OR competitionid = p_competition_id
     )
       AND ticketnumbers IS NOT NULL
@@ -191,12 +191,12 @@ BEGIN
 
   v_sold_jc := COALESCE(v_sold_jc, ARRAY[]::INTEGER[]);
 
-  -- Get sold tickets from tickets table (competition_id is now UUID)
+  -- Get sold tickets from tickets table (competition_id is TEXT)
   BEGIN
     SELECT COALESCE(array_agg(DISTINCT t.ticket_number), ARRAY[]::INTEGER[])
     INTO v_sold_tickets
     FROM tickets t
-    WHERE t.competition_id = v_competition_uuid
+    WHERE t.competition_id = v_competition_uuid::TEXT
       OR (v_comp_uid IS NOT NULL AND t.competition_id = v_comp_uid);
   EXCEPTION WHEN undefined_table THEN
     v_sold_tickets := ARRAY[]::INTEGER[];
@@ -206,7 +206,7 @@ BEGIN
 
   v_sold_tickets := COALESCE(v_sold_tickets, ARRAY[]::INTEGER[]);
 
-  -- Get pending tickets from pending_ticket_items (competition_id is still TEXT)
+  -- Get pending tickets from pending_ticket_items (competition_id is TEXT)
   BEGIN
     SELECT COALESCE(array_agg(DISTINCT pti.ticket_number), ARRAY[]::INTEGER[])
     INTO v_pending
@@ -215,7 +215,7 @@ BEGIN
     WHERE (
       pti.competition_id = p_competition_id
       OR pti.competition_id = v_competition_uuid::TEXT
-      OR (v_comp_uid IS NOT NULL AND pti.competition_id = v_comp_uid::TEXT)
+      OR (v_comp_uid IS NOT NULL AND pti.competition_id = v_comp_uid)
     )
       AND pt.status = 'pending'
       AND pt.expires_at > NOW();
@@ -250,7 +250,7 @@ DECLARE
 BEGIN
   SELECT total_tickets, sold_tickets INTO v_total, v_sold
   FROM competitions
-  WHERE id = p_competition_id::UUID OR uid = p_competition_id::UUID;
+  WHERE id = p_competition_id OR uid = p_competition_id;
 
   RETURN COALESCE(v_total, 0) - COALESCE(v_sold, 0);
 END;
@@ -270,14 +270,14 @@ DECLARE
 BEGIN
   SELECT total_tickets, sold_tickets INTO v_total, v_sold
   FROM competitions
-  WHERE id = p_competition_id::UUID OR uid = p_competition_id::UUID;
+  WHERE id = p_competition_id OR uid = p_competition_id;
 
   v_is_sold_out := v_sold >= v_total;
 
   IF v_is_sold_out THEN
     UPDATE competitions
     SET status = 'sold_out'
-    WHERE id = p_competition_id::UUID OR uid = p_competition_id::UUID;
+    WHERE id = p_competition_id OR uid = p_competition_id;
   END IF;
 
   RETURN jsonb_build_object(
@@ -328,15 +328,15 @@ COMMIT;
 DO $$
 BEGIN
   RAISE NOTICE '==============================================';
-  RAISE NOTICE 'Lucky Dip RPC functions updated with UUID casting';
+  RAISE NOTICE 'Lucky Dip RPC functions fixed - REMOVED incorrect UUID casts';
   RAISE NOTICE '==============================================';
   RAISE NOTICE 'Fixed functions:';
-  RAISE NOTICE '  - allocate_lucky_dip_tickets: Cast p_competition_id to UUID for competitions table';
-  RAISE NOTICE '  - finalize_order: Cast p_competition_id to UUID for competitions and tickets tables';
-  RAISE NOTICE '  - get_unavailable_tickets: Cast p_competition_id to UUID for tickets table';
-  RAISE NOTICE '  - get_available_ticket_count_v2: Cast p_competition_id to UUID';
-  RAISE NOTICE '  - check_and_mark_competition_sold_out: Cast p_competition_id to UUID';
-  RAISE NOTICE '  - sync_competition_status_if_ended: Cast p_competition_id to UUID';
+  RAISE NOTICE '  - allocate_lucky_dip_tickets: Removed UUID casts (id and uid are TEXT)';
+  RAISE NOTICE '  - finalize_order: Removed UUID casts (competition_id is TEXT in all tables)';
+  RAISE NOTICE '  - get_unavailable_tickets: Removed UUID casts and fixed comparisons';
+  RAISE NOTICE '  - get_available_ticket_count_v2: Removed UUID casts';
+  RAISE NOTICE '  - check_and_mark_competition_sold_out: Removed UUID casts';
+  RAISE NOTICE '  - sync_competition_status_if_ended: Already fixed in separate migration';
   RAISE NOTICE '';
   RAISE NOTICE 'This fixes "operator does not exist: uuid = text" errors';
   RAISE NOTICE '==============================================';
