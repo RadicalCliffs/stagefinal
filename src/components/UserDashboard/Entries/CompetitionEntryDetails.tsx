@@ -218,6 +218,16 @@ const CompetitionEntryDetails = () => {
   const status = aggregatedEntry?.status || stateStatus || "live";
   const isWinner = aggregatedEntry?.is_winner ?? stateIsWinner ?? false;
 
+  // Helper function to map status for EntriesWinnerSection component
+  // EntriesWinnerSection only accepts "live" | "drawn"
+  const getWinnerSectionStatus = (
+    currentStatus: "live" | "drawn" | "pending" | "completed"
+  ): "live" | "drawn" => {
+    if (currentStatus === "pending") return "live";
+    if (currentStatus === "completed") return "drawn";
+    return currentStatus;
+  };
+
   // Build fields for winner section
   const fields: WinnerInfoField[] = aggregatedEntry
     ? [
@@ -397,7 +407,7 @@ const CompetitionEntryDetails = () => {
       <EntriesWinnerSection
         fields={fields}
         activeTab={activeTab}
-        status={status === "pending" ? "live" : (status === "completed" ? "drawn" : status)}
+        status={getWinnerSectionStatus(status)}
         isWinner={isWinner}
       />
     </div>
