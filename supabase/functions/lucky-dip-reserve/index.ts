@@ -68,6 +68,14 @@ function handleCorsOptions(req: Request): Response {
  */
 
 // ============================================================================
+// Constants
+// ============================================================================
+
+const PRIZE_PID_PREFIX = 'prize:pid:';
+const ETHEREUM_WALLET_REGEX = /^0x[a-fA-F0-9]{40}$/;
+const MINUTES_TO_MS = 60 * 1000; // Convert minutes to milliseconds
+
+// ============================================================================
 // Response Helpers
 // ============================================================================
 
@@ -185,12 +193,12 @@ Deno.serve(async (req: Request) => {
     // =========================================================================
     
     // Extract wallet address from canonical user ID if available
-    const extractedId = canonicalUserId.startsWith('prize:pid:') 
-      ? canonicalUserId.substring('prize:pid:'.length)
+    const extractedId = canonicalUserId.startsWith(PRIZE_PID_PREFIX) 
+      ? canonicalUserId.substring(PRIZE_PID_PREFIX.length)
       : canonicalUserId;
     
     // Use extracted ID as wallet_address if it's a wallet, otherwise empty string
-    const walletAddress = /^0x[a-fA-F0-9]{40}$/.test(extractedId) ? extractedId : '';
+    const walletAddress = ETHEREUM_WALLET_REGEX.test(extractedId) ? extractedId : '';
     
     console.log(`[${requestId}] Calling reserve_lucky_dip RPC`, {
       canonical_user_id: canonicalUserId,
@@ -241,7 +249,7 @@ Deno.serve(async (req: Request) => {
       ticketNumbers: allocatedNumbers,
       ticketCount: allocatedNumbers.length,
       totalAmount: allocatedNumbers.length * validTicketPrice,
-      expiresAt: new Date(Date.now() + holdMins * 60 * 1000).toISOString(),
+      expiresAt: new Date(Date.now() + holdMins * MINUTES_TO_MS).toISOString(),
       algorithm: 'reserve-lucky-dip-atomic',
       message: `Successfully reserved ${allocatedNumbers.length} lucky dip tickets. Complete payment within ${holdMins} minutes.`
     }, corsHeaders);
