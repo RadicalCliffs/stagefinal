@@ -479,6 +479,8 @@ export default function EntriesList() {
     const rawStatus = (entry.status || '').toLowerCase().trim();
     const normalizedStatus = rawStatus === 'active' ? 'live'
       : rawStatus === 'drawing' ? 'drawn'
+      : rawStatus === 'ended' ? 'completed'
+      : rawStatus === 'completed' ? 'completed'
       : rawStatus || 'live';
 
     // Step 3: Determine effective status
