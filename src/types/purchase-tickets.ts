@@ -37,6 +37,15 @@ export interface PurchaseTicketsRequest {
   
   /** Optional: reservation ID from prior reserve-tickets call */
   reservation_id?: string;
+  
+  /** Explicit idempotency key for proper tracking and retry behavior */
+  idempotency_key?: string;
+  
+  /** Payment provider for balance_ledger tracking (e.g., 'base_account', 'coinbase', 'stripe') */
+  payment_provider?: string;
+  
+  /** Transaction type for balance_ledger (e.g., 'purchase', 'entry', 'topup') */
+  type?: string;
 }
 
 /**
