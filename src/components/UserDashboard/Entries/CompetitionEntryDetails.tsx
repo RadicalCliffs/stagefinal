@@ -218,6 +218,26 @@ const CompetitionEntryDetails = () => {
   const fields: WinnerInfoField[] = aggregatedEntry
     ? [
         {
+          label: "Competition Status",
+          value: status === "live" 
+            ? "Active" 
+            : status === "drawn" || status === "completed"
+              ? "Completed"
+              : status === "pending"
+                ? "Pending"
+                : "Drawing",
+          copyable: false,
+        },
+        ...(status !== "live" && (status === "drawn" || status === "completed")
+          ? [
+              {
+                label: "Result",
+                value: isWinner ? "🎉 WINNER!" : "No Win",
+                copyable: false,
+              },
+            ]
+          : []),
+        {
           label: "Draw Date",
           value: aggregatedEntry.end_date
             ? new Date(aggregatedEntry.end_date).toLocaleDateString("en-US", {

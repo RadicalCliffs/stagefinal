@@ -221,36 +221,60 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
     // Fetch user's already purchased tickets for this competition
     // Uses multiple identifier types to ensure we find all entries
     const fetchOwnedTickets = useCallback(async () => {
-        if (!baseUser?.id) {
+        if (!baseUser?.id && !canonicalUserId) {
             setOwnedTickets([]);
             return;
         }
         try {
             // First try using the database RPC function for more reliable results
-            const rpcResult = await database.getUserTicketsForCompetition(canonicalUserId, competitionId);
-            if (rpcResult && rpcResult.tickets && rpcResult.tickets.length > 0) {
-                setOwnedTickets(rpcResult.tickets.sort((a, b) => a - b));
-                return;
+            // Try with canonicalUserId first, then fallback to baseUser.id
+            const userIdentifier = canonicalUserId || baseUser?.id;
+            if (userIdentifier) {
+                const rpcResult = await database.getUserTicketsForCompetition(userIdentifier, competitionId);
+                if (rpcResult && rpcResult.tickets && rpcResult.tickets.length > 0) {
+                    setOwnedTickets(rpcResult.tickets.sort((a, b) => a - b));
+                    return;
+                }
             }
 
-            // Fallback: Query v_joincompetition_active directly for user's tickets in this competition
+            // Fallback: Query v_joincompetition_active and competition_entries directly
             // Use the resolved competition ID to avoid uuid/text type mismatch in OR queries
             const resolvedCompetitionId = competitionId; // Already resolved by caller
 
             // Use separate queries for different user identifiers to ensure we find all entries
-            // Use baseUser.id (raw wallet address) for legacy fields in direct Supabase queries
-            const queries = [
-                supabase
-                    .from('v_joincompetition_active')
-                    .select('ticketnumbers')
-                    .eq('competitionid', resolvedCompetitionId)
-                    .eq('wallet_address', baseUser.id),
-                supabase
-                    .from('v_joincompetition_active')
-                    .select('ticketnumbers')
-                    .eq('competitionid', resolvedCompetitionId)
-                    .eq('userid', baseUser.id)
-            ];
+            const queries = [];
+            
+            // Query using baseUser.id (wallet address)
+            if (baseUser?.id) {
+                queries.push(
+                    supabase
+                        .from('v_joincompetition_active')
+                        .select('ticketnumbers')
+                        .eq('competitionid', resolvedCompetitionId)
+                        .eq('wallet_address', baseUser.id),
+                    supabase
+                        .from('v_joincompetition_active')
+                        .select('ticketnumbers')
+                        .eq('competitionid', resolvedCompetitionId)
+                        .eq('userid', baseUser.id)
+                );
+            }
+            
+            // Also query using canonicalUserId if available
+            if (canonicalUserId && canonicalUserId !== baseUser?.id) {
+                queries.push(
+                    supabase
+                        .from('v_joincompetition_active')
+                        .select('ticketnumbers')
+                        .eq('competitionid', resolvedCompetitionId)
+                        .eq('canonical_user_id', canonicalUserId),
+                    supabase
+                        .from('v_joincompetition_active')
+                        .select('ticketnumbers')
+                        .eq('competitionid', resolvedCompetitionId)
+                        .eq('privy_user_id', canonicalUserId)
+                );
+            }
 
             const results = await Promise.all(queries);
 
@@ -281,7 +305,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
             console.error('Error fetching owned tickets:', err);
             setOwnedTickets([]);
         }
-    }, [baseUser?.id, competitionId]);
+    }, [baseUser?.id, canonicalUserId, competitionId]);
 
     useEffect(() => {
         fetchAvailableTickets();
