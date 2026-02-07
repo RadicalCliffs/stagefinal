@@ -45,7 +45,9 @@ export function useProactiveReservationMonitor(options: ProactiveMonitorOptions 
   const lastCleanupRef = useRef<number>(0);
 
   /**
-   * Aggressively clean up expired reservations
+   * DEPRECATED: Client-side cleanup is no longer needed.
+   * The reserve_lucky_dip RPC handles expiry atomically within the database transaction.
+   * This function is now a no-op to maintain backward compatibility.
    */
   const cleanupExpiredReservations = useCallback(async () => {
     if (!competitionId || !enableAutoCleanup) return;
@@ -57,39 +59,11 @@ export function useProactiveReservationMonitor(options: ProactiveMonitorOptions 
     }
     lastCleanupRef.current = now;
 
-    try {
-      const nowISO = new Date().toISOString();
-      
-      // Use admin client if available for aggressive cleanup
-      const client = hasAdminAccess() ? getAdminClient() : supabase;
-      
-      if (!client) {
-        databaseLogger.warn('[ProactiveMonitor] No client available for cleanup');
-        return;
-      }
-
-      // Delete expired pending reservations
-      const { data, error } = await client
-        .from('pending_tickets')
-        .delete()
-        .eq('competition_id', competitionId)
-        .eq('status', 'pending')
-        .lt('expires_at', nowISO)
-        .select('id');
-      
-      if (error) {
-        databaseLogger.warn('[ProactiveMonitor] Cleanup failed', { error, competitionId });
-      } else if (data && data.length > 0) {
-        databaseLogger.info('[ProactiveMonitor] ✓ Cleaned up expired reservations', { 
-          count: data.length,
-          competitionId 
-        });
-        
-        // Note: Cache invalidation removed as omnipotent data service is disabled
-      }
-    } catch (err) {
-      databaseLogger.warn('[ProactiveMonitor] Exception during cleanup', err);
-    }
+    // NOTE: Client-side DELETE operations have been removed.
+    // The reserve_lucky_dip RPC now handles expiry atomically to prevent race conditions.
+    databaseLogger.info('[ProactiveMonitor] Cleanup is now handled by reserve_lucky_dip RPC', { 
+      competitionId 
+    });
   }, [competitionId, enableAutoCleanup]);
 
   /**
