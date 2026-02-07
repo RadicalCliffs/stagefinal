@@ -232,7 +232,7 @@ const CompetitionEntryDetails = () => {
           ? [
               {
                 label: "Result",
-                value: isWinner ? "🎉 WINNER!" : "Not won this time",
+                value: isWinner ? "🎉 WINNER!" : "No Win",
                 copyable: false,
               },
             ]
