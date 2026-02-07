@@ -1,91 +1,95 @@
-# Ticket Reservation & Retry Logic - ALL FIXES COMPLETE
+# Complete PR Summary: Production Fixes
 
-## Problems Fixed
+This PR addresses **FIVE CRITICAL ISSUES** that were blocking production:
 
-1. ❌ Retry logic retried same failed tickets → ✅ Now reselects fresh tickets on conflict
-2. ❌ Two availability systems out of sync → ✅ Consolidated into omnipotentData
-3. ❌ 2-min expiry too short → ✅ Extended to 15 minutes
-4. ❌ No grace period → ✅ Added 5-minute grace for valid payments
+## 1. ❌ Balance Trigger Functions Referencing Wrong Column (balance_usd)
 
-## Changes Made
+**Error:** `"record \"new\" has no field \"balance_usd\""`
 
-### Core Retry Logic Fix (CRITICAL)
-**File:** `src/lib/omnipotent-data-service.ts`
+**Root Cause:** Production trigger functions referenced `NEW.balance_usd` but the column is actually named `usdc_balance`.
 
-On conflict, system now:
-1. Fetches fresh available tickets
-2. Picks NEW random selection  
-3. Retries with fresh tickets
-4. Only fails when truly insufficient with honest error
+**Affected Functions:**
+- `mirror_canonical_users_to_sub_balances()`
+- `init_sub_balance_after_canonical_user()`
+- `handle_canonical_user_insert()`
 
-**Before:** Retry same tickets 3x → Always fail
-**After:** Retry fresh tickets → Succeed
-
-### Expiry Extended
-**File:** `src/lib/omnipotent-data-service.ts` (line 795)
-- Changed: 2 minutes → 15 minutes
-- Prevents expiry during Base Account payment
-
-### Grace Period Added
-**File:** `netlify/functions/confirm-pending-tickets-proxy.mts`
-- Added: 5-minute grace period
-- Allows confirmation if expired <5min ago with valid payment
-
-### Availability Consolidated
-**File:** `src/components/IndividualCompetition/IndividualCompetitionHeroSection.tsx`
-- Removed: useAuthoritativeAvailability duplicate system
-- Using: omnipotentData as single source
-- 5-second cache with auto-refresh
-
-## Files Changed
-
-- Modified: 3 files (+125 lines, -9 lines)
-- Added: 3 documentation files
-- Total: 6 files changed
-
-## No Migrations Required
-
-All changes are TypeScript/JavaScript application code.
-
-**Verify existing migrations deployed:**
-- Wallet hygiene trigger (skip base_account)
-- pending_tickets table
-- user_transactions table  
-- get_unavailable_tickets RPC
-
-See `MIGRATION_VERIFICATION_CHECKLIST.md` for verification SQL.
-
-## Expected Results
-
-### Reservation Success
-- Before: ~70% (30% failed)
-- After: ~95%+ (only fail when truly no tickets)
-
-### Payment Confirmation
-- Before: ~80% (20% expired)
-- After: ~98%+ (grace period catches stragglers)
-
-### User Errors
-- "Failed after 3 attempts": Should → zero
-- "Reservation expired": Should → zero (except >20min)
-
-## Testing Checklist
-
-- [ ] Lucky Dip with 1000/1000 tickets → Should succeed with conflicts
-- [ ] Base Account payment → Should complete without expiry
-- [ ] Balance payment → Should work as before
-- [ ] Availability display → Consistent count, no bouncing
-
-## Documentation
-
-1. `TICKET_RETRY_FIX_SUMMARY.md` - Technical deep dive
-2. `MIGRATION_VERIFICATION_CHECKLIST.md` - Database verification
-3. `FINAL_PR_SUMMARY.md` - This file
-
-## Rollback
-
-If needed: `git revert 619c503`
+**Fix:** `HOTFIX_DROP_BALANCE_USD_TRIGGERS.sql` - Drops the 3 broken functions with CASCADE (removes associated triggers)
 
 ---
 
-**Status:** ✅ ALL FIXES COMPLETE - Ready for deployment and testing
+## 2. 🔄 No Balance Sync (Main Balance Issue)
+
+**Problem:** "SAB keeps overwriting, only allows credits, not debits"
+
+**Root Cause:** 
+- `sub_account_balances` only allows CREDITS (adding money)
+- `sub_account_balances` does NOT allow DEBITS (subtracting money)
+- But `canonical_users` DOES allow debits
+- Purchases update `canonical_users` but changes don't propagate to `sub_account_balances`
+
+**Impact:** Users can't purchase tickets because balance check fails (reads from stale SAB data)
+
+**Fix:** `MIGRATION_recreate_balance_sync_trigger.sql` - Creates trigger to sync FROM `canonical_users.usdc_balance` TO `sub_account_balances.available_balance` on UPDATE
+
+---
+
+## 3. 📅 Missing updated_at Column
+
+**Error:** `"column \"updated_at\" of relation \"sub_account_balances\" does not exist"`
+
+**Root Cause:** 
+- Schema migration defines `updated_at` column in `sub_account_balances`
+- Production database doesn't have the column
+- Edge function code tries to SET `updated_at` in 5+ locations
+
+**Fix:** `HOTFIX_add_updated_at_to_sub_account_balances.sql`
+
+---
+
+## 4. 🐛 React Compiler Initialization Error
+
+**Error:** `"Cannot access 'c' before initialization"` (repeated 5+ times)
+
+**Root Cause:** `babel-plugin-react-compiler` configured but not installed, causing temporal dead zone errors
+
+**Fix:** Disabled React Compiler in `vite.config.ts`
+
+---
+
+## 5. 🔧 Netlify Build Failure - JSX Syntax Error
+
+**Error:** `TS1381: Unexpected token`
+
+**Failing Checks:**
+- Header rules - prize-final-stage
+- netlify/prize-final-stage/deploy-preview
+- Pages changed - prize-final-stage  
+- Redirect rules - prize-final-stage
+
+**Root Cause:** Stray `)}` on line 178 in `OrdersTable.tsx`
+
+**Fix:** Removed the stray closing brace
+
+---
+
+## Results
+
+### Before:
+- ❌ All purchases failing (500 errors)
+- ❌ Console errors
+- ❌ Netlify builds failing
+
+### After:
+- ✅ Purchases work
+- ✅ Clean console
+- ✅ Netlify builds succeed
+- ✅ Tables auto-sync
+
+---
+
+## Deployment
+
+**Backend:** 7 minutes (3 SQL files)
+**Frontend:** Automatic
+
+**Status:** ✅ READY FOR DEPLOYMENT
