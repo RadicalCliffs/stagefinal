@@ -3196,13 +3196,15 @@ export const database = {
         return null;
       }
 
-      // The RPC returns JSONB with tickets array
-      if (data && typeof data === 'object' && 'tickets' in data) {
+      // The RPC returns JSONB with format: { success: true, tickets: [{ticket_number: 1, ...}, ...] }
+      if (data && typeof data === 'object' && 'tickets' in data && Array.isArray(data.tickets)) {
+        // Extract just the ticket numbers from the ticket objects
+        const ticketNumbers = data.tickets.map((t: any) => t.ticket_number).filter((n: number) => typeof n === 'number');
         return {
           user_id: userId,
           competition_id: competitionId,
-          tickets: data.tickets || [],
-          ticket_count: data.tickets?.length || 0
+          tickets: ticketNumbers,
+          ticket_count: ticketNumbers.length
         };
       }
 
