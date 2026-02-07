@@ -6,9 +6,12 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [
     react({
-      babel: {
-        plugins: ['babel-plugin-react-compiler'],
-      },
+      // React Compiler disabled: was causing "Cannot access 'c' before initialization" errors
+      // The experimental compiler creates variable initialization order issues in the bundled code
+      // Related to temporal dead zone issues with const/let in optimized React components
+      // babel: {
+      //   plugins: ['babel-plugin-react-compiler'],
+      // },
     }),
     tailwindcss(),
   ],

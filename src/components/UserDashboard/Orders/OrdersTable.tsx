@@ -175,7 +175,6 @@ const OrdersTable: FC<OrdersTableProps> = ({ activeTab, data }) => {
                   <div className="hidden lg:block text-white sequel-45 text-xs">
                     <div className="grid grid-cols-6 items-center gap-2">
                       <p className="text-white/60 truncate max-w-[150px] text-center">{item.title || item.competition_name || 'Unknown Competition'}</p>
-                      )}
                       <p className="text-white/60 text-center">{item.type || '-'}</p>
                       <p className="text-white/60 text-center">{item.payment_provider || 'unknown'}</p>
                       <p className="text-white/60 text-center">{new Date(item.purchase_date || item.created_at).toLocaleString()}</p>
