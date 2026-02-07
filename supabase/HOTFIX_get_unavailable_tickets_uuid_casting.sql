@@ -64,7 +64,7 @@ BEGIN
 
   UNION ALL
 
-  -- From tickets table (competition_id is TEXT, not UUID)
+  -- From tickets table (competition_id is TEXT)
   SELECT
     t.ticket_number,
     'sold'::TEXT AS source
@@ -179,7 +179,7 @@ BEGIN
     v_sold_jc := ARRAY[]::INTEGER[]; 
   END;
 
-  -- Get tickets from tickets table (competition_id is TEXT, not UUID)
+  -- Get tickets from tickets table (competition_id is TEXT)
   BEGIN 
     SELECT COALESCE(array_agg(DISTINCT t.ticket_number), ARRAY[]::INTEGER[]) INTO v_sold_tickets 
     FROM tickets t

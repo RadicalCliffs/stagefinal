@@ -141,7 +141,7 @@ COMMENT ON FUNCTION get_competition_unavailable_tickets(TEXT) IS
 'Text wrapper for get_competition_unavailable_tickets. Converts TEXT to UUID.';
 
 -- ============================================================================
--- STEP 4: Create get_unavailable_tickets (TEXT version)
+-- Create get_unavailable_tickets (TEXT version)
 -- Production signature: Returns INTEGER[] (not TABLE)
 -- This is the version used by frontend/PostgREST
 -- Fixed UUID to TEXT casting and pending_ticket_items usage
