@@ -20,16 +20,16 @@ DECLARE
   v_end_date TIMESTAMP WITH TIME ZONE;
   v_current_status TEXT;
 BEGIN
-  -- Query using both id and uid fields, casting TEXT to UUID
+  -- Query using both id and uid fields (both are TEXT columns)
   SELECT end_date, status INTO v_end_date, v_current_status
   FROM competitions
-  WHERE id = p_competition_id::UUID OR uid = p_competition_id;
+  WHERE id = p_competition_id OR uid = p_competition_id;
 
   -- Check if competition has ended and status needs updating
   IF v_end_date IS NOT NULL AND v_end_date < NOW() AND v_current_status NOT IN ('completed', 'drawn', 'ended') THEN
     UPDATE competitions
     SET status = 'completed', updated_at = NOW()
-    WHERE id = p_competition_id::UUID OR uid = p_competition_id;
+    WHERE id = p_competition_id OR uid = p_competition_id;
 
     RETURN jsonb_build_object(
       'status_changed', true,

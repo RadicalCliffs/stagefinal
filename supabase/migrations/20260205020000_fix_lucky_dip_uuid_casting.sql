@@ -301,12 +301,12 @@ DECLARE
 BEGIN
   SELECT end_date, status INTO v_end_date, v_current_status
   FROM competitions
-  WHERE id = p_competition_id::UUID OR uid = p_competition_id::UUID;
+  WHERE id = p_competition_id OR uid = p_competition_id;
 
   IF v_end_date IS NOT NULL AND v_end_date < NOW() AND v_current_status != 'ended' THEN
     UPDATE competitions
     SET status = 'ended'
-    WHERE id = p_competition_id::UUID OR uid = p_competition_id::UUID;
+    WHERE id = p_competition_id OR uid = p_competition_id;
 
     RETURN jsonb_build_object(
       'status_changed', true,
