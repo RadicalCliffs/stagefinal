@@ -11,7 +11,7 @@ Need to implement ticket purchases with balance payment? Start here:
 
 ### 💻 Code Resources
 - **[TypeScript Types](./src/types/purchase-tickets.ts)** - Type definitions for type safety
-- **[React Hook Example](./src/hooks/usePurchaseWithBalance.example.ts)** - Production-ready hook
+- **[React Hook](./src/hooks/usePurchaseWithBalance.ts)** - Production-ready hook implementation
 - **[Balance Payment Service](./src/lib/balance-payment-service.ts)** - Service layer
 - **[Idempotency Keys](./src/lib/idempotency-keys.ts)** - Key management utilities
 

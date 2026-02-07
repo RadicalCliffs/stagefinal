@@ -49,7 +49,7 @@ import type {
 
 ### Example Code
 
-#### [React Hook Example](../src/hooks/usePurchaseWithBalance.example.ts)
+#### [React Hook](../src/hooks/usePurchaseWithBalance.ts)
 Production-ready React hook demonstrating:
 - Complete purchase flow
 - Automatic retry with exponential backoff
@@ -113,13 +113,13 @@ Endpoint: `POST /functions/v1/purchase-tickets-with-bonus`
 ### New to the codebase?
 1. Read [Quick Start: Purchase](./QUICK_START_PURCHASE.md)
 2. Review [Purchase Types](../src/types/purchase-tickets.ts)
-3. Examine [React Hook Example](../src/hooks/usePurchaseWithBalance.example.ts)
+3. Examine [React Hook](../src/hooks/usePurchaseWithBalance.ts)
 4. Refer to [Complete Guide](./FRONTEND_PURCHASE_GUIDE.md) as needed
 
 ### Implementing purchase flow?
 1. Import `BalancePaymentService` from `@/lib/balance-payment-service`
 2. Use TypeScript types from `@/types/purchase-tickets`
-3. Follow patterns from [React Hook Example](../src/hooks/usePurchaseWithBalance.example.ts)
+3. Follow patterns from [React Hook](../src/hooks/usePurchaseWithBalance.ts)
 4. Reference [Error Handling](./FRONTEND_PURCHASE_GUIDE.md#error-handling) section
 
 ### Debugging issues?
