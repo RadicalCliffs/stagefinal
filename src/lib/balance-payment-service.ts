@@ -16,6 +16,7 @@
 
 import { supabase } from './supabase';
 import { toCanonicalUserId } from './canonicalUserId';
+import { idempotencyKeyManager } from './idempotency-keys';
 
 // ============================================================================
 // Types
@@ -61,6 +62,9 @@ export interface EdgeFunctionPurchaseRequest {
   tickets: Array<{ ticket_number: number }>;
   idempotent: boolean;
   reservation_id?: string;
+  idempotency_key?: string;  // Explicit idempotency key for proper tracking
+  payment_provider?: string;  // For balance_ledger tracking
+  type?: string;              // For balance_ledger: 'purchase', 'entry', etc.
 }
 
 export interface PurchaseResponse {
@@ -90,9 +94,10 @@ export interface BalancePaymentError {
 
 /**
  * Generate a unique idempotency key using cryptographically secure random
+ * @deprecated Use idempotencyKeyManager.getOrCreateKey() instead for automatic reuse on retries
  */
 function generateIdempotencyKey(prefix: string): string {
-  return `${prefix}-${Date.now()}-${crypto.randomUUID()}`;
+  return `web-${crypto.randomUUID()}`;
 }
 
 /**
@@ -209,7 +214,9 @@ export class BalancePaymentService {
 
     try {
       const canonicalUserId = toCanonicalUserId(userId);
-      const idempotencyKey = generateIdempotencyKey(`reserve-${userId}-${competitionId}`);
+      
+      // Use idempotency manager for proper key management with automatic reuse on retries
+      const idempotencyKey = idempotencyKeyManager.getOrCreateKey(`reserve-${competitionId}-${Date.now()}`);
 
       const requestBody: ReservationRequest = {
         competition_id: competitionId,
@@ -329,6 +336,11 @@ export class BalancePaymentService {
       // Convert userId to canonical format
       const canonicalUserId = toCanonicalUserId(userId);
       
+      // Use idempotency manager for proper key management
+      // If reservation exists, use it as base for key to enable proper retry logic
+      const idempotencyKeyBase = reservationId || `purchase-${competitionId}-${Date.now()}`;
+      const idempotencyKey = idempotencyKeyManager.getOrCreateKey(idempotencyKeyBase);
+      
       // Build request body with all required parameters
       // The edge function expects: userId/walletAddress, competitionId, numberOfTickets, ticketPrice, tickets
       // Include reservationId if provided to enable reservation-based purchase flow
@@ -338,7 +350,10 @@ export class BalancePaymentService {
         numberOfTickets: ticketNumbers.length,
         ticketPrice: ticketPrice,
         tickets: ticketNumbers.map(num => ({ ticket_number: num })),
-        idempotent: true
+        idempotent: true,
+        idempotency_key: idempotencyKey,
+        payment_provider: 'base_account',  // Track which payment method was used
+        type: 'purchase'                    // Type for balance_ledger tracking
       };
 
       // Include reservation_id if provided - critical for bypassing availability checks
@@ -346,13 +361,16 @@ export class BalancePaymentService {
         requestBody.reservation_id = reservationId;
       }
 
-      console.log('[BalancePayment] Purchasing with balance (simplified system):', { 
+      console.log('[BalancePayment] Purchasing with balance (with idempotency):', { 
         userId: canonicalUserId.length > 20 ? canonicalUserId.substring(0, 20) + '...' : canonicalUserId,
         competitionId: competitionId.substring(0, 10) + '...',
         ticketCount: ticketNumbers.length,
         ticketPrice: ticketPrice,
         tickets: ticketNumbers,
-        reservationId: reservationId || 'none'
+        reservationId: reservationId || 'none',
+        idempotencyKey: idempotencyKey,
+        paymentProvider: requestBody.payment_provider,
+        type: requestBody.type
       });
 
       const { data, error } = await supabase.functions.invoke('purchase-tickets-with-bonus', {
@@ -437,6 +455,9 @@ export class BalancePaymentService {
           }
         }));
       }
+
+      // Mark idempotency key as terminal since purchase succeeded
+      idempotencyKeyManager.markTerminal(idempotencyKeyBase);
 
       return {
         success: true,

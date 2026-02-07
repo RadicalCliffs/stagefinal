@@ -2295,6 +2295,16 @@ export interface Database {
         }
         Returns: Json
       }
+      reserve_lucky_dip: {
+        Args: {
+          p_competition_id: string
+          p_canonical_user_id: string
+          p_wallet_address: string
+          p_ticket_count: number
+          p_hold_minutes?: number
+        }
+        Returns: Json
+      }
       sync_competition_status_if_ended: {
         Args: {
           p_competition_id: string

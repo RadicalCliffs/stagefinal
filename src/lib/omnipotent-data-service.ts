@@ -637,36 +637,14 @@ class OmnipotentDataService {
   }
 
   /**
-   * Aggressively clean up expired reservations
-   * This runs automatically before ticket reservation attempts to free up tickets
+   * DEPRECATED: Client-side cleanup is no longer needed.
+   * The reserve_lucky_dip RPC handles expiry atomically within the database transaction.
+   * This method is now a no-op to maintain backward compatibility.
    */
   private async cleanupExpiredReservations(competitionId: string): Promise<void> {
-    try {
-      const now = new Date().toISOString();
-      
-      // Use admin client if available for aggressive cleanup
-      const client = hasAdminAccess() ? getAdminClient() : supabase;
-      
-      // Delete expired pending reservations
-      const { error } = await client
-        .from('pending_tickets')
-        .delete()
-        .eq('competition_id', competitionId)
-        .eq('status', 'pending')
-        .lt('expires_at', now);
-      
-      if (error) {
-        databaseLogger.warn('[OmnipotentData] Failed to cleanup expired reservations', { error, competitionId });
-      } else {
-        databaseLogger.info('[OmnipotentData] Cleaned up expired reservations', { competitionId });
-      }
-      
-      // Invalidate cache to ensure fresh data
-      dataCache.invalidate(`unavailable_tickets:${competitionId}`);
-      dataCache.invalidate(`available_tickets:${competitionId}`);
-    } catch (err) {
-      databaseLogger.warn('[OmnipotentData] Exception during cleanup', err);
-    }
+    // NOTE: Client-side DELETE operations have been removed.
+    // The reserve_lucky_dip RPC now handles expiry atomically to prevent race conditions.
+    databaseLogger.info('[OmnipotentData] Cleanup is now handled by reserve_lucky_dip RPC', { competitionId });
   }
 
   /**
