@@ -19,7 +19,7 @@ interface EntryData {
   is_winner: boolean;
   ticket_numbers?: string | null;
   number_of_tickets?: number | null;
-  amount_spent?: string | null;
+  amount_spent?: string | number | null;  // Can be string or number from different sources
   purchase_date?: string | null;
   wallet_address?: string | null;
   transaction_hash?: string | null;
@@ -372,7 +372,9 @@ const CompetitionEntryDetails = () => {
                     <div className="text-white/60 sequel-45 text-xs mt-1">
                       {entry.number_of_tickets} ticket
                       {entry.number_of_tickets !== 1 ? "s" : ""} - $
-                      {entry.amount_spent}
+                      {typeof entry.amount_spent === 'number' 
+                        ? entry.amount_spent.toFixed(2)
+                        : entry.amount_spent || '0.00'}
                     </div>
                     {entry.ticket_numbers && (
                       <div className="text-white/40 sequel-45 text-xs mt-1">
