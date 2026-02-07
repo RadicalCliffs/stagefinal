@@ -14,7 +14,7 @@ interface EntryData {
   title: string;
   description: string;
   image: string;
-  status: "live" | "drawn" | "pending";  // Added pending
+  status: "live" | "drawn" | "pending" | "completed";  // Added pending and completed
   entry_type: string;
   is_winner: boolean;
   ticket_numbers?: string | null;
@@ -35,7 +35,7 @@ interface AggregatedEntry {
   title: string;
   description: string;
   image: string;
-  status: "live" | "drawn" | "pending";
+  status: "live" | "drawn" | "pending" | "completed";
   is_winner: boolean;
   total_tickets: number;
   all_ticket_numbers: string;
@@ -62,7 +62,7 @@ const CompetitionEntryDetails = () => {
   const location = useLocation();
 
   // Get status and isWinner from location state as fallback
-  const stateStatus = (location.state as { status?: "live" | "drawn" })?.status;
+  const stateStatus = (location.state as { status?: "live" | "drawn" | "pending" | "completed" })?.status;
   const stateIsWinner = (location.state as { is_winner?: boolean })?.is_winner;
 
   useEffect(() => {
@@ -159,7 +159,7 @@ const CompetitionEntryDetails = () => {
       0
     );
     const totalAmount = uniqueEntries.reduce(
-      (sum, e) => sum + (parseFloat(e.amount_spent || '0') || 0),
+      (sum, e) => sum + (parseFloat(String(e.amount_spent || '0')) || 0),
       0
     );
 
@@ -213,6 +213,20 @@ const CompetitionEntryDetails = () => {
       is_instant_win: firstEntry.is_instant_win || false,
     };
   }, [entries]);
+
+  // Use aggregated data or fallback to location state
+  const status = aggregatedEntry?.status || stateStatus || "live";
+  const isWinner = aggregatedEntry?.is_winner ?? stateIsWinner ?? false;
+
+  // Helper function to map status for EntriesWinnerSection component
+  // EntriesWinnerSection only accepts "live" | "drawn"
+  const getWinnerSectionStatus = (
+    currentStatus: "live" | "drawn" | "pending" | "completed"
+  ): "live" | "drawn" => {
+    if (currentStatus === "pending") return "live";
+    if (currentStatus === "completed") return "drawn";
+    return currentStatus;
+  };
 
   // Build fields for winner section
   const fields: WinnerInfoField[] = aggregatedEntry
@@ -271,10 +285,6 @@ const CompetitionEntryDetails = () => {
           : []),
       ]
     : [];
-
-  // Use aggregated data or fallback to location state
-  const status = aggregatedEntry?.status || stateStatus || "live";
-  const isWinner = aggregatedEntry?.is_winner ?? stateIsWinner ?? false;
 
   if (loading) {
     return (
@@ -397,7 +407,7 @@ const CompetitionEntryDetails = () => {
       <EntriesWinnerSection
         fields={fields}
         activeTab={activeTab}
-        status={status === "pending" ? "live" : status}
+        status={getWinnerSectionStatus(status)}
         isWinner={isWinner}
       />
     </div>
