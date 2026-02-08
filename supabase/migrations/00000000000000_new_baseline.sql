@@ -270,6 +270,8 @@ CREATE TABLE IF NOT EXISTS competitions (
   
   ticket_price NUMERIC(10, 2) DEFAULT 0.99 NOT NULL,
   total_tickets INTEGER NOT NULL,
+  -- Note: Both sold_tickets and tickets_sold kept for backward compatibility with frontend
+  -- They should be kept in sync. Consider consolidating in future migration.
   sold_tickets INTEGER DEFAULT 0 NOT NULL,
   tickets_sold INTEGER DEFAULT 0 NOT NULL,
   max_tickets INTEGER,
@@ -387,6 +389,9 @@ CREATE TABLE IF NOT EXISTS tickets (
   status TEXT DEFAULT 'available' NOT NULL,
   is_winner BOOLEAN DEFAULT false,
   
+  -- Note: Both payment_tx_hash and tx_id kept for backward compatibility
+  -- payment_tx_hash: Direct payment transaction hash (crypto payments)
+  -- tx_id: Internal transaction/order ID reference
   payment_tx_hash TEXT,
   tx_id TEXT,
   

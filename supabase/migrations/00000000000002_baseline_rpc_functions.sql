@@ -580,16 +580,33 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  v_canonical_user_id TEXT;
+  v_matching_records INTEGER;
 BEGIN
-  -- Delete reservation items
+  -- Verify the reservation belongs to this user
+  SELECT canonical_user_id INTO v_canonical_user_id
+  FROM pending_tickets
+  WHERE id = p_reservation_id
+    AND (canonical_user_id = p_user_id OR user_id = p_user_id OR LOWER(wallet_address) = LOWER(p_user_id))
+  LIMIT 1;
+
+  IF v_canonical_user_id IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Reservation not found or does not belong to user');
+  END IF;
+
+  -- Delete reservation items (only after user verification)
   DELETE FROM pending_ticket_items
   WHERE pending_ticket_id = p_reservation_id;
 
-  -- Delete reservation
+  -- Delete reservation (with user check for extra safety)
   DELETE FROM pending_tickets
-  WHERE id = p_reservation_id AND user_id = p_user_id;
+  WHERE id = p_reservation_id 
+    AND (canonical_user_id = p_user_id OR user_id = p_user_id OR LOWER(wallet_address) = LOWER(p_user_id));
 
-  RETURN jsonb_build_object('success', true);
+  GET DIAGNOSTICS v_matching_records = ROW_COUNT;
+
+  RETURN jsonb_build_object('success', v_matching_records > 0);
 END;
 $$;
 
@@ -1322,11 +1339,12 @@ DECLARE
   v_ticket_numbers INTEGER[];
   v_transaction_id TEXT;
 BEGIN
-  -- Resolve user
+  -- Resolve user and lock balance row to prevent race conditions
   SELECT canonical_user_id, usdc_balance 
   INTO v_canonical_user_id, v_current_balance
   FROM canonical_users
   WHERE canonical_user_id = p_user_identifier OR uid = p_user_identifier
+  FOR UPDATE  -- Lock the row for update to prevent race conditions
   LIMIT 1;
 
   IF v_canonical_user_id IS NULL THEN
@@ -1341,14 +1359,22 @@ BEGIN
   -- Allocate tickets (simplified - should be more robust)
   v_ticket_numbers := COALESCE(p_selected_tickets, ARRAY[]::INTEGER[]);
   
-  -- Debit balance
+  -- Debit balance with re-check for safety (optimistic lock)
   v_new_balance := v_current_balance - p_amount;
-  UPDATE canonical_users SET usdc_balance = v_new_balance WHERE canonical_user_id = v_canonical_user_id;
+  UPDATE canonical_users 
+  SET usdc_balance = v_new_balance 
+  WHERE canonical_user_id = v_canonical_user_id
+    AND usdc_balance >= p_amount;  -- Re-check balance in update
+  
+  -- Check if update was successful
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Balance changed during transaction');
+  END IF;
   
   -- Create transaction
   v_transaction_id := gen_random_uuid()::text;
   INSERT INTO user_transactions (
-    id, user_id, canonical_user_id, type, amount, status, competition_id, ticket_count
+    id, user_id, canonical_user_id, transaction_type, amount, status, competition_id, ticket_count
   ) VALUES (
     v_transaction_id, v_canonical_user_id, v_canonical_user_id, 'purchase', p_amount, 'completed', p_competition_id, p_ticket_count
   );
