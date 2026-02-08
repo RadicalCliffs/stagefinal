@@ -636,6 +636,84 @@ CREATE INDEX idx_payment_webhook_events_event_id ON payment_webhook_events(event
 CREATE INDEX idx_payment_webhook_events_provider ON payment_webhook_events(provider);
 CREATE INDEX idx_payment_webhook_events_processed ON payment_webhook_events(processed);
 
+-- payments_jobs: Async payment job queue
+CREATE TABLE IF NOT EXISTS payments_jobs (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  job_type TEXT NOT NULL,
+  canonical_user_id TEXT,
+  competition_id TEXT,
+  order_id TEXT,
+  status TEXT DEFAULT 'pending' NOT NULL,
+  payload JSONB,
+  error_message TEXT,
+  retry_count INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  processed_at TIMESTAMPTZ
+);
+
+CREATE INDEX idx_payments_jobs_status ON payments_jobs(status);
+CREATE INDEX idx_payments_jobs_job_type ON payments_jobs(job_type);
+CREATE INDEX idx_payments_jobs_canonical_user_id ON payments_jobs(canonical_user_id);
+
+-- custody_transactions: Custody provider (e.g., Coinbase Custody) transactions
+CREATE TABLE IF NOT EXISTS custody_transactions (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  user_id TEXT NOT NULL,
+  canonical_user_id TEXT,
+  transaction_type TEXT NOT NULL,
+  amount NUMERIC(20, 6),
+  currency TEXT DEFAULT 'USD',
+  provider TEXT NOT NULL,
+  provider_transaction_id TEXT,
+  status TEXT DEFAULT 'pending' NOT NULL,
+  metadata JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE INDEX idx_custody_transactions_user_id ON custody_transactions(user_id);
+CREATE INDEX idx_custody_transactions_canonical_user_id ON custody_transactions(canonical_user_id);
+CREATE INDEX idx_custody_transactions_provider ON custody_transactions(provider);
+CREATE INDEX idx_custody_transactions_status ON custody_transactions(status);
+
+-- internal_transfers: Internal balance transfers between users
+CREATE TABLE IF NOT EXISTS internal_transfers (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  transfer_id TEXT UNIQUE NOT NULL DEFAULT gen_random_uuid()::text,
+  from_user_id TEXT NOT NULL,
+  to_user_id TEXT NOT NULL,
+  amount NUMERIC(20, 6) NOT NULL,
+  currency TEXT DEFAULT 'USD' NOT NULL,
+  status TEXT DEFAULT 'pending' NOT NULL,
+  reason TEXT,
+  metadata JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  completed_at TIMESTAMPTZ
+);
+
+CREATE INDEX idx_internal_transfers_from_user_id ON internal_transfers(from_user_id);
+CREATE INDEX idx_internal_transfers_to_user_id ON internal_transfers(to_user_id);
+CREATE INDEX idx_internal_transfers_status ON internal_transfers(status);
+
+-- purchase_requests: Purchase request tracking for async operations
+CREATE TABLE IF NOT EXISTS purchase_requests (
+  request_id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  competition_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  canonical_user_id TEXT,
+  ticket_count INTEGER NOT NULL,
+  status TEXT DEFAULT 'pending' NOT NULL,
+  error_message TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE INDEX idx_purchase_requests_user_id ON purchase_requests(user_id);
+CREATE INDEX idx_purchase_requests_canonical_user_id ON purchase_requests(canonical_user_id);
+CREATE INDEX idx_purchase_requests_competition_id ON purchase_requests(competition_id);
+CREATE INDEX idx_purchase_requests_status ON purchase_requests(status);
+
 -- ============================================================================
 -- SECTION 7: CMS & CONTENT TABLES
 -- ============================================================================

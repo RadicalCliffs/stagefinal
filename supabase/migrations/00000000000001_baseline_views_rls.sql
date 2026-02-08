@@ -218,6 +218,10 @@ ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE order_tickets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payment_idempotency ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payment_webhook_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payments_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE custody_transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE internal_transfers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE purchase_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE faqs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE hero_competitions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE partners ENABLE ROW LEVEL SECURITY;
@@ -299,6 +303,10 @@ CREATE POLICY "Service role full access" ON orders TO service_role USING (true) 
 CREATE POLICY "Service role full access" ON order_tickets TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY "Service role full access" ON payment_idempotency TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY "Service role full access" ON payment_webhook_events TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON payments_jobs TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON custody_transactions TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON internal_transfers TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON purchase_requests TO service_role USING (true) WITH CHECK (true);
 
 -- ============================================================================
 -- SECTION 3: GRANTS
