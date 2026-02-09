@@ -328,5 +328,3 @@ export function useRealtimeSubscriptions(options: RealtimeSubscriptionOptions = 
     subscriptionStatus: subscriptionStatusRef.current,
   };
 }
-
-export { useRealtimeSubscriptions };
