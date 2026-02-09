@@ -1,52 +1,13 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { toPrizePid, isPrizePid, normalizeWalletAddress } from "../_shared/userId.ts";
+import { buildCorsHeaders, handleCorsOptions } from "../_shared/cors.ts";
 
 /**
  * Purchase Tickets With Bonus Edge Function (Cold-Start Optimized)
  * 
  * This function handles ticket purchases with balance payment.
  */
-
-// CORS configuration with proper origin handling
-const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://substage.theprize.io';
-const ALLOWED_ORIGINS = [
-  SITE_URL,
-  'https://substage.theprize.io',
-  'https://theprize.io',
-  'https://theprizeio.netlify.app',
-  'https://www.theprize.io',
-  'http://localhost:3000',
-  'http://localhost:5173',
-  'http://localhost:8888',
-];
-
-function getCorsOrigin(requestOrigin: string | null): string {
-  if (requestOrigin && ALLOWED_ORIGINS.includes(requestOrigin)) {
-    return requestOrigin;
-  }
-  return SITE_URL;
-}
-
-function buildCorsHeaders(requestOrigin: string | null): Record<string, string> {
-  const origin = getCorsOrigin(requestOrigin);
-  return {
-    'Access-Control-Allow-Origin': origin,
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, cache-control, pragma, expires',
-    'Access-Control-Allow-Credentials': 'true',
-    'Access-Control-Max-Age': '86400',
-    'Vary': 'Origin',
-  };
-}
-
-function handleOptions(req: Request): Response {
-  const origin = req.headers.get('origin');
-  return new Response(null, {
-    status: 204,
-    headers: buildCorsHeaders(origin),
-  });
-}
 
 // ============================================================================
 // MAIN LOGIC (loaded after OPTIONS check to help with cold starts)
@@ -267,7 +228,7 @@ async function processPurchase(req: Request): Promise<Response> {
 Deno.serve(async (req: Request) => {
   // Handle preflight immediately - no Supabase client needed
   if (req.method === "OPTIONS") {
-    return handleOptions(req);
+    return handleCorsOptions(req);
   }
 
   // Only POST allowed for actual requests
