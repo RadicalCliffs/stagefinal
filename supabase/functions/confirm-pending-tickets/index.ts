@@ -62,14 +62,24 @@ const ALLOWED_ORIGINS = [
 ];
 
 function getCorsOrigin(requestOrigin: string | null): string {
+  // Validate request origin is in allowed list
   if (requestOrigin && ALLOWED_ORIGINS.includes(requestOrigin)) {
     return requestOrigin;
   }
+  
+  // Always return a specific origin (never empty string or wildcard)
+  // This is required when using Access-Control-Allow-Credentials: true
   return SITE_URL;
 }
 
 function buildCorsHeaders(requestOrigin: string | null): Record<string, string> {
   const origin = getCorsOrigin(requestOrigin);
+  
+  // Ensure we never return empty string (required for credentials: true)
+  if (!origin) {
+    throw new Error('CORS origin cannot be empty when using credentials');
+  }
+  
   return {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
@@ -83,7 +93,7 @@ function buildCorsHeaders(requestOrigin: string | null): Record<string, string> 
 function handleCorsOptions(req: Request): Response {
   const origin = req.headers.get('origin');
   return new Response(null, {
-    status: 204,
+    status: 200,  // Use 200 instead of 204 for better compatibility
     headers: buildCorsHeaders(origin),
   });
 }
