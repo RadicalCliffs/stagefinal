@@ -234,6 +234,7 @@ async function directDatabaseFallback(
       .insert({
         uid: entryId,
         userid: canonicalUserId,
+        canonical_user_id: canonicalUserId,
         competitionid: competitionId,
         ticketnumbers: ticketNumbersStr,
         numberoftickets: ticketNumbers.length,
@@ -266,6 +267,7 @@ async function directDatabaseFallback(
         competition_id: competitionId,
         ticket_number: num,
         user_id: canonicalUserId,
+        canonical_user_id: canonicalUserId,
         status: "sold",
         tx_id: idempotencyKey,
         created_at: new Date().toISOString(),
