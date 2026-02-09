@@ -2,34 +2,9 @@ import type { Context, Config } from "@netlify/functions";
 
 export const config: Config = {
   path: "/api/purchase-with-balance",
-  method: ["POST", "OPTIONS"],
 };
 
-/**
- * Purchase With Balance Proxy Function
- *
- * Proxies balance payment requests to the Supabase Edge Function
- * `purchase-tickets-with-bonus`. This eliminates CORS issues because
- * the browser talks to the same origin (Netlify) and the server-side
- * function forwards the request to Supabase.
- */
-
-const SUPABASE_FUNCTIONS_BASE =
-  Netlify.env.get("SUPABASE_FUNCTIONS_URL") ||
-  Netlify.env.get("VITE_SUPABASE_URL")?.replace(
-    ".supabase.co",
-    ".supabase.co/functions/v1"
-  ) ||
-  "https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1";
-
-const PURCHASE_URL = `${SUPABASE_FUNCTIONS_BASE}/purchase-tickets-with-bonus`;
-
-const SUPABASE_ANON_KEY =
-  Netlify.env.get("SUPABASE_ANON_KEY") ||
-  Netlify.env.get("VITE_SUPABASE_ANON_KEY") ||
-  "";
-
-const corsHeaders = {
+const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers":
@@ -55,7 +30,7 @@ function errorResponse(
   return jsonResponse({ success: false, error: { code, message } }, status);
 }
 
-export default async (req: Request, context: Context): Promise<Response> => {
+export default async (req: Request, context: Context) => {
   const requestId = crypto.randomUUID().slice(0, 8);
 
   // Handle CORS preflight
@@ -68,6 +43,22 @@ export default async (req: Request, context: Context): Promise<Response> => {
   }
 
   try {
+    // Resolve env vars inside the handler to avoid module-level boot issues
+    const supabaseFunctionsBase =
+      Netlify.env.get("SUPABASE_FUNCTIONS_URL") ||
+      Netlify.env.get("VITE_SUPABASE_URL")?.replace(
+        ".supabase.co",
+        ".supabase.co/functions/v1"
+      ) ||
+      "https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1";
+
+    const purchaseUrl = `${supabaseFunctionsBase}/purchase-tickets-with-bonus`;
+
+    const supabaseAnonKey =
+      Netlify.env.get("SUPABASE_ANON_KEY") ||
+      Netlify.env.get("VITE_SUPABASE_ANON_KEY") ||
+      "";
+
     let body: Record<string, unknown>;
     try {
       body = await req.json();
@@ -86,11 +77,15 @@ export default async (req: Request, context: Context): Promise<Response> => {
       })
     );
 
-    if (!SUPABASE_ANON_KEY) {
+    if (!supabaseAnonKey) {
       console.error(
         `[purchase-with-balance-proxy][${requestId}] Missing SUPABASE_ANON_KEY`
       );
-      return errorResponse("CONFIG_ERROR", "Service configuration error", 500);
+      return errorResponse(
+        "CONFIG_ERROR",
+        "Service configuration error",
+        500
+      );
     }
 
     // Get auth token from the incoming request if present
@@ -99,16 +94,16 @@ export default async (req: Request, context: Context): Promise<Response> => {
 
     // Forward to Supabase Edge Function
     console.log(
-      `[purchase-with-balance-proxy][${requestId}] Forwarding to: ${PURCHASE_URL}`
+      `[purchase-with-balance-proxy][${requestId}] Forwarding to: ${purchaseUrl}`
     );
 
-    const response = await fetch(PURCHASE_URL, {
+    const response = await fetch(purchaseUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Origin: origin,
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: authHeader || `Bearer ${SUPABASE_ANON_KEY}`,
+        apikey: supabaseAnonKey,
+        Authorization: authHeader || `Bearer ${supabaseAnonKey}`,
       },
       body: JSON.stringify(body),
     });
