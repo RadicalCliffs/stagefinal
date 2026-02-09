@@ -258,7 +258,7 @@ export const instantWinHelper = {
         .select('UID')
         .eq('competitionId', competitionUid)
         .eq('winningTicket', ticketNumber)
-        .single() as { data: any };
+        .single() as { data: any; error: any };
       
       const { data: existing } = existingResult;
 

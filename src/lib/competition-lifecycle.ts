@@ -196,7 +196,7 @@ export class CompetitionLifecycleService {
               .select('ticketnumbers')
               .eq('competitionid', competition.id) as any,
             `fetch entries for ${competition.id}`
-          ) as { data: any };
+          ) as { data: any; error: any };
           
           const { data: entries } = entryResult;
 
@@ -342,7 +342,7 @@ export class CompetitionLifecycleService {
           .eq('competition_id', competition.id)
           .maybeSingle() as any,
         'check existing winner'
-      ) as { data: any };
+      ) as { data: any; error: any };
       
       const { data: existingWinner } = existingResult;
 
@@ -362,7 +362,7 @@ export class CompetitionLifecycleService {
           .eq('id', entry.userid)
           .maybeSingle() as any,
         'fetch user details by UUID'
-      ) as { data: any };
+      ) as { data: any; error: any };
       
       if (byUuid && 'data' in byUuid && byUuid.data) {
         user = byUuid.data;
@@ -375,7 +375,7 @@ export class CompetitionLifecycleService {
             .eq('canonical_user_id', entry.userid)
             .maybeSingle() as any,
           'fetch user details by canonical_user_id'
-        ) as { data: any };
+        ) as { data: any; error: any };
         user = (byCanonical && 'data' in byCanonical) ? byCanonical.data : null;
       }
 
@@ -396,7 +396,7 @@ export class CompetitionLifecycleService {
       const winnerInsertResult = await withRetry(
         async () => await supabase.from('winners').insert(winnerData) as any,
         'create winner record'
-      ) as { error: any };
+      ) as { data: any; error: any };
       
       const { error } = winnerInsertResult;
 
@@ -426,7 +426,7 @@ export class CompetitionLifecycleService {
         })
         .eq('id', competition.id) as any,
       'mark competition as drawn'
-    ) as { error: any };
+    ) as { data: any; error: any };
     
     const { error } = updateResult;
 
@@ -481,7 +481,7 @@ export class CompetitionLifecycleService {
           .not('end_date', 'is', null as any)
           .lt('end_date', new Date().toISOString()) as any,
         'fetch expired competitions for manual process'
-      ) as { data: any };
+      ) as { data: any; error: any };
       
       const { data: expiredCompetitions } = expiredResult;
 

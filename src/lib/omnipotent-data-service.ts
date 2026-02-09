@@ -506,7 +506,7 @@ class OmnipotentDataService {
               status
             )
           `)
-          .eq('competition_id', competitionId) as { data: any };
+          .eq('competition_id', competitionId) as { data: any; error: any };
         
         const { data: pendingItemsData } = pendingResult;
 
@@ -531,7 +531,7 @@ class OmnipotentDataService {
           .from('pending_tickets')
           .select('ticket_numbers, expires_at, status')
           .eq('competition_id', competitionId)
-          .in('status', ['pending', 'confirming']) as { data: any };
+          .in('status', ['pending', 'confirming']) as { data: any; error: any };
         
         const { data: pendingTicketsData } = pendingTicketsResult;
 
@@ -556,7 +556,7 @@ class OmnipotentDataService {
         const soldResult = await supabase
           .from('v_joincompetition_active')
           .select('ticketnumbers')
-          .eq('competitionid', competitionId) as { data: any };
+          .eq('competitionid', competitionId) as { data: any; error: any };
         
         const { data: soldData } = soldResult;
 

@@ -69,7 +69,7 @@ async function getNotificationUserId(userId: string): Promise<string | null> {
         .from('canonical_users')
         .select('id')
         .or(`wallet_address.ilike.${normalizedWallet},base_wallet_address.ilike.${normalizedWallet}`)
-        .limit(1) as { data: any };
+        .limit(1) as { data: any; error: any };
       
       const { data: existingUser } = existingUserResult;
 
@@ -422,7 +422,7 @@ export const notificationService = {
 
     const insertResult = await supabase
       .from('user_notifications')
-      .insert(notifications) as { error: any };
+      .insert(notifications) as { data: any; error: any };
     
     const { error } = insertResult;
 
