@@ -115,5 +115,3 @@ export function useProactiveReservationMonitor(options: ProactiveMonitorOptions 
     isMonitoring: enabled && !!competitionId && enableAutoCleanup,
   };
 }
-
-export { useProactiveReservationMonitor };

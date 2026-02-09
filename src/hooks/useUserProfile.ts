@@ -278,5 +278,3 @@ export function useUserProfile(privyUserId: string | null | undefined): UseUserP
     refresh: fetchProfile,
   };
 }
-
-export { useUserProfile };
