@@ -29,7 +29,7 @@ const supabase = createClient<Database>(supabaseUrl, supabaseKey, {
       // This fixes Safari users not seeing recent entries and transactions
       'Cache-Control': 'no-cache, no-store, must-revalidate',
       'Pragma': 'no-cache',
-      'Expires': '0',
+      // Note: 'Expires' header intentionally omitted - it causes CORS preflight failures
     },
   },
 });
