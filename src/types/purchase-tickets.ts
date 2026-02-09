@@ -12,7 +12,7 @@
  */
 
 /**
- * Request body for purchase-tickets-with-bonus edge function
+ * Request body for /api/purchase-with-balance (Netlify proxy)
  */
 export interface PurchaseTicketsRequest {
   /** Canonical user ID (required) - use toCanonicalUserId() to convert */
@@ -49,7 +49,7 @@ export interface PurchaseTicketsRequest {
 }
 
 /**
- * Success response from purchase-tickets-with-bonus edge function
+ * Success response from /api/purchase-with-balance (Netlify proxy)
  */
 export interface PurchaseTicketsSuccessResponse {
   /** Status indicator - 'ok' for success */
@@ -77,7 +77,7 @@ export interface PurchaseTicketsSuccessResponse {
 }
 
 /**
- * Error response from purchase-tickets-with-bonus edge function
+ * Error response from /api/purchase-with-balance (Netlify proxy)
  */
 export interface PurchaseTicketsErrorResponse {
   /** Status indicator - 'error' for failures */

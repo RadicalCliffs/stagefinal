@@ -1,10 +1,10 @@
 /**
  * Balance Payment Service
  * 
- * Simplified balance payment system that uses the straightforward RPC flow:
- * 1. Optional: Reserve tickets via POST /functions/v1/reserve-tickets (for frontend UX)
- * 2. Purchase with balance via POST /functions/v1/purchase-tickets-with-bonus
- *    - This calls purchase_tickets_with_balance RPC which:
+ * Simplified balance payment system that uses the Netlify proxy + RPC flow:
+ * 1. Optional: Reserve tickets via Supabase edge function (for frontend UX)
+ * 2. Purchase with balance via POST /api/purchase-with-balance (Netlify proxy)
+ *    - The proxy calls purchase_tickets_with_balance RPC which:
  *      - Checks sub_account_balances for available_balance
  *      - Matches by canonical_user_id or wallet_address
  *      - Deducts balance atomically
@@ -52,7 +52,7 @@ export interface PurchaseRequest {
 }
 
 /**
- * Edge function request body for purchase-tickets-with-bonus
+ * Purchase request body for /api/purchase-with-balance (Netlify proxy)
  */
 export interface EdgeFunctionPurchaseRequest {
   userId: string;
@@ -273,7 +273,7 @@ export class BalancePaymentService {
   /**
    * Step 2: Purchase with balance (SIMPLIFIED SYSTEM)
    * 
-   * Uses the simplified purchase-tickets-with-bonus edge function which calls
+   * Uses the Netlify proxy at /api/purchase-with-balance which calls
    * the purchase_tickets_with_balance RPC that:
    * - Checks sub_account_balances for available_balance
    * - Matches user by canonical_user_id or wallet_address

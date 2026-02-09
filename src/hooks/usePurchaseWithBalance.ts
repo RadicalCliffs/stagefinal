@@ -1,8 +1,9 @@
 /**
  * Example React Hook: usePurchaseWithBalance
  * 
- * Demonstrates complete integration of purchase-tickets-with-bonus
- * with idempotency, error handling, and retry logic.
+ * Handles ticket purchases using balance payment via Netlify proxy.
+ * The proxy calls the purchase_tickets_with_balance RPC function.
+ * Includes idempotency, error handling, and retry logic.
  * 
  * @example
  * ```tsx
