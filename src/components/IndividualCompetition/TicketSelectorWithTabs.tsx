@@ -489,7 +489,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                     );
                     
                     // Refresh available tickets from server for consistency
-                    const available = await database.getAvailableTicketsForCompetition(competitionId, totalTickets, canonicalUserId);
+                    const available = await database.getAvailableTicketsForCompetition(competitionId, totalTickets, canonicalUserId ?? undefined);
                     setAvailableTickets(available);
 
                     // Show specific error message for 409 conflicts
@@ -518,7 +518,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                         prev.filter(t => !unavailableSet.has(t))
                     );
                     // Refresh available tickets from server for consistency
-                    const available = await database.getAvailableTicketsForCompetition(competitionId, totalTickets, canonicalUserId);
+                    const available = await database.getAvailableTicketsForCompetition(competitionId, totalTickets, canonicalUserId ?? undefined);
                     setAvailableTickets(available);
                     throw new Error(`Tickets ${response.unavailableTickets.join(", ")} are no longer available. Please select different tickets.`);
                 }

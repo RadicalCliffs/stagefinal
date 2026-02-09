@@ -60,12 +60,4 @@ export {
 /**
  * Type re-exports for TypeScript support
  */
-export type {
-  SpendPermission,
-  CreateSpendPermissionOptions,
-  CreateSpendPermissionResult,
-  ListSpendPermissionsOptions,
-  ListSpendPermissionsResult,
-  RevokeSpendPermissionOptions,
-  RevokeSpendPermissionResult,
-} from '@coinbase/cdp-hooks';
+// Removed some type exports

@@ -85,7 +85,7 @@ export function useBalanceHealthCheck(canonicalUserId: string | null): BalanceHe
 // Balance reconciliation occurs via database triggers on sub_account_balances changes.
 // Back off polling to reduce pressure during discrepancy states.
 setStatus('error');
-setCheckInterval(60000); // 60s backoff when discrepancy detected
+// 60s backoff when discrepancy detected
       } else {
         // Balances are in sync
         setStatus('healthy');

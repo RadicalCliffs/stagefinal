@@ -150,7 +150,7 @@ export default function TicketPicker({
       const results = await Promise.all(
         batch.map(async (ticketNum) => {
           try {
-            const owner = await getTicketOwner(competitionId, ticketNum);
+            const owner = await getTicketOwner(String(competitionId), ticketNum);
             return { ticketNum, sold: owner.toLowerCase() !== ZERO_ADDRESS.toLowerCase() };
           } catch {
             return { ticketNum, sold: false };
@@ -247,7 +247,7 @@ export default function TicketPicker({
       // Reserve tickets using the reservation service
       const result = await reserveTicketsWithRedundancy({
         userId: baseUser.id,
-        competitionId: dbCompetitionId,
+        competitionId: String(dbCompetitionId),
         selectedTickets: ticketArray,
       });
 

@@ -309,16 +309,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const canonicalId = toPrizePid(inputIdentifier);
 
       const { data: entryData } = await supabase
-        .rpc('get_user_active_tickets', { user_identifier: canonicalId });
+        .rpc('get_user_active_tickets', { p_user_identifier: canonicalId }) as any;
 
-      setEntryCount(entryData || 0);
+      setEntryCount(Number(entryData) || 0);
 
       // Only fetch balance if not skipped - this prevents overwriting balance
       // from a recent payment with stale data due to database replication lag
       if (!options?.skipBalance) {
         const { data: balanceData } = await supabase
-          .rpc('get_user_wallet_balance', { user_identifier: canonicalId });
-        setWalletBalance(balanceData || 0);
+          .rpc('get_user_wallet_balance', { p_user_identifier: canonicalId }) as any;
+        setWalletBalance(Number(balanceData) || 0);
       }
     } catch (error) {
       console.error('Error fetching user data:', error);

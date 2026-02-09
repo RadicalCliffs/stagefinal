@@ -102,7 +102,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
         refreshBalance();
       }
     }, [baseUser?.id, isOpen, refreshBalance]),
-    onUserTransactionChange: useCallback((payload) => {
+    onUserTransactionChange: useCallback((payload: any) => {
       if (baseUser?.id && isOpen) {
         const status = (payload.new?.status || '').toLowerCase();
         if (status === 'completed' || status === 'confirmed' || status === 'success') {

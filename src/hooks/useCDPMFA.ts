@@ -75,12 +75,4 @@ export {
 /**
  * Type re-exports for TypeScript support
  */
-export type {
-  GetMfaConfigResult,
-  InitiateMfaOptions,
-  InitiateMfaEnrollmentResult,
-  SubmitMfaEnrollmentOptions,
-  SubmitMfaEnrollmentResult,
-  SubmitMfaVerificationOptions,
-  RecordMfaEnrollmentPromptedResult,
-} from '@coinbase/cdp-hooks';
+// Removed all type exports

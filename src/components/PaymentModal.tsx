@@ -821,13 +821,13 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       });
 
       const result = await BaseAccountPaymentService.purchaseTickets({
-        userId: baseUser?.id,
+        userId: baseUser?.id ?? '',
         competitionId,
         ticketCount,
         ticketPrice,
         selectedTickets,
         walletAddress: walletAddress || undefined,
-        reservationId: effectiveReservationId,
+        reservationId: effectiveReservationId ?? '',
       });
 
       console.log('[PaymentModal] Base Account payment result:', result);
@@ -1109,13 +1109,13 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
       // Purchase tickets using Base USDC with wallet client as provider
       const result = await BasePaymentService.purchaseTickets({
-        userId: baseUser?.id,
+        userId: baseUser?.id ?? '',
         competitionId,
         ticketCount,
         ticketPrice,
         selectedTickets,
         walletAddress,
-        reservationId,
+        reservationId: reservationId ?? '',
         walletProvider: walletClient, // Pass wagmi wallet client as the provider
         userEmail: profile?.email || undefined,
       });
@@ -1201,12 +1201,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       // Coinbase Commerce checkout page will handle the quantity (77 items)
       // This ensures the payment goes to the business and tickets are credited correctly
       const result = await CoinbaseCommerceService.createEntryPurchase(
-        baseUser.id,
+        baseUser?.id ?? '',
         competitionId,
         ticketPrice,
         ticketCount,
         selectedTickets,
-        reservationId
+        reservationId ?? ''
       );
 
       // Validate that we got a checkout URL

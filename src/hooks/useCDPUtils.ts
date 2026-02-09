@@ -36,8 +36,4 @@ export {
  */
 export type {
   Config,
-  FetchWithX402Options,
-  FetchWithX402ReturnType,
-  SecureIframeStatus,
-  SecureIframeTheme,
 } from '@coinbase/cdp-hooks';

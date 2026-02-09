@@ -214,7 +214,7 @@ export function useBaseAccountSubAccount() {
     try {
       // Check if SDK has subAccount API
       if ('subAccount' in sdk && sdk.subAccount && 'create' in sdk.subAccount) {
-        const result = await sdk.subAccount.create(options || {});
+        const result = await sdk.subAccount.create(options || {} as any);
         console.log('[useBaseSubAccount] Sub-account created:', result);
         return result as { address: Address };
       }

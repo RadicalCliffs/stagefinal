@@ -108,7 +108,7 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
         // NOTE: bonus_balance is now always 0 - the 50% bonus is added to main balance
         const balanceData = parseBalanceResponse(rpcBalance);
         
-        setBalance(balanceData.balance);
+        setBalance(balanceData.balance ?? 0);
         // bonusBalance no longer tracked - always 0
         setLastUpdate(new Date());
         setError(null);
@@ -127,7 +127,7 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
           if (record.user_id) {
             userUidRef.current = record.user_id;
           }
-          setPendingBalance(Number(record.pending_balance) || 0);
+          setPendingBalance(Number(record.pending_balance ?? 0) || 0);
         }
 
         // Fetch bonus status from canonical_users (still stored there)
@@ -213,7 +213,6 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
 
       // Set balance to 0 - no errors, just no balance yet
       setBalance(0);
-      setBonusBalance(0);
       setPendingBalance(0);
       setLastUpdate(new Date());
       setError(null);

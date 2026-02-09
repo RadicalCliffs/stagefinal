@@ -155,7 +155,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
           .in('status', ['pending', 'pending_payment', 'waiting', 'processing', 'finished', 'completed', 'confirmed', 'success'])
           .or(`user_id.eq.${normalizedWallet},canonical_user_id.eq.${canonicalId},wallet_address.eq.${normalizedWallet}`)
           .order('created_at', { ascending: false })
-          .limit(10);
+          .limit(10) as { data: WalletTransaction[]; error: any };
 
         if (error) {
           console.error('Error fetching transactions:', error);

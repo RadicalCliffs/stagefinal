@@ -241,7 +241,7 @@ async function linkWalletToExistingUser(
           base_wallet_address: walletAddress.toLowerCase(),
           eth_wallet_address: walletAddress.toLowerCase(),
           privy_user_id: walletAddress,
-          wallet_linked: true,
+          wallet_linked: true as any,
           auth_provider: 'cdp',
         })
         .eq('id', existingUser.id);
@@ -522,8 +522,8 @@ async function saveUserWithProfile(email: string, walletAddress: string, profile
           telephone_number: profile.mobile || null,
           telegram_handle: profile.socialProfiles || null,
           usdc_balance: 0,
-          has_used_new_user_bonus: false,
-          wallet_linked: true,
+          has_used_new_user_bonus: false as any,
+          wallet_linked: true as any,
           auth_provider: 'cdp',
           created_at: new Date().toISOString(),
         })

@@ -90,13 +90,9 @@ export default function UserDashboardOverview() {
       {/* Pass data to child components */}
       <div className="space-y-6">
         {/* Example: You can pass overview data to child components */}
-        <UserMiniProfile userOverview={overview} />
+        <UserMiniProfile />
         
-        <BalanceHealthIndicator 
-          balance={totalBalance}
-          usdcBalance={usdcBalance}
-          bonusBalance={bonusBalance}
-        />
+        <BalanceHealthIndicator />
 
         {/* Entries section with transformed data */}
         <div className="bg-[#151515] rounded-lg p-6">

@@ -12,6 +12,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthUser } from '../contexts/AuthContext';
 import { toPrizePid } from '../utils/userId';
+import { supabase } from '../lib/supabase';
 import { omnipotentData } from '../lib/omnipotent-data-service';
 import { reservationStorage } from '../lib/reservation-storage';
 import { ReservationStateMachineManager } from '../lib/reservation-state-machine';
@@ -93,7 +94,7 @@ export function useEnhancedReservation(options: EnhancedReservationOptions) {
         .from('pending_tickets')
         .select('*')
         .eq('id', reservationId)
-        .single();
+        .single() as any;
 
       if (fetchError || !data) {
         console.log('[EnhancedReservation] Stored reservation not found, clearing');
@@ -166,7 +167,7 @@ export function useEnhancedReservation(options: EnhancedReservationOptions) {
           canonicalUserId,
           competitionId,
           ticketNumbers
-        );
+        ) as any;
 
         if (!result.success || !result.reservationId) {
           stateMachine.reservationFailed(result.error || 'Reservation failed');
