@@ -614,6 +614,9 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   // 1. Reserve tickets (if not already reserved)
   // 2. Purchase with balance
   // 3. Verify status (if needed)
+  //
+  // SAFEGUARD 5: If ALL purchase attempts fail, call verify-and-rescue to either
+  // confirm the purchase went through or create it as a last resort.
   const handleBalancePayment = async () => {
     setErrorMessage(null);
     if (!baseUser?.id) {
@@ -683,7 +686,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         }
       }
 
-      // Step 2: Purchase with balance
+      // Step 2: Purchase with balance (has internal retries + RPC fallback in the service)
       console.log('[PaymentModal] Purchasing with balance, reservation:', currentReservationId);
       const purchaseResult = await BalancePaymentService.purchaseWithBalance({
         reservationId: currentReservationId,
@@ -693,85 +696,157 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         ticketPrice: ticketPrice
       });
 
-      if (!purchaseResult.success || !purchaseResult.data) {
-        console.error('[PaymentModal] Purchase failed:', purchaseResult.error);
-        
-        // Handle specific error types
-        if (purchaseResult.errorDetails?.type === 'expired') {
-          // Clear expired reservation from both storage and state
-          reservationStorage.clearReservation(competitionId);
-          setRecoveredReservationId(null);
-          setErrorMessage('Your reservation expired. Please select your tickets again.');
-        } else if (purchaseResult.errorDetails?.type === 'insufficient_balance') {
-          setErrorMessage('Insufficient balance. Please top up your wallet.');
-        } else if (purchaseResult.errorDetails?.type === 'conflict') {
-          // Tickets no longer available - clear stale reservation
-          reservationStorage.clearReservation(competitionId);
-          setRecoveredReservationId(null);
-          setErrorMessage('Some tickets are no longer available. Please select different tickets.');
-        } else if (purchaseResult.errorDetails?.type === 'not_found') {
-          // Reservation not found - clear stale reservation
-          reservationStorage.clearReservation(competitionId);
-          setRecoveredReservationId(null);
-          setErrorMessage('Reservation not found. Please select your tickets again.');
-        } else {
-          setErrorMessage(purchaseResult.error || 'Failed to purchase tickets');
+      if (purchaseResult.success && purchaseResult.data) {
+        // === PURCHASE SUCCEEDED ===
+        const purchaseData = purchaseResult.data;
+        console.log('[PaymentModal] Purchase successful:', purchaseData.payment_id);
+
+        setShowOptimisticSuccess(true);
+        setBalanceTransactionId(purchaseData.payment_id);
+        setPaymentStep('success');
+
+        // Update balance from response
+        if (purchaseData.new_balance !== undefined && purchaseData.new_balance !== null) {
+          const newBalanceNum = parseFloat(purchaseData.new_balance);
+          setUserBalance(newBalanceNum);
         }
-        
-        setBalanceLoading(false);
-        setPaymentStep('initial');
+
+        // Store purchased ticket numbers for display
+        if (purchaseData.tickets && Array.isArray(purchaseData.tickets)) {
+          setPurchasedTickets(purchaseData.tickets.map(t => t.ticket_number));
+        }
+
+        // Refresh user data
+        await refreshUserData();
+        loadUserBalance().catch(err => console.error('[PaymentModal] Background balance refresh failed:', err));
+
+        // Dispatch balance-updated event for other components
+        if (purchaseData.new_balance !== undefined) {
+          window.dispatchEvent(new CustomEvent('balance-updated', {
+            detail: {
+              newBalance: parseFloat(purchaseData.new_balance),
+              purchaseAmount: parseFloat(purchaseData.amount),
+              ticketsCreated: purchaseData.tickets.length,
+              competitionId
+            }
+          }));
+        }
+
+        // Clear reservation from storage after successful purchase
+        reservationStorage.clearReservation(competitionId);
+        setRecoveredReservationId(null);
+
+        if (onPaymentSuccess) {
+          onPaymentSuccess();
+        }
+
+        setShowOptimisticSuccess(false);
         return;
       }
 
-      // Success!
-      const purchaseData = purchaseResult.data;
-      console.log('[PaymentModal] Purchase successful:', purchaseData.payment_id);
-      
-      setShowOptimisticSuccess(true);
-      setBalanceTransactionId(purchaseData.payment_id);
-      setPaymentStep('success');
+      // === PURCHASE REPORTED FAILURE ===
+      // SAFEGUARD 5: Before showing error, call verify-and-rescue endpoint
+      // This checks if the purchase actually went through (idempotency hit)
+      // and if not, performs a last-resort direct database write.
+      console.warn('[PaymentModal] Purchase reported failure, invoking verify-and-rescue safeguard...');
+      console.warn('[PaymentModal] Original error:', purchaseResult.error);
 
-      // Update balance from response
-      if (purchaseData.new_balance !== undefined && purchaseData.new_balance !== null) {
-        const newBalanceNum = parseFloat(purchaseData.new_balance);
-        setUserBalance(newBalanceNum);
-        console.log('[PaymentModal] Balance updated from purchase response:', newBalanceNum);
-      }
+      // Don't rescue on insufficient balance or validation errors - those are real
+      const isNonRescuableError = purchaseResult.errorDetails?.type === 'insufficient_balance' ||
+        purchaseResult.errorDetails?.type === 'validation';
 
-      // Store purchased ticket numbers for display
-      if (purchaseData.tickets && Array.isArray(purchaseData.tickets)) {
-        setPurchasedTickets(purchaseData.tickets.map(t => t.ticket_number));
-      }
+      if (!isNonRescuableError && ticketNumbersToPurchase.length > 0) {
+        try {
+          const rescueResponse = await fetch('/api/verify-and-rescue-purchase', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: canonicalUserId,
+              competitionId,
+              ticketNumbers: ticketNumbersToPurchase,
+              ticketPrice,
+              idempotencyKey: currentReservationId || '',
+            }),
+          });
 
-      // Refresh user data
-      await refreshUserData();
-      loadUserBalance().catch(err => console.error('[PaymentModal] Background balance refresh failed:', err));
-
-      // Dispatch balance-updated event for other components
-      if (purchaseData.new_balance !== undefined) {
-        window.dispatchEvent(new CustomEvent('balance-updated', {
-          detail: { 
-            newBalance: parseFloat(purchaseData.new_balance),
-            purchaseAmount: parseFloat(purchaseData.amount),
-            ticketsCreated: purchaseData.tickets.length,
-            competitionId 
+          let rescueData: any = null;
+          try {
+            rescueData = await rescueResponse.json();
+          } catch {
+            console.warn('[PaymentModal] Could not parse rescue response');
           }
-        }));
+
+          if (rescueData && rescueData.success) {
+            // RESCUE SUCCEEDED - show success!
+            console.log('[PaymentModal] RESCUE SUCCEEDED!', {
+              rescued: rescueData.rescued,
+              alreadyExists: rescueData.alreadyExists,
+              ticketCount: rescueData.ticket_count,
+            });
+
+            const rescueTickets: number[] = rescueData.ticket_numbers || ticketNumbersToPurchase;
+            setPurchasedTickets(rescueTickets);
+            setBalanceTransactionId(rescueData.entry_id || 'rescue-' + Date.now());
+            setPaymentStep('success');
+            setShowOptimisticSuccess(true);
+
+            if (rescueData.available_balance !== undefined) {
+              setUserBalance(Number(rescueData.available_balance));
+            }
+
+            // Clear reservation
+            reservationStorage.clearReservation(competitionId);
+            setRecoveredReservationId(null);
+
+            await refreshUserData();
+            loadUserBalance().catch(() => {});
+
+            window.dispatchEvent(new CustomEvent('balance-updated', {
+              detail: {
+                newBalance: Number(rescueData.available_balance || 0),
+                purchaseAmount: Number(rescueData.total_cost || 0),
+                ticketsCreated: rescueTickets.length,
+                competitionId,
+              }
+            }));
+
+            if (onPaymentSuccess) {
+              onPaymentSuccess();
+            }
+
+            setShowOptimisticSuccess(false);
+            setBalanceLoading(false);
+            return;
+          } else {
+            console.warn('[PaymentModal] Rescue did not succeed:', rescueData?.error);
+          }
+        } catch (rescueErr) {
+          console.warn('[PaymentModal] Rescue call failed:', rescueErr);
+        }
       }
 
-      // Clear reservation from storage after successful purchase
-      reservationStorage.clearReservation(competitionId);
-      console.log('[PaymentModal] Cleared reservation after successful purchase');
-
-      // CRITICAL FIX: Clear the recovered reservation ID to prevent reuse on subsequent purchases
-      setRecoveredReservationId(null);
-
-      // Call success callback
-      if (onPaymentSuccess) {
-        onPaymentSuccess();
+      // Rescue failed or was not applicable - show original error
+      // Handle specific error types
+      if (purchaseResult.errorDetails?.type === 'expired') {
+        reservationStorage.clearReservation(competitionId);
+        setRecoveredReservationId(null);
+        setErrorMessage('Your reservation expired. Please select your tickets again.');
+      } else if (purchaseResult.errorDetails?.type === 'insufficient_balance') {
+        setErrorMessage('Insufficient balance. Please top up your wallet.');
+      } else if (purchaseResult.errorDetails?.type === 'conflict') {
+        reservationStorage.clearReservation(competitionId);
+        setRecoveredReservationId(null);
+        setErrorMessage('Some tickets are no longer available. Please select different tickets.');
+      } else if (purchaseResult.errorDetails?.type === 'not_found') {
+        reservationStorage.clearReservation(competitionId);
+        setRecoveredReservationId(null);
+        setErrorMessage('Reservation not found. Please select your tickets again.');
+      } else {
+        setErrorMessage(purchaseResult.error || 'Failed to purchase tickets');
       }
-      
-      setShowOptimisticSuccess(false);
+
+      setBalanceLoading(false);
+      setPaymentStep('initial');
     } catch (error) {
       console.error('Balance payment error:', error);
       // ISSUE 8B FIX: Use enhanced error handler with guidance
