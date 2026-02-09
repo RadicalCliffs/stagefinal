@@ -310,5 +310,3 @@ export function useTicketSalesCounter(competitionId: string) {
     isHalfSold: percentageSold >= 50,
   };
 }
-
-export { useRealTimeCompetition };

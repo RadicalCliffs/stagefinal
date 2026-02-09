@@ -361,7 +361,7 @@ export class BalancePaymentService {
         requestBody.reservation_id = reservationId;
       }
 
-      console.log('[BalancePayment] Purchasing with balance (with idempotency):', { 
+      console.log('[BalancePayment] Purchasing with balance (via proxy):', {
         userId: canonicalUserId.length > 20 ? canonicalUserId.substring(0, 20) + '...' : canonicalUserId,
         competitionId: competitionId.substring(0, 10) + '...',
         ticketCount: ticketNumbers.length,
@@ -373,12 +373,43 @@ export class BalancePaymentService {
         type: requestBody.type
       });
 
-      const { data, error } = await supabase.functions.invoke('purchase-tickets-with-bonus', {
-        body: requestBody
+      // Use Netlify proxy to avoid CORS issues with direct Supabase Edge Function calls
+      // The proxy at /api/purchase-with-balance forwards to the Supabase edge function server-side
+      let authHeader = '';
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          authHeader = `Bearer ${session.access_token}`;
+        }
+      } catch (e) {
+        console.warn('[BalancePayment] Could not get auth session:', e);
+      }
+
+      const proxyResponse = await fetch('/api/purchase-with-balance', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authHeader ? { 'Authorization': authHeader } : {}),
+        },
+        body: JSON.stringify(requestBody),
       });
 
+      let data: any;
+      let error: any = null;
+      try {
+        data = await proxyResponse.json();
+      } catch {
+        error = { message: 'Invalid response from server' };
+      }
+
+      // If the proxy returned an HTTP error with an error body, treat it as an error
+      if (!proxyResponse.ok && data?.error) {
+        error = typeof data.error === 'object' ? data.error : { message: data.error };
+      }
+
       // CRITICAL: Log the full response for debugging
-      console.log('[BalancePayment] Edge function response:', {
+      console.log('[BalancePayment] Proxy response:', {
+        httpStatus: proxyResponse.status,
         hasData: !!data,
         hasError: !!error,
         dataKeys: data ? Object.keys(data) : [],

@@ -146,49 +146,76 @@ export function usePurchaseWithBalance(): UsePurchaseWithBalanceResult {
       }
       
       // Get authentication token
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      // Call edge function
-      const { data, error: invokeError } = await supabase.functions.invoke(
-        'purchase-tickets-with-bonus',
-        {
-          body: requestBody,
-          headers: session?.access_token ? {
-            Authorization: `Bearer ${session.access_token}`
-          } : {}
+      let authHeader = '';
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          authHeader = `Bearer ${session.access_token}`;
         }
-      );
-      
+      } catch (e) {
+        console.warn('[usePurchaseWithBalance] Could not get auth session:', e);
+      }
+
+      // Call via Netlify proxy to avoid CORS issues with direct Supabase Edge Function calls
+      let data: any = null;
+      let invokeError: { message: string } | null = null;
+
+      try {
+        const proxyResponse = await fetch('/api/purchase-with-balance', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(authHeader ? { Authorization: authHeader } : {}),
+          },
+          body: JSON.stringify(requestBody),
+        });
+
+        try {
+          data = await proxyResponse.json();
+        } catch {
+          invokeError = { message: 'Invalid response from server' };
+        }
+
+        // If HTTP error with error body, treat as invocation error
+        if (!proxyResponse.ok && data?.error) {
+          const errMsg = typeof data.error === 'object' ? data.error.message : data.error;
+          invokeError = { message: errMsg || 'Purchase failed' };
+          data = null;
+        }
+      } catch (fetchErr) {
+        invokeError = { message: fetchErr instanceof Error ? fetchErr.message : 'Failed to fetch' };
+      }
+
       // Handle invocation errors
       if (invokeError) {
         console.error('[usePurchaseWithBalance] Invocation error:', invokeError);
-        
+
         // Check if retryable (network errors)
-        const isNetworkError = invokeError.message?.includes('network') || 
+        const isNetworkError = invokeError.message?.includes('network') ||
                                invokeError.message?.includes('timeout') ||
                                invokeError.message?.includes('fetch') ||
                                invokeError.message?.includes('Failed to fetch');
-        
+
         if (isNetworkError && retryCount < 3) {
           // Schedule retry with exponential backoff
           const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
           console.log(`[usePurchaseWithBalance] Network error, retrying in ${delay}ms...`);
-          
+
           setRetryCount(prev => prev + 1);
-          
+
           return new Promise((resolve) => {
             retryTimeoutRef.current = setTimeout(() => {
               purchase(options).then(resolve);
             }, delay);
           });
         }
-        
+
         // Permanent failure
         setError(invokeError.message || 'Purchase failed');
         setLoading(false);
         return false;
       }
-      
+
       // Handle error responses
       if (data?.status === 'error') {
         console.error('[usePurchaseWithBalance] Error response:', data.error);
@@ -196,7 +223,7 @@ export function usePurchaseWithBalance(): UsePurchaseWithBalanceResult {
         setLoading(false);
         return false;
       }
-      
+
       // Handle success
       if (data?.status === 'ok') {
         console.log('[usePurchaseWithBalance] Purchase successful!', {
