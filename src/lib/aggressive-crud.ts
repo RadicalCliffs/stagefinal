@@ -117,7 +117,7 @@ export async function aggressiveSelect<T = any>(
   const client = options.useAdmin && hasAdminAccess() ? getAdminClient() : supabase;
   
   return executeWithAutoFix(async () => {
-    let query = client.from(table).select(columns);
+    let query = (client as any).from(table).select(columns);
     
     if (filters) {
       Object.entries(filters).forEach(([key, value]) => {
@@ -125,7 +125,7 @@ export async function aggressiveSelect<T = any>(
       });
     }
     
-    return await query;
+    return await query as any;
   }, options);
 }
 
@@ -165,7 +165,7 @@ export async function aggressiveInsert<T = any>(
       }
     }
     
-    return await client.from(table).insert(data).select().single();
+    return await (client as any).from(table).insert(data).select().single() as any;
   }, options);
 }
 
@@ -189,7 +189,7 @@ export async function aggressiveUpdate<T = any>(
       query = query.eq(key, value);
     });
     
-    return await query.select().single();
+    return await query.select().single() as any;
   }, options);
 }
 
@@ -205,7 +205,7 @@ export async function aggressiveUpsert<T = any>(
   
   return executeWithAutoFix(async () => {
     const upsertOptions = options.onConflict ? { onConflict: options.onConflict } : undefined;
-    return await client.from(table).upsert(data, upsertOptions).select().single();
+    return await (client as any).from(table).upsert(data, upsertOptions).select().single() as any;
   }, options);
 }
 
@@ -220,13 +220,13 @@ export async function aggressiveDelete(
   const client = options.useAdmin && hasAdminAccess() ? getAdminClient() : supabase;
   
   return executeWithAutoFix(async () => {
-    let query = client.from(table).delete();
+    let query = (client as any).from(table).delete();
     
     Object.entries(filters).forEach(([key, value]) => {
       query = query.eq(key, value);
     });
     
-    return await query;
+    return await query as any;
   }, options);
 }
 
@@ -342,11 +342,11 @@ export async function getTableInfo(table: string): Promise<any[]> {
   const admin = getAdminClient();
   
   try {
-    const { data } = await admin
-      .from('information_schema.columns' as any)
+    const { data } = await (admin as any)
+      .from('information_schema.columns')
       .select('column_name, data_type, is_nullable, column_default')
       .eq('table_schema', 'public')
-      .eq('table_name', table);
+      .eq('table_name', table) as any;
 
     return data || [];
   } catch (err) {

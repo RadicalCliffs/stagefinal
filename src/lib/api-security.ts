@@ -176,22 +176,26 @@ export async function validateCompetitionAccess(
     }
 
     // Fetch competition
-    const { data: competition, error: compError } = await supabase
+    const result = await supabase
       .from('competitions')
       .select('id, status, created_by, title, is_instant_win, total_tickets')
       .eq('id', competitionId)
-      .maybeSingle();
+      .maybeSingle() as { data: any; error: any };
+    
+    const { data: competition, error: compError } = result;
 
     if (compError || !competition) {
       return { authorized: false, error: 'Competition not found' };
     }
 
     // Fetch user
-    const { data: user, error: userError } = await supabase
+    const userResult = await supabase
       .from('canonical_users')
       .select('id, privy_user_id, is_admin, wallet_address')
       .or(`privy_user_id.eq.${userId},id.eq.${userId}`)
-      .maybeSingle();
+      .maybeSingle() as { data: any; error: any };
+    
+    const { data: user, error: userError } = userResult;
 
     // Action-specific authorization
     switch (action) {
