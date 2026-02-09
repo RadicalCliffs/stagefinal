@@ -224,7 +224,7 @@ export const database = {
         query = query.eq('status', status);
       }
 
-      const { data, error } = await query;
+      const { data, error } = (await query) as any;
 
       if (error) {
         handleDatabaseError(error, 'getCompetitionsV2');
@@ -240,10 +240,10 @@ export const database = {
       const competitionIds = data.map(comp => comp.id || comp.uid).filter(Boolean);
       
       // Fetch ticket counts for all competitions at once using aggregation
-      const { data: ticketCounts, error: countError } = await supabase
+      const { data: ticketCounts, error: countError } = (await supabase
         .from('tickets')
         .select('competition_id')
-        .in('competition_id', competitionIds);
+        .in('competition_id', competitionIds)) as any;
 
       if (countError) {
         console.warn('Failed to fetch ticket counts, using fallback:', countError);
@@ -279,12 +279,12 @@ export const database = {
 
   async getCompetitionByIdV2(competitionId: string) {
     try {
-      const { data, error } = await supabase
+      const { data, error } = (await supabase
         .from('competitions')
         .select('*')
         .eq('id', competitionId)
         .eq('deleted', false)
-        .maybeSingle()
+        .maybeSingle()) as any;
 
       if (error) {
         console.error('Error fetching competition:', error);
@@ -297,10 +297,10 @@ export const database = {
       // This ensures individual pages match the landing page ticket counts
       let ticketsSold = 0;
       try {
-        const { data: ticketCounts, error: countError } = await supabase
+        const { data: ticketCounts, error: countError } = (await supabase
           .from('tickets')
           .select('competition_id')
-          .eq('competition_id', competitionId);
+          .eq('competition_id', competitionId)) as any;
 
         if (!countError && ticketCounts) {
           ticketsSold = ticketCounts.length;
@@ -324,12 +324,12 @@ export const database = {
   async getCompetitionById(id: string) {
     try {
       return await withRetry(async () => {
-        const { data, error } = await supabase
+        const { data, error } = (await supabase
           .from('competitions')
           .select('*')
           .eq('id', id)
           .eq('deleted', false)
-          .maybeSingle();
+          .maybeSingle()) as any;
 
         if (error) {
           handleDatabaseError(error, 'getCompetitionById');
@@ -343,19 +343,19 @@ export const database = {
         try {
           // Use RPC to get accurate ticket count - avoids uuid/text type mismatch in OR queries
           // The RPC properly resolves competition ID and handles both UUID and legacy uid formats
-          const { data: availability } = await supabase.rpc('get_competition_ticket_availability_text', {
+          const { data: availability } = (await supabase.rpc('get_competition_ticket_availability_text', {
             competition_id_text: data.id
-          });
+          })) as any;
 
           if (availability && availability.sold_count !== undefined) {
             ticketsSold = availability.sold_count;
           } else {
             // Fallback: Direct query using only the competition ID (not OR)
             // Use v_joincompetition_active view for stable read interface
-            const { count } = await supabase
+            const { count } = (await supabase
               .from('v_joincompetition_active')
               .select('*', { count: 'exact', head: true })
-              .eq('competitionid', data.id);
+              .eq('competitionid', data.id)) as any;
 
             ticketsSold = count || ticketsSold;
           }
@@ -395,7 +395,7 @@ export const database = {
       let error: any = null;
       
       try {
-        const result = await supabase
+        const result = (await supabase
           .from('winners')
           .select(`
             id,
@@ -419,7 +419,7 @@ export const database = {
           `)
           .not('wallet_address', 'is', null)
           .order('won_at', { ascending: false, nullsLast: true })
-          .limit(150); // Query more to account for filtered test data
+          .limit(150)) as any; // Query more to account for filtered test data
         
         winners = result.data;
         error = result.error;
@@ -437,7 +437,7 @@ export const database = {
           console.warn('[Database] distribution_hash column not found, retrying query without it');
           
           // Retry query without distribution_hash
-          const fallbackResult = await supabase
+          const fallbackResult = (await supabase
             .from('winners')
             .select(`
               id,
@@ -460,7 +460,7 @@ export const database = {
             `)
             .not('wallet_address', 'is', null)
             .order('won_at', { ascending: false, nullsLast: true })
-            .limit(150);
+            .limit(150)) as any;
           
           winners = fallbackResult.data;
           error = fallbackResult.error;
@@ -628,7 +628,7 @@ export const database = {
     let error: any = null;
     
     try {
-      const result = await supabase
+      const result = (await supabase
         .from('winners')
         .select(`
           id,
@@ -653,7 +653,7 @@ export const database = {
         `)
         .not('wallet_address', 'is', null)
         .order('won_at', { ascending: false, nullsLast: true })
-        .limit(150); // Query more to account for filtered test data
+        .limit(150)) as any; // Query more to account for filtered test data
       
       winners = result.data;
       error = result.error;
@@ -671,7 +671,7 @@ export const database = {
         console.warn('[Database] distribution_hash column not found in getWinners, retrying query without it');
         
         // Retry query without distribution_hash
-        const fallbackResult = await supabase
+        const fallbackResult = (await supabase
           .from('winners')
           .select(`
             id,
@@ -695,7 +695,7 @@ export const database = {
           `)
           .not('wallet_address', 'is', null)
           .order('won_at', { ascending: false, nullsLast: true })
-          .limit(150);
+          .limit(150)) as any;
         
         winners = fallbackResult.data;
         error = fallbackResult.error;
@@ -731,12 +731,12 @@ export const database = {
 
     // Batch fetch user data for winners
     const winnerAddresses = [...new Set(filteredWinners.slice(0, limit).map(w => w.wallet_address).filter(Boolean))];
-    const { data: usersData } = winnerAddresses.length > 0
+    const { data: usersData } = (winnerAddresses.length > 0
       ? await supabase
           .from('canonical_users')
           .select('username, avatar_url, wallet_address, country')
           .in('wallet_address', winnerAddresses)
-      : { data: [] };
+      : { data: [] }) as any;
 
     // Create user lookup map
     const userMap = new Map<string, { username: string | null; avatar_url: string | null; country: string | null }>();
@@ -873,11 +873,11 @@ export const database = {
   },
 
   async getUserTickets(userId: string): Promise<EntryCard[]> {
-    const { data, error } = await supabase
+    const { data, error } = (await supabase
       .from('v_joincompetition_active')
       .select('*')
       .eq('userid', userId)
-      .order('buytime', { ascending: false });
+      .order('buytime', { ascending: false })) as any;
 
     if (error) {
       console.error('Error fetching user tickets:', error);
@@ -894,21 +894,21 @@ export const database = {
         let comp = null;
 
         // First try direct id match (if it's a valid UUID)
-        const { data: byId } = await supabase
+        const { data: byId } = (await supabase
           .from('competitions')
           .select('competitionname, competitioninformation, imageurl, uid, winner_address')
           .eq('id', compId)
-          .maybeSingle();
+          .maybeSingle()) as any;
 
         if (byId) {
           comp = byId;
         } else {
           // Fallback to uid lookup
-          const { data: byUid } = await supabase
+          const { data: byUid } = (await supabase
             .from('competitions')
             .select('competitionname, competitioninformation, imageurl, uid, winner_address')
             .eq('uid', compId)
-            .maybeSingle();
+            .maybeSingle()) as any;
           comp = byUid;
         }
 
@@ -926,11 +926,11 @@ export const database = {
   },
 
   async getUserPurchaseOrders(userId: string): Promise<PurchaseOrder[]> {
-    const { data, error } = await supabase
+    const { data, error } = (await supabase
       .from('v_joincompetition_active')
       .select('*')
       .eq('userid', userId)
-      .order('buytime', { ascending: false });
+      .order('buytime', { ascending: false })) as any;
 
     if (error) {
       console.error('Error fetching purchase orders:', error);
@@ -1016,7 +1016,7 @@ export const database = {
     _network: string,
     amountPaid: number
   ) {
-    const { data, error } = await supabase
+    const { data, error } = (await supabase
       .from('tickets')
       .insert({
         competition_id: competitionId,
@@ -1026,7 +1026,7 @@ export const database = {
         payment_amount: amountPaid,
       })
       .select()
-      .maybeSingle();
+      .maybeSingle()) as any;
 
     if (error) {
       console.error('Error creating ticket:', error);
@@ -1055,10 +1055,10 @@ export const database = {
       });
     }
 
-    const { data, error } = await supabase
+    const { data, error } = (await supabase
       .from('tickets')
       .insert(tickets)
-      .select();
+      .select()) as any;
 
     if (error) {
       console.error('Error creating purchase order:', error);
@@ -1070,20 +1070,20 @@ export const database = {
 
   async getUser(userId: string) {
     // 1) Try canonical_user_id (prize:pid:0x...)
-    const byCanonical = await supabase
+    const byCanonical = (await supabase
       .from('canonical_users')
       .select('*')
       .eq('canonical_user_id', userId)
-      .maybeSingle();
+      .maybeSingle()) as any;
     
     if (byCanonical.data) return byCanonical.data;
 
     // 2) Fallback: try primary uuid id
-    const byUuid = await supabase
+    const byUuid = (await supabase
       .from('canonical_users')
       .select('*')
       .eq('id', userId)
-      .maybeSingle();
+      .maybeSingle()) as any;
 
     if (byUuid.error) {
       console.error('Error fetching user:', byUuid.error);
@@ -1094,19 +1094,19 @@ export const database = {
   },
 
   async getUserProfile(userId: string) {
-    const byCanonical = await supabase
+    const byCanonical = (await supabase
       .from('canonical_users')
       .select('*')
       .eq('canonical_user_id', userId)
-      .maybeSingle();
+      .maybeSingle()) as any;
     
     if (byCanonical.data) return byCanonical.data;
 
-    const byUuid = await supabase
+    const byUuid = (await supabase
       .from('canonical_users')
       .select('*')
       .eq('id', userId)
-      .maybeSingle();
+      .maybeSingle()) as any;
 
     if (byUuid.error) {
       console.error('Error fetching user profile:', byUuid.error);
@@ -1126,21 +1126,21 @@ export const database = {
     }
   ) {
     // Prefer canonical_user_id targeting
-    let { data, error } = await supabase
+    let { data, error } = (await supabase
       .from('canonical_users')
       .update(profile)
       .eq('canonical_user_id', userId)
       .select()
-      .maybeSingle();
+      .maybeSingle()) as any;
 
     // Fallback to id (uuid) if needed
     if ((!data && error) || (!data && !error)) {
-      const alt = await supabase
+      const alt = (await supabase
         .from('canonical_users')
         .update(profile)
         .eq('id', userId)
         .select()
-        .maybeSingle();
+        .maybeSingle()) as any;
       data = alt.data;
       error = alt.error;
     }
@@ -1155,11 +1155,11 @@ export const database = {
 
   async getRecentActivity(limit: number = 20): Promise<TableRow[]> {
     // Fetch all recent entries without date filter
-    const { data: entryData, error: entryError } = await supabase
+    const { data: entryData, error: entryError } = (await supabase
       .from('v_joincompetition_active')
       .select('*')
       .order('purchasedate', { ascending: false })
-      .limit(limit);
+      .limit(limit)) as any;
 
     if (entryError) {
       console.error('Error fetching recent entries:', entryError);
@@ -1187,12 +1187,12 @@ export const database = {
     const walletAddresses = [...new Set((entryData || []).map(t => t.wallet_address).filter(Boolean))];
 
     // Batch fetch competitions (single query instead of N queries)
-    const { data: competitionsData } = competitionIds.length > 0
+    const { data: competitionsData } = (competitionIds.length > 0
       ? await supabase
           .from('competitions')
           .select('id, title, image_url, prize_value, end_date')
           .in('id', competitionIds as string[])
-      : { data: [] };
+      : { data: [] }) as any;
 
     // Create competition lookup map for O(1) access
     const competitionMap = new Map<string, { competitionname: string; uid: string; imageurl: string | null; competitionprize: string | null; end_date: string | null }>();
@@ -1208,12 +1208,12 @@ export const database = {
 
     // Batch fetch users by wallet addresses AND canonical_user_ids (single query instead of N queries)
     // NOTE: wallet_address in joincompetition can be either a plain wallet address OR a canonical_user_id (prize:pid:0x...)
-    const { data: usersData } = walletAddresses.length > 0
+    const { data: usersData } = (walletAddresses.length > 0
       ? await supabase
           .from('canonical_users')
           .select('username, avatar_url, wallet_address, canonical_user_id')
           .or(walletAddresses.map(addr => `wallet_address.eq.${addr},canonical_user_id.eq.${addr}`).join(','))
-      : { data: [] };
+      : { data: [] }) as any;
 
     // Create user lookup map for O(1) access
     // Map by both wallet_address and canonical_user_id for flexible lookups
@@ -1301,12 +1301,12 @@ export const database = {
 
     // Fetch all winners without date filter
     // Include winner_username from the updated competition_winners view
-    const { data: winnerData } = await supabase
+    const { data: winnerData } = (await supabase
       .from('competition_winners')
       .select('competitionprize, Winner, winner_username, crDate, competitionname, imageurl')
       .not('Winner', 'is', null as any)
       .order('crDate', { ascending: false, nullsFirst: false } as any)
-      .limit(50);
+      .limit(50)) as any;
 
     // Helper to check if a wallet address looks like test/fake data
     const isValidWinnerAddress = (address: string | null): boolean => {
@@ -1343,12 +1343,12 @@ export const database = {
 
     // Batch fetch winner users (single query instead of N queries)
     // NOTE: Winner field can be either a plain wallet address OR a canonical_user_id (prize:pid:0x...)
-    const { data: winnerUsersData } = winnerIdentifiers.length > 0
+    const { data: winnerUsersData } = (winnerIdentifiers.length > 0
       ? await supabase
           .from('canonical_users')
           .select('canonical_user_id, id, username, avatar_url, wallet_address')
           .or(winnerIdentifiers.map(id => `canonical_user_id.eq.${id},wallet_address.eq.${id}`).join(','))
-      : { data: [] };
+      : { data: [] }) as any;
 
     // Create winner user lookup map - map by both canonical_user_id and wallet_address
     const winnerUserMap = new Map<string, { username: string | null; avatar_url: string | null }>();
@@ -1419,11 +1419,11 @@ export const database = {
   },
 
   async getSiteStats() {
-    const { data, error } = await supabase
+    const { data, error } = (await supabase
       .from('site_stats')
       .select('*')
       .eq('is_active', true)
-      .order('display_order', { ascending: true });
+      .order('display_order', { ascending: true })) as any;
 
     if (error) {
       console.error('Error fetching site stats:', error);
@@ -1434,11 +1434,11 @@ export const database = {
   },
 
   async getPartners() {
-    const { data, error } = await supabase
+    const { data, error } = (await supabase
       .from('partners')
       .select('*')
       .eq('is_active', true)
-      .order('display_order', { ascending: true });
+      .order('display_order', { ascending: true })) as any;
 
     if (error) {
       console.error('Error fetching partners:', error);
@@ -1449,11 +1449,11 @@ export const database = {
   },
 
   async getTestimonials() {
-    const { data, error } = await supabase
+    const { data, error } = (await supabase
       .from('testimonials')
       .select('*')
       .eq('is_active', true)
-      .order('display_order', { ascending: true });
+      .order('display_order', { ascending: true })) as any;
 
     if (error) {
       console.error('Error fetching testimonials:', error);
@@ -1464,14 +1464,14 @@ export const database = {
   },
 
   async getHeroCompetitions() {
-    const { data, error } = await supabase
+    const { data, error } = (await supabase
       .from('hero_competitions')
       .select(`
         *,
         competition:competitions!hero_competitions_competition_id_fkey(*)
       `)
       .eq('is_active', true)
-      .order('display_order', { ascending: true });
+      .order('display_order', { ascending: true })) as any;
 
     if (error) {
       console.error('Error fetching hero competitions:', error);
@@ -1486,7 +1486,7 @@ export const database = {
 
     try {
       // First try to get the hero competition with its linked competition
-      const { data, error } = await supabase
+      const { data, error } = (await supabase
         .from('hero_competitions')
         .select(`
           *,
@@ -1494,7 +1494,7 @@ export const database = {
         `)
         .eq('slug', slug)
         .eq('is_active', true)
-        .maybeSingle();
+        .maybeSingle()) as any;
 
       if (error) {
         console.error('Error fetching hero competition by slug:', error);
@@ -1545,9 +1545,9 @@ export const database = {
       return await withRetry(async () => {
         // Use RPC for accurate sold ticket data - avoids uuid/text type mismatch in OR queries
         // The RPC properly resolves competition ID and handles both UUID and legacy uid formats
-        const { data: availability, error: rpcError } = await supabase.rpc('get_competition_ticket_availability_text', {
+        const { data: availability, error: rpcError } = (await supabase.rpc('get_competition_ticket_availability_text', {
           competition_id_text: competitionId
-        });
+        })) as any;
 
         // If RPC provides sold_tickets array directly, use it
         if (!rpcError && availability && availability.sold_tickets) {
@@ -1556,10 +1556,10 @@ export const database = {
 
         // Fallback: Direct query using only the competition ID (not OR)
         // Use v_joincompetition_active view for stable read interface
-        const { data: soldTicketData, error } = await supabase
+        const { data: soldTicketData, error } = (await supabase
           .from('v_joincompetition_active')
           .select('ticketnumbers')
-          .eq('competitionid', competitionId.trim());
+          .eq('competitionid', competitionId.trim())) as any;
 
         if (error) {
           handleDatabaseError(error, 'getSoldTicketsForCompetition');
@@ -1625,7 +1625,7 @@ export const database = {
         competition_id: competitionId.slice(0, 8) + '...'
       });
 
-      const { data: unavailableTickets, error: rpcError } = await getUnavailableTickets(supabase, competitionId.trim());
+      const { data: unavailableTickets, error: rpcError } = (await getUnavailableTickets(supabase, competitionId.trim())) as any;
 
       if (rpcError) {
         // RPC call failed - log error and try direct query fallback
@@ -1647,10 +1647,10 @@ export const database = {
 
         // Use single eq filter to avoid uuid/text type mismatch in OR queries
         // Use v_joincompetition_active view for stable read interface
-        const { data: soldData } = await supabase
+        const { data: soldData } = (await supabase
           .from('v_joincompetition_active')
           .select('ticketnumbers')
-          .eq('competitionid', competitionId);
+          .eq('competitionid', competitionId)) as any;
 
         if (soldData) {
           soldData.forEach((row: { ticketnumbers: string | null }) => {
@@ -1725,11 +1725,11 @@ export const database = {
 
   async getUserOrders(userId: string){
     try {
-      const {data, error} = await supabase
+      const {data, error} = (await supabase
         .from('orders')
         .select('*')
         .eq('user_id', userId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })) as any;
 
       if(error){
         handleDatabaseError(error, 'getUserOrders');
@@ -1747,10 +1747,10 @@ export const database = {
     try {
       // Use standard RPC function (not bypass_rls) for staging compatibility with anon key
       console.log('[getUserTransactions] Calling RPC with user_identifier:', userId.substring(0, 20) + '...');
-      const { data, error } = await supabase
+      const { data, error } = (await supabase
         .rpc('get_user_transactions', {
           user_identifier: userId.trim()  // Fixed: parameter name is user_identifier, not p_user_identifier
-        });
+        })) as any;
 
       console.log('[getUserTransactions] RPC response:', { 
         dataLength: data?.length, 
@@ -1853,12 +1853,12 @@ export const database = {
       // Direct query to user_transactions table
       // NOTE: user_id is TEXT type, so we can safely use eq/ilike
       // But wallet_address might be UUID, so we use eq for exact match
-      const { data, error} = await supabase
+      const { data, error} = (await supabase
         .from('user_transactions')
         .select('*')
         .or(`user_id.eq.${normalizedWallet},canonical_user_id.eq.${canonicalId},wallet_address.eq.${normalizedWallet}`)
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(50)) as any;
 
       if (error) {
         handleDatabaseError(error, 'getUserTransactionsFallback');
@@ -1870,10 +1870,10 @@ export const database = {
       let competitionsMap: { [key: string]: any } = {};
 
       if (competitionIds.length > 0) {
-        const { data: competitions } = await supabase
+        const { data: competitions } = (await supabase
           .from('competitions')
           .select('id, uid, title, image_url, prize_value')
-          .in('id', competitionIds);
+          .in('id', competitionIds)) as any;
 
         if (competitions) {
           competitionsMap = competitions.reduce((map: { [key: string]: any }, comp: any) => {
@@ -1965,7 +1965,7 @@ export const database = {
         // - joincompetition table (legacy confirmed entries)
         // - user_transactions table (payment-based entries with "finished" status)
         // - pending_tickets table (reservations awaiting payment confirmation)
-        const { data, error } = await getDashboardEntries(supabase, identity.primaryId);
+        const { data, error } = (await getDashboardEntries(supabase, identity.primaryId)) as any;
 
         if (error) {
           databaseLogger.rpcError('get_comprehensive_user_dashboard_entries', error, 'direct query fallback');
@@ -2008,7 +2008,7 @@ export const database = {
 
             // Fallback to simple direct query by wallet address
             if (identity.walletAddress) {
-              const { data: directData, error: directError } = await supabase
+              const { data: directData, error: directError } = (await supabase
                 .from('v_joincompetition_active')
                 .select(`
                   *,
@@ -2026,7 +2026,7 @@ export const database = {
                   )
                 `)
                 .ilike('wallet_address', identity.walletAddress)
-                .order('purchasedate', { ascending: false });
+                .order('purchasedate', { ascending: false })) as any;
 
               if (directError) {
                 databaseLogger.error('getUserEntries direct wallet query error', directError);
@@ -2036,7 +2036,7 @@ export const database = {
               }
             }
           } else {
-            const { data: joinData, error: joinError } = await supabase
+            const { data: joinData, error: joinError } = (await supabase
               .from('v_joincompetition_active')
               .select(`
                 *,
@@ -2054,7 +2054,7 @@ export const database = {
                 )
               `)
               .or(identityFilter)
-              .order('purchasedate', { ascending: false });
+              .order('purchasedate', { ascending: false })) as any;
 
             if (joinError) {
               databaseLogger.error('getUserEntries unified query error', {
@@ -2220,11 +2220,11 @@ export const database = {
 
     if (identity.walletAddress) {
       try {
-        const { data, error } = await supabase
+        const { data, error } = (await supabase
           .from('v_joincompetition_active')
           .select(viewSelectQuery)
           .ilike('wallet_address', identity.walletAddress)
-          .order('purchasedate', { ascending: false });
+          .order('purchasedate', { ascending: false })) as any;
 
         if (error) {
           databaseLogger.warn('View query (wallet) error - will try base table', { code: error.code });
@@ -2252,11 +2252,11 @@ export const database = {
         try {
           // Query joincompetition WITHOUT join to competitions
           // SCHEMA: joincompetition has: userid, competitionid, ticketnumbers, joinedat, created_at
-          const { data, error } = await supabase
+          const { data, error } = (await supabase
             .from('joincompetition')
             .select('*')
             .ilike('userid', identity.walletAddress)
-            .order('joinedat', { ascending: false });
+            .order('joinedat', { ascending: false })) as any;
 
           if (!error && data && data.length > 0) {
             databaseLogger.success('Base joincompetition query (wallet) found entries', { count: data.length });
@@ -2274,10 +2274,10 @@ export const database = {
 
                 // Fetch UUID-based competitions
                 if (uuidIds.length > 0) {
-                  const { data: compData } = await supabase
+                  const { data: compData } = (await supabase
                     .from('competitions')
                     .select('id, uid, title, description, image_url, status, prize_value, is_instant_win, end_date, winner_address')
-                    .in('id', uuidIds);
+                    .in('id', uuidIds)) as any;
                   if (compData) {
                     compData.forEach((c: any) => {
                       competitionsMap.set(c.id, c);
@@ -2287,10 +2287,10 @@ export const database = {
 
                 // Fetch text UID-based competitions (legacy)
                 if (textIds.length > 0) {
-                  const { data: compData } = await supabase
+                  const { data: compData } = (await supabase
                     .from('competitions')
                     .select('id, uid, title, description, image_url, status, prize_value, is_instant_win, end_date, winner_address')
-                    .in('uid', textIds);
+                    .in('uid', textIds)) as any;
                   if (compData) {
                     compData.forEach((c: any) => {
                       competitionsMap.set(c.uid, c);
@@ -2325,11 +2325,11 @@ export const database = {
       if (identity.legacyUserId && allEntries.length === 0) {
         try {
           // SCHEMA: joincompetition has: userid, competitionid, ticketnumbers, joinedat, created_at
-          const { data, error } = await supabase
+          const { data, error } = (await supabase
             .from('joincompetition')
             .select('*')
             .eq('userid', identity.legacyUserId)
-            .order('joinedat', { ascending: false });
+            .order('joinedat', { ascending: false })) as any;
 
           if (!error && data && data.length > 0) {
             // Fetch competition data separately (same logic as above)
@@ -2342,18 +2342,18 @@ export const database = {
                 const textIds = competitionIds.filter(id => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
 
                 if (uuidIds.length > 0) {
-                  const { data: compData } = await supabase
+                  const { data: compData } = (await supabase
                     .from('competitions')
                     .select('id, uid, title, description, image_url, status, prize_value, is_instant_win, end_date, winner_address')
-                    .in('id', uuidIds);
+                    .in('id', uuidIds)) as any;
                   if (compData) compData.forEach((c: any) => competitionsMap.set(c.id, c));
                 }
 
                 if (textIds.length > 0) {
-                  const { data: compData } = await supabase
+                  const { data: compData } = (await supabase
                     .from('competitions')
                     .select('id, uid, title, description, image_url, status, prize_value, is_instant_win, end_date, winner_address')
-                    .in('uid', textIds);
+                    .in('uid', textIds)) as any;
                   if (compData) compData.forEach((c: any) => competitionsMap.set(c.uid, c));
                 }
               } catch (compErr) {
@@ -2419,7 +2419,7 @@ export const database = {
         }
 
         if (ticketFilters.length > 0) {
-          const { data: ticketsData, error: ticketsError } = await ticketsQuery.or(ticketFilters.join(','));
+          const { data: ticketsData, error: ticketsError } = (await ticketsQuery.or(ticketFilters.join(','))) as any;
 
           if (!ticketsError && ticketsData && ticketsData.length > 0) {
             // Group tickets by competition_id
@@ -2491,7 +2491,7 @@ export const database = {
         }
 
         if (txFilters.length > 0) {
-          const { data: txData, error: txError } = await supabase
+          const { data: txData, error: txError } = (await supabase
             .from('user_transactions')
             .select(`
               id,
@@ -2524,7 +2524,7 @@ export const database = {
             .or(txFilters.join(','))
             // Include ALL valid completed statuses (including 'complete', 'success', 'paid')
             .in('payment_status', ['completed', 'complete', 'finished', 'confirmed', 'success', 'paid'])
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: false })) as any;
 
           if (!txError && txData && txData.length > 0) {
             txData.forEach((tx: any) => {
@@ -2583,7 +2583,7 @@ export const database = {
         if (orderFilters.length > 0) {
           // FIXED: Query orders without JOIN to competitions (relationship doesn't exist)
           // Fetch competition data separately
-          const { data: ordersData, error: ordersError } = await supabase
+          const { data: ordersData, error: ordersError } = (await supabase
             .from('orders')
             .select(`
               id,
@@ -2601,7 +2601,7 @@ export const database = {
             // Include ALL valid completed statuses (including 'success')
             .in('status', ['completed', 'confirmed', 'paid', 'success'])
             .not('competition_id', 'is', null)
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: false })) as any;
 
           if (!ordersError && ordersData && ordersData.length > 0) {
             // Fetch competition data separately for all orders
@@ -2609,10 +2609,10 @@ export const database = {
             let competitionsMap = new Map<string, any>();
             
             if (competitionIds.length > 0) {
-              const { data: compData } = await supabase
+              const { data: compData } = (await supabase
                 .from('competitions')
                 .select('id, uid, title, description, image_url, status, prize_value, is_instant_win, end_date, winner_address')
-                .in('id', competitionIds);
+                .in('id', competitionIds)) as any;
               if (compData) {
                 compData.forEach((c: any) => {
                   competitionsMap.set(c.id, c);
@@ -2671,11 +2671,11 @@ export const database = {
         // Also try looking up by wallet if we don't have canonical ID
         if (!identity.canonicalUserId && identity.walletAddress) {
           // Get canonical_user_id from canonical_users first
-          const { data: userData } = await supabase
+          const { data: userData } = (await supabase
             .from('canonical_users')
             .select('canonical_user_id')
             .or(`wallet_address.ilike.${identity.walletAddress},base_wallet_address.ilike.${identity.walletAddress}`)
-            .maybeSingle();
+            .maybeSingle()) as any;
           
           if (userData?.canonical_user_id) {
             ledgerFilters.push(`canonical_user_id.eq.${userData.canonical_user_id}`);
@@ -2683,14 +2683,14 @@ export const database = {
         }
 
         if (ledgerFilters.length > 0) {
-          const { data: ledgerData, error: ledgerError } = await supabase
+          const { data: ledgerData, error: ledgerError } = (await supabase
             .from('balance_ledger')
             .select('*')
             .or(ledgerFilters.join(','))
             .eq('source', 'purchase')
             .lt('amount', 0) // Purchases are negative (debits)
             .not('metadata->competition_id', 'is', null)
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: false })) as any;
 
           if (!ledgerError && ledgerData && ledgerData.length > 0) {
             // Fetch competition data for all competition IDs
@@ -2702,10 +2702,10 @@ export const database = {
 
             let competitionsMap = new Map<string, any>();
             if (competitionIds.length > 0) {
-              const { data: compData } = await supabase
+              const { data: compData } = (await supabase
                 .from('competitions')
                 .select('id, title, description, image_url, status, prize_value, is_instant_win, end_date, winner_address')
-                .in('id', competitionIds);
+                .in('id', competitionIds)) as any;
               if (compData) {
                 compData.forEach((c: any) => {
                   competitionsMap.set(c.id, c);
@@ -2779,19 +2779,19 @@ export const database = {
 
     try {
       // Try the new count-only RPC function first
-      const { data, error } = await supabase.rpc('get_available_ticket_count_v2', {
+      const { data, error } = (await supabase.rpc('get_available_ticket_count_v2', {
         p_competition_id: competitionId.trim()
-      });
+      })) as any;
 
       if (error) {
         console.warn('RPC get_available_ticket_count_v2 not available, using fallback:', error.message);
         // Fallback to existing method (less efficient but works)
         const unavailable = await this.getUnavailableTicketsForCompetition(competitionId);
-        const { data: competition } = await supabase
+        const { data: competition } = (await supabase
           .from('competitions')
           .select('total_tickets')
           .eq('id', competitionId)
-          .maybeSingle();
+          .maybeSingle()) as any;
 
         const totalTickets = competition?.total_tickets || 1000;
         const availableCount = Math.max(0, totalTickets - unavailable.size);
@@ -2868,14 +2868,14 @@ export const database = {
     }
 
     try {
-      const { data, error } = await supabase.rpc('allocate_lucky_dip_tickets', {
+      const { data, error } = (await supabase.rpc('allocate_lucky_dip_tickets', {
         p_user_id: userId.trim(),
         p_competition_id: competitionId.trim(),
         p_ticket_count: count,
         p_ticket_price: ticketPrice,
         p_hold_minutes: holdMinutes,
         p_session_id: sessionId || null
-      });
+      })) as any;
 
       if (error) {
         console.error('allocate_lucky_dip_tickets RPC error:', error);
@@ -2978,10 +2978,10 @@ export const database = {
       // Step 1: Fetch all unavailable tickets upfront
       let excludedTickets: number[] = [];
       try {
-        const { data: unavailableData, error: unavailableError } = await supabase.rpc(
+        const { data: unavailableData, error: unavailableError } = (await supabase.rpc(
           'get_competition_unavailable_tickets',
           { p_competition_id: competitionId.trim() }
-        );
+        )) as any;
 
         if (!unavailableError && unavailableData && Array.isArray(unavailableData)) {
           excludedTickets = unavailableData
@@ -3030,7 +3030,7 @@ export const database = {
             // Combine pre-existing unavailable + newly allocated from previous batches
             const currentExcluded = [...excludedTickets, ...allTicketNumbers];
 
-            const { data, error } = await supabase.rpc('allocate_lucky_dip_tickets_batch', {
+            const { data, error } = (await supabase.rpc('allocate_lucky_dip_tickets_batch', {
               p_user_id: canonicalUserId,
               p_competition_id: competitionId.trim(),
               p_ticket_count: batchSize,
@@ -3038,7 +3038,7 @@ export const database = {
               p_hold_minutes: holdMinutes,
               p_session_id: sessionId || null,
               p_excluded_tickets: currentExcluded.length > 0 ? currentExcluded : null
-            });
+            })) as any;
 
             if (error) {
               lastBatchError = error.message;
@@ -3154,9 +3154,9 @@ export const database = {
 
     try {
       // Use the text wrapper RPC to avoid uuid = text type errors
-      const { data, error } = await supabase.rpc('get_competition_ticket_availability_text', {
+      const { data, error } = (await supabase.rpc('get_competition_ticket_availability_text', {
         competition_id_text: competitionId.trim()
-      });
+      })) as any;
 
       if (error) {
         console.warn('RPC get_competition_ticket_availability_text not available, using fallback:', error.message);
@@ -3203,10 +3203,10 @@ export const database = {
 
     try {
       // The RPC expects parameters in order: competition_id, user_id (not user_id, competition_id)
-      const { data, error } = await supabase.rpc('get_user_tickets_for_competition', {
+      const { data, error } = (await supabase.rpc('get_user_tickets_for_competition', {
         competition_id: competitionId.trim(),
         user_id: userId.trim()
-      });
+      })) as any;
 
       if (error) {
         console.warn('RPC get_user_tickets_for_competition not available:', error.message);
@@ -3256,7 +3256,7 @@ export const database = {
       }
 
       // Reserve tickets first to prevent race conditions
-      const { error } = await supabase
+      const { error } = (await supabase
         .from('pending_tickets')
         .insert({
           id: crypto.randomUUID(),
@@ -3268,7 +3268,7 @@ export const database = {
           expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-        });
+        })) as any;
 
       if (error) {
         handleDatabaseError(error, 'assignTickets - reserve');
@@ -3291,11 +3291,11 @@ export const database = {
     ticketCount: number = 1
   ): Promise<number[]> {
     try {
-      const { data: competition } = await supabase
+      const { data: competition } = (await supabase
         .from('competitions')
         .select('total_tickets')
         .eq('id', competitionId)
-        .maybeSingle();
+        .maybeSingle()) as any;
 
       const totalTickets = competition?.total_tickets || 1000;
       const availableTickets = await this.getAvailableTicketsForCompetition(competitionId, totalTickets);
@@ -3309,7 +3309,7 @@ export const database = {
       const selectedTickets = shuffled.slice(0, ticketCount);
 
       // Reserve the tickets
-      const { error } = await supabase
+      const { error } = (await supabase
         .from('pending_tickets')
         .insert({
           id: crypto.randomUUID(),
@@ -3321,7 +3321,7 @@ export const database = {
           expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-        });
+        })) as any;
 
       if (error) {
         handleDatabaseError(error, 'assignRandomTickets');
@@ -3352,12 +3352,12 @@ export const database = {
       // ISSUE #4 FIX: Try to use atomic RPC function first for transaction-level consistency
       // This prevents race conditions by using database-level locking
       try {
-        const { data: rpcResult, error: rpcError } = await supabase.rpc('reserve_tickets_atomically', {
+        const { data: rpcResult, error: rpcError } = (await supabase.rpc('reserve_tickets_atomically', {
           p_competition_id: competitionId,
           p_user_id: userId,
           p_ticket_count: ticketNumbers.length,
           p_hold_minutes: timeoutMinutes,
-        } as any);
+        } as any)) as any;
 
         if (!rpcError && rpcResult) {
           const result = typeof rpcResult === 'string' ? JSON.parse(rpcResult) : rpcResult;
@@ -3387,12 +3387,12 @@ export const database = {
       }
 
       // Cancel any existing pending reservations for this user/competition
-      await supabase
+      await (supabase
         .from('pending_tickets')
         .update({ status: 'cancelled', updated_at: new Date().toISOString() })
         .eq('user_id', userId)
         .eq('competition_id', competitionId)
-        .eq('status', 'pending');
+        .eq('status', 'pending') as any);
 
       // ISSUE #4 FIX: Double-check availability after cancelling own reservations
       // This narrows the race condition window
@@ -3408,7 +3408,7 @@ export const database = {
       }
 
       // Create new reservation
-      const { error } = await supabase
+      const { error } = (await supabase
         .from('pending_tickets')
         .insert({
           id: reservationId,
@@ -3420,7 +3420,7 @@ export const database = {
           expires_at: expiresAt,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-        });
+        })) as any;
 
       if (error) {
         // ISSUE #4 FIX: Check if error is a unique constraint violation (another user reserved)
@@ -3444,16 +3444,16 @@ export const database = {
   async confirmReservedTickets(reservationId: string): Promise<boolean> {
     try {
       // Use RPC function to bypass RLS which fails with Privy auth (auth.uid() is null)
-      const { data, error: rpcError } = await supabase.rpc(
+      const { data, error: rpcError } = (await supabase.rpc(
         'confirm_pending_ticket_reservation' as any,
         { p_reservation_id: reservationId }
-      );
+      )) as any;
 
       if (rpcError) {
         // Fallback to direct update if RPC doesn't exist yet
         console.warn('[confirmReservedTickets] RPC not available, using fallback:', rpcError.message);
 
-        const { error } = await supabase
+        const { error } = (await supabase
           .from('pending_tickets')
           .update({
             status: 'confirmed',
@@ -3461,7 +3461,7 @@ export const database = {
             updated_at: new Date().toISOString(),
           })
           .eq('id', reservationId)
-          .eq('status', 'pending');
+          .eq('status', 'pending')) as any;
 
         if (error) {
           handleDatabaseError(error, 'confirmReservedTickets');
@@ -3498,12 +3498,12 @@ export const database = {
 
     try {
       // Get competitions that might be stale (ended but still marked active)
-      const { data: competitions, error } = await supabase
+      const { data: competitions, error } = (await supabase
         .from('competitions')
         .select('id, status, end_date')
         .in('id', competitionIds)
         .eq('status', 'active')
-        .not('end_date', 'is', null);
+        .not('end_date', 'is', null)) as any;
 
       if (error) {
         console.warn('[syncStaleCompetitionStatuses] Error fetching competitions:', error);
@@ -3534,9 +3534,9 @@ export const database = {
           // Try calling an RPC to sync status (may not exist in all environments)
           // NOTE: competition.id could be either UUID or string - ensure proper format
           const competitionIdParam = competition.id?.toString() || competition.id;
-          const { error: rpcError } = await supabase.rpc('sync_competition_status_if_ended', {
+          const { error: rpcError } = (await supabase.rpc('sync_competition_status_if_ended', {
             p_competition_id: competitionIdParam
-          });
+          })) as any;
 
           if (rpcError) {
             // RPC doesn't exist or failed - that's OK, we'll handle it client-side
@@ -3576,7 +3576,7 @@ export const database = {
       }
 
       // Try the new RPC that reads from competition_entries table
-      const { data, error } = await getUserCompetitionEntries(supabase, userId);
+      const { data, error } = (await getUserCompetitionEntries(supabase, userId)) as any;
 
       if (error) {
         databaseLogger.warn('get_user_competition_entries RPC not available, falling back to getUserEntries', error.message);
