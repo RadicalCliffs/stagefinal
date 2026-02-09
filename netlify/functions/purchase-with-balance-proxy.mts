@@ -74,12 +74,15 @@ async function callRpcWithRetry(
       );
 
       if (!rpcError && rpcResult) {
-        return { data: rpcResult, error: null };
-      }
+        // If the RPC returned a result, check if it was a success
+        if (rpcResult.success) {
+          return { data: rpcResult, error: null };
+        }
 
-      // If it's a validation error from the RPC result itself, don't retry
-      if (rpcResult && !rpcResult.success) {
+        // RPC returned {success: false} - check the error code
         const code = rpcResult.error_code || "";
+
+        // Validation errors should be returned immediately (no retry)
         if (
           code === "INSUFFICIENT_BALANCE" ||
           code === "NO_BALANCE_RECORD" ||
@@ -87,6 +90,18 @@ async function callRpcWithRetry(
         ) {
           return { data: rpcResult, error: null };
         }
+
+        // INTERNAL_ERROR means a trigger or constraint failed inside the RPC.
+        // Retry and eventually fall through to direct DB fallback.
+        lastError = {
+          message: rpcResult.error || "RPC internal error",
+          code: rpcResult.error_code,
+        };
+        console.warn(
+          `[purchase-with-balance-proxy][${requestId}] RPC attempt ${attempt + 1} returned internal error:`,
+          rpcResult.error
+        );
+        continue;
       }
 
       lastError = rpcError;
