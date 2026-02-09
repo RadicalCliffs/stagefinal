@@ -324,7 +324,7 @@ export default async (req: Request, _context: Context): Promise<Response> => {
   let body: Record<string, any> = {}; // Declare at function scope for error handler access
 
   if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: corsHeaders(origin) });
+    return new Response(null, { status: 200, headers: corsHeaders(origin) });
   }
 
   if (req.method !== "POST") {

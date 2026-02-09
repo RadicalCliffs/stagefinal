@@ -38,7 +38,7 @@ export default async (req: Request, _context: Context): Promise<Response> => {
   const origin = req.headers.get("origin");
 
   if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: corsHeaders(origin) });
+    return new Response(null, { status: 200, headers: corsHeaders(origin) });
   }
 
   const incidentId = `health-check-${Date.now()}-${Math.random().toString(36).substring(7)}`;
