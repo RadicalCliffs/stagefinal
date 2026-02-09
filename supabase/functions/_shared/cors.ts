@@ -42,12 +42,12 @@ export function buildCorsHeaders(requestOrigin: string | null): Record<string, s
 
 /**
  * Handle OPTIONS preflight request
- * Returns a 204 No Content response with proper CORS headers
+ * Returns a 200 OK response with proper CORS headers
  */
 export function handleCorsOptions(req: Request): Response {
   const origin = req.headers.get('origin');
   return new Response(null, {
-    status: 204,
+    status: 200,
     headers: buildCorsHeaders(origin),
   });
 }

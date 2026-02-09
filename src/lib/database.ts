@@ -1326,7 +1326,7 @@ export const database = {
       // First, filter out fake/test wallet addresses
       if (!isValidWinnerAddress(winner.Winner)) return false;
 
-      const prize = winner.competitionprize || '';
+      const prize = String(winner.competitionprize || '');
       // Show if prize starts with $
       const isMonetary = prize.startsWith('$');
       // Show if prize contains crypto keywords
