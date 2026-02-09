@@ -1,3 +1,19 @@
+/**
+ * Supabase Database Type Definitions
+ * 
+ * IMPORTANT: All Row interface fields are intentionally optional (field?: type | null)
+ * 
+ * This design decision aligns with the application's "as any" casting strategy and handles:
+ * - Partial query results (SELECT specific columns)
+ * - Null database values
+ * - Supabase type mismatches
+ * - Future schema evolution without breaking changes
+ * 
+ * While this reduces compile-time type safety, it prevents runtime TypeScript errors
+ * when queries return incomplete data or nullable fields. The tradeoff accepts that
+ * field existence checks must be done at runtime rather than compile-time.
+ */
+
 export type Json =
   | string
   | number
