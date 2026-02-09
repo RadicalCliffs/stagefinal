@@ -33,41 +33,32 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- canonical_users: Single source of truth for all user identities
 -- Supports multiple auth methods: email, wallet, Privy
 CREATE TABLE IF NOT EXISTS canonical_users (
-  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  canonical_user_id TEXT UNIQUE NOT NULL DEFAULT ('prize:pid:' || gen_random_uuid()::text),
-  uid TEXT UNIQUE NOT NULL DEFAULT gen_random_uuid()::text,
-  
-  -- Auth identifiers
-  privy_user_id TEXT UNIQUE,
-  email TEXT,
-  wallet_address TEXT,
-  base_wallet_address TEXT,
-  eth_wallet_address TEXT,
-  smart_wallet_address TEXT,
-  primary_wallet_address TEXT,
-  
-  -- Profile fields
-  username TEXT,
-  avatar_url TEXT,
-  country TEXT,
-  first_name TEXT,
-  last_name TEXT,
-  telegram_handle TEXT,
-  telephone_number TEXT,
-  
-  -- Balance fields (legacy - kept for backward compatibility)
-  usdc_balance NUMERIC(20, 6) DEFAULT 0 NOT NULL,
-  bonus_balance NUMERIC(20, 6) DEFAULT 0 NOT NULL,
-  has_used_new_user_bonus BOOLEAN DEFAULT false NOT NULL,
-  
-  -- Metadata
-  auth_provider TEXT,
-  wallet_linked TEXT,
-  linked_wallets JSONB DEFAULT '[]'::jsonb,
-  is_admin BOOLEAN DEFAULT false NOT NULL,
-  
-  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  canonical_user_id text UNIQUE CHECK (canonical_user_id IS NULL OR canonical_user_id ~ '^prize:pid:0x[a-fA-F0-9]{40}$'::text OR canonical_user_id ~ '^prize:pid:temp[0-9]+$'::text),
+  uid text NOT NULL DEFAULT (gen_random_uuid())::text UNIQUE,
+  privy_user_id text,
+  email text UNIQUE,
+  wallet_address text UNIQUE,
+  base_wallet_address text UNIQUE,
+  eth_wallet_address text UNIQUE,
+  username text,
+  avatar_url text,
+  usdc_balance numeric NOT NULL DEFAULT 0,
+  bonus_balance numeric NOT NULL DEFAULT 0,
+  has_used_new_user_bonus boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  smart_wallet_address text,
+  country text,
+  first_name text,
+  last_name text,
+  telegram_handle text,
+  is_admin boolean NOT NULL DEFAULT false,
+  auth_provider text,
+  wallet_linked text,
+  linked_wallets jsonb DEFAULT '[]'::jsonb,
+  primary_wallet_address text,
+  CONSTRAINT canonical_users_pkey PRIMARY KEY (id)
 );
 
 CREATE INDEX idx_canonical_users_canonical_user_id ON canonical_users(canonical_user_id);
@@ -168,22 +159,25 @@ CREATE INDEX idx_wallet_ledger_created_at ON wallet_ledger(created_at DESC);
 
 -- balance_ledger: Audit trail for all balance changes
 CREATE TABLE IF NOT EXISTS balance_ledger (
-  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  canonical_user_id TEXT NOT NULL,
-  reference_id TEXT,
-  transaction_type TEXT NOT NULL,
-  amount NUMERIC(20, 6) NOT NULL,
-  currency TEXT DEFAULT 'USD' NOT NULL,
-  balance_before NUMERIC(20, 6),
-  balance_after NUMERIC(20, 6),
-  description TEXT,
-  metadata JSONB,
-  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  canonical_user_id text,
+  transaction_type text,
+  amount numeric,
+  currency text DEFAULT 'USD'::text,
+  balance_before numeric,
+  balance_after numeric,
+  reference_id text UNIQUE,
+  description text,
+  created_at timestamp with time zone DEFAULT now(),
+  top_up_tx_id text,
+  type text,
+  payment_provider text,
+  CONSTRAINT balance_ledger_pkey PRIMARY KEY (id),
+  CONSTRAINT fk_balance_ledger_canonical_user FOREIGN KEY (canonical_user_id) REFERENCES canonical_users(canonical_user_id)
 );
 
 CREATE INDEX idx_balance_ledger_canonical_user_id ON balance_ledger(canonical_user_id);
 CREATE INDEX idx_balance_ledger_reference_id ON balance_ledger(reference_id);
-CREATE INDEX idx_balance_ledger_transaction_type ON balance_ledger(transaction_type);
 CREATE INDEX idx_balance_ledger_created_at ON balance_ledger(created_at DESC);
 
 -- bonus_award_audit: Track bonus awards
@@ -202,35 +196,57 @@ CREATE INDEX idx_bonus_award_audit_bonus_type ON bonus_award_audit(bonus_type);
 
 -- user_transactions: All user transactions (deposits, withdrawals, purchases)
 CREATE TABLE IF NOT EXISTS user_transactions (
-  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  canonical_user_id TEXT NOT NULL,
-  user_id TEXT,
-  wallet_address TEXT,
-  
-  transaction_type TEXT NOT NULL,
-  amount NUMERIC(20, 6) NOT NULL,
-  currency TEXT DEFAULT 'USD' NOT NULL,
-  
-  status TEXT DEFAULT 'pending' NOT NULL,
-  payment_provider TEXT,
-  transaction_hash TEXT,
-  payment_intent_id TEXT,
-  
-  competition_id TEXT,
-  ticket_count INTEGER,
-  
-  description TEXT,
-  metadata JSONB,
-  
-  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-  completed_at TIMESTAMPTZ
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id text,
+  canonical_user_id text,
+  wallet_address text,
+  type text,
+  amount numeric,
+  currency text DEFAULT 'USDC'::text,
+  balance_before numeric,
+  balance_after numeric,
+  competition_id uuid,
+  order_id uuid,
+  description text,
+  status text DEFAULT 'completed'::text,
+  created_at timestamp with time zone DEFAULT now(),
+  user_privy_id text,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  provider text DEFAULT (metadata ->> 'provider'::text),
+  tx_ref text DEFAULT (metadata ->> 'tx_ref'::text),
+  payment_provider text,
+  payment_status text,
+  ticket_count integer,
+  webhook_ref text UNIQUE,
+  charge_id text UNIQUE,
+  charge_code text,
+  checkout_url text,
+  updated_at timestamp with time zone DEFAULT now(),
+  primary_provider text,
+  fallback_provider text,
+  provider_attempts integer DEFAULT 0,
+  provider_error text,
+  posted_to_balance boolean DEFAULT false,
+  completed_at timestamp with time zone,
+  expires_at timestamp with time zone,
+  method text,
+  tx_id text,
+  network text,
+  notes text,
+  canonical_user_id_norm text DEFAULT
+    CASE
+      WHEN (canonical_user_id IS NULL) THEN NULL::text
+      ELSE ('prize:pid:'::text || lower(replace(canonical_user_id, 'prize:pid:'::text, ''::text)))
+    END,
+  ticket_numbers text,
+  CONSTRAINT user_transactions_pkey PRIMARY KEY (id)
 );
+
+-- Note: FK to competitions(id) added via ALTER TABLE after competitions table is created
 
 CREATE INDEX idx_user_transactions_canonical_user_id ON user_transactions(canonical_user_id);
 CREATE INDEX idx_user_transactions_user_id ON user_transactions(user_id);
 CREATE INDEX idx_user_transactions_wallet_address ON user_transactions(LOWER(wallet_address));
-CREATE INDEX idx_user_transactions_transaction_type ON user_transactions(transaction_type);
 CREATE INDEX idx_user_transactions_status ON user_transactions(status);
 CREATE INDEX idx_user_transactions_competition_id ON user_transactions(competition_id);
 CREATE INDEX idx_user_transactions_created_at ON user_transactions(created_at DESC);
@@ -257,148 +273,137 @@ CREATE INDEX idx_pending_topups_status ON pending_topups(status);
 
 -- competitions: Main competition listings
 CREATE TABLE IF NOT EXISTS competitions (
-  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  uid TEXT UNIQUE,
-  creator_id TEXT,
-  
-  title TEXT NOT NULL,
-  description TEXT,
-  image_url TEXT,
-  
-  prize_type TEXT NOT NULL,
-  prize_value TEXT NOT NULL,
-  
-  ticket_price NUMERIC(10, 2) DEFAULT 0.99 NOT NULL,
-  total_tickets INTEGER NOT NULL,
-  -- Note: Both sold_tickets and tickets_sold kept for backward compatibility with frontend
-  -- They should be kept in sync. Consider consolidating in future migration.
-  sold_tickets INTEGER DEFAULT 0 NOT NULL,
-  tickets_sold INTEGER DEFAULT 0 NOT NULL,
-  max_tickets INTEGER,
-  max_participants INTEGER,
-  
-  status TEXT DEFAULT 'active' NOT NULL,
-  competition_type TEXT,
-  
-  start_time TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-  start_date TIMESTAMPTZ,
-  end_time TIMESTAMPTZ,
-  end_date TIMESTAMPTZ,
-  draw_date TIMESTAMPTZ,
-  drawn_at TIMESTAMPTZ,
-  
-  is_instant_win BOOLEAN DEFAULT false,
-  is_featured BOOLEAN DEFAULT false,
-  winning_tickets_generated BOOLEAN DEFAULT false,
-  
-  winner_address TEXT,
-  tx_hash TEXT,
-  vrf_request_id TEXT,
-  
-  -- VRF On-Chain fields for provably fair draws
-  onchain_competition_id INTEGER,
-  vrf_error TEXT,
-  vrf_draw_requested_at TIMESTAMPTZ,
-  
-  -- Contract integration
-  contract_address TEXT,
-  chain_id INTEGER,
-  
-  -- SEO metadata
-  metadata_title TEXT,
-  metadata_description TEXT,
-  metadata_image TEXT,
-  
-  -- Display customization
-  font_size_override TEXT,
-  font_weight_override TEXT,
-  category TEXT,
-  
-  -- Legacy fields
-  entry_fee TEXT,
-  entry_price NUMERIC(10, 2),
-  total_entries INTEGER,
-  entries_sold INTEGER,
-  competitionended INTEGER,
-  crdate TIMESTAMPTZ,
-  
-  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  title text,
+  description text,
+  image_url text,
+  ticket_price numeric DEFAULT 1,
+  total_tickets integer DEFAULT 100,
+  sold_tickets integer DEFAULT 0,
+  status text DEFAULT 'upcoming'::text,
+  start_time timestamp with time zone DEFAULT now(),
+  end_time timestamp with time zone,
+  winner_count integer DEFAULT 1,
+  prize_description text,
+  vrfulfillment_address text,
+  vrf_subscription_id integer,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  deleted boolean DEFAULT false,
+  max_tickets_per_user_percentage integer,
+  crdate timestamp with time zone DEFAULT now(),
+  description_text text,
+  end_date timestamp with time zone,
+  is_featured boolean DEFAULT false,
+  is_instant_win boolean DEFAULT false,
+  num_winners integer,
+  prize_type text,
+  prize_value numeric,
+  tickets_sold integer,
+  uid uuid DEFAULT gen_random_uuid(),
+  winning_ticket_count integer,
+  vrf_request_id text,
+  vrf_status text DEFAULT 'pending'::text,
+  vrf_tx_hash text,
+  onchain_competition_id text,
+  vrf_random_words text[],
+  vrf_proof text,
+  winner_address text,
+  start_date timestamp with time zone DEFAULT now(),
+  vrf_draw_requested_at timestamp with time zone,
+  vrf_draw_completed_at timestamp with time zone,
+  vrf_randomness jsonb,
+  vrf_error text,
+  vrf_completed_at timestamp with time zone,
+  draw_date timestamp with time zone,
+  vrf_error_at timestamp with time zone,
+  onchain_pid text,
+  vrf_verified boolean DEFAULT false,
+  outcomes_vrf_seed text,
+  outcomes_generated_at timestamp with time zone,
+  randomness_verified_at timestamp with time zone,
+  winning_ticket_numbers text,
+  winning_tickets_generated text,
+  CONSTRAINT competitions_pkey PRIMARY KEY (id)
 );
 
 CREATE INDEX idx_competitions_status ON competitions(status);
 CREATE INDEX idx_competitions_uid ON competitions(uid);
-CREATE INDEX idx_competitions_creator_id ON competitions(creator_id);
 CREATE INDEX idx_competitions_is_instant_win ON competitions(is_instant_win);
 CREATE INDEX idx_competitions_is_featured ON competitions(is_featured);
 CREATE INDEX idx_competitions_end_date ON competitions(end_date);
-CREATE INDEX idx_competitions_category ON competitions(category);
 CREATE INDEX idx_competitions_sold_tickets ON competitions(sold_tickets);
 
 -- competition_entries: Finalized entries for competitions
 CREATE TABLE IF NOT EXISTS competition_entries (
-  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  competition_id TEXT NOT NULL,
-  
-  canonical_user_id TEXT,
-  user_id TEXT,
-  wallet_address TEXT,
-  
-  ticket_numbers INTEGER[],
-  ticket_count INTEGER DEFAULT 0 NOT NULL,
-  
-  amount_paid NUMERIC(20, 6) NOT NULL,
-  currency TEXT DEFAULT 'USD' NOT NULL,
-  
-  transaction_hash TEXT,
-  payment_provider TEXT,
-  
-  entry_status TEXT DEFAULT 'active' NOT NULL,
-  is_winner BOOLEAN DEFAULT false,
-  prize_claimed BOOLEAN DEFAULT false,
-  
-  competition_title TEXT,
-  competition_description TEXT,
-  competition_image_url TEXT,
-  competition_status TEXT,
-  competition_end_date TIMESTAMPTZ,
-  competition_prize_value NUMERIC(20, 2),
-  competition_is_instant_win BOOLEAN DEFAULT false,
-  
-  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  canonical_user_id text NOT NULL,
+  competition_id uuid NOT NULL,
+  wallet_address text,
+  tickets_count integer NOT NULL DEFAULT 0,
+  ticket_numbers_csv text,
+  amount_spent numeric,
+  payment_methods text,
+  latest_purchase_at timestamp with time zone,
+  is_winner boolean,
+  prize_tiers text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  username text,
+  competition_title text,
+  competition_description text,
+  amount_paid numeric,
+  CONSTRAINT competition_entries_pkey PRIMARY KEY (id),
+  CONSTRAINT fk_competition_entries_competition FOREIGN KEY (competition_id) REFERENCES competitions(id)
 );
 
 CREATE INDEX idx_competition_entries_competition_id ON competition_entries(competition_id);
 CREATE INDEX idx_competition_entries_canonical_user_id ON competition_entries(canonical_user_id);
-CREATE INDEX idx_competition_entries_user_id ON competition_entries(user_id);
-CREATE INDEX idx_competition_entries_wallet_address ON competition_entries(LOWER(wallet_address));
-CREATE INDEX idx_competition_entries_entry_status ON competition_entries(entry_status);
 CREATE INDEX idx_competition_entries_is_winner ON competition_entries(is_winner);
+
+-- competition_entries_purchases: Individual purchase records within entries
+CREATE TABLE IF NOT EXISTS competition_entries_purchases (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  canonical_user_id text NOT NULL,
+  competition_id uuid NOT NULL,
+  purchase_key text NOT NULL,
+  tickets_count integer NOT NULL DEFAULT 0,
+  amount_spent numeric NOT NULL DEFAULT 0,
+  ticket_numbers_csv text,
+  purchased_at timestamp with time zone NOT NULL DEFAULT now(),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT competition_entries_purchases_pkey PRIMARY KEY (id)
+);
 
 -- tickets: Individual ticket records
 CREATE TABLE IF NOT EXISTS tickets (
-  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  competition_id TEXT NOT NULL,
-  ticket_number INTEGER NOT NULL,
-  
-  canonical_user_id TEXT,
-  user_id TEXT,
-  wallet_address TEXT,
-  
-  status TEXT DEFAULT 'available' NOT NULL,
-  is_winner BOOLEAN DEFAULT false,
-  
-  -- Note: Both payment_tx_hash and tx_id kept for backward compatibility
-  -- payment_tx_hash: Direct payment transaction hash (crypto payments)
-  -- tx_id: Internal transaction/order ID reference
-  payment_tx_hash TEXT,
-  tx_id TEXT,
-  
-  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-  purchased_at TIMESTAMPTZ,
-  
-  UNIQUE(competition_id, ticket_number)
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  competition_id uuid,
+  ticket_number integer,
+  status text DEFAULT 'available'::text CHECK (status = ANY (ARRAY['available'::text, 'reserved'::text, 'confirmed'::text, 'sold'::text, 'refunded'::text])),
+  purchased_by text,
+  purchased_at timestamp with time zone,
+  order_id uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  user_id text,
+  purchase_price numeric,
+  is_active boolean DEFAULT true,
+  is_winner boolean DEFAULT false,
+  privy_user_id text,
+  prize_tier text,
+  pending_ticket_id uuid,
+  payment_amount numeric,
+  payment_tx_hash text,
+  purchase_date timestamp with time zone,
+  canonical_user_id text,
+  wallet_address text,
+  payment_provider text,
+  tx_id text,
+  transaction_hash text DEFAULT COALESCE(payment_tx_hash, tx_id),
+  user_privy_id text,
+  purchase_key text,
+  CONSTRAINT tickets_pkey PRIMARY KEY (id),
+  CONSTRAINT tickets_competition_id_fkey FOREIGN KEY (competition_id) REFERENCES competitions(id)
 );
 
 CREATE INDEX idx_tickets_competition_id ON tickets(competition_id);
@@ -410,39 +415,47 @@ CREATE INDEX idx_tickets_ticket_number ON tickets(ticket_number);
 CREATE INDEX idx_tickets_is_winner ON tickets(is_winner);
 CREATE INDEX idx_tickets_competition_user ON tickets(competition_id, canonical_user_id);
 
--- tickets_sold: Legacy table for sold tickets tracking
+-- tickets_sold: Fast lookup for sold tickets
 CREATE TABLE IF NOT EXISTS tickets_sold (
-  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  competition_id TEXT NOT NULL,
-  ticket_number INTEGER NOT NULL,
-  user_id TEXT,
-  sold_at TIMESTAMPTZ DEFAULT NOW()
+  competition_id uuid NOT NULL,
+  ticket_number integer NOT NULL,
+  purchaser_id text NOT NULL,
+  sold_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT tickets_sold_pkey PRIMARY KEY (competition_id, ticket_number)
 );
 
 CREATE INDEX idx_tickets_sold_competition_id ON tickets_sold(competition_id);
-CREATE INDEX idx_tickets_sold_user_id ON tickets_sold(user_id);
+CREATE INDEX idx_tickets_sold_purchaser_id ON tickets_sold(purchaser_id);
 
 -- pending_tickets: Temporary ticket reservations during checkout
 CREATE TABLE IF NOT EXISTS pending_tickets (
-  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  reservation_id TEXT UNIQUE NOT NULL DEFAULT gen_random_uuid()::text,
-  
-  competition_id TEXT NOT NULL,
-  canonical_user_id TEXT,
-  user_id TEXT,
-  wallet_address TEXT,
-  
-  ticket_count INTEGER NOT NULL,
-  status TEXT DEFAULT 'pending' NOT NULL,
-  
-  transaction_hash TEXT,
-  client_secret TEXT,
-  payment_intent_id TEXT,
-  
-  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-  expires_at TIMESTAMPTZ NOT NULL,
-  confirmed_at TIMESTAMPTZ
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id text,
+  canonical_user_id text,
+  wallet_address text,
+  competition_id uuid,
+  status text DEFAULT 'pending'::text,
+  hold_minutes integer DEFAULT 15,
+  expires_at timestamp with time zone,
+  reservation_id uuid DEFAULT gen_random_uuid(),
+  created_at timestamp with time zone DEFAULT now(),
+  ticket_count integer,
+  ticket_price numeric DEFAULT 1,
+  total_amount numeric DEFAULT 0,
+  session_id text,
+  confirmed_at timestamp with time zone,
+  updated_at timestamp with time zone DEFAULT now(),
+  transaction_hash text,
+  payment_provider text,
+  ticket_numbers text[],
+  payment_id text,
+  idempotency_key text,
+  privy_user_id text,
+  user_privy_id text,
+  note text,
+  CONSTRAINT pending_tickets_pkey PRIMARY KEY (id),
+  CONSTRAINT pending_tickets_competition_id_fkey FOREIGN KEY (competition_id) REFERENCES competitions(id),
+  CONSTRAINT fk_pending_tickets_canonical_user FOREIGN KEY (canonical_user_id) REFERENCES canonical_users(canonical_user_id)
 );
 
 CREATE INDEX idx_pending_tickets_competition_id ON pending_tickets(competition_id);
@@ -469,21 +482,58 @@ CREATE INDEX idx_pending_ticket_items_ticket_number ON pending_ticket_items(tick
 
 -- joincompetition: Legacy join records (CRITICAL for v_joincompetition_active view)
 CREATE TABLE IF NOT EXISTS joincompetition (
-  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  userid TEXT NOT NULL,
-  competitionid TEXT NOT NULL,
-  wallet_address TEXT,
-  ticketnumbers INTEGER[],
-  purchasedate TIMESTAMPTZ DEFAULT NOW(),
-  joinedat TIMESTAMPTZ DEFAULT NOW(),
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  is_active BOOLEAN DEFAULT true
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  userid text,
+  wallet_address text,
+  competitionid uuid,
+  ticketnumbers text,
+  purchasedate timestamp with time zone DEFAULT now(),
+  status text DEFAULT 'active'::text,
+  created_at timestamp with time zone DEFAULT now(),
+  uid text,
+  chain text,
+  transactionhash text,
+  numberoftickets integer,
+  amountspent numeric,
+  canonical_user_id text,
+  privy_user_id text,
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT joincompetition_pkey PRIMARY KEY (id),
+  CONSTRAINT joincompetition_canonical_user_id_fkey FOREIGN KEY (canonical_user_id) REFERENCES canonical_users(canonical_user_id),
+  CONSTRAINT joincompetition_competitionid_fkey FOREIGN KEY (competitionid) REFERENCES competitions(id)
 );
 
 CREATE INDEX idx_joincompetition_userid ON joincompetition(userid);
 CREATE INDEX idx_joincompetition_competitionid ON joincompetition(competitionid);
 CREATE INDEX idx_joincompetition_wallet_address ON joincompetition(LOWER(wallet_address));
-CREATE INDEX idx_joincompetition_is_active ON joincompetition(is_active);
+CREATE INDEX idx_joincompetition_canonical_user_id ON joincompetition(canonical_user_id);
+
+-- joincompetition_ticket_claims: Track individual ticket claims within a join
+CREATE TABLE IF NOT EXISTS joincompetition_ticket_claims (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  join_id uuid NOT NULL,
+  competitionid uuid NOT NULL,
+  ticket_number text NOT NULL,
+  status text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT joincompetition_ticket_claims_pkey PRIMARY KEY (id),
+  CONSTRAINT joincompetition_ticket_claims_join_id_fkey FOREIGN KEY (join_id) REFERENCES joincompetition(id)
+);
+
+-- joined_competitions: Normalized join records
+CREATE TABLE IF NOT EXISTS joined_competitions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_uid uuid,
+  competition_id uuid,
+  number_of_tickets integer NOT NULL,
+  wallet_address text,
+  join_date timestamp with time zone NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  canonical_user_id text CHECK (canonical_user_id IS NULL OR canonical_user_id ~ '^prize:pid:0x[a-f0-9]{40}$'::text),
+  privy_user_id text,
+  CONSTRAINT joined_competitions_pkey PRIMARY KEY (id),
+  CONSTRAINT joined_competitions_competition_id_fkey FOREIGN KEY (competition_id) REFERENCES competitions(id)
+);
 
 -- ============================================================================
 -- SECTION 5: WINNER TABLES
@@ -491,33 +541,36 @@ CREATE INDEX idx_joincompetition_is_active ON joincompetition(is_active);
 
 -- winners: Main winners table
 CREATE TABLE IF NOT EXISTS winners (
-  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  competition_id TEXT NOT NULL,
-  
-  canonical_user_id TEXT,
-  user_id TEXT,
-  wallet_address TEXT,
-  username TEXT,
-  
-  winning_ticket_number INTEGER,
-  prize_value TEXT,
-  
-  won_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-  claimed_at TIMESTAMPTZ,
-  
-  transaction_hash TEXT,
-  vrf_hash TEXT,
-  
-  country TEXT,
-  avatar_url TEXT,
-  
-  is_instant_win BOOLEAN DEFAULT false,
-  
-  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  competition_id uuid,
+  user_id text,
+  wallet_address text,
+  prize_position integer DEFAULT 1,
+  prize_amount numeric,
+  vrfulfillment_address text,
+  vrf_proof text,
+  claimed boolean DEFAULT false,
+  claimed_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  uid text,
+  username text,
+  ticket_number integer,
+  prize text,
+  prize_value numeric,
+  country text,
+  prize_claimed boolean DEFAULT false,
+  tx_hash text,
+  is_instant_win boolean DEFAULT false,
+  is_promoted boolean DEFAULT false,
+  "isShow" boolean DEFAULT true,
+  vrf_request_id text,
+  won_at timestamp with time zone DEFAULT now(),
+  crdate text,
+  CONSTRAINT winners_pkey PRIMARY KEY (id),
+  CONSTRAINT winners_competition_id_fkey FOREIGN KEY (competition_id) REFERENCES competitions(id)
 );
 
 CREATE INDEX idx_winners_competition_id ON winners(competition_id);
-CREATE INDEX idx_winners_canonical_user_id ON winners(canonical_user_id);
 CREATE INDEX idx_winners_user_id ON winners(user_id);
 CREATE INDEX idx_winners_wallet_address ON winners(LOWER(wallet_address));
 CREATE INDEX idx_winners_won_at ON winners(won_at DESC);
@@ -560,34 +613,48 @@ CREATE INDEX idx_Prize_Instantprizes_uid ON "Prize_Instantprizes"(uid);
 
 -- orders: Purchase orders
 CREATE TABLE IF NOT EXISTS orders (
-  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  order_id TEXT UNIQUE NOT NULL DEFAULT gen_random_uuid()::text,
-  
-  canonical_user_id TEXT,
-  user_id TEXT,
-  wallet_address TEXT,
-  
-  competition_id TEXT NOT NULL,
-  ticket_count INTEGER NOT NULL,
-  
-  total_amount NUMERIC(20, 6) NOT NULL,
-  currency TEXT DEFAULT 'USD' NOT NULL,
-  
-  status TEXT DEFAULT 'pending' NOT NULL,
-  payment_provider TEXT,
-  transaction_hash TEXT,
-  
-  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-  completed_at TIMESTAMPTZ
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  amount numeric NOT NULL,
+  currency text NOT NULL DEFAULT 'USDC'::text,
+  status text NOT NULL DEFAULT 'pending'::text,
+  payment_status text,
+  payment_provider text,
+  payment_intent_id text,
+  ticket_count integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  order_type text,
+  amount_usd numeric,
+  payment_method text,
+  payment_session_id text,
+  payment_url text,
+  payment_tx_hash text,
+  completed_at timestamp with time zone,
+  canonical_user_id text NOT NULL,
+  ledger_ref text,
+  transaction_ref text,
+  source text,
+  source_id uuid,
+  bonus_amount numeric,
+  cash_amount numeric,
+  bonus_currency text,
+  user_wallet_address text,
+  user_privy_id text,
+  notes text,
+  error_message text,
+  posted_to_balance boolean DEFAULT false,
+  is_backfill boolean DEFAULT false,
+  purchase_at timestamp with time zone,
+  unique_order_key text UNIQUE,
+  competition_title text,
+  competition_description text,
+  competition_id uuid,
+  CONSTRAINT orders_pkey PRIMARY KEY (id)
 );
 
 CREATE INDEX idx_orders_canonical_user_id ON orders(canonical_user_id);
-CREATE INDEX idx_orders_user_id ON orders(user_id);
-CREATE INDEX idx_orders_wallet_address ON orders(LOWER(wallet_address));
 CREATE INDEX idx_orders_competition_id ON orders(competition_id);
 CREATE INDEX idx_orders_status ON orders(status);
-CREATE INDEX idx_orders_order_id ON orders(order_id);
 
 -- order_tickets: Tickets associated with orders
 CREATE TABLE IF NOT EXISTS order_tickets (
@@ -915,5 +982,51 @@ CREATE TABLE IF NOT EXISTS _entries_progress (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- ============================================================================
+-- SECTION 11: CDP TABLES
+-- ============================================================================
+
+-- cdp_event_queue: Queue for CDP events
+CREATE TABLE IF NOT EXISTS cdp_event_queue (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  event_name text NOT NULL,
+  payload jsonb NOT NULL,
+  status text NOT NULL DEFAULT 'pending'::text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT cdp_event_queue_pkey PRIMARY KEY (id)
+);
+
+-- cdp_transactions: CDP transaction records
+CREATE TABLE IF NOT EXISTS cdp_transactions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  external_id text NOT NULL UNIQUE,
+  event_type text,
+  amount numeric,
+  currency text,
+  status text,
+  canonical_user_id text,
+  wallet_address text,
+  user_id text,
+  competition_id uuid,
+  tx_ref text,
+  tx_id text,
+  occurred_at timestamp with time zone,
+  payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+  payload_concat text,
+  ticket_count integer,
+  notes text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT cdp_transactions_pkey PRIMARY KEY (id)
+);
+
+-- ============================================================================
+-- SECTION 12: DEFERRED FOREIGN KEY CONSTRAINTS
+-- ============================================================================
+-- These FKs reference tables defined in later sections, so they must be added after all tables exist.
+
+ALTER TABLE user_transactions
+  ADD CONSTRAINT user_transactions_competition_id_fkey FOREIGN KEY (competition_id) REFERENCES competitions(id);
 
 COMMIT;
