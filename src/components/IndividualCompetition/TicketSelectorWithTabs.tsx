@@ -13,6 +13,7 @@ import { getUserFriendlyErrorMessage, parseReservationErrorAsync, SupabaseFuncti
 import { debounce } from "../../utils/util";
 import { reserveTicketsWithRedundancy } from "../../lib/reserve-tickets-redundant";
 import { useProactiveReservationMonitor } from "../../hooks/useProactiveReservationMonitor";
+import { useTicketBroadcast } from "../../hooks/useTicketBroadcast";
 
 // Lazy load PaymentModal - only loaded when user initiates payment
 const PaymentModal = lazy(() => import("../PaymentModal"));
@@ -167,24 +168,11 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                 }
             }
 
-            // Validate against ticketsSold prop - if service returns more available than expected,
-            // the data may be stale or inconsistent
-            const expectedAvailable = totalTickets - ticketsSold;
-            let validatedAvailable = available;
-
-            if (ticketsSold > 0 && available.length > expectedAvailable) {
-                console.log('[TicketSelector] Service returned more available than expected, using ticketsSold for validation:', {
-                    serviceAvailableCount: available.length,
-                    expectedAvailable,
-                    ticketsSold
-                });
-                // Limit to expected available count (use first N tickets as available)
-                // This prevents showing sold tickets as available when data is inconsistent
-                validatedAvailable = available.slice(0, expectedAvailable);
-            }
-
-            console.log('[TicketSelector] Setting availableTickets:', { count: validatedAvailable.length, first5: validatedAvailable.slice(0, 5) });
-            setAvailableTickets(validatedAvailable);
+            // Trust the RPC response as the source of truth for availability.
+            // The get_unavailable_tickets RPC queries sold tickets, pending reservations,
+            // and joincompetition entries directly, so it's always up-to-date.
+            console.log('[TicketSelector] Setting availableTickets:', { count: available.length, first5: available.slice(0, 5) });
+            setAvailableTickets(available);
             if (isInitialLoad) {
                 setIsInitialLoad(false);
             }
@@ -202,7 +190,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                 setLoading(false);
             }
         }
-    }, [competitionId, totalTickets, ticketsSold, isInitialLoad]);
+    }, [competitionId, totalTickets, isInitialLoad]);
 
     // Create debounced fetch function (debounce 300ms to prevent rapid calls during high traffic)
     useEffect(() => {
@@ -363,6 +351,24 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [loading, availableTickets]); // Intentionally not including selectedTickets to avoid loops
 
+    // Subscribe to broadcast channel for instant ticket availability updates
+    useTicketBroadcast({
+        competitionId,
+        onTicketSold: () => {
+            debouncedRefresh();
+            fetchOwnedTickets();
+        },
+        onTicketReserved: () => {
+            debouncedRefresh();
+        },
+        onTicketReleased: () => {
+            debouncedRefresh();
+        },
+        onTicketExpired: () => {
+            debouncedRefresh();
+        },
+    });
+
     useEffect(() => {
         // Listen for realtime ticket updates (purchases or expiring reservations)
         // Use debounced refresh to prevent excessive API calls during high traffic
@@ -391,12 +397,31 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                     debouncedRefresh();
                 }
             )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'tickets', filter: `competition_id=eq.${competitionId}` },
+                () => {
+                    // Also listen to direct ticket table changes for faster updates
+                    debouncedRefresh();
+                }
+            )
             .subscribe();
 
         return () => {
             supabase.removeChannel(channel);
         };
     }, [competitionId, debouncedRefresh, fetchOwnedTickets]);
+
+    // Periodic polling as fallback for when realtime subscriptions miss events
+    // Polls every 5 seconds for near real-time accuracy
+    useEffect(() => {
+        const pollInterval = setInterval(() => {
+            fetchAvailableTickets(false);
+            fetchOwnedTickets();
+        }, 5000);
+
+        return () => clearInterval(pollInterval);
+    }, [fetchAvailableTickets, fetchOwnedTickets]);
 
     const [start, end] = activeFilter.key.split("-").map(Number);
 
@@ -849,10 +874,15 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                         reservationId={reservationId}
                         maxAvailableTickets={Math.min(availableTickets.length, MAX_TICKETS_PER_TRANSACTION)}
                         onPaymentSuccess={() => {
-                            // Refresh available tickets and owned tickets after successful payment
-                            // Use soft refresh (no loading spinner) to prevent UI flash
+                            // Immediately refresh available tickets and owned tickets after successful payment
+                            // Run both fetches in parallel for fastest UI update
                             fetchAvailableTickets(false);
                             fetchOwnedTickets();
+                            // Schedule a second refresh 2s later to catch any delayed DB propagation
+                            setTimeout(() => {
+                                fetchAvailableTickets(false);
+                                fetchOwnedTickets();
+                            }, 2000);
                             // Clear the selection and messages
                             setSelectedTickets([]);
                             setReservationId(null);
