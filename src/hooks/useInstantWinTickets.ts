@@ -422,5 +422,3 @@ export function useInstantWinTickets({
     userWins,
   };
 }
-
-export { useInstantWinTickets };

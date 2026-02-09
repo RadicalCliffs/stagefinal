@@ -625,5 +625,3 @@ export function useWinnerNotifications(onWin?: (prize: any) => void) {
     clearNewWin,
   };
 }
-
-export { useRealTimeBalance };

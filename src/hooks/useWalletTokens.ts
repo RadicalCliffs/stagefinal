@@ -567,5 +567,3 @@ export function useWalletTokens(walletAddress?: string): UseWalletTokensResult {
     refresh: () => fetchTokens(true), // Force refresh bypasses cache
   };
 }
-
-export { useWalletTokens };
