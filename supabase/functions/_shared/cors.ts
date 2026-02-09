@@ -16,20 +16,38 @@ const ALLOWED_ORIGINS = [
 /**
  * Get the validated origin for CORS headers
  * Returns the request origin if it's in the allowed list, otherwise falls back to SITE_URL
+ * IMPORTANT: Never returns empty string "" because Access-Control-Allow-Credentials: true
+ * requires a specific origin (wildcard and empty string are not allowed with credentials)
  */
 export function getCorsOrigin(requestOrigin: string | null): string {
+  // Validate request origin is in allowed list
   if (requestOrigin && ALLOWED_ORIGINS.includes(requestOrigin)) {
     return requestOrigin;
   }
+  
+  // Always return a specific origin (never empty string or wildcard)
+  // This is required when using Access-Control-Allow-Credentials: true
   return SITE_URL;
 }
 
 /**
  * Build CORS headers for a given request origin
  * Always includes Vary: Origin for proper caching behavior
+ * 
+ * SECURITY NOTES:
+ * - Access-Control-Allow-Origin MUST be a specific origin (not * or empty string)
+ *   when Access-Control-Allow-Credentials is true
+ * - Vary: Origin ensures proper caching when origin-specific responses are sent
+ * - All responses (success, error, preflight) must include these headers
  */
 export function buildCorsHeaders(requestOrigin: string | null): Record<string, string> {
   const origin = getCorsOrigin(requestOrigin);
+  
+  // Ensure we never return empty string (required for credentials: true)
+  if (!origin) {
+    throw new Error('CORS origin cannot be empty when using credentials');
+  }
+  
   return {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
