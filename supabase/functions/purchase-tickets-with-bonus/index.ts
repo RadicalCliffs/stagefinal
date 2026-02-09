@@ -8,18 +8,43 @@ import { toPrizePid, isPrizePid, normalizeWalletAddress } from "../_shared/userI
  * This function handles ticket purchases with balance payment.
  */
 
-// Minimal CORS headers for cold start reliability
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'authorization, content-type, x-client-info, apikey',
-  'Access-Control-Max-Age': '86400',
-};
+// CORS configuration with proper origin handling
+const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://substage.theprize.io';
+const ALLOWED_ORIGINS = [
+  SITE_URL,
+  'https://substage.theprize.io',
+  'https://theprize.io',
+  'https://theprizeio.netlify.app',
+  'https://www.theprize.io',
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://localhost:8888',
+];
 
-function handleOptions(): Response {
+function getCorsOrigin(requestOrigin: string | null): string {
+  if (requestOrigin && ALLOWED_ORIGINS.includes(requestOrigin)) {
+    return requestOrigin;
+  }
+  return SITE_URL;
+}
+
+function buildCorsHeaders(requestOrigin: string | null): Record<string, string> {
+  const origin = getCorsOrigin(requestOrigin);
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, cache-control, pragma, expires',
+    'Access-Control-Allow-Credentials': 'true',
+    'Access-Control-Max-Age': '86400',
+    'Vary': 'Origin',
+  };
+}
+
+function handleOptions(req: Request): Response {
+  const origin = req.headers.get('origin');
   return new Response(null, {
     status: 204,
-    headers: CORS_HEADERS,
+    headers: buildCorsHeaders(origin),
   });
 }
 
@@ -28,13 +53,14 @@ function handleOptions(): Response {
 // ============================================================================
 
 async function processPurchase(req: Request): Promise<Response> {
+  const corsHeaders = buildCorsHeaders(req.headers.get('origin'));
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
   if (!supabaseUrl || !serviceRoleKey) {
     return new Response(
       JSON.stringify({ success: false, error: "Configuration error" }),
-      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 
@@ -44,7 +70,7 @@ async function processPurchase(req: Request): Promise<Response> {
   } catch {
     return new Response(
       JSON.stringify({ success: false, error: "Invalid JSON" }),
-      { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 
@@ -60,14 +86,14 @@ async function processPurchase(req: Request): Promise<Response> {
   if (!userId && !walletAddress) {
     return new Response(
       JSON.stringify({ success: false, error: "userId or walletAddress required" }),
-      { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 
   if (!competitionId || !numberOfTickets || !ticketPrice) {
     return new Response(
       JSON.stringify({ success: false, error: "Missing required fields" }),
-      { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 
@@ -102,7 +128,7 @@ async function processPurchase(req: Request): Promise<Response> {
   if (userBalance < totalCost) {
     return new Response(
       JSON.stringify({ success: false, error: `Insufficient balance. Need ${totalCost.toFixed(2)} USDC, have ${userBalance.toFixed(2)} USDC`, errorCode: "insufficient_balance" }),
-      { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 
@@ -116,7 +142,7 @@ async function processPurchase(req: Request): Promise<Response> {
   if (!comp || comp.status !== "active") {
     return new Response(
       JSON.stringify({ success: false, error: "Competition not found or not active" }),
-      { status: 404, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 
@@ -157,7 +183,7 @@ async function processPurchase(req: Request): Promise<Response> {
   if (ticketNumbers.length < numberOfTickets) {
     return new Response(
       JSON.stringify({ success: false, error: `Only ${ticketNumbers.length} tickets available` }),
-      { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 
@@ -233,7 +259,7 @@ async function processPurchase(req: Request): Promise<Response> {
       new_balance: newBalance,
       message: `Successfully purchased ${ticketNumbers.length} tickets!`,
     }),
-    { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } }
   );
 }
 
@@ -241,14 +267,15 @@ async function processPurchase(req: Request): Promise<Response> {
 Deno.serve(async (req: Request) => {
   // Handle preflight immediately - no Supabase client needed
   if (req.method === "OPTIONS") {
-    return handleOptions();
+    return handleOptions(req);
   }
 
   // Only POST allowed for actual requests
   if (req.method !== "POST") {
+    const corsHeaders = buildCorsHeaders(req.headers.get('origin'));
     return new Response(
       JSON.stringify({ success: false, error: "Method not allowed" }),
-      { status: 405, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 
@@ -256,9 +283,10 @@ Deno.serve(async (req: Request) => {
     return await processPurchase(req);
   } catch (error) {
     console.error("Purchase error:", error);
+    const corsHeaders = buildCorsHeaders(req.headers.get('origin'));
     return new Response(
       JSON.stringify({ success: false, error: (error as Error).message || "Internal error" }),
-      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
