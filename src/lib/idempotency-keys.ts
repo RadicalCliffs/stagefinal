@@ -5,7 +5,6 @@
  * Ensures that retries use the same key until a terminal outcome is received.
  */
 
-import { nanoid } from 'nanoid';
 
 interface IdempotencyRecord {
   key: string;
@@ -55,8 +54,9 @@ class IdempotencyKeyManager {
       }
     }
 
-    // Create new key
-    const key = `idem_${nanoid(21)}`;
+    // Create new key - use UUID format to ensure compatibility with database
+    // columns and triggers that may cast values to UUID type
+    const key = crypto.randomUUID();
     const record: IdempotencyRecord = {
       key,
       reservationId,

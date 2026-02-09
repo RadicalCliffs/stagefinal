@@ -32,6 +32,288 @@ function errorResponse(
   return jsonResponse({ success: false, error: { code, message } }, status);
 }
 
+/**
+ * SAFEGUARD 1: Server-side retry + direct DB fallback
+ * If the RPC fails, retry up to 2 times, then fall back to direct DB operations.
+ */
+async function callRpcWithRetry(
+  supabase: ReturnType<typeof createClient>,
+  params: {
+    canonicalUserId: string;
+    competitionId: string;
+    ticketPrice: number;
+    ticketCount: number | null;
+    ticketNumbers: number[] | null;
+    idempotencyKey: string | null;
+  },
+  requestId: string,
+  maxRetries: number = 2
+): Promise<{ data: any; error: any }> {
+  let lastError: any = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (attempt > 0) {
+      const delay = Math.min(500 * Math.pow(2, attempt - 1), 2000);
+      console.log(
+        `[purchase-with-balance-proxy][${requestId}] RPC retry ${attempt}/${maxRetries} after ${delay}ms`
+      );
+      await new Promise((r) => setTimeout(r, delay));
+    }
+
+    try {
+      const { data: rpcResult, error: rpcError } = await supabase.rpc(
+        "purchase_tickets_with_balance",
+        {
+          p_user_identifier: params.canonicalUserId,
+          p_competition_id: params.competitionId,
+          p_ticket_price: params.ticketPrice,
+          p_ticket_count: params.ticketCount,
+          p_ticket_numbers: params.ticketNumbers,
+          p_idempotency_key: params.idempotencyKey,
+        }
+      );
+
+      if (!rpcError && rpcResult) {
+        return { data: rpcResult, error: null };
+      }
+
+      // If it's a validation error from the RPC result itself, don't retry
+      if (rpcResult && !rpcResult.success) {
+        const code = rpcResult.error_code || "";
+        if (
+          code === "INSUFFICIENT_BALANCE" ||
+          code === "NO_BALANCE_RECORD" ||
+          code === "VALIDATION_ERROR"
+        ) {
+          return { data: rpcResult, error: null };
+        }
+      }
+
+      lastError = rpcError;
+      console.warn(
+        `[purchase-with-balance-proxy][${requestId}] RPC attempt ${attempt + 1} failed:`,
+        rpcError?.message || "null result"
+      );
+    } catch (err) {
+      lastError = err;
+      console.warn(
+        `[purchase-with-balance-proxy][${requestId}] RPC attempt ${attempt + 1} exception:`,
+        err instanceof Error ? err.message : err
+      );
+    }
+  }
+
+  return { data: null, error: lastError };
+}
+
+/**
+ * SAFEGUARD 2: Direct database fallback when RPC is completely unreachable.
+ * Performs the same operations as the RPC but using individual queries.
+ * This is the nuclear option - only used when the RPC fails completely.
+ */
+async function directDatabaseFallback(
+  supabase: ReturnType<typeof createClient>,
+  params: {
+    canonicalUserId: string;
+    competitionId: string;
+    ticketPrice: number;
+    ticketNumbers: number[];
+    idempotencyKey: string;
+  },
+  requestId: string
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  const { canonicalUserId, competitionId, ticketNumbers, ticketPrice, idempotencyKey } = params;
+
+  console.log(
+    `[purchase-with-balance-proxy][${requestId}] FALLBACK: Direct DB operations for ${ticketNumbers.length} tickets`
+  );
+
+  try {
+    // Step 1: Check for idempotent duplicate first
+    const { data: existingEntry } = await supabase
+      .from("joincompetition")
+      .select("uid, ticketnumbers, amountspent")
+      .eq("competitionid", competitionId)
+      .eq("transactionhash", idempotencyKey)
+      .limit(1)
+      .maybeSingle();
+
+    if (existingEntry) {
+      console.log(
+        `[purchase-with-balance-proxy][${requestId}] FALLBACK: Idempotent hit - already processed`
+      );
+      const existingTickets = existingEntry.ticketnumbers
+        ? existingEntry.ticketnumbers.split(",").map(Number)
+        : ticketNumbers;
+
+      // Get current balance
+      const { data: balRow } = await supabase
+        .from("sub_account_balances")
+        .select("available_balance")
+        .eq("canonical_user_id", canonicalUserId)
+        .eq("currency", "USD")
+        .limit(1)
+        .maybeSingle();
+
+      return {
+        success: true,
+        data: {
+          success: true,
+          idempotent: true,
+          entry_id: existingEntry.uid,
+          ticket_numbers: existingTickets,
+          ticket_count: existingTickets.length,
+          total_cost: existingEntry.amountspent,
+          available_balance: balRow?.available_balance ?? 0,
+          competition_id: competitionId,
+        },
+      };
+    }
+
+    // Step 2: Get user balance
+    const { data: balanceRow, error: balError } = await supabase
+      .from("sub_account_balances")
+      .select("available_balance, id")
+      .eq("canonical_user_id", canonicalUserId)
+      .eq("currency", "USD")
+      .limit(1)
+      .maybeSingle();
+
+    if (balError || !balanceRow) {
+      return { success: false, error: "User balance not found" };
+    }
+
+    const currentBalance = Number(balanceRow.available_balance);
+    const totalCost = ticketPrice * ticketNumbers.length;
+
+    if (currentBalance < totalCost) {
+      return { success: false, error: "Insufficient balance" };
+    }
+
+    const newBalance = currentBalance - totalCost;
+
+    // Step 3: Deduct balance
+    const { error: updateErr } = await supabase
+      .from("sub_account_balances")
+      .update({
+        available_balance: newBalance,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("canonical_user_id", canonicalUserId)
+      .eq("currency", "USD");
+
+    if (updateErr) {
+      console.error(
+        `[purchase-with-balance-proxy][${requestId}] FALLBACK: Balance update failed:`,
+        updateErr.message
+      );
+      return { success: false, error: "Failed to deduct balance" };
+    }
+
+    // Step 4: Create competition entry
+    const entryId = crypto.randomUUID();
+    const ticketNumbersStr = ticketNumbers.join(",");
+
+    const { error: entryErr } = await supabase
+      .from("joincompetition")
+      .insert({
+        uid: entryId,
+        userid: canonicalUserId,
+        competitionid: competitionId,
+        ticketnumbers: ticketNumbersStr,
+        numberoftickets: ticketNumbers.length,
+        amountspent: totalCost,
+        transactionhash: idempotencyKey,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
+    if (entryErr) {
+      console.error(
+        `[purchase-with-balance-proxy][${requestId}] FALLBACK: Entry insert failed:`,
+        entryErr.message
+      );
+      // Balance was already deducted - try to refund
+      await supabase
+        .from("sub_account_balances")
+        .update({
+          available_balance: currentBalance,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("canonical_user_id", canonicalUserId)
+        .eq("currency", "USD");
+      return { success: false, error: "Failed to create competition entry" };
+    }
+
+    // Step 5: Insert ticket records (non-blocking - entry is source of truth)
+    try {
+      const ticketRows = ticketNumbers.map((num) => ({
+        competition_id: competitionId,
+        ticket_number: num,
+        user_id: canonicalUserId,
+        status: "sold",
+        tx_id: idempotencyKey,
+        created_at: new Date().toISOString(),
+      }));
+
+      await supabase.from("tickets").insert(ticketRows);
+    } catch (ticketErr) {
+      console.warn(
+        `[purchase-with-balance-proxy][${requestId}] FALLBACK: Ticket insert failed (non-blocking):`,
+        ticketErr
+      );
+    }
+
+    // Step 6: Insert balance ledger entry (non-blocking)
+    try {
+      await supabase.from("balance_ledger").insert({
+        canonical_user_id: canonicalUserId,
+        transaction_type: "debit",
+        amount: -totalCost,
+        currency: "USD",
+        balance_before: currentBalance,
+        balance_after: newBalance,
+        reference_id: idempotencyKey,
+        description: `Purchase ${ticketNumbers.length} tickets for competition (fallback)`,
+        created_at: new Date().toISOString(),
+      });
+    } catch (ledgerErr) {
+      console.warn(
+        `[purchase-with-balance-proxy][${requestId}] FALLBACK: Ledger insert failed (non-blocking):`,
+        ledgerErr
+      );
+    }
+
+    console.log(
+      `[purchase-with-balance-proxy][${requestId}] FALLBACK: Success! ${ticketNumbers.length} tickets, entry=${entryId}`
+    );
+
+    return {
+      success: true,
+      data: {
+        success: true,
+        entry_id: entryId,
+        ticket_numbers: ticketNumbers,
+        ticket_count: ticketNumbers.length,
+        total_cost: totalCost,
+        previous_balance: currentBalance,
+        available_balance: newBalance,
+        competition_id: competitionId,
+        fallback: true,
+      },
+    };
+  } catch (err) {
+    console.error(
+      `[purchase-with-balance-proxy][${requestId}] FALLBACK: Fatal error:`,
+      err
+    );
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Fallback failed",
+    };
+  }
+}
+
 export default async (req: Request, context: Context) => {
   const requestId = crypto.randomUUID().slice(0, 8);
 
@@ -83,10 +365,27 @@ export default async (req: Request, context: Context) => {
     const ticketPrice = Number(
       body.ticketPrice ?? body.ticket_price ?? body.price ?? 0
     );
-    const idempotencyKey =
+    const rawIdempotencyKey =
       (body.idempotency_key as string) ||
       (body.idempotencyKey as string) ||
       null;
+
+    // CRITICAL: Ensure idempotency key is UUID format to avoid
+    // "invalid input syntax for type uuid" errors in database triggers.
+    // If the client sends a non-UUID key (e.g., "idem_..." or "web-..."),
+    // generate a fresh UUID instead.
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const idempotencyKey = rawIdempotencyKey
+      ? UUID_REGEX.test(rawIdempotencyKey)
+        ? rawIdempotencyKey
+        : crypto.randomUUID()
+      : crypto.randomUUID(); // SAFEGUARD: Always generate a key if none provided
+
+    if (rawIdempotencyKey && rawIdempotencyKey !== idempotencyKey) {
+      console.warn(
+        `[purchase-with-balance-proxy][${requestId}] Non-UUID idempotency key replaced: ${rawIdempotencyKey.substring(0, 10)}... -> ${idempotencyKey}`
+      );
+    }
     const reservationId =
       (body.reservation_id as string) ||
       (body.reservationId as string) ||
@@ -160,34 +459,68 @@ export default async (req: Request, context: Context) => {
       `[purchase-with-balance-proxy][${requestId}] Calling purchase_tickets_with_balance RPC`
     );
 
-    // Call the atomic RPC directly instead of the edge function
-    const { data: rpcResult, error: rpcError } = await supabase.rpc(
-      "purchase_tickets_with_balance",
+    // SAFEGUARD 1: Call RPC with automatic retry (up to 2 retries)
+    const { data: rpcResult, error: rpcError } = await callRpcWithRetry(
+      supabase,
       {
-        p_user_identifier: canonicalUserId,
-        p_competition_id: competitionId,
-        p_ticket_price: ticketPrice,
-        p_ticket_count: ticketCount,
-        p_ticket_numbers: ticketNumbers,
-        p_idempotency_key: idempotencyKey,
-      }
+        canonicalUserId,
+        competitionId,
+        ticketPrice,
+        ticketCount,
+        ticketNumbers,
+        idempotencyKey,
+      },
+      requestId
     );
 
-    if (rpcError) {
+    // SAFEGUARD 2: If RPC completely failed, use direct database fallback
+    let finalResult = rpcResult;
+    if (rpcError || !rpcResult) {
       console.error(
-        `[purchase-with-balance-proxy][${requestId}] RPC error:`,
-        rpcError.message
+        `[purchase-with-balance-proxy][${requestId}] RPC failed after retries, attempting direct DB fallback`
       );
-      return errorResponse(
-        "RPC_ERROR",
-        rpcError.message || "Purchase failed",
-        500
+
+      // For direct fallback, we need actual ticket numbers (not just a count)
+      const fallbackTicketNumbers = ticketNumbers || [];
+      if (fallbackTicketNumbers.length === 0 && ticketCount && ticketCount > 0) {
+        // We can't do lucky dip in the fallback - need the RPC for that
+        // But we can still try one more RPC call with a longer timeout
+        console.warn(
+          `[purchase-with-balance-proxy][${requestId}] Lucky dip not supported in fallback, need ticket numbers`
+        );
+        return errorResponse(
+          "RPC_ERROR",
+          rpcError?.message || "Purchase service temporarily unavailable. Please try again.",
+          500
+        );
+      }
+
+      const fallbackResult = await directDatabaseFallback(
+        supabase,
+        {
+          canonicalUserId,
+          competitionId,
+          ticketPrice,
+          ticketNumbers: fallbackTicketNumbers,
+          idempotencyKey,
+        },
+        requestId
       );
+
+      if (!fallbackResult.success) {
+        return errorResponse(
+          "PURCHASE_FAILED",
+          fallbackResult.error || "Purchase failed after all attempts",
+          500
+        );
+      }
+
+      finalResult = fallbackResult.data;
     }
 
-    if (!rpcResult) {
+    if (!finalResult) {
       console.error(
-        `[purchase-with-balance-proxy][${requestId}] RPC returned null`
+        `[purchase-with-balance-proxy][${requestId}] No result from any attempt`
       );
       return errorResponse(
         "RPC_ERROR",
@@ -197,19 +530,20 @@ export default async (req: Request, context: Context) => {
     }
 
     console.log(
-      `[purchase-with-balance-proxy][${requestId}] RPC result:`,
+      `[purchase-with-balance-proxy][${requestId}] Result:`,
       JSON.stringify({
-        success: rpcResult.success,
-        ticketCount: rpcResult.ticket_count,
-        idempotent: rpcResult.idempotent,
-        hasError: !!rpcResult.error,
+        success: finalResult.success,
+        ticketCount: finalResult.ticket_count,
+        idempotent: finalResult.idempotent,
+        hasError: !!finalResult.error,
+        fallback: !!finalResult.fallback,
       })
     );
 
     // The RPC returns {success, error, entry_id, ticket_numbers, ticket_count, total_cost, available_balance, ...}
-    if (!rpcResult.success) {
-      const errorCode = rpcResult.error_code || "PURCHASE_FAILED";
-      const errorMessage = rpcResult.error || "Purchase failed";
+    if (!finalResult.success) {
+      const errorCode = finalResult.error_code || "PURCHASE_FAILED";
+      const errorMessage = finalResult.error || "Purchase failed";
 
       // Map specific error codes to HTTP status codes
       let httpStatus = 400;
@@ -219,9 +553,9 @@ export default async (req: Request, context: Context) => {
       return errorResponse(errorCode, errorMessage, httpStatus);
     }
 
-    // If reservation was used, update its status
+    // If reservation was used, update its status (non-blocking)
     if (reservationId) {
-      await supabase
+      supabase
         .from("pending_tickets")
         .update({
           status: "confirmed",
@@ -241,19 +575,19 @@ export default async (req: Request, context: Context) => {
 
     // Transform RPC result to match the format the client expects:
     // { status: 'ok', competition_id, tickets: [{ticket_number}], entry_id, total_cost, available_balance }
-    const ticketNumbersResult: number[] = rpcResult.ticket_numbers || [];
+    const ticketNumbersResult: number[] = finalResult.ticket_numbers || [];
     const responseData = {
       status: "ok",
       success: true,
-      competition_id: rpcResult.competition_id || competitionId,
+      competition_id: finalResult.competition_id || competitionId,
       tickets: ticketNumbersResult.map((num: number) => ({
         ticket_number: num,
       })),
-      entry_id: rpcResult.entry_id,
-      total_cost: rpcResult.total_cost,
-      new_balance: rpcResult.available_balance,
-      available_balance: rpcResult.available_balance,
-      idempotent: rpcResult.idempotent || false,
+      entry_id: finalResult.entry_id,
+      total_cost: finalResult.total_cost,
+      new_balance: finalResult.available_balance,
+      available_balance: finalResult.available_balance,
+      idempotent: finalResult.idempotent || false,
       message: `Successfully purchased ${ticketNumbersResult.length} tickets`,
     };
 

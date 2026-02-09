@@ -266,9 +266,9 @@ export const executeBalancePayment = (
     throw new Error('ticketCount must be a positive integer for executeBalancePayment');
   }
   
-  // Generate idempotency key if not provided
-  const finalIdempotencyKey = idempotencyKey || 
-    `${userIdentifier.substring(0, 20)}-${competitionId.substring(0, 8)}-${Date.now()}`;
+  // Generate idempotency key if not provided - must be UUID format
+  // to avoid "invalid input syntax for type uuid" errors in database triggers
+  const finalIdempotencyKey = idempotencyKey || crypto.randomUUID();
   
   return supabaseClient.rpc('execute_balance_payment', {
     p_competition_id: competitionId,

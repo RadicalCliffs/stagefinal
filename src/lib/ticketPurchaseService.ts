@@ -685,9 +685,9 @@ export async function executeBalancePaymentRPC({
     };
   }
 
-  // Generate idempotency key if not provided
-  const finalIdempotencyKey = idempotencyKey ||
-    `${userId}-${competitionId}-${amount}-${ticketCount}-${Date.now()}`;
+  // Generate idempotency key if not provided - must be UUID format
+  // to avoid "invalid input syntax for type uuid" errors in database triggers
+  const finalIdempotencyKey = idempotencyKey || crypto.randomUUID();
 
   try {
     console.log('[executeBalancePaymentRPC] Calling execute_balance_payment RPC with:', {

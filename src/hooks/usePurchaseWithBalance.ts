@@ -114,9 +114,9 @@ export function usePurchaseWithBalance(): UsePurchaseWithBalanceResult {
       // For subsequent retries, this will return the same key
       let idempotencyKey = idempotencyKeyRef.current;
       if (!idempotencyKey) {
-        idempotencyKey = reservationId 
+        idempotencyKey = reservationId
           ? idempotencyKeyManager.getOrCreateKey(reservationId)
-          : `web-${crypto.randomUUID()}`;
+          : crypto.randomUUID();
         idempotencyKeyRef.current = idempotencyKey;
       }
       
