@@ -232,7 +232,7 @@ export const userDataService = {
       if (!rpcError && rpcBalance !== null) {
         // get_user_balance returns JSONB object: { success, balance, bonus_balance, total_balance }
         const balanceData = parseBalanceResponse(rpcBalance);
-        walletBalance = balanceData.balance;
+        walletBalance = balanceData.balance ?? 0;
       } else {
         if (isTypeMismatchError) {
           console.warn('[userDataService] RPC type mismatch error - database migration may need to be applied. Falling back to direct query.');
@@ -247,7 +247,7 @@ export const userDataService = {
         if (balanceError) {
           console.error('Error fetching user balance:', balanceError);
         }
-        walletBalance = Number(userBalance?.balance || 0);
+        walletBalance = Number(userBalance?.balance ?? 0 || 0);
       }
 
       // Get recent entries count - use direct query instead of bypass_rls

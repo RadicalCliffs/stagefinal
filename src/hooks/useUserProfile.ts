@@ -279,4 +279,4 @@ export function useUserProfile(privyUserId: string | null | undefined): UseUserP
   };
 }
 
-export default useUserProfile;
+export { useUserProfile };

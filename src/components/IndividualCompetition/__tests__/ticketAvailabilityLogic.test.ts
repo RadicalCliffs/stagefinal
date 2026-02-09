@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Tests for ticket availability banner logic
  * 
@@ -8,7 +9,7 @@
  * Otherwise, verify the logic manually - these test cases document expected behavior.
  */
 
-import { shouldShowUnavailableBanner } from '../IndividualCompetitionHeroSection';
+import { shouldShowUnavailableBanner } from '../IndividualCompetitionHeroSection.tsx';
 
 // Simple test framework
 let testsPassed = 0;

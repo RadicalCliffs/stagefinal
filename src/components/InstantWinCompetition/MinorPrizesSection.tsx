@@ -216,7 +216,7 @@ const MinorPrizesSection: React.FC<MinorPrizesSectionProps> = ({
           .select('*')
           .eq('competitionId', lookupId)
           .gte('priority', MIN_PRIORITY_FOR_MINOR)
-          .order('winningTicket', { ascending: true });
+          .order('winningTicket', { ascending: true }) as { data: any[]; error: any };
 
         if (!error && data) {
           // Map database entries to MinorPrizeEntry

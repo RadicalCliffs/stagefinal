@@ -65,11 +65,13 @@ async function getNotificationUserId(userId: string): Promise<string | null> {
       const normalizedWallet = userId.toLowerCase();
 
       // Check if user already exists by wallet address (case-insensitive)
-      const { data: existingUser } = await supabase
+      const existingUserResult = await supabase
         .from('canonical_users')
         .select('id')
         .or(`wallet_address.ilike.${normalizedWallet},base_wallet_address.ilike.${normalizedWallet}`)
-        .limit(1);
+        .limit(1) as { data: any; error: any };
+      
+      const { data: existingUser } = existingUserResult;
 
       if (existingUser && existingUser.length > 0) {
         return existingUser[0].id;
@@ -418,9 +420,11 @@ export const notificationService = {
       created_at: new Date().toISOString(),
     }));
 
-    const { error } = await supabase
+    const insertResult = await supabase
       .from('user_notifications')
-      .insert(notifications);
+      .insert(notifications) as { data: any; error: any };
+    
+    const { error } = insertResult;
 
     if (error) {
       console.error('Error sending bulk notifications:', error);
@@ -505,9 +509,11 @@ export const notificationService = {
       );
 
       // Fetch user transactions using RPC
-      const { data: transactions, error: txError } = await supabase.rpc('get_user_transactions', {
+      const txResult = await supabase.rpc('get_user_transactions', {
         p_user_identifier: toPrizePid(userId),
-      });
+      }) as { data: any; error: any };
+      
+      const { data: transactions, error: txError } = txResult;
 
       if (txError) {
         console.warn('[NotificationService] Could not fetch transactions for backfill:', txError.message);
@@ -569,9 +575,11 @@ export const notificationService = {
       // Fetch user entries using RPC (with fallback for when RPC is not available)
       let entries: any[] = [];
       try {
-        const { data: rpcData, error: entryError } = await supabase.rpc('get_user_tickets', {
+        const entryRpcResult = await supabase.rpc('get_user_tickets', {
           user_identifier: toPrizePid(userId),
-        });
+        }) as { data: any; error: any };
+        
+        const { data: rpcData, error: entryError } = entryRpcResult;
 
         if (!entryError && rpcData) {
           entries = rpcData;

@@ -234,7 +234,9 @@ class OmnipotentDataService {
         query = query.eq('status', status);
       }
 
-      const { data, error } = await query;
+      const result = await query as { data: any; error: any };
+      
+      const { data, error } = result;
 
       if (error) throw error;
 
@@ -263,11 +265,13 @@ class OmnipotentDataService {
     }
 
     try {
-      const { data, error } = await supabase
+      const result = await supabase
         .from('competitions')
         .select('*')
         .eq('id', competitionId)
-        .single();
+        .single() as { data: any; error: any };
+      
+      const { data, error } = result;
 
       if (error) throw error;
 
@@ -387,10 +391,12 @@ class OmnipotentDataService {
       } else {
         // Fallback to bypass_rls version if standard fails
         console.log('[OmnipotentData] Standard RPC unavailable, trying bypass_rls');
-        const { data: bypassData, error: bypassError } = await supabase
+        const bypassResult = await supabase
           .rpc('get_competition_entries_bypass_rls', {
             competition_identifier: competitionId
-          });
+          }) as { data: any; error: any };
+        
+        const { data: bypassData, error: bypassError } = bypassResult;
         data = bypassData;
         error = bypassError;
       }
@@ -491,7 +497,7 @@ class OmnipotentDataService {
         // Get pending (reserved) tickets from pending_ticket_items
         // SCHEMA: pending_ticket_items has: id, pending_ticket_id, competition_id, ticket_number (INTEGER), created_at
         // We need to join with pending_tickets to check expires_at and status
-        const { data: pendingItemsData } = await supabase
+        const pendingResult = await supabase
           .from('pending_ticket_items')
           .select(`
             ticket_number,
@@ -500,7 +506,9 @@ class OmnipotentDataService {
               status
             )
           `)
-          .eq('competition_id', competitionId);
+          .eq('competition_id', competitionId) as { data: any; error: any };
+        
+        const { data: pendingItemsData } = pendingResult;
 
         if (pendingItemsData) {
           const now = new Date();
@@ -519,11 +527,13 @@ class OmnipotentDataService {
         // PRODUCTION FIX: Also get pending tickets from pending_tickets.ticket_numbers
         // Production schema has ticket_numbers column that is actively used
         // This handles case where pending_ticket_items is empty but pending_tickets has data
-        const { data: pendingTicketsData } = await supabase
+        const pendingTicketsResult = await supabase
           .from('pending_tickets')
           .select('ticket_numbers, expires_at, status')
           .eq('competition_id', competitionId)
-          .in('status', ['pending', 'confirming']);
+          .in('status', ['pending', 'confirming']) as { data: any; error: any };
+        
+        const { data: pendingTicketsData } = pendingTicketsResult;
 
         if (pendingTicketsData) {
           const now = new Date();
@@ -543,10 +553,12 @@ class OmnipotentDataService {
 
         // Get sold tickets from v_joincompetition_active
         // SCHEMA: v_joincompetition_active has: competitionid, ticketnumbers (comma-separated string or array)
-        const { data: soldData } = await supabase
+        const soldResult = await supabase
           .from('v_joincompetition_active')
           .select('ticketnumbers')
-          .eq('competitionid', competitionId);
+          .eq('competitionid', competitionId) as { data: any; error: any };
+        
+        const { data: soldData } = soldResult;
 
         if (soldData) {
           soldData.forEach((row: any) => {
@@ -1036,7 +1048,7 @@ class OmnipotentDataService {
           query = query.eq(key, value);
         });
       }
-      return await query;
+      return await query as any;
     }
 
     return await aggressiveCRUD.select<T>(table, columns, filters, {
@@ -1054,7 +1066,7 @@ class OmnipotentDataService {
   ): Promise<{ data: T | null; error: any }> {
     if (!this.aggressiveMode || !hasAdminAccess()) {
       // Fallback to regular insert
-      return await supabase.from(table).insert(data).select().single();
+      return await supabase.from(table).insert(data).select().single() as any;
     }
 
     return await aggressiveCRUD.insert<T>(table, data, {
@@ -1077,7 +1089,7 @@ class OmnipotentDataService {
       Object.entries(filters).forEach(([key, value]) => {
         query = query.eq(key, value);
       });
-      return await query.select().single();
+      return await query.select().single() as any;
     }
 
     return await aggressiveCRUD.update<T>(table, data, filters, {
@@ -1097,7 +1109,7 @@ class OmnipotentDataService {
     if (!this.aggressiveMode || !hasAdminAccess()) {
       // Fallback to regular upsert
       const opts = onConflict ? { onConflict } : undefined;
-      return await supabase.from(table).upsert(data, opts).select().single();
+      return await supabase.from(table).upsert(data, opts).select().single() as any;
     }
 
     return await aggressiveCRUD.upsert<T>(table, data, {
@@ -1120,7 +1132,7 @@ class OmnipotentDataService {
       Object.entries(filters).forEach(([key, value]) => {
         query = query.eq(key, value);
       });
-      return await query;
+      return await query as any;
     }
 
     return await aggressiveCRUD.delete(table, filters, {

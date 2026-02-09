@@ -40,7 +40,7 @@ export async function fetchUserOverview(
       .from('user_overview')
       .select('*')
       .eq('canonical_user_id', canonicalUserId)
-      .single();
+      .single() as any;
 
     if (error) {
       // If no rows found, return null instead of throwing

@@ -329,4 +329,4 @@ export function useRealtimeSubscriptions(options: RealtimeSubscriptionOptions = 
   };
 }
 
-export default useRealtimeSubscriptions;
+export { useRealtimeSubscriptions };

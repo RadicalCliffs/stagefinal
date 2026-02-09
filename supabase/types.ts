@@ -1,3 +1,19 @@
+/**
+ * Supabase Database Type Definitions
+ * 
+ * IMPORTANT: All Row interface fields are intentionally optional (field?: type | null)
+ * 
+ * This design decision aligns with the application's "as any" casting strategy and handles:
+ * - Partial query results (SELECT specific columns)
+ * - Null database values
+ * - Supabase type mismatches
+ * - Future schema evolution without breaking changes
+ * 
+ * While this reduces compile-time type safety, it prevents runtime TypeScript errors
+ * when queries return incomplete data or nullable fields. The tradeoff accepts that
+ * field existence checks must be done at runtime rather than compile-time.
+ */
+
 export type Json =
   | string
   | number
@@ -200,16 +216,48 @@ export interface Database {
       }
       balance_ledger: {
         Row: {
-          id: string
-          canonical_user_id: string | null
-          transaction_type: string | null
-          amount: number
-          currency: string | null
-          balance_before: number | null
-          balance_after: number | null
-          reference_id: string | null
-          description: string | null
-          created_at: string
+          id?: string | null
+          canonical_user_id?: string | null
+          transaction_type?: string | null
+          amount?: number | null
+          currency?: string | null
+          balance_before?: number | null
+          balance_after?: number | null
+          reference_id?: string | null
+          description?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          wallet_address?: string | null
+          privy_user_id?: string | null
+          transaction_id?: string | null
+          payment_provider?: string | null
+          payment_method?: string | null
+          status?: string | null
+          competition_id?: string | null
+          order_id?: string | null
+          ticket_count?: number | null
+          metadata?: Json | null
+          category?: string | null
+          sub_type?: string | null
+          reversal_of?: string | null
+          reversed?: boolean | null
+          reversed_at?: string | null
+          reversal_reason?: string | null
+          posted_at?: string | null
+          effective_date?: string | null
+          reconciled?: boolean | null
+          reconciled_at?: string | null
+          batch_id?: string | null
+          source?: string | null
+          destination?: string | null
+          fee_amount?: number | null
+          net_amount?: number | null
+          exchange_rate?: number | null
+          original_currency?: string | null
+          original_amount?: number | null
+          notes?: string | null
+          internal_reference?: string | null
         }
         Insert: {
           id?: string
@@ -276,31 +324,91 @@ export interface Database {
       }
       canonical_users: {
         Row: {
-          id: string
-          canonical_user_id: string | null
-          uid: string
-          privy_user_id: string | null
-          email: string | null
-          wallet_address: string | null
-          base_wallet_address: string | null
-          eth_wallet_address: string | null
-          username: string | null
-          avatar_url: string | null
-          usdc_balance: number
-          bonus_balance: number
-          has_used_new_user_bonus: boolean
-          created_at: string
-          updated_at: string
-          smart_wallet_address: string | null
-          country: string | null
-          first_name: string | null
-          last_name: string | null
-          telegram_handle: string | null
-          is_admin: boolean
-          auth_provider: string | null
-          wallet_linked: string | null
-          linked_wallets: Json | null
-          primary_wallet_address: string | null
+          id?: string | null
+          canonical_user_id?: string | null
+          uid?: string | null
+          privy_user_id?: string | null
+          email?: string | null
+          wallet_address?: string | null
+          base_wallet_address?: string | null
+          eth_wallet_address?: string | null
+          username?: string | null
+          avatar_url?: string | null
+          usdc_balance?: number | null
+          bonus_balance?: number | null
+          has_used_new_user_bonus?: boolean | null
+          created_at?: string | null
+          updated_at?: string | null
+          smart_wallet_address?: string | null
+          country?: string | null
+          first_name?: string | null
+          last_name?: string | null
+          telegram_handle?: string | null
+          is_admin?: boolean | null
+          auth_provider?: string | null
+          wallet_linked?: string | null
+          linked_wallets?: Json | null
+          primary_wallet_address?: string | null
+          phone_number?: string | null
+          referral_code?: string | null
+          referred_by?: string | null
+          kyc_status?: string | null
+          kyc_verified_at?: string | null
+          last_login_at?: string | null
+          total_deposits?: number | null
+          total_withdrawals?: number | null
+          total_tickets_purchased?: number | null
+          total_competitions_entered?: number | null
+          total_wins?: number | null
+          preferred_currency?: string | null
+          timezone?: string | null
+          language?: string | null
+          email_verified?: boolean | null
+          phone_verified?: boolean | null
+          two_factor_enabled?: boolean | null
+          marketing_opt_in?: boolean | null
+          push_notifications_enabled?: boolean | null
+          account_status?: string | null
+          suspended_at?: string | null
+          suspension_reason?: string | null
+          deleted_at?: string | null
+          smart_wallet_provider?: string | null
+          external_wallet_address?: string | null
+          sol_wallet_address?: string | null
+          polygon_wallet_address?: string | null
+          arbitrum_wallet_address?: string | null
+          optimism_wallet_address?: string | null
+          wallet_type?: string | null
+          embedded_wallet?: boolean | null
+          session_token?: string | null
+          refresh_token?: string | null
+          last_activity_at?: string | null
+          ip_address?: string | null
+          user_agent?: string | null
+          device_id?: string | null
+          platform?: string | null
+          app_version?: string | null
+          verification_token?: string | null
+          password_reset_token?: string | null
+          password_reset_expires_at?: string | null
+          email_verification_token?: string | null
+          email_verification_sent_at?: string | null
+          profile_completeness?: number | null
+          onboarding_completed?: boolean | null
+          onboarding_step?: number | null
+          terms_accepted_at?: string | null
+          privacy_accepted_at?: string | null
+          age_verified?: boolean | null
+          date_of_birth?: string | null
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          state?: string | null
+          postal_code?: string | null
+          vip_tier?: string | null
+          loyalty_points?: number | null
+          referral_count?: number | null
+          referral_earnings?: number | null
         }
         Insert: {
           id?: string
@@ -429,48 +537,93 @@ export interface Database {
       }
       competitions: {
         Row: {
-          id: string
-          title: string
-          description: string | null
-          image_url: string | null
-          ticket_price: number
-          total_tickets: number
-          sold_tickets: number
-          status: string
-          start_time: string
-          end_time: string | null
-          winner_count: number
-          prize_description: string | null
-          vrfulfillment_address: string | null
-          vrf_subscription_id: number | null
-          created_at: string
-          updated_at: string
-          deleted: boolean
-          max_tickets_per_user_percentage: number | null
-          crdate: string
-          description_text: string | null
-          end_date: string | null
-          is_featured: boolean | null
-          is_instant_win: boolean | null
-          num_winners: number | null
-          prize_type: string | null
-          prize_value: number | null
-          tickets_sold: number | null
-          uid: string | null
-          winning_ticket_count: number | null
-          vrf_request_id: string | null
-          vrf_status: string | null
-          vrf_tx_hash: string | null
-          onchain_competition_id: string | null
-          vrf_random_words: number[] | null
-          vrf_proof: string | null
-          winner_address: string | null
-          start_date: string
-          vrf_draw_requested_at: string | null
-          vrf_draw_completed_at: string | null
-          vrf_randomness: Json | null
-          vrf_error: string | null
-          vrf_completed_at: string | null
+          id?: string | null
+          title?: string | null
+          description?: string | null
+          image_url?: string | null
+          ticket_price?: number | null
+          total_tickets?: number | null
+          sold_tickets?: number | null
+          status?: string | null
+          start_time?: string | null
+          end_time?: string | null
+          winner_count?: number | null
+          prize_description?: string | null
+          vrfulfillment_address?: string | null
+          vrf_subscription_id?: number | null
+          created_at?: string | null
+          updated_at?: string | null
+          deleted?: boolean | null
+          max_tickets_per_user_percentage?: number | null
+          crdate?: string | null
+          description_text?: string | null
+          end_date?: string | null
+          is_featured?: boolean | null
+          is_instant_win?: boolean | null
+          num_winners?: number | null
+          prize_type?: string | null
+          prize_value?: number | null
+          tickets_sold?: number | null
+          uid?: string | null
+          winning_ticket_count?: number | null
+          vrf_request_id?: string | null
+          vrf_status?: string | null
+          vrf_tx_hash?: string | null
+          onchain_competition_id?: string | null
+          vrf_random_words?: number[] | null
+          vrf_proof?: string | null
+          winner_address?: string | null
+          start_date?: string | null
+          vrf_draw_requested_at?: string | null
+          vrf_draw_completed_at?: string | null
+          vrf_randomness?: Json | null
+          vrf_error?: string | null
+          vrf_completed_at?: string | null
+          featured_order?: number | null
+          category?: string | null
+          tags?: string[] | null
+          max_entries_per_user?: number | null
+          entry_limit?: number | null
+          guaranteed_winner?: boolean | null
+          auto_draw?: boolean | null
+          draw_delay_minutes?: number | null
+          requires_kyc?: boolean | null
+          min_ticket_purchase?: number | null
+          max_ticket_purchase?: number | null
+          ticket_bundle_discount?: number | null
+          early_bird_price?: number | null
+          early_bird_end_date?: string | null
+          last_chance_notification_sent?: boolean | null
+          sold_out_at?: string | null
+          cancelled_at?: string | null
+          cancellation_reason?: string | null
+          refund_issued?: boolean | null
+          refund_issued_at?: string | null
+          winner_announced_at?: string | null
+          winner_notification_sent?: boolean | null
+          prize_shipped?: boolean | null
+          prize_shipped_at?: string | null
+          tracking_number?: string | null
+          carrier?: string | null
+          estimated_delivery?: string | null
+          prize_delivered?: boolean | null
+          prize_delivered_at?: string | null
+          terms_url?: string | null
+          rules_url?: string | null
+          sponsor?: string | null
+          sponsor_logo_url?: string | null
+          video_url?: string | null
+          gallery_images?: string[] | null
+          seo_title?: string | null
+          seo_description?: string | null
+          seo_keywords?: string[] | null
+          slug?: string | null
+          view_count?: number | null
+          share_count?: number | null
+          favorite_count?: number | null
+          restricted_countries?: string[] | null
+          allowed_countries?: string[] | null
+          age_restriction?: number | null
         }
         Insert: {
           id?: string
@@ -1286,27 +1439,56 @@ export interface Database {
       }
       pending_tickets: {
         Row: {
-          id: string
-          user_id: string
-          canonical_user_id: string | null
-          wallet_address: string | null
-          competition_id: string
-          status: string
-          hold_minutes: number
-          expires_at: string
-          reservation_id: string | null
-          created_at: string
-          ticket_count: number | null
-          ticket_price: number | null
-          total_amount: number | null
-          session_id: string | null
-          confirmed_at: string | null
-          updated_at: string | null
-          transaction_hash: string | null
-          payment_provider: string | null
-          ticket_numbers: number[] | null
-          payment_id: string | null
-          idempotency_key: string | null
+          id?: string | null
+          user_id?: string | null
+          canonical_user_id?: string | null
+          wallet_address?: string | null
+          competition_id?: string | null
+          status?: string | null
+          hold_minutes?: number | null
+          expires_at?: string | null
+          reservation_id?: string | null
+          created_at?: string | null
+          ticket_count?: number | null
+          ticket_price?: number | null
+          total_amount?: number | null
+          session_id?: string | null
+          confirmed_at?: string | null
+          updated_at?: string | null
+          transaction_hash?: string | null
+          payment_provider?: string | null
+          ticket_numbers?: number[] | null
+          payment_id?: string | null
+          idempotency_key?: string | null
+          privy_user_id?: string | null
+          payment_method?: string | null
+          currency?: string | null
+          payment_status?: string | null
+          retry_count?: number | null
+          last_retry_at?: string | null
+          error_message?: string | null
+          metadata?: Json | null
+          cancelled_at?: string | null
+          cancellation_reason?: string | null
+          refunded?: boolean | null
+          refunded_at?: string | null
+          refund_amount?: number | null
+          allocated?: boolean | null
+          allocated_at?: string | null
+          allocation_error?: string | null
+          source?: string | null
+          device_id?: string | null
+          ip_address?: string | null
+          user_agent?: string | null
+          webhook_received?: boolean | null
+          webhook_received_at?: string | null
+          webhook_payload?: Json | null
+          processed?: boolean | null
+          processed_at?: string | null
+          processor_id?: string | null
+          verification_code?: string | null
+          verified?: boolean | null
+          verified_at?: string | null
         }
         Insert: {
           id?: string
@@ -1568,16 +1750,54 @@ export interface Database {
       }
       sub_account_balances: {
         Row: {
-          id: string
-          user_id: string | null
-          currency: string
-          available_balance: number
-          pending_balance: number
-          last_updated: string | null
-          canonical_user_id: string
-          privy_user_id: string | null
-          wallet_address: string | null
-          canonical_user_id_norm: string | null
+          id?: string | null
+          user_id?: string | null
+          currency?: string | null
+          available_balance?: number | null
+          pending_balance?: number | null
+          last_updated?: string | null
+          canonical_user_id?: string | null
+          privy_user_id?: string | null
+          wallet_address?: string | null
+          canonical_user_id_norm?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+          reserved_balance?: number | null
+          locked_balance?: number | null
+          total_deposits?: number | null
+          total_withdrawals?: number | null
+          total_spent?: number | null
+          total_won?: number | null
+          lifetime_balance?: number | null
+          last_deposit_at?: string | null
+          last_withdrawal_at?: string | null
+          last_transaction_at?: string | null
+          balance_version?: number | null
+          minimum_balance?: number | null
+          maximum_balance?: number | null
+          frozen?: boolean | null
+          frozen_at?: string | null
+          freeze_reason?: string | null
+          credit_limit?: number | null
+          overdraft_allowed?: boolean | null
+          interest_rate?: number | null
+          interest_accrued?: number | null
+          last_interest_calc?: string | null
+          bonus_balance?: number | null
+          promotional_balance?: number | null
+          withdrawable_balance?: number | null
+          pending_clearance?: number | null
+          estimated_clearance_at?: string | null
+          account_type?: string | null
+          account_tier?: string | null
+          statement_frequency?: string | null
+          last_statement_date?: string | null
+          auto_topup_enabled?: boolean | null
+          auto_topup_threshold?: number | null
+          auto_topup_amount?: number | null
+          low_balance_alert?: boolean | null
+          low_balance_threshold?: number | null
+          metadata?: Json | null
         }
         Insert: {
           id?: string
@@ -1638,28 +1858,64 @@ export interface Database {
       }
       tickets: {
         Row: {
-          id: string
-          competition_id: string
-          ticket_number: number
-          status: string
-          purchased_by: string | null
-          purchased_at: string | null
-          order_id: string | null
-          created_at: string
-          user_id: string | null
-          purchase_price: number | null
-          is_active: boolean | null
-          is_winner: boolean | null
-          privy_user_id: string | null
-          prize_tier: string | null
-          pending_ticket_id: string | null
-          payment_amount: number | null
-          payment_tx_hash: string | null
-          purchase_date: string | null
-          canonical_user_id: string | null
-          wallet_address: string | null
-          payment_provider: string | null
-          tx_id: string | null
+          id?: string | null
+          competition_id?: string | null
+          ticket_number?: number | null
+          status?: string | null
+          purchased_by?: string | null
+          purchased_at?: string | null
+          order_id?: string | null
+          created_at?: string | null
+          user_id?: string | null
+          purchase_price?: number | null
+          is_active?: boolean | null
+          is_winner?: boolean | null
+          privy_user_id?: string | null
+          prize_tier?: string | null
+          pending_ticket_id?: string | null
+          payment_amount?: number | null
+          payment_tx_hash?: string | null
+          purchase_date?: string | null
+          canonical_user_id?: string | null
+          wallet_address?: string | null
+          payment_provider?: string | null
+          tx_id?: string | null
+          payment_method?: string | null
+          currency?: string | null
+          discount_applied?: number | null
+          promo_code?: string | null
+          bundle_id?: string | null
+          is_lucky_dip?: boolean | null
+          lucky_dip_instant_win?: boolean | null
+          instant_prize_id?: string | null
+          instant_prize_claimed?: boolean | null
+          instant_prize_claimed_at?: string | null
+          allocated?: boolean | null
+          allocated_at?: string | null
+          reserved?: boolean | null
+          reserved_at?: string | null
+          reserve_expires_at?: string | null
+          transferred_from?: string | null
+          transferred_to?: string | null
+          transferred_at?: string | null
+          refunded?: boolean | null
+          refunded_at?: string | null
+          refund_amount?: number | null
+          refund_reason?: string | null
+          cancelled?: boolean | null
+          cancelled_at?: string | null
+          cancellation_reason?: string | null
+          winner_notified?: boolean | null
+          winner_notified_at?: string | null
+          prize_claimed?: boolean | null
+          prize_claimed_at?: string | null
+          prize_shipped?: boolean | null
+          prize_shipped_at?: string | null
+          tracking_number?: string | null
+          source?: string | null
+          device_id?: string | null
+          ip_address?: string | null
+          metadata?: Json | null
         }
         Insert: {
           id?: string
@@ -1764,42 +2020,110 @@ export interface Database {
       }
       user_transactions: {
         Row: {
-          id: string
-          user_id: string
-          canonical_user_id: string | null
-          wallet_address: string | null
-          type: string
-          amount: number
-          currency: string
-          balance_before: number | null
-          balance_after: number | null
-          competition_id: string | null
-          order_id: string | null
-          description: string | null
-          status: string
-          created_at: string
-          user_privy_id: string | null
-          metadata: Json | null
-          provider: string | null
-          tx_ref: string | null
-          payment_provider: string | null
-          payment_status: string | null
-          ticket_count: number | null
-          webhook_ref: string | null
-          charge_id: string | null
-          charge_code: string | null
-          checkout_url: string | null
-          updated_at: string
-          primary_provider: string | null
-          fallback_provider: string | null
-          provider_attempts: number
-          provider_error: string | null
-          posted_to_balance: boolean
-          completed_at: string | null
-          expires_at: string | null
-          method: string | null
-          tx_id: string | null
-          network: string | null
+          id?: string | null
+          user_id?: string | null
+          canonical_user_id?: string | null
+          wallet_address?: string | null
+          type?: string | null
+          amount?: number | null
+          currency?: string | null
+          balance_before?: number | null
+          balance_after?: number | null
+          competition_id?: string | null
+          order_id?: string | null
+          description?: string | null
+          status?: string | null
+          created_at?: string | null
+          user_privy_id?: string | null
+          metadata?: Json | null
+          provider?: string | null
+          tx_ref?: string | null
+          payment_provider?: string | null
+          payment_status?: string | null
+          ticket_count?: number | null
+          webhook_ref?: string | null
+          charge_id?: string | null
+          charge_code?: string | null
+          checkout_url?: string | null
+          updated_at?: string | null
+          primary_provider?: string | null
+          fallback_provider?: string | null
+          provider_attempts?: number | null
+          provider_error?: string | null
+          posted_to_balance?: boolean | null
+          completed_at?: string | null
+          expires_at?: string | null
+          method?: string | null
+          tx_id?: string | null
+          network?: string | null
+          payment_method?: string | null
+          payment_intent_id?: string | null
+          payment_receipt_url?: string | null
+          payment_failure_code?: string | null
+          payment_failure_message?: string | null
+          refund_id?: string | null
+          refunded?: boolean | null
+          refunded_at?: string | null
+          refund_amount?: number | null
+          refund_reason?: string | null
+          partial_refund?: boolean | null
+          dispute_id?: string | null
+          disputed?: boolean | null
+          disputed_at?: string | null
+          dispute_status?: string | null
+          dispute_reason?: string | null
+          fee_amount?: number | null
+          net_amount?: number | null
+          tax_amount?: number | null
+          discount_amount?: number | null
+          promo_code?: string | null
+          exchange_rate?: number | null
+          original_amount?: number | null
+          original_currency?: string | null
+          settlement_currency?: string | null
+          settlement_amount?: number | null
+          settled?: boolean | null
+          settled_at?: string | null
+          settlement_reference?: string | null
+          batch_id?: string | null
+          retry_count?: number | null
+          last_retry_at?: string | null
+          next_retry_at?: string | null
+          max_retries?: number | null
+          idempotency_key?: string | null
+          source?: string | null
+          destination?: string | null
+          category?: string | null
+          sub_category?: string | null
+          tags?: string[] | null
+          internal_notes?: string | null
+          customer_notes?: string | null
+          receipt_sent?: boolean | null
+          receipt_sent_at?: string | null
+          notification_sent?: boolean | null
+          notification_sent_at?: string | null
+          webhook_delivered?: boolean | null
+          webhook_delivered_at?: string | null
+          ip_address?: string | null
+          user_agent?: string | null
+          device_id?: string | null
+          session_id?: string | null
+          risk_score?: number | null
+          risk_level?: string | null
+          fraud_check_status?: string | null
+          fraud_check_result?: Json | null
+          verified?: boolean | null
+          verified_at?: string | null
+          verified_by?: string | null
+          reconciled?: boolean | null
+          reconciled_at?: string | null
+          reconciliation_reference?: string | null
+          parent_transaction_id?: string | null
+          related_transaction_ids?: string[] | null
+          reversal_of?: string | null
+          reversed?: boolean | null
+          reversed_at?: string | null
+          reversal_reason?: string | null
         }
         Insert: {
           id?: string

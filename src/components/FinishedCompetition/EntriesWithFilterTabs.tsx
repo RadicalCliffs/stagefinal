@@ -72,7 +72,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
           let rpcData: any[] | null = null;
           let rpcError: any = null;
 
-          const { data: standardData, error: standardError } = await getCompetitionEntries(supabase, idToUse);
+          const { data: standardData, error: standardError } = await getCompetitionEntries(supabase, idToUse) as any;
 
           if (!standardError && standardData) {
             rpcData = standardData;
@@ -625,7 +625,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
 
   // Subscribe to realtime updates for this competition's tickets and transactions
   const idToUse = competitionId || competitionUid;
-  const shouldSubscribe = idToUse && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idToUse);
+  const shouldSubscribe = !!(idToUse && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idToUse));
 
   useSupabaseRealtimeMultiple([
     {

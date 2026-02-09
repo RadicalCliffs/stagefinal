@@ -568,4 +568,4 @@ export function useWalletTokens(walletAddress?: string): UseWalletTokensResult {
   };
 }
 
-export default useWalletTokens;
+export { useWalletTokens };

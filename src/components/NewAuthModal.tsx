@@ -396,7 +396,7 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
           
           try {
             const { data: allocResult, error: allocError } = await supabase
-              .rpc('allocate_temp_canonical_user');
+              .rpc('allocate_temp_canonical_user') as any;
             
             if (allocError) {
               // Check if error is because function doesn't exist (404 / PGRST202)

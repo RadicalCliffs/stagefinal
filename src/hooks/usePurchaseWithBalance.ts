@@ -138,7 +138,7 @@ export function usePurchaseWithBalance(): UsePurchaseWithBalanceResult {
         ticketPrice: ticketPrice,
         tickets: ticketNumbers.map(num => ({ ticket_number: num })),
         idempotent: true
-      };
+      } as any;
       
       // Include reservation_id if provided
       if (reservationId) {

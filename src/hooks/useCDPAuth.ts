@@ -60,17 +60,4 @@ export {
 /**
  * Type re-exports for TypeScript support
  */
-export type {
-  User,
-  SignInWithEmailOptions,
-  SignInWithEmailResult,
-  SignInWithSmsOptions,
-  SignInWithSmsResult,
-  VerifyEmailOTPOptions,
-  VerifyEmailOTPResult,
-  VerifySmsOTPOptions,
-  VerifySmsOTPResult,
-  OAuth2ProviderType,
-  OAuthFlowState,
-  AuthenticateWithJWTResult,
-} from '@coinbase/cdp-hooks';
+// Removed unused type exports

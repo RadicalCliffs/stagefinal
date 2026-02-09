@@ -7,7 +7,7 @@
  * - Offer a waitForBalancesChanged helper to await a new balance version after an operation
  */
 
-import { BalanceSnapshot } from './types';
+import type { BalanceSnapshot } from './types';
 
 type BalanceSource = {
   // Returns latest cached balance snapshot (from your realtime service/store)

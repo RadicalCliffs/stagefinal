@@ -8,7 +8,7 @@
  */
 
 import { BalanceGuard } from './BalanceGuard';
-import { ReservationRow, PurchaseEvent } from './types';
+import type { ReservationRow, PurchaseEvent } from './types';
 
 type PurchaseEventSource = {
   // Subscribe to purchase-related events (reservation_created, purchase_confirmed, etc.)

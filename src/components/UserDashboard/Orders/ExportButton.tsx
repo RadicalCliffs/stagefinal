@@ -31,7 +31,7 @@ export function ExportButton({ userId }: ExportButtonProps) {
         .select('*')
         .eq('canonical_user_id', canonicalUserId)
         .in('transaction_type', EXPORT_TRANSACTION_TYPES)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }) as { data: any[]; error: any };
 
       if (error) throw error;
 

@@ -79,46 +79,46 @@ export {
 export { useOnchainKitConfig, type OnchainKitConfig } from './useOnchainKitConfig';
 
 // Real-time Data
-export { default as useRealTimeBalance } from './useRealTimeBalance';
-export { default as useRealTimeCompetition } from './useRealTimeCompetition';
-export { default as useRealtimeSubscriptions } from './useRealtimeSubscriptions';
-export { default as useSupabaseRealtime } from './useSupabaseRealtime';
+export { useRealTimeBalance } from './useRealTimeBalance';
+export { useRealTimeCompetition } from './useRealTimeCompetition';
+export { useRealtimeSubscriptions } from './useRealtimeSubscriptions';
+export { useSupabaseRealtime } from './useSupabaseRealtime';
 
 // Competition & Tickets
-export { default as useFetchCompetitions } from './useFetchCompetitions';
-export { default as useInstantWinTickets } from './useInstantWinTickets';
-export { default as useTicketBroadcast } from './useTicketBroadcast';
+export { useCompetitions as useFetchCompetitions } from './useFetchCompetitions';
+export { useInstantWinTickets } from './useInstantWinTickets';
+export { useTicketBroadcast } from './useTicketBroadcast';
 
 // User Profile & Data
-export { default as useUserProfile } from './useUserProfile';
-export { default as useOmnipotentData } from './useOmnipotentData';
-export { default as useAvatar } from './useAvatar';
+export { useUserProfile } from './useUserProfile';
+export { useOmnipotentData } from './useOmnipotentData';
+export { useAvatar } from './useAvatar';
 
 // Wallet & Tokens
-export { default as useWalletTokens } from './useWalletTokens';
+export { useWalletTokens } from './useWalletTokens';
 
 // Form & UI
-export { default as useFormValidation } from './useFormValidation';
-export { default as useToast } from './useToast';
-export { default as useIsMobile } from './useIsMobile';
-export { default as useHandleClickOutside } from './useHandleClickOutside';
+export { useFormValidation } from './useFormValidation';
+export { useToast } from './useToast';
+export { useIsMobile } from './useIsMobile';
+export { useClickOutside as useHandleClickOutside } from './useHandleClickOutside';
 
 // Dashboard & Reservation
-export { default as useEnhancedDashboard } from './useEnhancedDashboard';
-export { default as useEnhancedReservation } from './useEnhancedReservation';
-export { default as useProactiveReservationMonitor } from './useProactiveReservationMonitor';
+export { useEnhancedDashboard } from './useEnhancedDashboard';
+export { useEnhancedReservation } from './useEnhancedReservation';
+export { useProactiveReservationMonitor } from './useProactiveReservationMonitor';
 
 // Authentication & Login
-export { default as useCustomLogin } from './useCustomLogin';
+export { useCustomLogin } from './useCustomLogin';
 
 // Payments
-export { default as useGetPaymentStatus } from './useGetPaymentStatus';
+export { usePaymentStatus as useGetPaymentStatus } from './useGetPaymentStatus';
 
 // Reliability & Connection
-export { default as useReconnectResilience } from './useReconnectResilience';
+export { useConnectionState as useReconnectResilience } from './useReconnectResilience';
 
 // Debug
-export { default as useVRFDebug } from './useVRFDebug';
+export { useVRFDebug } from './useVRFDebug';
 
 /**
  * Hook Categories Reference

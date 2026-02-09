@@ -46,26 +46,4 @@ export {
 /**
  * Type re-exports for TypeScript support
  */
-export type {
-  SendEvmTransactionOptions,
-  SendEvmTransactionResult,
-  SendSolanaTransactionOptions,
-  SendSolanaTransactionResult,
-  SignEvmTransactionOptions,
-  SignEvmTransactionResult,
-  SignEvmMessageOptions,
-  SignEvmMessageResult,
-  SignEvmHashOptions,
-  SignEvmHashResult,
-  SignEvmTypedDataOptions,
-  SignEvmTypedDataResult,
-  SignSolanaTransactionOptions,
-  SignSolanaTransactionResult,
-  SignSolanaMessageOptions,
-  SignSolanaMessageResult,
-  SendUserOperationOptions,
-  SendUserOperationResult,
-  GetUserOperationResult,
-  EIP712TypedData,
-  AllowedEvmTransactionType,
-} from '@coinbase/cdp-hooks';
+// Removed some type exports

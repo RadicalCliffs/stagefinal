@@ -13,14 +13,14 @@ export function BalanceHealthIndicator() {
 
   // Log to console for debugging, but don't show UI
   useEffect(() => {
-    if (status === 'discrepancy' && discrepancy !== null) {
+    if ((status as string) === 'discrepancy' && discrepancy !== null) {
       console.log('[BalanceHealth] Discrepancy detected:', {
         status,
         discrepancy: discrepancy.toFixed(2),
         userId: baseUser?.id,
         timestamp: new Date().toISOString()
       });
-    } else if (status === 'healthy') {
+    } else if ((status as string) === 'healthy') {
       console.log('[BalanceHealth] Balance is healthy');
     }
   }, [status, discrepancy, baseUser?.id]);

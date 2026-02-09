@@ -51,11 +51,13 @@ async function createInstantWinPrize(prize: {
     avatarUrl: prize.avatarUrl || null,
   };
 
-  const { data, error } = await supabase
+  const prizeResult = await supabase
     .from('Prize_Instantprizes')
     .insert(prizeData as any)
     .select()
-    .maybeSingle();
+    .maybeSingle() as { data: any; error: any };
+  
+  const { data, error } = prizeResult;
 
   if (error) {
     console.error('Error creating instant win prize:', error);
@@ -200,13 +202,15 @@ export const instantWinHelper = {
     try {
       const { supabase } = await import('./supabase');
 
-      const { data: prize, error } = await supabase
+      const prizeResult = await supabase
         .from('Prize_Instantprizes')
         .select('*')
         .eq('competitionId', competitionId)
         .eq('winningTicket', ticketNumber)
         .is('winningWalletAddress', null)
-        .single();
+        .single() as { data: any; error: any };
+      
+      const { data: prize, error } = prizeResult;
 
       if (error || !prize) {
         return false;
@@ -217,7 +221,7 @@ export const instantWinHelper = {
         .update({
           winningWalletAddress: userId,
         })
-        .eq('UID', prize.UID);
+        .eq('UID', prize.UID) as any;
 
       const { notificationService } = await import('./notification-service');
       await notificationService.notifyWinner(toPrizePid(userId), competitionId ?? '', prize.prize ?? '');
@@ -249,19 +253,21 @@ export const instantWinHelper = {
       const { supabase } = await import('./supabase');
 
       // Check if already recorded
-      const { data: existing } = await supabase
+      const existingResult = await supabase
         .from('Prize_Instantprizes')
         .select('UID')
         .eq('competitionId', competitionUid)
         .eq('winningTicket', ticketNumber)
-        .single();
+        .single() as { data: any; error: any };
+      
+      const { data: existing } = existingResult;
 
       if (existing) {
         // Update existing record with winner
         await supabase
           .from('Prize_Instantprizes')
           .update({ winningWalletAddress: winnerAddress })
-          .eq('UID', existing.UID);
+          .eq('UID', existing.UID) as any;
       } else {
         // Create new record for contract-based win
         await supabase
@@ -275,7 +281,7 @@ export const instantWinHelper = {
             url: '',
             description: `On-chain instant win (tier: ${tierId})`,
             priority: 0,
-          });
+          }) as any;
       }
 
       // Notify winner

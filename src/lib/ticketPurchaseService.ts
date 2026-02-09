@@ -22,9 +22,11 @@ export async function checkCompetitionSoldOut(competitionId: string): Promise<bo
   try {
     // Call the RPC function that checks and marks sold-out competitions
     // Note: This function is defined in the migration and may not exist yet in all environments
-    const { data, error } = await supabase.rpc('check_and_mark_competition_sold_out' as any, {
+    const result = await supabase.rpc('check_and_mark_competition_sold_out' as any, {
       p_competition_id: competitionId
-    });
+    }) as { data: any; error: any };
+    
+    const { data, error } = result;
 
     if (error) {
       // Function might not exist yet, log and continue
@@ -171,8 +173,8 @@ export async function purchaseTicketsWithBalance({
       success: true,
       ticketsCreated: purchaseData.tickets.length,
       ticketsPurchased: purchaseData.tickets.length,
-      totalCost: purchaseData.amount ? parseFloat(purchaseData.amount) : 0,
-      balanceAfterPurchase: purchaseData.new_balance ? parseFloat(purchaseData.new_balance) : 0,
+      totalCost: parseFloat(purchaseData.amount ?? '0'),
+      balanceAfterPurchase: parseFloat(purchaseData.new_balance ?? '0'),
       message: 'Tickets purchased successfully',
       tickets: purchaseData.tickets,
       paymentId: purchaseData.payment_id,
@@ -193,11 +195,13 @@ export async function purchaseTicketsWithBalance({
  */
 export async function getActiveCompetitions() {
   try {
-    const { data, error } = await supabase
+    const result = await supabase
       .from('competitions')
       .select('*')
       .eq('status', 'active')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false }) as { data: any; error: any };
+    
+    const { data, error } = result;
 
     if (error) throw error;
 
@@ -231,11 +235,13 @@ export async function getUserTicketsInCompetition(userId: string, competitionId:
     const canonicalUserId = toPrizePid(userId);
 
     // Try canonical lookup first
-    let { data, error } = await supabase
+    let result = await supabase
       .from('tickets')
       .select('*')
       .eq('user_id', canonicalUserId)
-      .eq('competition_id', competitionId);
+      .eq('competition_id', competitionId) as { data: any; error: any };
+    
+    let { data, error } = result;
 
     // If no results with canonical, try with original ID (fallback for legacy data)
     if (!error && (!data || data.length === 0) && !isPrizePid(userId)) {
@@ -243,7 +249,7 @@ export async function getUserTicketsInCompetition(userId: string, competitionId:
         .from('tickets')
         .select('*')
         .eq('user_id', userId)
-        .eq('competition_id', competitionId);
+        .eq('competition_id', competitionId) as { data: any; error: any };
       data = fallbackResult.data;
       error = fallbackResult.error;
     }
@@ -276,17 +282,19 @@ export async function getUserTotalTickets(userId: string) {
     const canonicalUserId = toPrizePid(userId);
 
     // Try canonical lookup first
-    let { data, error } = await supabase
+    let result = await supabase
       .from('tickets')
       .select('id')
-      .eq('user_id', canonicalUserId);
+      .eq('user_id', canonicalUserId) as { data: any; error: any };
+    
+    let { data, error } = result;
 
     // If no results with canonical, try with original ID (fallback for legacy data)
     if (!error && (!data || data.length === 0) && !isPrizePid(userId)) {
       const fallbackResult = await supabase
         .from('tickets')
         .select('id')
-        .eq('user_id', userId);
+        .eq('user_id', userId) as { data: any; error: any };
       data = fallbackResult.data;
       error = fallbackResult.error;
     }

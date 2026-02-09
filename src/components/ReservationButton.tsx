@@ -51,7 +51,7 @@ export function ReservationButton({
     setIsLocked(true);
     try {
       const result = await reserveTickets(ticketNumbers);
-      if (result.success && result.reservationId) {
+      if (result.success && 'reservationId' in result && result.reservationId) {
         onReservationComplete?.(result.reservationId);
       }
     } finally {

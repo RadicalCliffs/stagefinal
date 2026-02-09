@@ -47,7 +47,6 @@ export {
  */
 export type {
   EvmAddress,
-  SolanaAddress,
   CreateEvmSmartAccountOptions,
   ExportEvmAccountOptions,
   ExportEvmAccountResult,

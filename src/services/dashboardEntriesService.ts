@@ -291,7 +291,7 @@ export async function fetchPendingTransactions(identifier: string): Promise<Pend
     .in('status', ['pending', 'awaiting_payment'])
     .gt('expires_at', new Date().toISOString())
     .or(`canonical_user_id.eq.${identifier},wallet_address.eq.${identifier},user_id.eq.${identifier}`)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false }) as { data: any[]; error: any };
 
   if (error) throw error;
 

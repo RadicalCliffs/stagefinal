@@ -247,7 +247,7 @@ export default function TicketPicker({
       // Reserve tickets using the reservation service
       const result = await reserveTicketsWithRedundancy({
         userId: baseUser.id,
-        competitionId: dbCompetitionId,
+        competitionId: String(dbCompetitionId),
         selectedTickets: ticketArray,
       });
 
