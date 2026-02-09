@@ -262,7 +262,7 @@ async function linkWalletToExistingUser(
 
         console.log('[BaseWallet] Calling attach_identity_after_auth RPC for existing user');
 
-        const { error: rpcError } = await supabase.rpc('attach_identity_after_auth', {
+        const { error: rpcError } = await (supabase.rpc as any)('attach_identity_after_auth', {
           in_canonical_user_id: canonicalUserId,
           in_wallet_address: walletAddress.toLowerCase(),
           in_email: normalizedEmail,
@@ -288,7 +288,7 @@ async function linkWalletToExistingUser(
       try {
         console.log('[BaseWallet] Calling upsert_canonical_user RPC for wallet link completion');
 
-        const { error: upsertError } = await supabase.rpc('upsert_canonical_user', {
+        const { error: upsertError } = await (supabase.rpc as any)('upsert_canonical_user', {
           p_uid: existingUser.uid,  // CRITICAL: Use uid for placeholder replacement
           p_canonical_user_id: canonicalUserId,
           p_email: normalizedEmail || null,
@@ -354,7 +354,7 @@ async function linkWalletToExistingUser(
       try {
         console.log('[BaseWallet] Calling upsert_canonical_user RPC for wallet found by address');
 
-        const { error: upsertError } = await supabase.rpc('upsert_canonical_user', {
+        const { error: upsertError } = await (supabase.rpc as any)('upsert_canonical_user', {
           p_uid: existingByWallet.id,
           p_canonical_user_id: canonicalUserId,
           p_email: normalizedEmail || existingByWallet.email || null,
@@ -544,7 +544,7 @@ async function saveUserWithProfile(email: string, walletAddress: string, profile
       try {
         console.log('[BaseWallet] Calling attach_identity_after_auth RPC after profile completion');
 
-        const { error: rpcError } = await supabase.rpc('attach_identity_after_auth', {
+        const { error: rpcError } = await (supabase.rpc as any)('attach_identity_after_auth', {
           in_canonical_user_id: canonicalUserId,
           in_wallet_address: walletAddress.toLowerCase(),
           in_email: normalizedEmail,
@@ -570,7 +570,7 @@ async function saveUserWithProfile(email: string, walletAddress: string, profile
       try {
         console.log('[BaseWallet] Calling upsert_canonical_user RPC after profile completion');
 
-        const { error: upsertError } = await supabase.rpc('upsert_canonical_user', {
+        const { error: upsertError } = await (supabase.rpc as any)('upsert_canonical_user', {
           p_uid: userId || canonicalUserId,  // Use userId if available, fallback to canonicalUserId
           p_canonical_user_id: canonicalUserId,
           p_email: normalizedEmail,

@@ -85,7 +85,7 @@ export { useRealtimeSubscriptions } from './useRealtimeSubscriptions';
 export { useSupabaseRealtime } from './useSupabaseRealtime';
 
 // Competition & Tickets
-export { useFetchCompetitions } from './useFetchCompetitions';
+export { useCompetitions as useFetchCompetitions } from './useFetchCompetitions';
 export { useInstantWinTickets } from './useInstantWinTickets';
 export { useTicketBroadcast } from './useTicketBroadcast';
 
@@ -101,7 +101,7 @@ export { useWalletTokens } from './useWalletTokens';
 export { useFormValidation } from './useFormValidation';
 export { useToast } from './useToast';
 export { useIsMobile } from './useIsMobile';
-export { useHandleClickOutside } from './useHandleClickOutside';
+export { useClickOutside as useHandleClickOutside } from './useHandleClickOutside';
 
 // Dashboard & Reservation
 export { useEnhancedDashboard } from './useEnhancedDashboard';
@@ -112,10 +112,10 @@ export { useProactiveReservationMonitor } from './useProactiveReservationMonitor
 export { useCustomLogin } from './useCustomLogin';
 
 // Payments
-export { useGetPaymentStatus } from './useGetPaymentStatus';
+export { usePaymentStatus as useGetPaymentStatus } from './useGetPaymentStatus';
 
 // Reliability & Connection
-export { useReconnectResilience } from './useReconnectResilience';
+export { useConnectionState as useReconnectResilience } from './useReconnectResilience';
 
 // Debug
 export { useVRFDebug } from './useVRFDebug';

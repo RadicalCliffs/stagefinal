@@ -445,7 +445,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               // p_uid, p_canonical_user_id, p_email, p_username, p_wallet_address,
               // p_base_wallet_address, p_eth_wallet_address, p_privy_user_id,
               // p_first_name, p_last_name, p_telegram_handle, p_wallet_linked
-              return await supabase.rpc('upsert_canonical_user', {
+              return await (supabase.rpc as any)('upsert_canonical_user', {
                 p_uid: userProfile.uid || userProfile.id,
                 p_canonical_user_id: canonicalUserId,
                 p_email: effectiveEmail || null,

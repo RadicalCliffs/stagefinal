@@ -90,7 +90,7 @@ export function useEnhancedReservation(options: EnhancedReservationOptions) {
   // Verify stored reservation is still valid
   const verifyStoredReservation = async (reservationId: string) => {
     try {
-      const { data, error: fetchError } = await omnipotentData.supabase
+      const { data, error: fetchError } = await supabase
         .from('pending_tickets')
         .select('*')
         .eq('id', reservationId)

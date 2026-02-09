@@ -150,7 +150,7 @@ export default function TicketPicker({
       const results = await Promise.all(
         batch.map(async (ticketNum) => {
           try {
-            const owner = await getTicketOwner(String(competitionId), ticketNum);
+            const owner = await getTicketOwner(competitionId, ticketNum);
             return { ticketNum, sold: owner.toLowerCase() !== ZERO_ADDRESS.toLowerCase() };
           } catch {
             return { ticketNum, sold: false };
