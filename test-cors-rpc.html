@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test RPC & Edge Function CORS</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #0f0; }
+    .test { margin: 10px 0; padding: 10px; border: 1px solid #333; }
+    .success { border-color: #0f0; color: #0f0; }
+    .error { border-color: #f00; color: #f00; }
+    .pending { border-color: #ff0; color: #ff0; }
+    button { background: #333; color: #0f0; border: 1px solid #0f0; padding: 10px 20px; margin: 5px; cursor: pointer; }
+    button:hover { background: #0f0; color: #000; }
+    pre { background: #000; padding: 10px; overflow-x: auto; max-height: 300px; }
+    #results { margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h1>🔧 Test RPC & Edge Function CORS</h1>
+  <p>Competition: <strong>22786f37-66a1-4bf1-aa15-910ddf8d4eb4</strong></p>
+  
+  <div>
+    <button onclick="runAllTests()">▶ Run All Tests</button>
+    <button onclick="fixRPC()">🚀 Fix RPC</button>
+  </div>
+
+  <div id="results"></div>
+
+  <script>
+    const SUPABASE_URL = 'https://mthwfldcjvpxjtmrqkqm.supabase.co';
+    // Use ANON KEY from env or prompt
+    const ANON_KEY = localStorage.getItem('test_anon_key') || prompt('Enter Supabase anon key:') || '';
+    if (ANON_KEY) localStorage.setItem('test_anon_key', ANON_KEY);
+    
+    const supabase = window.supabase.createClient(SUPABASE_URL, ANON_KEY);
+    const COMPETITION_ID = '22786f37-66a1-4bf1-aa15-910ddf8d4eb4';
+    
+    function log(message, type = 'pending') {
+      const results = document.getElementById('results');
+      const div = document.createElement('div');
+      div.className = `test ${type}`;
+      div.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+      results.appendChild(div);
+      console.log(message);
+    }
+    
+    function runAllTests() {
+      document.getElementById('results').innerHTML = '';
+      log('Starting tests...', 'pending');
+      
+      testRPCCORS();
+      testEdgeFunctionCORS();
+      testRPCFunction();
+    }
+    
+    async function testRPCCORS() {
+      log('Test 1: Testing RPC CORS preflight...', 'pending');
+      try {
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_unavailable_tickets`, {
+          method: 'OPTIONS',
+          headers: {
+            'Origin': 'https://substage.theprize.io',
+            'Access-Control-Request-Method': 'POST',
+            'Access-Control-Request-Headers': 'authorization, apikey, content-type'
+          }
+        });
+        const headers = {};
+        response.headers.forEach((v, k) => headers[k] = v);
+        log(`RPC OPTIONS response: ${response.status}`, response.ok ? 'success' : 'error');
+        log(`Headers: ${JSON.stringify(headers, null, 2)}`, response.ok ? 'success' : 'error');
+      } catch (e) {
+        log(`RPC CORS Error: ${e.message}`, 'error');
+      }
+    }
+    
+    async function testEdgeFunctionCORS() {
+      log('Test 2: Testing Edge Function CORS preflight...', 'pending');
+      try {
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/purchase-tickets-with-bonus`, {
+          method: 'OPTIONS',
+          headers: {
+            'Origin': 'https://substage.theprize.io',
+            'Access-Control-Request-Method': 'POST',
+            'Access-Control-Request-Headers': 'authorization, apikey, content-type'
+          }
+        });
+        const headers = {};
+        response.headers.forEach((v, k) => headers[k] = v);
+        log(`Edge Function OPTIONS response: ${response.status}`, response.ok ? 'success' : 'error');
+        log(`Access-Control-Allow-Origin: ${headers['access-control-allow-origin'] || 'MISSING'}`, 
+            headers['access-control-allow-origin'] === '*' ? 'success' : 'error');
+        log(`Access-Control-Allow-Headers: ${headers['access-control-allow-headers'] || 'MISSING'}`,
+            headers['access-control-allow-headers'] ? 'success' : 'error');
+      } catch (e) {
+        log(`Edge Function CORS Error: ${e.message}`, 'error');
+      }
+    }
+    
+    async function testRPCFunction() {
+      log('Test 3: Testing get_unavailable_tickets RPC...', 'pending');
+      try {
+        const { data, error } = await supabase.rpc('get_unavailable_tickets', { 
+          p_competition_id: COMPETITION_ID 
+        });
+        
+        if (error) {
+          log(`RPC Error: ${error.message}`, 'error');
+          log(`Code: ${error.code}`, 'error');
+          log('💡 Click "Fix RPC" to create the correct function', 'pending');
+        } else {
+          log(`RPC Success! Returned ${Array.isArray(data) ? data.length : 0} tickets`, 'success');
+          if (Array.isArray(data) && data.length > 0) {
+            log(`Sample tickets: ${data.slice(0, 10).join(', ')}...`, 'success');
+          }
+        }
+      } catch (e) {
+        log(`Exception: ${e.message}`, 'error');
+      }
+    }
+    
+    async function fixRPC() {
+      log('🚀 Applying RPC fix...', 'pending');
+      
+      const FIX_SQL = `
+        DROP FUNCTION IF EXISTS get_unavailable_tickets(TEXT) CASCADE;
+        
+        CREATE OR REPLACE FUNCTION get_unavailable_tickets(p_competition_id TEXT)
+        RETURNS INTEGER[]
+        LANGUAGE plpgsql
+        STABLE SECURITY DEFINER
+        SET search_path = public
+        AS \\$\\$
+        DECLARE v_unavailable INTEGER[] := ARRAY[]::INTEGER[];
+        BEGIN
+          IF p_competition_id IS NULL OR p_competition_id = '' THEN RETURN ARRAY[]::INTEGER[]; END IF;
+          BEGIN
+            SELECT COALESCE(array_agg(DISTINCT CAST(TRIM(unnest(string_to_array(ticketnumbers::TEXT, ','))) AS INTEGER)), ARRAY[]::INTEGER[])
+            INTO v_unavailable
+            FROM joincompetition WHERE competitionid = p_competition_id AND ticketnumbers IS NOT NULL;
+          EXCEPTION WHEN OTHERS THEN v_unavailable := ARRAY[]::INTEGER[]; END;
+          RETURN v_unavailable;
+        END;
+        \\$\\$;
+        
+        GRANT EXECUTE ON FUNCTION get_unavailable_tickets(TEXT) TO authenticated, anon, service_role;
+      `;
+      
+      // Try to use pg-sql approach or just show the SQL
+      log('Cannot execute SQL directly from browser.', 'pending');
+      log('Please run this in Supabase Dashboard → SQL Editor:', 'pending');
+      log(`<pre>${FIX_SQL}</pre>`, 'pending');
+      
+      // Copy to clipboard
+      navigator.clipboard?.writeText(FIX_SQL.replace(/\\$/g, '$')).then(() => {
+        log('✅ SQL copied to clipboard!', 'success');
+      }).catch(() => {
+        log('Could not copy to clipboard', 'pending');
+      });
+    }
+    
+    window.onload = () => {
+      if (!ANON_KEY) {
+        log('⚠️ No anon key set. Please enter your Supabase anon key.', 'pending');
+      } else {
+        log('📋 Ready to test. Click "Run All Tests".', 'pending');
+      }
+    };
+  </script>
+</body>
+</html>

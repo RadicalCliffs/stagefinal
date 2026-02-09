@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RPC Test & Fix - get_unavailable_tickets</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #0f0; }
+    .test { margin: 10px 0; padding: 10px; border: 1px solid #333; }
+    .success { border-color: #0f0; color: #0f0; }
+    .error { border-color: #f00; color: #f00; }
+    .pending { border-color: #ff0; color: #ff0; }
+    button { background: #333; color: #0f0; border: 1px solid #0f0; padding: 10px 20px; margin: 5px; cursor: pointer; }
+    button:hover { background: #0f0; color: #000; }
+    pre { background: #000; padding: 10px; overflow-x: auto; }
+    #results { margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h1>🔧 RPC Test & Fix: get_unavailable_tickets</h1>
+  
+  <p>Competition: <strong>22786f37-66a1-4bf1-aa15-910ddf8d4eb4</strong></p>
+  
+  <div>
+    <button onclick="runTests()">▶ Run All Tests</button>
+    <button onclick="applyFix()">🚀 Apply Fix</button>
+    <button onclick="clearResults()">Clear Results</button>
+  </div>
+
+  <div id="results"></div>
+
+  <script>
+    // Create Supabase client - replace with your actual keys
+    const SUPABASE_URL = 'https://mthwfldcjvpxjtmrqkqm.supabase.co';
+    const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im10aHdmbGRjanZweGp0bXJrcSIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzM4MDAwMDAwLCJleHAiOjQ4OTM3NzYwMDB9.YOUR_ANON_KEY_HERE';
+    
+    const supabase = window.supabase.createClient(SUPABASE_URL, ANON_KEY);
+    const COMPETITION_ID = '22786f37-66a1-4bf1-aa15-910ddf8d4eb4';
+    
+    function log(message, type = 'pending') {
+      const results = document.getElementById('results');
+      const div = document.createElement('div');
+      div.className = `test ${type}`;
+      div.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+      results.appendChild(div);
+      console.log(message);
+    }
+    
+    function clearResults() {
+      document.getElementById('results').innerHTML = '';
+    }
+
+    async function runTests() {
+      clearResults();
+      log('Starting tests...', 'pending');
+      
+      // Test 1: Check RPC function exists
+      log('Test 1: Checking if get_unavailable_tickets RPC exists...', 'pending');
+      try {
+        const { data, error } = await supabase.rpc('get_unavailable_tickets', { p_competition_id: COMPETITION_ID });
+        if (error) {
+          log(`❌ RPC doesn't exist or error: ${error.message}`, 'error');
+          log('💡 Fix: Click "Apply Fix" button to create the RPC function', 'pending');
+        } else {
+          log(`✅ RPC exists! Returns: ${JSON.stringify(data)}`, 'success');
+        }
+      } catch (e) {
+        log(`❌ Exception: ${e.message}`, 'error');
+      }
+      
+      // Test 2: Check joincompetition entries
+      log('Test 2: Checking joincompetition for sold tickets...', 'pending');
+      try {
+        const { data, error } = await supabase
+          .from('joincompetition')
+          .select('ticketnumbers, numberoftickets')
+          .eq('competitionid', COMPETITION_ID);
+        
+        if (error) {
+          log(`❌ Error querying joincompetition: ${error.message}`, 'error');
+        } else {
+          const totalTickets = data?.reduce((sum, row) => sum + (row.numberoftickets || 0), 0) || 0;
+          log(`✅ Found ${data?.length || 0} entries with ${totalTickets} total tickets sold`, 'success');
+          if (data?.length > 0) {
+            log(`Sample entries: ${JSON.stringify(data.slice(0, 3))}`, 'success');
+          }
+        }
+      } catch (e) {
+        log(`❌ Exception: ${e.message}`, 'error');
+      }
+      
+      // Test 3: Check tickets table
+      log('Test 3: Checking tickets table...', 'pending');
+      try {
+        const { data, error } = await supabase
+          .from('tickets')
+          .select('ticket_number')
+          .eq('competition_id', COMPETITION_ID);
+        
+        if (error) {
+          log(`❌ Error querying tickets: ${error.message}`, 'error');
+        } else {
+          log(`✅ Found ${data?.length || 0} tickets in tickets table`, 'success');
+        }
+      } catch (e) {
+        log(`❌ Exception: ${e.message}`, 'error');
+      }
+      
+      // Test 4: Check pending reservations
+      log('Test 4: Checking pending_tickets...', 'pending');
+      try {
+        const { data, error } = await supabase
+          .from('pending_tickets')
+          .select('id, ticket_count, status')
+          .eq('competition_id', COMPETITION_ID)
+          .in('status', ['pending', 'confirming'])
+          .gt('expires_at', new Date().toISOString());
+        
+        if (error) {
+          log(`❌ Error querying pending_tickets: ${error.message}`, 'error');
+        } else {
+          log(`✅ Found ${data?.length || 0} pending reservations`, 'success');
+        }
+      } catch (e) {
+        log(`❌ Exception: ${e.message}`, 'error');
+      }
+    }
+
+    async function applyFix() {
+      clearResults();
+      log('🚀 Applying get_unavailable_tickets fix...', 'pending');
+      
+      const FIX_SQL = `
+        DROP FUNCTION IF EXISTS get_unavailable_tickets(TEXT) CASCADE;
+        
+        CREATE OR REPLACE FUNCTION get_unavailable_tickets(p_competition_id TEXT)
+        RETURNS INTEGER[]
+        LANGUAGE plpgsql
+        STABLE 
+        SECURITY DEFINER
+        SET search_path = public
+        AS $$
+        DECLARE
+          v_unavailable INTEGER[] := ARRAY[]::INTEGER[];
+          v_sold_jc INTEGER[] := ARRAY[]::INTEGER[];
+          v_sold_tickets INTEGER[] := ARRAY[]::INTEGER[];
+          v_pending INTEGER[] := ARRAY[]::INTEGER[];
+        BEGIN
+          IF p_competition_id IS NULL OR TRIM(p_competition_id) = '' THEN 
+            RETURN ARRAY[]::INTEGER[]; 
+          END IF;
+
+          -- Get sold tickets from joincompetition
+          BEGIN
+            SELECT COALESCE(array_agg(DISTINCT ticket_num), ARRAY[]::INTEGER[])
+            INTO v_sold_jc
+            FROM (
+              SELECT CAST(TRIM(unnest(string_to_array(ticketnumbers::TEXT, ','))) AS INTEGER) AS ticket_num 
+              FROM joincompetition
+              WHERE competitionid = p_competition_id
+                AND ticketnumbers IS NOT NULL 
+                AND TRIM(ticketnumbers::TEXT) != ''
+            ) AS jc_tickets
+            WHERE ticket_num IS NOT NULL AND ticket_num > 0;
+          EXCEPTION WHEN OTHERS THEN
+            v_sold_jc := ARRAY[]::INTEGER[];
+          END;
+
+          -- Get sold tickets from tickets table
+          BEGIN
+            SELECT COALESCE(array_agg(DISTINCT t.ticket_number), ARRAY[]::INTEGER[])
+            INTO v_sold_tickets
+            FROM tickets t
+            WHERE t.competition_id = p_competition_id
+              AND t.ticket_number IS NOT NULL
+              AND t.ticket_number > 0;
+          EXCEPTION WHEN OTHERS THEN
+            v_sold_tickets := ARRAY[]::INTEGER[];
+          END;
+
+          -- Get pending tickets from pending_ticket_items
+          BEGIN
+            SELECT COALESCE(array_agg(DISTINCT pti.ticket_number), ARRAY[]::INTEGER[])
+            INTO v_pending
+            FROM pending_ticket_items pti
+            INNER JOIN pending_tickets pt ON pti.pending_ticket_id = pt.id
+            WHERE pti.competition_id = p_competition_id
+              AND pt.status IN ('pending', 'confirming')
+              AND pt.expires_at > NOW()
+              AND pti.ticket_number IS NOT NULL
+              AND pti.ticket_number > 0;
+          EXCEPTION WHEN OTHERS THEN
+            v_pending := ARRAY[]::INTEGER[];
+          END;
+
+          -- Combine all sources
+          v_unavailable := COALESCE(v_sold_jc, ARRAY[]::INTEGER[]) 
+                        || COALESCE(v_sold_tickets, ARRAY[]::INTEGER[]) 
+                        || COALESCE(v_pending, ARRAY[]::INTEGER[]);
+          
+          -- Remove duplicates and sort
+          IF array_length(v_unavailable, 1) IS NOT NULL AND array_length(v_unavailable, 1) > 0 THEN
+            SELECT COALESCE(array_agg(DISTINCT u ORDER BY u), ARRAY[]::INTEGER[])
+            INTO v_unavailable
+            FROM unnest(v_unavailable) AS u
+            WHERE u IS NOT NULL AND u > 0;
+          ELSE
+            v_unavailable := ARRAY[]::INTEGER[];
+          END IF;
+          
+          RETURN v_unavailable;
+        END;
+        $$;
+        
+        GRANT EXECUTE ON FUNCTION get_unavailable_tickets(TEXT) TO authenticated;
+        GRANT EXECUTE ON FUNCTION get_unavailable_tickets(TEXT) TO anon;
+        GRANT EXECUTE ON FUNCTION get_unavailable_tickets(TEXT) TO service_role;
+      `;
+      
+      try {
+        // Execute the SQL via a simpler approach - using raw query
+        log('📤 Sending SQL to create function...', 'pending');
+        
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_unavailable_tickets`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': ANON_KEY,
+            'Authorization': `Bearer ${ANON_KEY}`
+          },
+          body: JSON.stringify({ p_competition_id: COMPETITION_ID })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          log(`✅ Function exists and returned: ${JSON.stringify(data)}`, 'success');
+        } else {
+          const error = await response.text();
+          log(`⚠️  Function needs creation. Run this in Supabase Dashboard SQL Editor:`, 'pending');
+          log(`<pre>${FIX_SQL.replace(/</g, '<').replace(/>/g, '>')}</pre>`, 'pending');
+        }
+      } catch (e) {
+        log(`❌ Cannot execute SQL directly from browser (requires service role)`, 'error');
+        log('📝 Please run this SQL in Supabase Dashboard → SQL Editor:', 'pending');
+        log(`<pre>${FIX_SQL.replace(/</g, '<').replace(/>/g, '>')}</pre>`, 'pending');
+      }
+    }
+    
+    // Auto-run tests on load
+    window.onload = () => {
+      log('📋 Page loaded. Click "Run All Tests" to start.', 'pending');
+    };
+  </script>
+</body>
+</html>

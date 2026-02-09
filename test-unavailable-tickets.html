@@ -1,0 +1,116 @@
+<html>
+<head>
+    <title>Test Unavailable Tickets RPC</title>
+</head>
+<body>
+    <h1>Test get_unavailable_tickets RPC</h1>
+    <pre id="output"></pre>
+    
+    <script>
+        const output = document.getElementById('output');
+        const competitionId = '22786f37-66a1-4bf1-aa15-910ddf8d4eb4'; // The competition ID from URL
+        
+        async function testRPC() {
+            output.textContent = `Testing get_unavailable_tickets for competition: ${competitionId}\n\n`;
+            
+            // Test 1: Call the RPC directly
+            output.textContent += '1. Testing RPC call...\n';
+            
+            // Create a simple fetch to test the RPC
+            const rpcUrl = `https://mthwfldcjvpxjtmrqkqm.supabase.co/rest/v1/rpc/get_unavailable_tickets`;
+            
+            try {
+                // Test via fetch to RPC endpoint
+                const response = await fetch(rpcUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im10aHdsZGNqdnB4anRtcnFrcW0iLCJyb2xlIjoiYW5vbiIsImlhdCI6MTczNzE2MDAwMCwiZXhwIjo0NTMyNzM2MDAwfQ.test'
+                    },
+                    body: JSON.stringify({
+                        p_competition_id: competitionId
+                    })
+                });
+                
+                output.textContent += `   RPC Response status: ${response.status}\n`;
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    output.textContent += `   RPC Response: ${JSON.stringify(data)}\n`;
+                    output.textContent += `\n   Unavailable tickets count: ${Array.isArray(data) ? data.length : 'N/A'}\n`;
+                } else {
+                    const error = await response.text();
+                    output.textContent += `   RPC Error: ${error}\n`;
+                }
+            } catch (error) {
+                output.textContent += `   Fetch Error: ${error.message}\n`;
+            }
+            
+            // Test 2: Check joincompetition directly
+            output.textContent += '\n2. Testing joincompetition query...\n';
+            
+            const jcUrl = `https://mthwfldcjvpxjtmrqkqm.supabase.co/rest/v1/joincompetition?competitionid=eq.${competitionId}&select=uid,ticketnumbers,userid,amountspent`;
+            
+            try {
+                const response = await fetch(jcUrl, {
+                    headers: {
+                        'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im10aHdsZGNqdnB4anRtcnFrcW0iLCJyb2xlIjoiYW5vbiIsImlhdCI6MTczNzE2MDAwMCwiZXhwIjo0NTMyNzM2MDAwfQ.test'
+                    }
+                });
+                
+                output.textContent += `   Joincompetition Response status: ${response.status}\n`;
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    output.textContent += `   Entry count: ${data.length}\n`;
+                    if (data.length > 0) {
+                        output.textContent += `   Sample entries:\n`;
+                        data.slice(0, 3).forEach((entry, i) => {
+                            output.textContent += `     ${i+1}. uid=${entry.uid}, tickets=${entry.ticketnumbers}, amount=${entry.amountspent}\n`;
+                        });
+                    }
+                } else {
+                    const error = await response.text();
+                    output.textContent += `   Error: ${error}\n`;
+                }
+            } catch (error) {
+                output.textContent += `   Error: ${error.message}\n`;
+            }
+            
+            // Test 3: Check tickets table
+            output.textContent += '\n3. Testing tickets table...\n';
+            
+            const ticketsUrl = `https://mthwfldcjvpxjtmrqkqm.supabase.co/rest/v1/tickets?competition_id=eq.${competitionId}&select=uid,ticket_number,user_id`;
+            
+            try {
+                const response = await fetch(ticketsUrl, {
+                    headers: {
+                        'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im10aHdsZGNqdnB4anRtcnFrcW0iLCJyb2xlIjoiYW5vbiIsImlhdCI6MTczNzE2MDAwMCwiZXhwIjo0NTMyNzM2MDAwfQ.test'
+                    }
+                });
+                
+                output.textContent += `   Tickets Response status: ${response.status}\n`;
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    output.textContent += `   Ticket count: ${data.length}\n`;
+                } else {
+                    const error = await response.text();
+                    output.textContent += `   Error: ${error}\n`;
+                }
+            } catch (error) {
+                output.textContent += `   Error: ${error.message}\n`;
+            }
+            
+            output.textContent += '\n\n=== SUMMARY ===\n';
+            output.textContent += 'If joincompetition has entries but RPC returns empty:\n';
+            output.textContent += '- The RPC function might have a query issue\n';
+            output.textContent += '- Check Supabase Dashboard → SQL Editor:\n';
+            output.textContent += '  SELECT * FROM joincompetition WHERE competitionid = \'22786f37-66a1-4bf1-aa15-910ddf8d4eb4\';\n';
+            output.textContent += '  SELECT get_unavailable_tickets(\'22786f37-66a1-4bf1-aa15-910ddf8d4eb4\');\n';
+        }
+        
+        testRPC();
+    </script>
+</body>
+</html>

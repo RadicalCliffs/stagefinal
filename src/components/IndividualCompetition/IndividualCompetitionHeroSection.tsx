@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import ReactRangeSliderInput from "react-range-slider-input";
 import { heroSectionImage, individualLogoToken} from "../../assets/images";
 import Countdown from "../Countdown";
@@ -10,62 +10,13 @@ import CaptchaModal from "../CaptchaModal";
 import UserInfoModal from "../UserInfoModal";
 import type { UserInfo } from "../UserInfoModal";
 import type {CompetitionWrapper } from "../../models/models";
-import { database } from "../../lib/database";
 import { supabase } from "../../lib/supabase";
 import { useAuthUser } from "../../contexts/AuthContext";
-import { omnipotentData } from "../../lib/omnipotent-data-service";
 import { ticketReservationLogger, requestTracker, showDebugHintOnError } from "../../lib/debug-console";
 import { canEnterCompetition } from "../CompetitionStatusIndicator";
-import { reserveTicketsWithRedundancy } from "../../lib/reserve-tickets-redundant";
 
 // Lazy load PaymentModal - only loaded when user initiates payment
 const PaymentModal = lazy(() => import("../PaymentModal"));
-
-/**
- * Helper function to determine when to show the "Tickets temporarily unavailable" banner.
- * 
- * The banner should only show when tickets are genuinely unavailable to the user,
- * not just because an authoritative RPC failed while fallback data shows availability.
- * 
- * @param params.availableCount - The computed available count (uses fallback when authoritative fails)
- * @param params.isSoldOut - Whether the competition is sold out
- * @param params.availabilityError - Error from authoritative availability fetch
- * @param params.isAuthoritative - Whether availability data is from authoritative source
- * @returns true if the "temporarily unavailable" banner should be shown
- * 
- * @example
- * // Case 1: RPC succeeds with 0 available - SHOW banner
- * shouldShowUnavailableBanner({ availableCount: 0, isSoldOut: false, availabilityError: null, isAuthoritative: true })
- * // => true
- * 
- * @example
- * // Case 2: RPC fails but fallback shows 2000 available - DON'T show banner
- * shouldShowUnavailableBanner({ availableCount: 2000, isSoldOut: false, availabilityError: "HTTP 400", isAuthoritative: false })
- * // => false
- * 
- * @example
- * // Case 3: Competition sold out - DON'T show unavailable banner (sold out banner shows instead)
- * shouldShowUnavailableBanner({ availableCount: 0, isSoldOut: true, availabilityError: null, isAuthoritative: true })
- * // => false
- */
-export function shouldShowUnavailableBanner(params: {
-  availableCount: number;
-  isSoldOut: boolean;
-  availabilityError: string | null;
-  isAuthoritative: boolean;
-}): boolean {
-  const { availableCount, isSoldOut, availabilityError, isAuthoritative } = params;
-  
-  // Never show unavailable banner if sold out (sold out banner takes precedence)
-  if (isSoldOut) {
-    return false;
-  }
-  
-  // Show banner only when the COMPUTED availableCount is 0
-  // This uses fallback when authoritative fails, so we only show the banner
-  // when tickets are truly unavailable according to best available data
-  return availableCount === 0 && availabilityError !== null;
-}
 
 const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {competition: CompetitionWrapper['competition'], onEntriesRefresh?: () => void}) => {
   const { baseUser } = useAuthUser();
@@ -83,58 +34,19 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
   const [reserving, setReserving] = useState(false);
   const [reservationError, setReservationError] = useState<string | null>(null);
 
-  // CONSOLIDATED: Use omnipotentData as single source of truth for availability
-  // Removed duplicate useAuthoritativeAvailability system
-  const [availability, setAvailability] = useState({
-    total_tickets: competition?.total_tickets || 0,
-    sold_count: 0,
-    pending_count: 0,
-    available_count: competition?.total_tickets || 0,
-    isAuthoritative: false,
-  });
-  const [availabilityLoading, setAvailabilityLoading] = useState(true);
-  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
+  // USE COMPETITION DATA DIRECTLY (same as main page)
+  // The main page shows correct count using competition.tickets_sold
+  const soldCount = competition?.tickets_sold || 0;
+  const totalTickets = competition?.total_tickets || 0;
+  const availableCount = Math.max(0, totalTickets - soldCount);
+  
+  // No more complex RPC calls - use competition data directly like main page
+  const isSoldOut = totalTickets > 0 && soldCount >= totalTickets;
 
-  // Fetch availability using omnipotentData
-  const refreshAvailability = useCallback(async () => {
-    if (!competition?.id) return;
-    
-    setAvailabilityLoading(true);
-    try {
-      const unavailable = await omnipotentData.getUnavailableTickets(competition.id);
-      const totalTickets = competition.total_tickets || 0;
-      const availableCount = totalTickets - unavailable.length;
-      
-      setAvailability({
-        total_tickets: totalTickets,
-        sold_count: unavailable.length,
-        pending_count: 0,
-        available_count: availableCount,
-        isAuthoritative: true,
-      });
-      setAvailabilityError(null);
-    } catch (err) {
-      console.error('[HeroSection] Failed to fetch availability:', err);
-      setAvailabilityError(err instanceof Error ? err.message : 'Failed to fetch availability');
-    } finally {
-      setAvailabilityLoading(false);
-    }
-  }, [competition?.id, competition?.total_tickets]);
-
-  // Initial fetch and periodic refresh
-  useEffect(() => {
-    refreshAvailability();
-    
-    // Refresh every 5 seconds to stay in sync
-    const interval = setInterval(refreshAvailability, 5000);
-    return () => clearInterval(interval);
-  }, [refreshAvailability]);
-
-  // Set up real-time subscription for competition status (availability is now handled by useAuthoritativeAvailability)
+  // Set up real-time subscription for competition status
   useEffect(() => {
     if (competition?.id) {
       // Real-time subscription for competition status changes (e.g., when drawn)
-      // Note: Ticket availability is now handled by useAuthoritativeAvailability hook
       const statusChannel = supabase
         .channel(`competition-status-hero-${competition.id}`)
         .on(
@@ -145,8 +57,8 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
             table: 'competitions',
             filter: `id=eq.${competition.id}`
           },
-          (payload) => {
-            const newStatus = (payload.new as any)?.status;
+          (payload: any) => {
+            const newStatus = payload.new?.status;
             console.log('Competition status changed to:', newStatus);
             // Reload page when competition is drawn or completed to show winner
             if (newStatus === 'drawn' || newStatus === 'completed' || newStatus === 'drawing') {
@@ -162,44 +74,18 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
     }
   }, [competition?.id]);
 
-  // Cap ticket count if availability decreases (e.g., someone else bought tickets)
-  useEffect(() => {
-    if (availability.isAuthoritative && ticketCount > availability.available_count) {
-      setTicketCount(Math.max(0, availability.available_count));
-    }
-  }, [availability, ticketCount]);
-
   const handleIncrement = () => {
-    // Limit to available tickets - use fallback if not authoritative to prevent 0 max
-    // Note: Fallback calculation is also used below in availableCount computation
-    const fallbackMax = Math.max(0, (competition.total_tickets || 0) - (competition.tickets_sold || 0));
-    const maxAllowed = availability.isAuthoritative 
-      ? availability.available_count
-      : fallbackMax;
-    
-    if (ticketCount < maxAllowed) {
-      const newCount = ticketCount + 1;
-      const adjustedCount = handleMinimumPurchaseCheck(newCount);
-      setTicketCount(adjustedCount);
+    // Limit to available tickets
+    if (ticketCount < availableCount) {
+      setTicketCount(ticketCount + 1);
     }
   };
 
   const handleDecrement = () => {
     // Allow going down to 0 (validation happens on "Enter Now")
     if (ticketCount > 0) {
-      const newCount = ticketCount - 1;
-      setTicketCount(newCount);
+      setTicketCount(ticketCount - 1);
     }
-  };
-
-  const handleMinimumPurchaseCheck = (newCount: number) => {
-    // No minimum purchase requirement - just return the count
-    return newCount;
-  };
-
-  const validateMinimumPurchase = () => {
-    // No minimum purchase requirement - always valid as long as at least 1 ticket
-    return true;
   };
 
   const handleEnterNow = () => {
@@ -213,13 +99,11 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
       alert("Please select at least 1 ticket to enter.");
       return;
     }
-    if (validateMinimumPurchase()) {
-      setShowCaptchaModal(true);
-    }
+    setShowCaptchaModal(true);
   };
 
   const handleSliderChange = (values: number[]) => {
-    const newCount = handleMinimumPurchaseCheck(values[1]);
+    const newCount = values[1];
     setTicketCount(newCount);
     // Clear previous reservation when ticket count changes
     if (newCount !== ticketCount) {
@@ -231,8 +115,6 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
 
   // Reserve random tickets for lucky dip before payment
   // This uses server-side allocation via lucky-dip-reserve edge function
-  // to prevent race conditions and ensure atomic ticket allocation.
-  // The server picks random available tickets, avoiding client-side selection conflicts.
   const reserveLuckyDipTickets = async (): Promise<boolean> => {
     if (!baseUser?.id || !competition?.id || ticketCount <= 0) {
       ticketReservationLogger.warn('Pre-validation failed', {
@@ -258,11 +140,6 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
     });
 
     try {
-      // CRITICAL: Lucky Dip MUST use server-side allocation to avoid race conditions
-      // Call lucky-dip-reserve edge function which atomically:
-      // 1. Fetches available tickets server-side
-      // 2. Selects random tickets server-side
-      // 3. Creates reservation in one transaction
       ticketReservationLogger.info('Invoking lucky-dip-reserve edge function', {
         ticketCount
       });
@@ -281,7 +158,6 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
 
       const edgeFunctionDuration = Date.now() - edgeFunctionStartTime;
 
-      // Handle function invocation errors
       if (error) {
         ticketReservationLogger.edgeFunctionError('lucky-dip-reserve', error, 1, 1);
         showDebugHintOnError();
@@ -302,8 +178,6 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
         return false;
       }
 
-      // lucky-dip-reserve returns: { success: true, reservationId, ticketNumbers, ticketCount, expiresAt }
-      // or { success: false, error, errorCode }
       if (!data || data.success !== true) {
         const errorMsg = data?.error || "Failed to reserve tickets";
         ticketReservationLogger.warn('Application-level error', {
@@ -327,7 +201,6 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
         return false;
       }
 
-      // Success! Server allocated tickets and created reservation
       const reservedTicketNumbers = data.ticketNumbers || [];
       const ticketCountReserved = data.ticketCount || reservedTicketNumbers.length;
 
@@ -346,7 +219,6 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
         duration: edgeFunctionDuration
       });
 
-      // Store reservation data
       setReservationId(data.reservationId || null);
       setReservedTickets(reservedTicketNumbers);
       setReserving(false);
@@ -374,65 +246,20 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
     }
   };
 
-  // Use authoritative availability data with conservative fallback when non-authoritative
-  // This ensures a single source of truth while preventing 0/0 display during loading
-  const soldCount = availability.isAuthoritative 
-    ? availability.sold_count 
-    : (competition.tickets_sold || 0);
-  
-  const totalTickets = availability.isAuthoritative 
-    ? availability.total_tickets 
-    : (competition.total_tickets || 0);
-  
-  // Helper: Calculate fallback available count from competition data
-  const fallbackAvailableCount = Math.max(0, (competition.total_tickets || 0) - (competition.tickets_sold || 0));
-  
-  const availableCount = availability.isAuthoritative 
-    ? availability.available_count 
-    : fallbackAvailableCount;
-
-  // Check if competition is sold out
-  const isSoldOut = totalTickets > 0 && soldCount >= totalTickets;
-
   // Check if competition accepts entries (only active competitions)
   const isEntryAllowed = canEnterCompetition(competition.status);
   
   // Slider and buttons should be disabled only when tickets are unavailable
   const isSelectionDisabled = isSoldOut || availableCount === 0;
-  
-  // Determine if we should show the "temporarily unavailable" banner
-  const showUnavailableBanner = shouldShowUnavailableBanner({
-    availableCount,
-    isSoldOut,
-    availabilityError,
-    isAuthoritative: availability.isAuthoritative,
-  });
 
-  // Enhanced debug logging to track availability logic
-  console.log('[HeroSection] Ticket availability state:', {
-    // Authoritative data
-    isAuthoritative: availability.isAuthoritative,
-    authoritativeAvailableCount: availability.available_count,
-    authoritativeSoldCount: availability.sold_count,
-    authoritativeTotalTickets: availability.total_tickets,
-    
-    // Fallback data
-    fallbackAvailableCount,
-    competitionTotalTickets: competition.total_tickets,
-    competitionTicketsSold: competition.tickets_sold,
-    
-    // Computed values (uses fallback when not authoritative)
+  // Debug logging
+  console.log('[HeroSection] Ticket availability:', {
     soldCount,
     totalTickets,
     availableCount,
-    pendingCount: availability.pending_count,
-    
-    // UI state
     isSoldOut,
-    isSelectionDisabled,
-    showUnavailableBanner,
-    availabilityError,
-    availabilityLoading,
+    isEntryAllowed,
+    competitionStatus: competition.status
   });
 
   const progressPercent = totalTickets > 0
@@ -487,16 +314,6 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
                 <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2 mb-3">
                   <p className="text-red-400 text-sm sequel-45 text-center">
                     Competition is sold out - no tickets available
-                  </p>
-                </div>
-              )}
-              {/* Show "temporarily unavailable" banner only when tickets are genuinely unavailable.
-                  Uses computed availableCount which includes fallback, so banner won't show when
-                  authoritative RPC fails but fallback indicates tickets remain. */}
-              {showUnavailableBanner && (
-                <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg px-3 py-2 mb-3">
-                  <p className="text-orange-400 text-sm sequel-45 text-center">
-                    Tickets temporarily unavailable - please refresh
                   </p>
                 </div>
               )}
@@ -653,13 +470,10 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
         onClose={() => setShowCaptchaModal(false)}
         onSuccess={async () => {
           setShowCaptchaModal(false);
-          // Reserve tickets BEFORE showing user info modal
-          // This ensures atomic ticket allocation for lucky dip
           const success = await reserveLuckyDipTickets();
           if (success) {
             setShowUserInfoModal(true);
           }
-          // If reservation failed, error message is already set
         }}
       />
 
@@ -675,7 +489,6 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
           setShowPaymentModal(true);
         }}
         onPayWithCard={(info) => {
-          // Card payment now routes to the main payment modal which handles all payment methods
           setUserInfo(info);
           setShowUserInfoModal(false);
           setShowPaymentModal(true);
@@ -695,13 +508,9 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
             selectedTickets={reservedTickets}
             reservationId={reservationId}
             onPaymentSuccess={() => {
-              // Clear reservation state on success
               setReservationId(null);
               setReservedTickets([]);
               setTicketCount(0);
-              // Refresh ticket availability immediately to show newly purchased tickets as sold
-              // This ensures UI reflects the updated state without requiring reload
-              refreshAvailability();
               onEntriesRefresh?.();
             }}
             maxAvailableTickets={availableCount}
