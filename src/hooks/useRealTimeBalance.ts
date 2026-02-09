@@ -626,4 +626,4 @@ export function useWinnerNotifications(onWin?: (prize: any) => void) {
   };
 }
 
-export default useRealTimeBalance;
+export { useRealTimeBalance };

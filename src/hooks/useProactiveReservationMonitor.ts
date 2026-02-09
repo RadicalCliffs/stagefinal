@@ -116,4 +116,4 @@ export function useProactiveReservationMonitor(options: ProactiveMonitorOptions 
   };
 }
 
-export default useProactiveReservationMonitor;
+export { useProactiveReservationMonitor };

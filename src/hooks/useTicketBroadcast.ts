@@ -453,4 +453,4 @@ export function useTicketAvailability(options: {
   };
 }
 
-export default useTicketBroadcast;
+export { useTicketBroadcast };

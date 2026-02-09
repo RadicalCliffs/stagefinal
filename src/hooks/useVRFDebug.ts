@@ -244,4 +244,4 @@ export function useVRFReadyCheck(competitionId?: number | null): {
   return { ready, loading, error, check };
 }
 
-export default useVRFDebug;
+export { useVRFDebug };

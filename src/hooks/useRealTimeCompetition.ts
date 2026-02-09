@@ -311,4 +311,4 @@ export function useTicketSalesCounter(competitionId: string) {
   };
 }
 
-export default useRealTimeCompetition;
+export { useRealTimeCompetition };

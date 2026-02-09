@@ -423,4 +423,4 @@ export function useInstantWinTickets({
   };
 }
 
-export default useInstantWinTickets;
+export { useInstantWinTickets };
