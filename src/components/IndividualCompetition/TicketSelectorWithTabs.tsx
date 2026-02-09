@@ -13,6 +13,7 @@ import { getUserFriendlyErrorMessage, parseReservationErrorAsync, SupabaseFuncti
 import { debounce } from "../../utils/util";
 import { reserveTicketsWithRedundancy } from "../../lib/reserve-tickets-redundant";
 import { useProactiveReservationMonitor } from "../../hooks/useProactiveReservationMonitor";
+import { useTicketBroadcast } from "../../hooks/useTicketBroadcast";
 
 // Lazy load PaymentModal - only loaded when user initiates payment
 const PaymentModal = lazy(() => import("../PaymentModal"));
@@ -110,6 +111,29 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
         enabled: true,
     });
 
+    // REAL-TIME UPDATES: Subscribe to broadcast channel for instant ticket updates
+    const { isSubscribed: isBroadcastSubscribed } = useTicketBroadcast({
+        competitionId,
+        onTicketSold: () => {
+            // Ticket was sold, refresh grid without loading spinner
+            debouncedRefresh();
+            fetchOwnedTickets();
+        },
+        onTicketReleased: () => {
+            // Ticket was released/expired, refresh grid
+            debouncedRefresh();
+        },
+        onTicketReserved: () => {
+            // Ticket was reserved, refresh grid
+            debouncedRefresh();
+        },
+        onTicketExpired: () => {
+            // Reservation expired, refresh grid
+            debouncedRefresh();
+        },
+        debug: false,
+    });
+
     const startRangeIndex = (currentRangePage - 1) * RANGES_PER_PAGE;
     const endRangeIndex = Math.min(startRangeIndex + RANGES_PER_PAGE, filterOptions.length);
     const visibleRanges = filterOptions.slice(startRangeIndex, endRangeIndex);
@@ -167,24 +191,9 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                 }
             }
 
-            // Validate against ticketsSold prop - if service returns more available than expected,
-            // the data may be stale or inconsistent
-            const expectedAvailable = totalTickets - ticketsSold;
-            let validatedAvailable = available;
-
-            if (ticketsSold > 0 && available.length > expectedAvailable) {
-                console.log('[TicketSelector] Service returned more available than expected, using ticketsSold for validation:', {
-                    serviceAvailableCount: available.length,
-                    expectedAvailable,
-                    ticketsSold
-                });
-                // Limit to expected available count (use first N tickets as available)
-                // This prevents showing sold tickets as available when data is inconsistent
-                validatedAvailable = available.slice(0, expectedAvailable);
-            }
-
-            console.log('[TicketSelector] Setting availableTickets:', { count: validatedAvailable.length, first5: validatedAvailable.slice(0, 5) });
-            setAvailableTickets(validatedAvailable);
+            // RPC get_unavailable_tickets is the sole source of truth
+            console.log('[TicketSelector] Setting availableTickets:', { count: available.length, first5: available.slice(0, 5) });
+            setAvailableTickets(available);
             if (isInitialLoad) {
                 setIsInitialLoad(false);
             }
@@ -391,10 +400,26 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                     debouncedRefresh();
                 }
             )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'tickets', filter: `competition_id=eq.${competitionId}` },
+                () => {
+                    // Direct tickets table changes - most authoritative source
+                    debouncedRefresh();
+                }
+            )
             .subscribe();
+
+        // FALLBACK POLLING: 5-second interval to ensure grid stays current
+        // even when realtime events are missed
+        const pollingInterval = setInterval(() => {
+            console.log('[TicketSelector] Fallback polling refresh');
+            debouncedRefresh();
+        }, 5000);
 
         return () => {
             supabase.removeChannel(channel);
+            clearInterval(pollingInterval);
         };
     }, [competitionId, debouncedRefresh, fetchOwnedTickets]);
 
@@ -853,6 +878,14 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                             // Use soft refresh (no loading spinner) to prevent UI flash
                             fetchAvailableTickets(false);
                             fetchOwnedTickets();
+                            
+                            // Schedule follow-up refresh 2 seconds later to catch any delayed database propagation
+                            setTimeout(() => {
+                                console.log('[TicketSelector] Post-payment follow-up refresh');
+                                fetchAvailableTickets(false);
+                                fetchOwnedTickets();
+                            }, 2000);
+                            
                             // Clear the selection and messages
                             setSelectedTickets([]);
                             setReservationId(null);
