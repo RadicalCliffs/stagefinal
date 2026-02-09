@@ -247,7 +247,8 @@ export const userDataService = {
         if (balanceError) {
           console.error('Error fetching user balance:', balanceError);
         }
-        walletBalance = Number(userBalance?.balance ?? 0 || 0);
+        const balance = userBalance?.balance ?? 0;
+        walletBalance = Number(balance || 0);
       }
 
       // Get recent entries count - use direct query instead of bypass_rls
