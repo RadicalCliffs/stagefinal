@@ -112,7 +112,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
     });
 
     // REAL-TIME UPDATES: Subscribe to broadcast channel for instant ticket updates
-    const { isSubscribed: isBroadcastSubscribed } = useTicketBroadcast({
+    useTicketBroadcast({
         competitionId,
         onTicketSold: () => {
             // Ticket was sold, refresh grid without loading spinner
@@ -211,7 +211,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                 setLoading(false);
             }
         }
-    }, [competitionId, totalTickets, ticketsSold, isInitialLoad]);
+    }, [competitionId, totalTickets, isInitialLoad]);
 
     // Create debounced fetch function (debounce 300ms to prevent rapid calls during high traffic)
     useEffect(() => {

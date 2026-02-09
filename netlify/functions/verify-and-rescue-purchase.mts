@@ -306,6 +306,7 @@ export default async (req: Request, context: Context) => {
       .insert({
         uid: entryId,
         userid: canonicalUserId,
+        canonical_user_id: canonicalUserId,
         competitionid: competitionId,
         ticketnumbers: ticketNumbersStr,
         numberoftickets: ticketNumbers.length,
