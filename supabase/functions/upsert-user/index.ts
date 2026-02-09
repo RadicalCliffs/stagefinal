@@ -2,11 +2,45 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 import { toPrizePid } from "../_shared/userId.ts";
 
-const cors = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Cache-Control, Pragma, Expires',
-};
+// CORS configuration - specific origins required for credentials
+const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://substage.theprize.io';
+const ALLOWED_ORIGINS = [
+  SITE_URL,
+  'https://substage.theprize.io',
+  'https://theprize.io',
+  'https://theprizeio.netlify.app',
+  'https://www.theprize.io',
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://localhost:8888',
+];
+
+function getCorsOrigin(requestOrigin: string | null): string {
+  // Validate request origin is in allowed list
+  if (requestOrigin && ALLOWED_ORIGINS.includes(requestOrigin)) {
+    return requestOrigin;
+  }
+  // Always return a specific origin (never empty string or wildcard)
+  return SITE_URL;
+}
+
+function buildCorsHeaders(requestOrigin: string | null): Record<string, string> {
+  const origin = getCorsOrigin(requestOrigin);
+  
+  // Ensure we never return empty string (required for credentials: true)
+  if (!origin) {
+    throw new Error('CORS origin cannot be empty when using credentials');
+  }
+  
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, Cache-Control, Pragma, Expires',
+    'Access-Control-Allow-Credentials': 'true',
+    'Access-Control-Max-Age': '86400',
+    'Vary': 'Origin',
+  };
+}
 
 // Avatar URLs from Supabase public storage bucket "Avatars"
 // These are the official 777btc avatars (EH-01 through EH-34)
@@ -33,14 +67,16 @@ function getRandomAvatarUrl(): string {
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = buildCorsHeaders(req.headers.get('origin'));
+  
   if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: cors });
+    return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
-      headers: { ...cors, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
@@ -50,7 +86,7 @@ Deno.serve(async (req) => {
     if (!username || !email) {
       return new Response(JSON.stringify({ error: 'Username and email required' }), {
         status: 400,
-        headers: { ...cors, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -177,7 +213,7 @@ Deno.serve(async (req) => {
       console.error('[upsert-user] Upsert error:', error);
       return new Response(JSON.stringify({ error: error.message }), {
         status: 500,
-        headers: { ...cors, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -233,13 +269,13 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({ success: true, user: data }), {
       status: 200,
-      headers: { ...cors, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {
     console.error('Error:', err);
     return new Response(JSON.stringify({ error: 'Internal error' }), {
       status: 500,
-      headers: { ...cors, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });
