@@ -293,16 +293,33 @@ export const database = {
 
       if (!data) return null;
 
-      // Process image URL
+      // Fetch ticket count for this competition
+      // This ensures individual pages match the landing page ticket counts
+      let ticketsSold = 0;
+      try {
+        const { data: ticketCounts, error: countError } = await supabase
+          .from('tickets')
+          .select('competition_id')
+          .eq('competition_id', competitionId);
+
+        if (!countError && ticketCounts) {
+          ticketsSold = ticketCounts.length;
+        }
+      } catch (countError) {
+        console.warn('Failed to fetch ticket count for competition:', competitionId, countError);
+      }
+
+      // Process image URL and add tickets_sold
       return {
         ...data,
+        tickets_sold: ticketsSold,
         image_url: getImageUrl(data.image_url || data.imageurl),
       };
     } catch (error) {
       console.log('Error:', error);
       return null;
     }
-},
+  },
 
   async getCompetitionById(id: string) {
     try {
