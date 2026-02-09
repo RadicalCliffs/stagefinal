@@ -206,7 +206,7 @@ export default async (req: Request, context: Context) => {
       })
     );
 
-    // The RPC returns {success, error, entry_id, ticket_numbers, ticket_count, total_cost, new_balance, ...}
+    // The RPC returns {success, error, entry_id, ticket_numbers, ticket_count, total_cost, available_balance, ...}
     if (!rpcResult.success) {
       const errorCode = rpcResult.error_code || "PURCHASE_FAILED";
       const errorMessage = rpcResult.error || "Purchase failed";
@@ -240,7 +240,7 @@ export default async (req: Request, context: Context) => {
     }
 
     // Transform RPC result to match the format the client expects:
-    // { status: 'ok', competition_id, tickets: [{ticket_number}], entry_id, total_cost, new_balance }
+    // { status: 'ok', competition_id, tickets: [{ticket_number}], entry_id, total_cost, available_balance }
     const ticketNumbersResult: number[] = rpcResult.ticket_numbers || [];
     const responseData = {
       status: "ok",
@@ -251,7 +251,8 @@ export default async (req: Request, context: Context) => {
       })),
       entry_id: rpcResult.entry_id,
       total_cost: rpcResult.total_cost,
-      new_balance: rpcResult.new_balance,
+      new_balance: rpcResult.available_balance,
+      available_balance: rpcResult.available_balance,
       idempotent: rpcResult.idempotent || false,
       message: `Successfully purchased ${ticketNumbersResult.length} tickets`,
     };

@@ -127,7 +127,7 @@ BEGIN
     SELECT ticketnumbers, amountspent
     INTO v_ticket_numbers_str, v_total_cost
     FROM joincompetition
-    WHERE competitionid = p_competition_id
+    WHERE competitionid = p_competition_id::UUID
       AND (userid = v_canonical_user_id OR userid = p_user_identifier)
       AND transactionhash = p_idempotency_key
     LIMIT 1;
@@ -144,7 +144,7 @@ BEGIN
         'idempotent', true,
         'ticket_numbers', string_to_array(v_ticket_numbers_str, ',')::INTEGER[],
         'total_cost', v_total_cost,
-        'new_balance', COALESCE(v_current_balance, 0),
+        'available_balance', COALESCE(v_current_balance, 0),
         'message', 'Already processed'
       );
     END IF;
@@ -322,15 +322,15 @@ BEGIN
     userid,
     competitionid,
     ticketnumbers,
-    ticketcount,
+    numberoftickets,
     amountspent,
     transactionhash,
-    createdat,
-    updatedat
+    created_at,
+    updated_at
   ) VALUES (
-    v_entry_id,
+    v_entry_id::UUID,
     v_canonical_user_id,
-    p_competition_id,
+    p_competition_id::UUID,
     v_ticket_numbers_str,
     array_length(v_final_tickets, 1),
     v_total_cost,
@@ -403,7 +403,7 @@ BEGIN
     'ticket_count', array_length(v_final_tickets, 1),
     'total_cost', v_total_cost,
     'previous_balance', v_current_balance,
-    'new_balance', v_new_balance,
+    'available_balance', v_new_balance,
     'competition_id', p_competition_id
   );
 
