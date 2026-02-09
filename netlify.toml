@@ -192,6 +192,13 @@ from = "/api/instant-win-sync/*"
 to = "/.netlify/functions/instant-win-sync"
 status = 200
 
+# Purchase with Balance Proxy - Routes to purchase-with-balance-proxy.mts
+# Proxies balance payment requests to Supabase to avoid CORS issues
+[[redirects]]
+from = "/api/purchase-with-balance"
+to = "/.netlify/functions/purchase-with-balance-proxy"
+status = 200
+
 # SPA fallback - redirect all other routes to index.html
 # force = false ensures explicit redirects above take precedence
 [[redirects]]

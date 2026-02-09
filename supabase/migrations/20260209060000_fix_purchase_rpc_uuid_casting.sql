@@ -1,37 +1,12 @@
--- =====================================================
--- SIMPLIFIED BALANCE PAYMENT SYSTEM
--- =====================================================
--- This migration replaces the complex payment logic with a straightforward system:
--- 1. Check sub_account_balance for available_balance
--- 2. Match by canonical_user_id or wallet_address
--- 3. Deduct balance atomically
--- 4. Allocate tickets (selected or lucky dip)
--- 5. Return clear success/error
---
--- Version: 1.0
--- Date: 2026-01-30
--- =====================================================
+-- ============================================================================
+-- FIX: purchase_tickets_with_balance "operator does not exist: uuid = text"
+-- ============================================================================
+-- The p_competition_id parameter is TEXT, but competitions.id, tickets.competition_id,
+-- joincompetition.competitionid, and pending_tickets.competition_id are all UUID.
+-- Every comparison and insertion must cast p_competition_id to UUID.
+-- ============================================================================
 
--- Drop existing complex function if exists
 DROP FUNCTION IF EXISTS purchase_tickets_with_balance(TEXT, TEXT, NUMERIC, INTEGER, INTEGER[], TEXT);
-
--- =====================================================
--- MAIN RPC: purchase_tickets_with_balance
--- =====================================================
--- This is the ONLY function needed for balance payments.
--- It does everything in one atomic transaction.
---
--- Parameters:
---   p_user_identifier: User's wallet address or canonical_user_id
---   p_competition_id: UUID of the competition
---   p_ticket_price: Price per ticket in USD
---   p_ticket_count: Number of tickets (for lucky dip)
---   p_ticket_numbers: Specific ticket numbers (for manual selection)
---   p_idempotency_key: Optional key to prevent duplicate purchases
---
--- Returns:
---   JSON object with success/error and ticket details
--- =====================================================
 
 CREATE OR REPLACE FUNCTION purchase_tickets_with_balance(
   p_user_identifier TEXT,
@@ -68,7 +43,7 @@ BEGIN
   -- =====================================================
   -- STEP 1: Validate inputs
   -- =====================================================
-  
+
   IF p_user_identifier IS NULL OR LENGTH(TRIM(p_user_identifier)) = 0 THEN
     RETURN jsonb_build_object(
       'success', false,
@@ -105,7 +80,9 @@ BEGIN
     );
   END IF;
 
-  -- Cast competition_id TEXT to UUID once (all table columns are UUID)
+  -- =====================================================
+  -- STEP 1b: Cast competition_id to UUID once
+  -- =====================================================
   BEGIN
     v_competition_uuid := p_competition_id::UUID;
   EXCEPTION WHEN invalid_text_representation THEN
@@ -118,7 +95,7 @@ BEGIN
   -- =====================================================
   -- STEP 2: Normalize user identifier to canonical format
   -- =====================================================
-  
+
   -- Convert to lowercase if it's a wallet address
   IF p_user_identifier ~ '^0x[a-fA-F0-9]{40}$' THEN
     v_canonical_user_id := 'prize:pid:' || LOWER(p_user_identifier);
@@ -132,7 +109,7 @@ BEGIN
   -- =====================================================
   -- STEP 3: Check for idempotent duplicate
   -- =====================================================
-  
+
   IF p_idempotency_key IS NOT NULL THEN
     -- Check if we already processed this exact request
     SELECT ticketnumbers, amountspent
@@ -164,7 +141,7 @@ BEGIN
   -- =====================================================
   -- STEP 4: Get and lock user balance
   -- =====================================================
-  
+
   SELECT available_balance, id
   INTO v_current_balance, v_user_uuid
   FROM sub_account_balances
@@ -199,7 +176,7 @@ BEGIN
   -- =====================================================
   -- STEP 5: Verify competition is active
   -- =====================================================
-  
+
   SELECT total_tickets, status
   INTO v_competition_total_tickets, v_competition_status
   FROM competitions
@@ -223,15 +200,15 @@ BEGIN
   -- =====================================================
   -- STEP 6: Determine final ticket numbers
   -- =====================================================
-  
+
   IF p_ticket_numbers IS NOT NULL AND array_length(p_ticket_numbers, 1) > 0 THEN
     -- User selected specific tickets
     v_final_tickets := p_ticket_numbers;
   ELSE
     -- Lucky dip - allocate random available tickets
     v_final_tickets := ARRAY[]::INTEGER[];
-    
-    -- Get all used tickets
+
+    -- Get all used tickets (tickets.competition_id is UUID)
     SELECT array_agg(DISTINCT ticket_number)
     INTO v_used_tickets
     FROM tickets
@@ -261,7 +238,7 @@ BEGIN
       v_random_index := 1 + floor(random() * (array_length(v_available_tickets, 1) - v_i + 1))::INTEGER;
       v_ticket_number := v_available_tickets[v_random_index];
       v_final_tickets := array_append(v_final_tickets, v_ticket_number);
-      
+
       -- Swap selected with last unselected
       v_available_tickets[v_random_index] := v_available_tickets[array_length(v_available_tickets, 1) - v_i + 1];
     END LOOP;
@@ -270,7 +247,7 @@ BEGIN
   -- =====================================================
   -- STEP 7: Calculate total cost and check balance
   -- =====================================================
-  
+
   v_total_cost := p_ticket_price * array_length(v_final_tickets, 1);
 
   IF v_current_balance < v_total_cost THEN
@@ -288,9 +265,9 @@ BEGIN
   -- =====================================================
   -- STEP 8: Deduct balance atomically
   -- =====================================================
-  
+
   UPDATE sub_account_balances
-  SET 
+  SET
     available_balance = v_new_balance,
     updated_at = NOW()
   WHERE canonical_user_id = v_canonical_user_id AND currency = 'USD';
@@ -298,7 +275,7 @@ BEGIN
   -- =====================================================
   -- STEP 9: Create balance ledger entry for audit
   -- =====================================================
-  
+
   INSERT INTO balance_ledger (
     canonical_user_id,
     transaction_type,
@@ -324,7 +301,7 @@ BEGIN
   -- =====================================================
   -- STEP 10: Create competition entry
   -- =====================================================
-  
+
   v_entry_id := gen_random_uuid()::TEXT;
   v_ticket_numbers_str := array_to_string(v_final_tickets, ',');
 
@@ -353,7 +330,7 @@ BEGIN
   -- =====================================================
   -- STEP 11: Create ticket records
   -- =====================================================
-  
+
   -- Insert individual ticket records for tracking
   -- Use DO block to handle potential schema differences
   BEGIN
@@ -406,7 +383,7 @@ BEGIN
   -- =====================================================
   -- STEP 12: Return success
   -- =====================================================
-  
+
   RETURN jsonb_build_object(
     'success', true,
     'entry_id', v_entry_id,
@@ -436,79 +413,5 @@ $$;
 REVOKE ALL ON FUNCTION purchase_tickets_with_balance(TEXT, TEXT, NUMERIC, INTEGER, INTEGER[], TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION purchase_tickets_with_balance(TEXT, TEXT, NUMERIC, INTEGER, INTEGER[], TEXT) TO service_role;
 
--- =====================================================
--- HELPER RPC: get_user_balance
--- =====================================================
--- Simple function to get user's current balance
--- =====================================================
-
-CREATE OR REPLACE FUNCTION get_user_balance(p_user_identifier TEXT)
-RETURNS JSONB
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_canonical_user_id TEXT;
-  v_balance NUMERIC;
-BEGIN
-  -- Normalize user identifier
-  IF p_user_identifier ~ '^0x[a-fA-F0-9]{40}$' THEN
-    v_canonical_user_id := 'prize:pid:' || LOWER(p_user_identifier);
-  ELSIF p_user_identifier LIKE 'prize:pid:%' THEN
-    v_canonical_user_id := LOWER(p_user_identifier);
-  ELSE
-    v_canonical_user_id := 'prize:pid:' || LOWER(p_user_identifier);
-  END IF;
-
-  -- Get balance from sub_account_balances
-  SELECT available_balance
-  INTO v_balance
-  FROM sub_account_balances
-  WHERE canonical_user_id = v_canonical_user_id AND currency = 'USD';
-
-  IF NOT FOUND THEN
-    -- Try to find by wallet address
-    IF p_user_identifier ~ '^0x[a-fA-F0-9]{40}$' THEN
-      SELECT sab.available_balance
-      INTO v_balance
-      FROM sub_account_balances sab
-      JOIN canonical_users cu ON cu.canonical_user_id = sab.canonical_user_id
-      WHERE (LOWER(cu.wallet_address) = LOWER(p_user_identifier)
-         OR LOWER(cu.base_wallet_address) = LOWER(p_user_identifier)
-         OR LOWER(cu.eth_wallet_address) = LOWER(p_user_identifier))
-        AND sab.currency = 'USD'
-      LIMIT 1;
-    END IF;
-
-    IF NOT FOUND THEN
-      RETURN jsonb_build_object(
-        'success', true,
-        'balance', 0,
-        'currency', 'USD',
-        'note', 'No balance record found - user may need to top up first'
-      );
-    END IF;
-  END IF;
-
-  RETURN jsonb_build_object(
-    'success', true,
-    'balance', COALESCE(v_balance, 0),
-    'currency', 'USD'
-  );
-END;
-$$;
-
--- =====================================================
--- Grant permissions
--- =====================================================
-
-REVOKE ALL ON FUNCTION get_user_balance(TEXT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION get_user_balance(TEXT) TO service_role;
-GRANT EXECUTE ON FUNCTION get_user_balance(TEXT) TO authenticated;
-
-COMMENT ON FUNCTION purchase_tickets_with_balance IS 
-  'Simplified balance payment: checks sub_account_balance, deducts balance, allocates tickets atomically';
-
-COMMENT ON FUNCTION get_user_balance IS 
-  'Get user balance from sub_account_balances by canonical_user_id or wallet_address';
+COMMENT ON FUNCTION purchase_tickets_with_balance IS
+  'Simplified balance payment: checks sub_account_balance, deducts balance, allocates tickets atomically. Fixed UUID casting for all table comparisons.';

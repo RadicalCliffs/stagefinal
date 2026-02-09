@@ -1,35 +1,8 @@
 import type { Context, Config } from "@netlify/functions";
 
-// Export config at the top for reliable Netlify function registration
 export const config: Config = {
   path: "/api/create-charge",
-  method: ["POST", "OPTIONS"],
 };
-
-/**
- * Create Charge Proxy Function
- *
- * This function proxies requests to the Supabase Edge Function for creating
- * Coinbase Commerce charges. It handles CORS issues that can occur with
- * cross-origin requests to external Supabase functions.
- *
- * Routes:
- * - POST /api/create-charge - Create a Coinbase Commerce charge
- * - OPTIONS /api/create-charge - Handle CORS preflight
- */
-
-const SUPABASE_FUNCTIONS_BASE =
-  Netlify.env.get("SUPABASE_FUNCTIONS_URL") ||
-  Netlify.env.get("VITE_SUPABASE_URL")?.replace(".supabase.co", ".supabase.co/functions/v1") ||
-  "https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1";
-
-const CREATE_CHARGE_URL = `${SUPABASE_FUNCTIONS_BASE}/create-charge`;
-
-// Supabase anon key for authenticating with Edge Functions
-const SUPABASE_ANON_KEY =
-  Netlify.env.get("SUPABASE_ANON_KEY") ||
-  Netlify.env.get("VITE_SUPABASE_ANON_KEY") ||
-  "";
 
 // CORS headers for all responses
 const corsHeaders = {
@@ -75,6 +48,19 @@ export default async (req: Request, context: Context): Promise<Response> => {
   }
 
   try {
+    // Resolve env vars inside the handler to avoid module-level boot issues
+    const SUPABASE_FUNCTIONS_BASE =
+      Netlify.env.get("SUPABASE_FUNCTIONS_URL") ||
+      Netlify.env.get("VITE_SUPABASE_URL")?.replace(".supabase.co", ".supabase.co/functions/v1") ||
+      "https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1";
+
+    const CREATE_CHARGE_URL = `${SUPABASE_FUNCTIONS_BASE}/create-charge`;
+
+    const SUPABASE_ANON_KEY =
+      Netlify.env.get("SUPABASE_ANON_KEY") ||
+      Netlify.env.get("VITE_SUPABASE_ANON_KEY") ||
+      "";
+
     // Parse the request body
     let body: Record<string, unknown>;
     try {
