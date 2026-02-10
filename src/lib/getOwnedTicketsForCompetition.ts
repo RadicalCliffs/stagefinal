@@ -62,7 +62,8 @@ export async function getOwnedTicketsForCompetition(
 
       if (!error && data && data.length > 0) {
         // Try both column names (new snake_case and legacy)
-        const tickets = (data[0]?.ticket_numbers ?? data[0]?.ticketnumbers ?? []) as (string | number)[];
+        const row = data[0] as any; // Type assertion for view columns
+        const tickets = (row?.ticket_numbers ?? row?.ticketnumbers ?? []) as (string | number)[];
         if (tickets.length > 0) {
           console.info('[TicketGreen] A-path success', {
             competitionId,
@@ -85,16 +86,17 @@ export async function getOwnedTicketsForCompetition(
       return new Set();
     }
 
+    type RpcResult = { competitionid: string; ticketnumbers: string[] };
     const { data, error } = await supabase.rpc('get_user_active_tickets', {
       p_user_identifier: id,
-    });
+    }) as { data: RpcResult[] | null; error: any };
 
     if (error) {
       throw error;
     }
 
     // Find the row for the current competition
-    const row = data?.find((r: any) => String(r.competitionid) === String(competitionId));
+    const row = data?.find((r) => String(r.competitionid) === String(competitionId));
     const tickets = (row?.ticketnumbers ?? []) as (string | number)[];
 
     console.info('[TicketGreen] B-path used', {
