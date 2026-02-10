@@ -510,7 +510,7 @@ export const notificationService = {
 
       // Fetch user transactions using RPC
       const txResult = await supabase.rpc('get_user_transactions', {
-        p_user_identifier: toPrizePid(userId),
+        user_identifier: toPrizePid(userId),
       }) as { data: any; error: any };
       
       const { data: transactions, error: txError } = txResult;

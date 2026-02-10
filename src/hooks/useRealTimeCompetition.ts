@@ -209,7 +209,7 @@ export function useRealTimeCompetition(options: UseRealTimeCompetitionOptions): 
             event: 'INSERT',
             schema: 'public',
             table: 'v_joincompetition_active',
-            filter: `competitionid=eq.${competitionId}`,
+            filter: `competition_id=eq.${competitionId}`,
           },
           (payload) => {
             log('New entry via postgres_changes:', payload);

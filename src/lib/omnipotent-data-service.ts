@@ -443,7 +443,7 @@ class OmnipotentDataService {
    * Transform competition entry for public display
    */
   private transformCompetitionEntry(raw: any): OmnipotentEntry {
-    const ticketNumbers = this.parseTicketNumbers(raw.ticketnumbers);
+    const ticketNumbers = this.parseTicketNumbers(raw.ticket_numbers || raw.ticketnumbers);
     const walletAddress = raw.wallet_address || raw.privy_user_id || '';
     
     // Filter out mock/zero addresses
@@ -453,7 +453,7 @@ class OmnipotentDataService {
 
     return {
       id: raw.uid || `entry-${Date.now()}`,
-      competition_id: raw.competitionid,
+      competition_id: raw.competition_id || raw.competitionid,
       competition_title: '',
       competition_image: '',
       competition_status: 'active',
@@ -552,11 +552,11 @@ class OmnipotentDataService {
         }
 
         // Get sold tickets from v_joincompetition_active
-        // SCHEMA: v_joincompetition_active has: competitionid, ticketnumbers (comma-separated string or array)
+        // SCHEMA: v_joincompetition_active has: competition_id, ticket_numbers (comma-separated string or array)
         const soldResult = await supabase
           .from('v_joincompetition_active')
-          .select('ticketnumbers')
-          .eq('competitionid', competitionId) as { data: any; error: any };
+          .select('ticket_numbers')
+          .eq('competition_id', competitionId) as { data: any; error: any };
         
         const { data: soldData } = soldResult;
 
@@ -565,12 +565,12 @@ class OmnipotentDataService {
             // Handle both comma-separated string and array formats
             let ticketNumbers: number[] = [];
             
-            if (Array.isArray(row.ticketnumbers)) {
+            if (Array.isArray(row.ticket_numbers)) {
               // If it's an array (INTEGER[])
-              ticketNumbers = row.ticketnumbers.filter((n: any) => Number.isFinite(n) && n > 0);
-            } else if (typeof row.ticketnumbers === 'string') {
+              ticketNumbers = row.ticket_numbers.filter((n: any) => Number.isFinite(n) && n > 0);
+            } else if (typeof row.ticket_numbers === 'string') {
               // If it's a comma-separated string
-              ticketNumbers = row.ticketnumbers
+              ticketNumbers = row.ticket_numbers
                 .split(',')
                 .map((x: string) => parseInt(x.trim(), 10))
                 .filter((n: number) => Number.isFinite(n) && n > 0);
@@ -874,12 +874,12 @@ class OmnipotentDataService {
       // Get sold tickets from v_joincompetition_active
       const { data: soldData } = await supabase
         .from('v_joincompetition_active')
-        .select('ticketnumbers')
-        .eq('competitionid', competitionId);
+        .select('ticket_numbers')
+        .eq('competition_id', competitionId);
 
       if (soldData) {
-        soldData.forEach((row: { ticketnumbers: string | null }) => {
-          const nums = String(row.ticketnumbers || '')
+        soldData.forEach((row: { ticket_numbers: string | null }) => {
+          const nums = String(row.ticket_numbers || '')
             .split(',')
             .map((x: string) => parseInt(x.trim(), 10))
             .filter((n: number) => Number.isFinite(n) && n > 0);

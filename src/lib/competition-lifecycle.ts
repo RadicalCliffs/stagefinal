@@ -193,8 +193,8 @@ export class CompetitionLifecycleService {
           const entryResult = await withRetry(
             async () => await supabase
               .from('v_joincompetition_active')
-              .select('ticketnumbers')
-              .eq('competitionid', competition.id) as any,
+              .select('ticket_numbers')
+              .eq('competition_id', competition.id) as any,
             `fetch entries for ${competition.id}`
           ) as { data: any; error: any };
           
@@ -202,8 +202,8 @@ export class CompetitionLifecycleService {
 
           let totalSoldTickets = 0;
           (entries || []).forEach((entry: any) => {
-            if (entry.ticketnumbers) {
-              const nums = entry.ticketnumbers.split(',').filter((n: string) => n.trim() !== '');
+            if (entry.ticket_numbers) {
+              const nums = entry.ticket_numbers.split(',').filter((n: string) => n.trim() !== '');
               totalSoldTickets += nums.length;
             }
           });
@@ -255,8 +255,8 @@ export class CompetitionLifecycleService {
       const ticketToEntryMap = new Map<number, CompetitionEntry>();
 
       for (const entry of entries) {
-        if (entry.ticketnumbers) {
-          const ticketNumbers = entry.ticketnumbers
+        if (entry.ticket_numbers) {
+          const ticketNumbers = entry.ticket_numbers
             .split(',')
             .map(t => parseInt(t.trim()))
             .filter(t => !isNaN(t));
@@ -311,7 +311,7 @@ export class CompetitionLifecycleService {
       async () => await supabase
         .from('v_joincompetition_active')
         .select('*')
-        .eq('competitionid', competitionId) as any,
+        .eq('competition_id', competitionId) as any,
       `fetch entries for ${competitionId}`
     ) as { data: any; error: any };
     
