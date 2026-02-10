@@ -112,7 +112,8 @@ function transformJoinCompetitionEntry(jc: any, identity: ResolvedIdentity): any
   const entryId = jc.uid || jc.id || `entry-${jc.competition_id || jc.competitionid || 'no-comp'}-${jc.user_id?.substring(0, 8) || jc.userid?.substring(0, 8) || 'no-user'}-${jc.joinedat || 'unknown'}`;
 
   // Calculate number of tickets from ticket_numbers array
-  const ticketCount = Array.isArray(jc.ticket_numbers || jc.ticketnumbers) ? (jc.ticket_numbers || jc.ticketnumbers).length : 1;
+  const ticketNumbers = jc.ticket_numbers || jc.ticketnumbers;
+  const ticketCount = Array.isArray(ticketNumbers) ? ticketNumbers.length : 1;
 
   return {
     id: entryId,
@@ -124,7 +125,7 @@ function transformJoinCompetitionEntry(jc: any, identity: ResolvedIdentity): any
     entry_type: 'completed', // joincompetition entries are always completed
     expires_at: null,
     is_winner: isWinner,
-    ticket_numbers: jc.ticket_numbers || jc.ticketnumbers,
+    ticket_numbers: ticketNumbers,
     // SCHEMA: joincompetition doesn't have numberoftickets - calculate from array
     number_of_tickets: ticketCount,
     // SCHEMA: joincompetition doesn't have amountspent - calculate if ticket_price available
