@@ -5,16 +5,19 @@ import { toPrizePid } from "./_shared/userId.mts";
 /**
  * Competition Lifecycle Checker - Scheduled Function
  *
- * This function runs every 5 minutes to check for:
+ * This function runs every 10 minutes to check for:
  * 1. Expired competitions (past end_date) that need to be drawn
  * 2. Sold-out competitions that need to be completed
  *
  * Moving this logic server-side eliminates client-side network issues
  * and ensures reliable competition lifecycle management.
+ *
+ * NOTE: This function should ONLY be invoked via Netlify's scheduler.
+ * Direct HTTP invocations will be rejected to prevent timeout issues.
  */
 
 export const config: Config = {
-  schedule: "*/5 * * * *", // Run every 5 minutes
+  schedule: "*/10 * * * *", // Run every 10 minutes
 };
 
 // ---------- Supabase ----------
@@ -690,14 +693,35 @@ async function processSoldOutCompetitions(supabase: SupabaseClient): Promise<num
 }
 
 // ---------- Main handler ----------
-export default async (req: Request): Promise<void> => {
+export default async (req: Request): Promise<Response> => {
   const startTime = Date.now();
 
+  // Only allow scheduled invocations (Netlify scheduler adds next_run in body)
+  let isScheduledInvocation = false;
   try {
-    const { next_run } = await req.json();
-    console.log(`[Lifecycle] Scheduled function triggered. Next run: ${next_run}`);
+    const body = await req.json();
+    if (body && body.next_run) {
+      isScheduledInvocation = true;
+      console.log(`[Lifecycle] Scheduled function triggered. Next run: ${body.next_run}`);
+    }
   } catch {
-    console.log("[Lifecycle] Scheduled function triggered (manual invoke)");
+    // If body parsing fails, it's likely not a scheduled invocation
+    console.log("[Lifecycle] Request has no valid JSON body");
+  }
+
+  // Reject direct HTTP invocations to prevent timeout issues
+  if (!isScheduledInvocation) {
+    console.log("[Lifecycle] Rejecting non-scheduled invocation");
+    return new Response(
+      JSON.stringify({
+        error: "This function can only be invoked by Netlify's scheduler",
+        message: "Direct invocations are disabled to prevent timeout issues",
+      }),
+      {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
   }
 
   try {
@@ -711,7 +735,30 @@ export default async (req: Request): Promise<void> => {
 
     const elapsed = Date.now() - startTime;
     console.log(`[Lifecycle] Completed in ${elapsed}ms. Expired: ${expiredCount}, Sold-out: ${soldOutCount}`);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        elapsed,
+        expired: expiredCount,
+        soldOut: soldOutCount,
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
   } catch (error) {
     console.error("[Lifecycle] Fatal error:", error);
+    return new Response(
+      JSON.stringify({
+        error: "Internal server error",
+        message: error instanceof Error ? error.message : String(error),
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
   }
 };
