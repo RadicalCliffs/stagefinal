@@ -111,6 +111,29 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
         enabled: true,
     });
 
+    // REAL-TIME UPDATES: Subscribe to broadcast channel for instant ticket updates
+    useTicketBroadcast({
+        competitionId,
+        onTicketSold: () => {
+            // Ticket was sold, refresh grid without loading spinner
+            debouncedRefresh();
+            fetchOwnedTickets();
+        },
+        onTicketReleased: () => {
+            // Ticket was released/expired, refresh grid
+            debouncedRefresh();
+        },
+        onTicketReserved: () => {
+            // Ticket was reserved, refresh grid
+            debouncedRefresh();
+        },
+        onTicketExpired: () => {
+            // Reservation expired, refresh grid
+            debouncedRefresh();
+        },
+        debug: false,
+    });
+
     const startRangeIndex = (currentRangePage - 1) * RANGES_PER_PAGE;
     const endRangeIndex = Math.min(startRangeIndex + RANGES_PER_PAGE, filterOptions.length);
     const visibleRanges = filterOptions.slice(startRangeIndex, endRangeIndex);
@@ -168,9 +191,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                 }
             }
 
-            // Trust the RPC response as the source of truth for availability.
-            // The get_unavailable_tickets RPC queries sold tickets, pending reservations,
-            // and joincompetition entries directly, so it's always up-to-date.
+            // RPC get_unavailable_tickets is the sole source of truth
             console.log('[TicketSelector] Setting availableTickets:', { count: available.length, first5: available.slice(0, 5) });
             setAvailableTickets(available);
             if (isInitialLoad) {
@@ -401,14 +422,22 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'tickets', filter: `competition_id=eq.${competitionId}` },
                 () => {
-                    // Also listen to direct ticket table changes for faster updates
+                    // Direct tickets table changes - most authoritative source
                     debouncedRefresh();
                 }
             )
             .subscribe();
 
+        // FALLBACK POLLING: 5-second interval to ensure grid stays current
+        // even when realtime events are missed
+        const pollingInterval = setInterval(() => {
+            console.log('[TicketSelector] Fallback polling refresh');
+            debouncedRefresh();
+        }, 5000);
+
         return () => {
             supabase.removeChannel(channel);
+            clearInterval(pollingInterval);
         };
     }, [competitionId, debouncedRefresh, fetchOwnedTickets]);
 
@@ -878,11 +907,14 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                             // Run both fetches in parallel for fastest UI update
                             fetchAvailableTickets(false);
                             fetchOwnedTickets();
-                            // Schedule a second refresh 2s later to catch any delayed DB propagation
+                            
+                            // Schedule follow-up refresh 2 seconds later to catch any delayed database propagation
                             setTimeout(() => {
+                                console.log('[TicketSelector] Post-payment follow-up refresh');
                                 fetchAvailableTickets(false);
                                 fetchOwnedTickets();
                             }, 2000);
+                            
                             // Clear the selection and messages
                             setSelectedTickets([]);
                             setReservationId(null);

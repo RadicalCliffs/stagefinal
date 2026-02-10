@@ -242,91 +242,117 @@ export default async (req: Request, context: Context) => {
       );
     }
 
-    // =====================================================
-    // STEP 3: RPC failed too - direct database write (nuclear option)
-    // =====================================================
-    console.log(
-      `[verify-and-rescue][${requestId}] RPC rescue failed, attempting direct DB write...`
-    );
+   // =====================================================
+// STEP 3: RPC failed too - direct database write (nuclear option)
+// =====================================================
+console.log(
+  `[verify-and-rescue][${requestId}] RPC rescue failed, attempting direct DB write...`
+);
 
-    // Get user balance
-    const { data: balanceRow } = await supabase
-      .from("sub_account_balances")
-      .select("available_balance")
-      .eq("canonical_user_id", canonicalUserId)
-      .eq("currency", "USD")
-      .limit(1)
-      .maybeSingle();
+// 1) Get user balance
+const { data: balanceRow, error: balErr } = await supabase
+  .from("sub_account_balances")
+  .select("available_balance")
+  .eq("canonical_user_id", canonicalUserId)
+  .eq("currency", "USD")
+  .limit(1)
+  .maybeSingle();
 
-    if (!balanceRow) {
-      return jsonResponse({
-        success: false,
-        rescued: false,
-        error: "User balance not found",
-      });
-    }
+if (balErr) {
+  return jsonResponse({
+    success: false,
+    rescued: false,
+    error: "Failed to fetch balance",
+  });
+}
 
-    const currentBalance = Number(balanceRow.available_balance);
-    const totalCost = ticketPrice * ticketNumbers.length;
+if (!balanceRow) {
+  return jsonResponse({
+    success: false,
+    rescued: false,
+    error: "User balance not found",
+  });
+}
 
-    if (currentBalance < totalCost) {
-      return jsonResponse({
-        success: false,
-        rescued: false,
-        error: "Insufficient balance",
-      });
-    }
+const currentBalance = Number(balanceRow.available_balance);
+const totalCost = ticketPrice * ticketNumbers.length;
 
-    const newBalance = currentBalance - totalCost;
+if (currentBalance < totalCost) {
+  return jsonResponse({
+    success: false,
+    rescued: false,
+    error: "Insufficient balance",
+  });
+}
 
-    // Deduct balance
-    const { error: updateErr } = await supabase
-      .from("sub_account_balances")
-      .update({
-        available_balance: newBalance,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("canonical_user_id", canonicalUserId)
-      .eq("currency", "USD");
+const newBalance = currentBalance - totalCost;
 
-    if (updateErr) {
-      return jsonResponse({
-        success: false,
-        rescued: false,
-        error: "Failed to deduct balance",
-      });
-    }
+// 2) Deduct balance
+const { error: updateErr } = await supabase
+  .from("sub_account_balances")
+  .update({
+    available_balance: newBalance,
+    updated_at: new Date().toISOString(),
+  })
+  .eq("canonical_user_id", canonicalUserId)
+  .eq("currency", "USD");
 
-    // Create or update competition entry (handle unique constraint)
-    const entryId = crypto.randomUUID();
-    const ticketNumbersStr = ticketNumbers.join(",");
+if (updateErr) {
+  return jsonResponse({
+    success: false,
+    rescued: false,
+    error: "Failed to deduct balance",
+  });
+}
 
-    // Check if user already has an entry for this competition
+// 3) Create or update competition entry (race-safe with upsert)
+const entryId = crypto.randomUUID();
+const ticketNumbersStr = ticketNumbers.join(",");
+
+const payload = {
+  uid: entryId, // keep if your schema expects uid as primary/identifier
+  userid: canonicalUserId, // legacy alias; safe to remove later
+  canonical_user_id: canonicalUserId,
+  competitionid: competitionId,
+  ticketnumbers: ticketNumbersStr,
+  numberoftickets: ticketNumbers.length,
+  amountspent: totalCost,
+  transactionhash: rescueIdempotencyKey,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+};
+
+// Requires a unique index on (canonical_user_id, competitionid)
+// create unique index if not exists ux_joined_comp_cuid_comp on public.joined_competitions(canonical_user_id, competitionid);
+const { data: upsertRow, error: upsertErr } = await supabase
+  .from("joined_competitions")
+  .upsert([payload], { onConflict: "canonical_user_id,competitionid", ignoreDuplicates: false })
+  .select("uid, ticketnumbers, amountspent, numberoftickets")
+  .maybeSingle();
+
+let finalEntryId = upsertRow?.uid ?? entryId;
+
+if (upsertErr) {
+  // If something unexpected happened, attempt merge-on-conflict path
+  if (upsertErr.message?.includes("unique") || upsertErr.message?.includes("duplicate")) {
     const { data: existingUserComp } = await supabase
-      .from("joincompetition")
+      .from("joined_competitions")
       .select("uid, ticketnumbers, amountspent, numberoftickets")
       .eq("canonical_user_id", canonicalUserId)
       .eq("competitionid", competitionId)
       .limit(1)
       .maybeSingle();
 
-    let finalEntryId = entryId;
-
     if (existingUserComp) {
-      // User already has an entry: append new tickets to existing entry with deduplication
-      console.log(
-        `[verify-and-rescue][${requestId}] Existing entry found for user+competition, updating with deduplication...`
-      );
       const existTickets = existingUserComp.ticketnumbers || "";
       const existingNums = existTickets
-        ? existTickets.split(",").map(Number).filter((n: number) => !isNaN(n))
+        ? existTickets.split(",").map((n: string) => Number(n)).filter((n: number) => !isNaN(n))
         : [];
-      // Merge and deduplicate
-      const mergedSet = new Set([...existingNums, ...ticketNumbers]);
+      const mergedSet = new Set<number>([...existingNums, ...ticketNumbers]);
       const mergedTickets = Array.from(mergedSet).sort((a, b) => a - b).join(",");
 
       const { error: rescueUpdateErr } = await supabase
-        .from("joincompetition")
+        .from("joined_competitions")
         .update({
           ticketnumbers: mergedTickets,
           numberoftickets: mergedSet.size,
@@ -356,135 +382,86 @@ export default async (req: Request, context: Context) => {
 
       finalEntryId = existingUserComp.uid;
     } else {
-      // No existing entry: insert new row
-      const { error: entryErr } = await supabase
-        .from("joincompetition")
-        .insert({
-          uid: entryId,
-          userid: canonicalUserId,
-          canonical_user_id: canonicalUserId,
-          competitionid: competitionId,
-          ticketnumbers: ticketNumbersStr,
-          numberoftickets: ticketNumbers.length,
-          amountspent: totalCost,
-          transactionhash: rescueIdempotencyKey,
-          created_at: new Date().toISOString(),
+      // Could not find row after duplicate error; refund
+      await supabase
+        .from("sub_account_balances")
+        .update({
+          available_balance: currentBalance,
           updated_at: new Date().toISOString(),
-        });
+        })
+        .eq("canonical_user_id", canonicalUserId)
+        .eq("currency", "USD");
 
-      if (entryErr) {
-        // Could be a race condition with the unique constraint
-        if (entryErr.message?.includes("unique") || entryErr.message?.includes("duplicate")) {
-          // Try update instead
-          const { data: raceEntry2 } = await supabase
-            .from("joincompetition")
-            .select("uid, ticketnumbers, amountspent, numberoftickets")
-            .eq("canonical_user_id", canonicalUserId)
-            .eq("competitionid", competitionId)
-            .limit(1)
-            .maybeSingle();
-
-          if (raceEntry2) {
-            const raceTickets2 = raceEntry2.ticketnumbers || "";
-            const raceExistingNums2 = raceTickets2
-              ? raceTickets2.split(",").map(Number).filter((n: number) => !isNaN(n))
-              : [];
-            // Merge and deduplicate
-            const raceMergedSet2 = new Set([...raceExistingNums2, ...ticketNumbers]);
-            const raceMerged2 = Array.from(raceMergedSet2).sort((a, b) => a - b).join(",");
-
-            await supabase
-              .from("joincompetition")
-              .update({
-                ticketnumbers: raceMerged2,
-                numberoftickets: raceMergedSet2.size,
-                amountspent: Number(raceEntry2.amountspent || 0) + totalCost,
-                updated_at: new Date().toISOString(),
-              })
-              .eq("canonical_user_id", canonicalUserId)
-              .eq("competitionid", competitionId);
-
-            finalEntryId = raceEntry2.uid;
-          }
-        } else {
-          // Refund balance
-          await supabase
-            .from("sub_account_balances")
-            .update({
-              available_balance: currentBalance,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("canonical_user_id", canonicalUserId)
-            .eq("currency", "USD");
-
-          return jsonResponse({
-            success: false,
-            rescued: false,
-            error: "Failed to create entry",
-          });
-        }
-      }
-    }
-
-    // Insert tickets (non-blocking)
-    try {
-      const ticketRows = ticketNumbers.map((num) => ({
-        competition_id: competitionId,
-        ticket_number: num,
-        user_id: canonicalUserId,
-        status: "sold",
-        tx_id: rescueIdempotencyKey,
-        created_at: new Date().toISOString(),
-      }));
-      await supabase.from("tickets").insert(ticketRows);
-    } catch {
-      // Non-blocking
-    }
-
-    // Insert balance ledger (non-blocking)
-    try {
-      await supabase.from("balance_ledger").insert({
-        canonical_user_id: canonicalUserId,
-        transaction_type: "debit",
-        amount: -totalCost,
-        currency: "USD",
-        balance_before: currentBalance,
-        balance_after: newBalance,
-        reference_id: rescueIdempotencyKey,
-        description: `Rescue purchase ${ticketNumbers.length} tickets`,
-        created_at: new Date().toISOString(),
+      return jsonResponse({
+        success: false,
+        rescued: false,
+        error: "Conflict detected but no existing entry found",
       });
-    } catch {
-      // Non-blocking
     }
-
-    console.log(
-      `[verify-and-rescue][${requestId}] Direct DB rescue complete! entry=${finalEntryId}, tickets=${ticketNumbers.length}`
-    );
+  } else {
+    // Non-unique error: refund and exit
+    await supabase
+      .from("sub_account_balances")
+      .update({
+        available_balance: currentBalance,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("canonical_user_id", canonicalUserId)
+      .eq("currency", "USD");
 
     return jsonResponse({
-      success: true,
-      rescued: true,
-      alreadyExists: false,
-      entry_id: finalEntryId,
-      ticket_numbers: ticketNumbers,
-      ticket_count: ticketNumbers.length,
-      total_cost: totalCost,
-      available_balance: newBalance,
-      competition_id: competitionId,
-      message: `Rescue successful! ${ticketNumbers.length} tickets purchased.`,
+      success: false,
+      rescued: false,
+      error: "Failed to create or update entry",
     });
-  } catch (error) {
-    console.error(
-      `[verify-and-rescue][${requestId}] Fatal error:`,
-      error
-    );
-    return jsonResponse(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Internal server error",
-      },
-      500
-    );
   }
-};
+}
+
+// 4) Insert tickets (non-blocking)
+try {
+  const ticketRows = ticketNumbers.map((num) => ({
+    competition_id: competitionId,
+    ticket_number: num,
+    canonical_user_id: canonicalUserId, // prefer canonical_user_id
+    status: "sold",
+    tx_id: rescueIdempotencyKey,
+    created_at: new Date().toISOString(),
+  }));
+  await supabase.from("tickets").insert(ticketRows);
+} catch {
+  // Non-blocking
+}
+
+// 5) Insert balance ledger (non-blocking)
+try {
+  await supabase.from("balance_ledger").insert({
+    canonical_user_id: canonicalUserId,
+    transaction_type: "debit",
+    amount: -totalCost,
+    currency: "USD",
+    balance_before: currentBalance,
+    balance_after: newBalance,
+    reference_id: rescueIdempotencyKey,
+    description: `Rescue purchase ${ticketNumbers.length} tickets`,
+    created_at: new Date().toISOString(),
+  });
+} catch {
+  // Non-blocking
+}
+
+console.log(
+  `[verify-and-rescue][${requestId}] Direct DB rescue complete! entry=${finalEntryId}, tickets=${ticketNumbers.length}`
+);
+
+return jsonResponse({
+  success: true,
+  rescued: true,
+  alreadyExists: false,
+  entry_id: finalEntryId,
+  ticket_numbers: ticketNumbers,
+  ticket_count: ticketNumbers.length,
+  total_cost: totalCost,
+  available_balance: newBalance,
+  competition_id: competitionId,
+  message: `Rescue successful! ${ticketNumbers.length} tickets purchased.`,
+});
