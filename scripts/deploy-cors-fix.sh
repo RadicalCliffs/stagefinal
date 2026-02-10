@@ -51,7 +51,7 @@ if supabase functions deploy purchase-tickets-with-bonus; then
     echo ""
     echo "Next steps:"
     echo "1. Run verification: ./verify-cors-fix.sh"
-    echo "2. Test in browser at: https://substage.theprize.io"
+    echo "2. Test in browser at: https://stage.theprize.io"
     echo "3. Check for any remaining errors"
     echo ""
     echo "If you see database errors:"

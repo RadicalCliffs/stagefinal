@@ -65,7 +65,7 @@ Deno.serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     // Support both COINBASE_COMMERCE_API_KEY and COMMERCE_API_KEY for flexibility
     const coinbaseApiKey = Deno.env.get("COINBASE_COMMERCE_API_KEY") || Deno.env.get("COMMERCE_API_KEY");
-    const successBaseUrl = Deno.env.get("SUCCESS_URL") || "https://substage.theprize.io";
+    const successBaseUrl = Deno.env.get("SUCCESS_URL") || "https://stage.theprize.io";
 
     console.log(`[create-charge][${requestId}] Config check: supabaseUrl=${!!supabaseUrl}, serviceKey=${!!supabaseServiceKey}, apiKey=${!!coinbaseApiKey}`);
 

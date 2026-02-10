@@ -58,10 +58,10 @@ function normalizeWalletAddress(address: string | null | undefined): string | nu
  */
 
 // Inlined CORS configuration (bundler doesn't support shared module imports)
-const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://substage.theprize.io';
+const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://stage.theprize.io';
 const ALLOWED_ORIGINS = [
   SITE_URL,
-  'https://substage.theprize.io',
+  'https://stage.theprize.io',
   'https://theprize.io',
   'https://theprizeio.netlify.app',
   'https://www.theprize.io',

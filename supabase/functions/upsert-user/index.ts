@@ -3,10 +3,10 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 import { toPrizePid } from "../_shared/userId.ts";
 
 // CORS configuration - specific origins required for credentials
-const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://substage.theprize.io';
+const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://stage.theprize.io';
 const ALLOWED_ORIGINS = [
   SITE_URL,
-  'https://substage.theprize.io',
+  'https://stage.theprize.io',
   'https://theprize.io',
   'https://theprizeio.netlify.app',
   'https://www.theprize.io',

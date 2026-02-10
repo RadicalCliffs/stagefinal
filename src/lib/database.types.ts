@@ -2179,9 +2179,11 @@ export interface Database {
       get_user_active_tickets: {
         Args: {
           p_user_identifier: string
-          p_competition_id: string
         }
-        Returns: Json
+        Returns: {
+          competitionid: string
+          ticketnumbers: string[]
+        }[]
       }
       get_user_balance: {
         Args: {

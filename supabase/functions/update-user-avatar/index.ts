@@ -2,10 +2,10 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 // Inlined CORS configuration (bundler doesn't support shared module imports)
 import { toPrizePid, isPrizePid } from "../_shared/userId.ts";
 
-const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://substage.theprize.io';
+const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://stage.theprize.io';
 const ALLOWED_ORIGINS = [
   SITE_URL,
-  'https://substage.theprize.io',
+  'https://stage.theprize.io',
   'https://theprize.io',
   'https://theprizeio.netlify.app',
   'https://www.theprize.io',
