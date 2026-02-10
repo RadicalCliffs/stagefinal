@@ -111,8 +111,8 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
               // Get transaction hash - could be from crypto payment or stored in entry
               const txHash = entry.transactionhash || entry.transaction_hash || entry.vrf_hash || '';
 
-              if (entry.ticketnumbers) {
-                const ticketNumbers = entry.ticketnumbers
+              if (entry.ticket_numbers) {
+                const ticketNumbers = entry.ticket_numbers
                   .split(',')
                   .map((t: string) => parseInt(t.trim()))
                   .filter((t: number) => !isNaN(t));
@@ -170,12 +170,12 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
           const exactStartTime = Date.now();
           const { data: exactData, error: exactError } = await supabase
             .from('v_joincompetition_active')
-            .select('ticketnumbers, purchasedate, wallet_address, userid, canonical_user_id, transactionhash')
-            .eq('competitionid', idToUse);
+            .select('ticket_numbers, purchasedate, wallet_address, user_id, canonical_user_id, transactionhash')
+            .eq('competition_id', idToUse);
 
           if (!exactError && exactData && exactData.length > 0) {
             jcData = exactData;
-            entriesLogger.success('Exact competitionid match found', {
+            entriesLogger.success('Exact competition_id match found', {
               count: exactData.length,
               duration: Date.now() - exactStartTime
             });
@@ -202,8 +202,8 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
               const uidStartTime = Date.now();
               const { data: uidData, error: uidError } = await supabase
                 .from('v_joincompetition_active')
-                .select('ticketnumbers, purchasedate, wallet_address, userid, canonical_user_id, transactionhash')
-                .eq('competitionid', compData.uid);
+                .select('ticket_numbers, purchasedate, wallet_address, user_id, canonical_user_id, transactionhash')
+                .eq('competition_id', compData.uid);
 
               if (!uidError && uidData && uidData.length > 0) {
                 jcData = uidData;
@@ -241,8 +241,8 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
               // Get transaction hash from entry
               const txHash = entry.transactionhash || entry.transaction_hash || '';
 
-              if (entry.ticketnumbers) {
-                const ticketNumbers = entry.ticketnumbers
+              if (entry.ticket_numbers) {
+                const ticketNumbers = entry.ticket_numbers
                   .split(',')
                   .map((t: string) => parseInt(t.trim()))
                   .filter((t: number) => !isNaN(t));
@@ -474,14 +474,14 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
             // Third try: Query joincompetition for this competition to get wallet/user mapping
             const { data: joinData } = await supabase
               .from('joincompetition')
-              .select('wallet_address, userid, canonical_user_id')
-              .eq('competitionid', idToUse);
+              .select('wallet_address, user_id, canonical_user_id')
+              .eq('competition_id', idToUse);
 
             if (joinData && joinData.length > 0) {
               // Collect all user IDs to lookup
               const userIds = new Set<string>();
               joinData.forEach((entry: any) => {
-                if (entry.userid) userIds.add(entry.userid);
+                if (entry.user_id) userIds.add(entry.user_id);
                 if (entry.canonical_user_id) userIds.add(entry.canonical_user_id);
               });
 

@@ -355,7 +355,7 @@ export const database = {
             const { count } = (await supabase
               .from('v_joincompetition_active')
               .select('*', { count: 'exact', head: true })
-              .eq('competitionid', data.id)) as any;
+              .eq('competition_id', data.id)) as any;
 
             ticketsSold = count || ticketsSold;
           }
@@ -876,7 +876,7 @@ export const database = {
     const { data, error } = (await supabase
       .from('v_joincompetition_active')
       .select('*')
-      .eq('userid', userId)
+      .eq('user_id', userId)
       .order('buytime', { ascending: false })) as any;
 
     if (error) {
@@ -929,7 +929,7 @@ export const database = {
     const { data, error } = (await supabase
       .from('v_joincompetition_active')
       .select('*')
-      .eq('userid', userId)
+      .eq('user_id', userId)
       .order('buytime', { ascending: false })) as any;
 
     if (error) {
@@ -1558,8 +1558,8 @@ export const database = {
         // Use v_joincompetition_active view for stable read interface
         const { data: soldTicketData, error } = (await supabase
           .from('v_joincompetition_active')
-          .select('ticketnumbers')
-          .eq('competitionid', competitionId.trim())) as any;
+          .select('ticket_numbers')
+          .eq('competition_id', competitionId.trim())) as any;
 
         if (error) {
           handleDatabaseError(error, 'getSoldTicketsForCompetition');
@@ -1578,10 +1578,10 @@ export const database = {
           return [];
         }
 
-        // ticketnumbers is stored as comma-separated string in joincompetition
+        // ticket_numbers is stored as comma-separated string in joincompetition
         const soldTickets: number[] = [];
-        dataArray.forEach((row: { ticketnumbers: string | null }) => {
-          const nums = String(row.ticketnumbers || '')
+        dataArray.forEach((row: { ticket_numbers: string | null }) => {
+          const nums = String(row.ticket_numbers || '')
             .split(',')
             .map(x => parseInt(x.trim(), 10))
             .filter(n => Number.isFinite(n) && n > 0);
@@ -1649,12 +1649,12 @@ export const database = {
         // Use v_joincompetition_active view for stable read interface
         const { data: soldData } = (await supabase
           .from('v_joincompetition_active')
-          .select('ticketnumbers')
-          .eq('competitionid', competitionId)) as any;
+          .select('ticket_numbers')
+          .eq('competition_id', competitionId)) as any;
 
         if (soldData) {
-          soldData.forEach((row: { ticketnumbers: string | null }) => {
-            const nums = String(row.ticketnumbers || '')
+          soldData.forEach((row: { ticket_numbers: string | null }) => {
+            const nums = String(row.ticket_numbers || '')
               .split(',')
               .map(x => parseInt(x.trim(), 10))
               .filter(n => Number.isFinite(n) && n > 0);
@@ -2324,11 +2324,11 @@ export const database = {
       // Also try by userid
       if (identity.legacyUserId && allEntries.length === 0) {
         try {
-          // SCHEMA: joincompetition has: userid, competitionid, ticketnumbers, joinedat, created_at
+          // SCHEMA: joincompetition has: user_id, competition_id, ticket_numbers, joinedat, created_at
           const { data, error } = (await supabase
             .from('joincompetition')
             .select('*')
-            .eq('userid', identity.legacyUserId)
+            .eq('user_id', identity.legacyUserId)
             .order('joinedat', { ascending: false })) as any;
 
           if (!error && data && data.length > 0) {

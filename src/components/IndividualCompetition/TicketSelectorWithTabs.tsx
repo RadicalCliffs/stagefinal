@@ -258,14 +258,14 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                 queries.push(
                     supabase
                         .from('v_joincompetition_active')
-                        .select('ticketnumbers')
-                        .eq('competitionid', resolvedCompetitionId)
+                        .select('ticket_numbers')
+                        .eq('competition_id', resolvedCompetitionId)
                         .eq('wallet_address', baseUser.id),
                     supabase
                         .from('v_joincompetition_active')
-                        .select('ticketnumbers')
-                        .eq('competitionid', resolvedCompetitionId)
-                        .eq('userid', baseUser.id)
+                        .select('ticket_numbers')
+                        .eq('competition_id', resolvedCompetitionId)
+                        .eq('user_id', baseUser.id)
                 );
             }
             
@@ -274,13 +274,13 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                 queries.push(
                     supabase
                         .from('v_joincompetition_active')
-                        .select('ticketnumbers')
-                        .eq('competitionid', resolvedCompetitionId)
+                        .select('ticket_numbers')
+                        .eq('competition_id', resolvedCompetitionId)
                         .eq('canonical_user_id', canonicalUserId),
                     supabase
                         .from('v_joincompetition_active')
-                        .select('ticketnumbers')
-                        .eq('competitionid', resolvedCompetitionId)
+                        .select('ticket_numbers')
+                        .eq('competition_id', resolvedCompetitionId)
                         .eq('privy_user_id', canonicalUserId)
                 );
             }
@@ -295,12 +295,12 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                     return;
                 }
                 (data || []).forEach((entry: any) => {
-                    if (entry.ticketnumbers) {
+                    if (entry.ticket_numbers) {
                         // Handle both string (comma-separated) and array formats
-                        const tickets = typeof entry.ticketnumbers === 'string'
-                            ? entry.ticketnumbers.split(',').map((t: string) => parseInt(t.trim(), 10)).filter((n: number) => !isNaN(n))
-                            : Array.isArray(entry.ticketnumbers)
-                                ? entry.ticketnumbers.map((t: any) => parseInt(t, 10)).filter((n: number) => !isNaN(n))
+                        const tickets = typeof entry.ticket_numbers === 'string'
+                            ? entry.ticket_numbers.split(',').map((t: string) => parseInt(t.trim(), 10)).filter((n: number) => !isNaN(n))
+                            : Array.isArray(entry.ticket_numbers)
+                                ? entry.ticket_numbers.map((t: any) => parseInt(t, 10)).filter((n: number) => !isNaN(n))
                                 : [];
                         owned.push(...tickets);
                     }
@@ -397,7 +397,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
             .channel(`tickets-${competitionId}`)
             .on(
                 'postgres_changes',
-                { event: '*', schema: 'public', table: 'v_joincompetition_active', filter: `competitionid=eq.${competitionId}` },
+                { event: '*', schema: 'public', table: 'v_joincompetition_active', filter: `competition_id=eq.${competitionId}` },
                 () => {
                     // Use debounced soft refresh for realtime updates during high traffic
                     debouncedRefresh();

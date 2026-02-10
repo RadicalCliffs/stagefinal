@@ -181,8 +181,8 @@ export async function validateEntryCreation(
     const { data, error } = await supabase
       .from('v_joincompetition_active')
       .select('*')
-      .eq('userid', userId)
-      .eq('competitionid', competitionId)
+      .eq('user_id', userId)
+      .eq('competition_id', competitionId)
       .order('purchasedate', { ascending: false })
       .limit(1);
 
@@ -199,13 +199,13 @@ export async function validateEntryCreation(
     const entry = data[0];
 
     // Validate entry fields
-    if (!entry.ticketnumbers) {
+    if (!entry.ticket_numbers) {
       errors.push('Entry has no ticket numbers');
     } else {
-      const ticketNumbers = typeof entry.ticketnumbers === 'string' 
-        ? entry.ticketnumbers.split(',').map((t: string) => parseInt(t.trim(), 10))
-        : Array.isArray(entry.ticketnumbers)
-          ? entry.ticketnumbers
+      const ticketNumbers = typeof entry.ticket_numbers === 'string' 
+        ? entry.ticket_numbers.split(',').map((t: string) => parseInt(t.trim(), 10))
+        : Array.isArray(entry.ticket_numbers)
+          ? entry.ticket_numbers
           : [];
 
       if (ticketNumbers.length !== expectedTicketCount) {

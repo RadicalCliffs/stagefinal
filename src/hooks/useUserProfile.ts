@@ -140,12 +140,12 @@ export function useUserProfile(privyUserId: string | null | undefined): UseUserP
     const ticketFilter = buildIdentityFilter(identity, {
       walletColumn: 'wallet_address',
       privyColumn: 'privy_user_id',
-      userIdColumn: 'userid',
+      userIdColumn: 'user_id',
     });
 
     const { data: ticketsData, error: ticketsError } = await supabase
       .from('v_joincompetition_active')
-      .select('uid, competitionid, ticketnumbers, purchasedate')
+      .select('uid, competition_id, ticket_numbers, purchasedate')
       .or(ticketFilter);
 
     // Fetch orders/transactions using unified identity filter
@@ -165,11 +165,11 @@ export function useUserProfile(privyUserId: string | null | undefined): UseUserP
     const ticketsArray = Array.isArray(ticketsData) ? ticketsData : (ticketsData ? [ticketsData] : []);
     const tickets: UserTicket[] = ticketsArray.map((t: any) => ({
       uid: t.uid,
-      competition_id: t.competitionid,
+      competition_id: t.competition_id,
       competition_title: t.competition_title,
-      ticket_numbers: Array.isArray(t.ticketnumbers)
-        ? t.ticketnumbers
-        : String(t.ticketnumbers || '').split(',').map((n: string) => parseInt(n.trim(), 10)).filter((n: number) => Number.isFinite(n)),
+      ticket_numbers: Array.isArray(t.ticket_numbers)
+        ? t.ticket_numbers
+        : String(t.ticket_numbers || '').split(',').map((n: string) => parseInt(n.trim(), 10)).filter((n: number) => Number.isFinite(n)),
       purchase_date: t.purchasedate,
       status: t.status || 'active',
     }));
