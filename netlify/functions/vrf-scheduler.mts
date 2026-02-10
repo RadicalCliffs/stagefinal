@@ -5,7 +5,7 @@ import { toPrizePid } from "./_shared/userId.mts";
 /**
  * VRF Scheduler - Automatic VRF Draw Triggering
  *
- * This scheduled function runs every minute to check for competitions
+ * This scheduled function runs every 10 minutes to check for competitions
  * that have ended (timer expired or sold out) and need VRF draws triggered.
  *
  * When a competition ends, this function:
@@ -15,13 +15,16 @@ import { toPrizePid } from "./_shared/userId.mts";
  * 4. The VRF system (via Chainlink VRF callbacks) handles the actual random selection
  *
  * This eliminates the need for administrators to manually trigger VRF draws
- * when competitions end. The existing 5-minute client-side checker remains
- * as a backup, but this scheduled function provides more reliable automatic
- * processing that doesn't depend on a browser being open.
+ * when competitions end. The existing client-side checker remains as a backup,
+ * but this scheduled function provides more reliable automatic processing that
+ * doesn't depend on a browser being open.
+ *
+ * NOTE: This function should ONLY be invoked via Netlify's scheduler.
+ * Direct HTTP invocations will be rejected to prevent timeout issues.
  */
 
 export const config: Config = {
-  schedule: "* * * * *", // Run every minute
+  schedule: "*/10 * * * *", // Run every 10 minutes
 };
 
 // ---------- Supabase ----------
@@ -407,14 +410,35 @@ async function checkVRFDrawResults(supabase: SupabaseClient): Promise<void> {
 }
 
 // ---------- Main handler ----------
-export default async (req: Request): Promise<void> => {
+export default async (req: Request): Promise<Response> => {
   const startTime = Date.now();
 
+  // Only allow scheduled invocations (Netlify scheduler adds next_run in body)
+  let isScheduledInvocation = false;
   try {
-    const { next_run } = await req.json();
-    console.log(`[VRF-Scheduler] Scheduled function triggered. Next run: ${next_run}`);
+    const body = await req.json();
+    if (body && body.next_run) {
+      isScheduledInvocation = true;
+      console.log(`[VRF-Scheduler] Scheduled function triggered. Next run: ${body.next_run}`);
+    }
   } catch {
-    console.log("[VRF-Scheduler] Scheduled function triggered (manual invoke)");
+    // If body parsing fails, it's likely not a scheduled invocation
+    console.log("[VRF-Scheduler] Request has no valid JSON body");
+  }
+
+  // Reject direct HTTP invocations to prevent timeout issues
+  if (!isScheduledInvocation) {
+    console.log("[VRF-Scheduler] Rejecting non-scheduled invocation");
+    return new Response(
+      JSON.stringify({
+        error: "This function can only be invoked by Netlify's scheduler",
+        message: "Direct invocations are disabled to prevent timeout issues",
+      }),
+      {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
   }
 
   try {
@@ -448,7 +472,31 @@ export default async (req: Request): Promise<void> => {
 
     const elapsed = Date.now() - startTime;
     console.log(`[VRF-Scheduler] Completed in ${elapsed}ms. Ready for draw: ${competitions.length}, Processed: ${processedCount}, Errors: ${errorCount}`);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        elapsed,
+        ready: competitions.length,
+        processed: processedCount,
+        errors: errorCount,
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
   } catch (error) {
     console.error("[VRF-Scheduler] Fatal error:", error);
+    return new Response(
+      JSON.stringify({
+        error: "Internal server error",
+        message: error instanceof Error ? error.message : String(error),
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
   }
 };
