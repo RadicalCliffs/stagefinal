@@ -7,7 +7,7 @@ echo "=============================================="
 echo ""
 
 EDGE_FUNCTION_URL="https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1/purchase-tickets-with-bonus"
-ORIGIN="https://substage.theprize.io"
+ORIGIN="https://stage.theprize.io"
 
 echo "Testing edge function: purchase-tickets-with-bonus"
 echo "Origin: $ORIGIN"
@@ -65,7 +65,7 @@ if [ -z "$ALLOW_ORIGIN" ]; then
 elif [ "$ALLOW_ORIGIN" = "*" ]; then
     echo "⚠️  WARN: Using wildcard origin with credentials is not allowed"
     ISSUES=$((ISSUES + 1))
-elif echo "$ALLOW_ORIGIN" | grep -q "substage.theprize.io\|theprize.io"; then
+elif echo "$ALLOW_ORIGIN" | grep -q "stage.theprize.io\|theprize.io"; then
     echo "✅ PASS: Specific origin returned"
 else
     echo "⚠️  WARN: Unexpected origin: $ALLOW_ORIGIN"

@@ -14,6 +14,7 @@ import { debounce } from "../../utils/util";
 import { reserveTicketsWithRedundancy } from "../../lib/reserve-tickets-redundant";
 import { useProactiveReservationMonitor } from "../../hooks/useProactiveReservationMonitor";
 import { useTicketBroadcast } from "../../hooks/useTicketBroadcast";
+import { getOwnedTicketsForCompetition } from "../../lib/getOwnedTicketsForCompetition";
 
 // Lazy load PaymentModal - only loaded when user initiates payment
 const PaymentModal = lazy(() => import("../PaymentModal"));
@@ -228,88 +229,25 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
     }, []);
 
     // Fetch user's already purchased tickets for this competition
-    // Uses multiple identifier types to ensure we find all entries
+    // Uses dual-path strategy with automatic fallback (Path A -> Path B)
     const fetchOwnedTickets = useCallback(async () => {
         if (!baseUser?.id && !canonicalUserId) {
             setOwnedTickets([]);
             return;
         }
         try {
-            // First try using the database RPC function for more reliable results
-            // Try with canonicalUserId first, then fallback to baseUser.id
-            const userIdentifier = canonicalUserId || baseUser?.id;
-            if (userIdentifier) {
-                const rpcResult = await database.getUserTicketsForCompetition(userIdentifier, competitionId);
-                if (rpcResult && rpcResult.tickets && rpcResult.tickets.length > 0) {
-                    setOwnedTickets(rpcResult.tickets.sort((a, b) => a - b));
-                    return;
-                }
-            }
-
-            // Fallback: Query v_joincompetition_active and competition_entries directly
-            // Use the resolved competition ID to avoid uuid/text type mismatch in OR queries
-            const resolvedCompetitionId = competitionId; // Already resolved by caller
-
-            // Use separate queries for different user identifiers to ensure we find all entries
-            const queries = [];
-            
-            // Query using baseUser.id (wallet address)
-            if (baseUser?.id) {
-                queries.push(
-                    supabase
-                        .from('v_joincompetition_active')
-                        .select('ticket_numbers')
-                        .eq('competition_id', resolvedCompetitionId)
-                        .eq('wallet_address', baseUser.id),
-                    supabase
-                        .from('v_joincompetition_active')
-                        .select('ticket_numbers')
-                        .eq('competition_id', resolvedCompetitionId)
-                        .eq('user_id', baseUser.id)
-                );
-            }
-            
-            // Also query using canonicalUserId if available
-            if (canonicalUserId && canonicalUserId !== baseUser?.id) {
-                queries.push(
-                    supabase
-                        .from('v_joincompetition_active')
-                        .select('ticket_numbers')
-                        .eq('competition_id', resolvedCompetitionId)
-                        .eq('canonical_user_id', canonicalUserId),
-                    supabase
-                        .from('v_joincompetition_active')
-                        .select('ticket_numbers')
-                        .eq('competition_id', resolvedCompetitionId)
-                        .eq('privy_user_id', canonicalUserId)
-                );
-            }
-
-            const results = await Promise.all(queries);
-
-            // Parse ticket numbers from all entries across all queries
-            const owned: number[] = [];
-            results.forEach(({ data, error }) => {
-                if (error) {
-                    console.warn('Error fetching owned tickets (partial):', error.message);
-                    return;
-                }
-                (data || []).forEach((entry: any) => {
-                    if (entry.ticket_numbers) {
-                        // Handle both string (comma-separated) and array formats
-                        const tickets = typeof entry.ticket_numbers === 'string'
-                            ? entry.ticket_numbers.split(',').map((t: string) => parseInt(t.trim(), 10)).filter((n: number) => !isNaN(n))
-                            : Array.isArray(entry.ticket_numbers)
-                                ? entry.ticket_numbers.map((t: any) => parseInt(t, 10)).filter((n: number) => !isNaN(n))
-                                : [];
-                        owned.push(...tickets);
-                    }
-                });
+            // Use the new dual-path utility function
+            // Path A: View-based (v_joincompetition_active)
+            // Path B: RPC-based (get_user_active_tickets) - automatic fallback
+            const ownedSet = await getOwnedTicketsForCompetition(competitionId, {
+                walletAddress: baseUser?.id,
+                privyId: canonicalUserId,
+                canonicalUserId: canonicalUserId,
             });
 
-            // Deduplicate and sort
-            const uniqueOwned = [...new Set(owned)].sort((a, b) => a - b);
-            setOwnedTickets(uniqueOwned);
+            // Convert Set to sorted array for backwards compatibility
+            const ownedArray = Array.from(ownedSet).map(Number).sort((a, b) => a - b);
+            setOwnedTickets(ownedArray);
         } catch (err) {
             console.error('Error fetching owned tickets:', err);
             setOwnedTickets([]);

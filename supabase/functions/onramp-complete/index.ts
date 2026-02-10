@@ -34,8 +34,8 @@ function corsHeaders(req: Request) {
   };
 }
 
-// Default redirect URL - Always redirect to substage.theprize.io/dashboard/entries
-const DEFAULT_REDIRECT_URL = 'https://substage.theprize.io/dashboard/entries?status=complete';
+// Default redirect URL - Always redirect to stage.theprize.io/dashboard/entries
+const DEFAULT_REDIRECT_URL = 'https://stage.theprize.io/dashboard/entries?status=complete';
 
 Deno.serve(async (req: Request) => {
   const cors = corsHeaders(req);

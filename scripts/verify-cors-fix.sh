@@ -18,7 +18,7 @@ echo ""
 
 # Configuration
 FUNCTION_URL="https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1/purchase-tickets-with-bonus"
-ORIGIN="https://substage.theprize.io"
+ORIGIN="https://stage.theprize.io"
 
 # Test 1: OPTIONS Preflight Request
 echo "Test 1: OPTIONS Preflight Request"
@@ -141,7 +141,7 @@ echo ""
 echo "CORS fix is deployed and working correctly!"
 echo ""
 echo "Next steps:"
-echo "1. Test in browser at: https://substage.theprize.io"
+echo "1. Test in browser at: https://stage.theprize.io"
 echo "2. Open browser console and check for CORS errors"
 echo "3. Try purchasing tickets with balance"
 echo "4. Verify no 'Failed to fetch' or 'HTTP 0' errors"
