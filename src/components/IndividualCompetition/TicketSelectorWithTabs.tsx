@@ -372,6 +372,24 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [loading, availableTickets]); // Intentionally not including selectedTickets to avoid loops
 
+    // Subscribe to broadcast channel for instant ticket availability updates
+    useTicketBroadcast({
+        competitionId,
+        onTicketSold: () => {
+            debouncedRefresh();
+            fetchOwnedTickets();
+        },
+        onTicketReserved: () => {
+            debouncedRefresh();
+        },
+        onTicketReleased: () => {
+            debouncedRefresh();
+        },
+        onTicketExpired: () => {
+            debouncedRefresh();
+        },
+    });
+
     useEffect(() => {
         // Listen for realtime ticket updates (purchases or expiring reservations)
         // Use debounced refresh to prevent excessive API calls during high traffic
@@ -422,6 +440,17 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
             clearInterval(pollingInterval);
         };
     }, [competitionId, debouncedRefresh, fetchOwnedTickets]);
+
+    // Periodic polling as fallback for when realtime subscriptions miss events
+    // Polls every 5 seconds for near real-time accuracy
+    useEffect(() => {
+        const pollInterval = setInterval(() => {
+            fetchAvailableTickets(false);
+            fetchOwnedTickets();
+        }, 5000);
+
+        return () => clearInterval(pollInterval);
+    }, [fetchAvailableTickets, fetchOwnedTickets]);
 
     const [start, end] = activeFilter.key.split("-").map(Number);
 
@@ -874,8 +903,8 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                         reservationId={reservationId}
                         maxAvailableTickets={Math.min(availableTickets.length, MAX_TICKETS_PER_TRANSACTION)}
                         onPaymentSuccess={() => {
-                            // Refresh available tickets and owned tickets after successful payment
-                            // Use soft refresh (no loading spinner) to prevent UI flash
+                            // Immediately refresh available tickets and owned tickets after successful payment
+                            // Run both fetches in parallel for fastest UI update
                             fetchAvailableTickets(false);
                             fetchOwnedTickets();
                             

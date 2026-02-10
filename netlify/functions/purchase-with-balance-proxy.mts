@@ -225,40 +225,146 @@ async function directDatabaseFallback(
       return { success: false, error: "Failed to deduct balance" };
     }
 
-    // Step 4: Create competition entry
+    // Step 4: Create or update competition entry
+    // Check for existing entry first (handles joincompetition_unique_user_competition constraint)
     const entryId = crypto.randomUUID();
     const ticketNumbersStr = ticketNumbers.join(",");
 
-    const { error: entryErr } = await supabase
+    const { data: existingUserEntry } = await supabase
       .from("joincompetition")
-      .insert({
-        uid: entryId,
-        userid: canonicalUserId,
-        canonical_user_id: canonicalUserId,
-        competitionid: competitionId,
-        ticketnumbers: ticketNumbersStr,
-        numberoftickets: ticketNumbers.length,
-        amountspent: totalCost,
-        transactionhash: idempotencyKey,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      });
+      .select("uid, ticketnumbers, amountspent, numberoftickets")
+      .eq("canonical_user_id", canonicalUserId)
+      .eq("competitionid", competitionId)
+      .limit(1)
+      .maybeSingle();
 
-    if (entryErr) {
-      console.error(
-        `[purchase-with-balance-proxy][${requestId}] FALLBACK: Entry insert failed:`,
-        entryErr.message
+    if (existingUserEntry) {
+      // User already has an entry for this competition - UPDATE (append tickets)
+      // DEDUPLICATE: Merge existing + new ticket numbers, removing duplicates
+      console.log(
+        `[purchase-with-balance-proxy][${requestId}] FALLBACK: Existing entry found, appending tickets with deduplication`
       );
-      // Balance was already deducted - try to refund
-      await supabase
-        .from("sub_account_balances")
+      const existingTickets = existingUserEntry.ticketnumbers || "";
+      const existingNums = existingTickets
+        ? existingTickets.split(",").map(Number).filter((n: number) => !isNaN(n))
+        : [];
+      // Merge and deduplicate
+      const mergedSet = new Set([...existingNums, ...ticketNumbers]);
+      const mergedTickets = Array.from(mergedSet).sort((a, b) => a - b).join(",");
+      const mergedCount = mergedSet.size;
+      const mergedAmount = Number(existingUserEntry.amountspent || 0) + totalCost;
+
+      const { error: updateErr2 } = await supabase
+        .from("joincompetition")
         .update({
-          available_balance: currentBalance,
+          ticketnumbers: mergedTickets,
+          numberoftickets: mergedCount,
+          amountspent: mergedAmount,
           updated_at: new Date().toISOString(),
         })
         .eq("canonical_user_id", canonicalUserId)
-        .eq("currency", "USD");
-      return { success: false, error: "Failed to create competition entry" };
+        .eq("competitionid", competitionId);
+
+      if (updateErr2) {
+        console.error(
+          `[purchase-with-balance-proxy][${requestId}] FALLBACK: Entry update failed:`,
+          updateErr2.message
+        );
+        // Refund the balance
+        await supabase
+          .from("sub_account_balances")
+          .update({
+            available_balance: currentBalance,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("canonical_user_id", canonicalUserId)
+          .eq("currency", "USD");
+        return { success: false, error: "Failed to update competition entry" };
+      }
+    } else {
+      // No existing entry - INSERT new row
+      const { error: entryErr } = await supabase
+        .from("joincompetition")
+        .insert({
+          uid: entryId,
+          userid: canonicalUserId,
+          canonical_user_id: canonicalUserId,
+          competitionid: competitionId,
+          ticketnumbers: ticketNumbersStr,
+          numberoftickets: ticketNumbers.length,
+          amountspent: totalCost,
+          transactionhash: idempotencyKey,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+
+      if (entryErr) {
+        // Could be a race condition - try UPDATE as fallback
+        if (entryErr.message?.includes("unique") || entryErr.message?.includes("duplicate")) {
+          console.warn(
+            `[purchase-with-balance-proxy][${requestId}] FALLBACK: Insert hit unique constraint, trying update`
+          );
+          const { data: raceEntry } = await supabase
+            .from("joincompetition")
+            .select("uid, ticketnumbers, amountspent, numberoftickets")
+            .eq("canonical_user_id", canonicalUserId)
+            .eq("competitionid", competitionId)
+            .limit(1)
+            .maybeSingle();
+
+          if (raceEntry) {
+            const raceTickets = raceEntry.ticketnumbers || "";
+            const raceExistingNums = raceTickets
+              ? raceTickets.split(",").map(Number).filter((n: number) => !isNaN(n))
+              : [];
+            // Merge and deduplicate
+            const raceMergedSet = new Set([...raceExistingNums, ...ticketNumbers]);
+            const raceMerged = Array.from(raceMergedSet).sort((a, b) => a - b).join(",");
+
+            const { error: raceUpdateErr } = await supabase
+              .from("joincompetition")
+              .update({
+                ticketnumbers: raceMerged,
+                numberoftickets: raceMergedSet.size,
+                amountspent: Number(raceEntry.amountspent || 0) + totalCost,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("canonical_user_id", canonicalUserId)
+              .eq("competitionid", competitionId);
+
+            if (raceUpdateErr) {
+              console.error(
+                `[purchase-with-balance-proxy][${requestId}] FALLBACK: Race condition update also failed:`,
+                raceUpdateErr.message
+              );
+              await supabase
+                .from("sub_account_balances")
+                .update({
+                  available_balance: currentBalance,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("canonical_user_id", canonicalUserId)
+                .eq("currency", "USD");
+              return { success: false, error: "Failed to create competition entry" };
+            }
+          }
+        } else {
+          console.error(
+            `[purchase-with-balance-proxy][${requestId}] FALLBACK: Entry insert failed:`,
+            entryErr.message
+          );
+          // Refund the balance
+          await supabase
+            .from("sub_account_balances")
+            .update({
+              available_balance: currentBalance,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("canonical_user_id", canonicalUserId)
+            .eq("currency", "USD");
+          return { success: false, error: "Failed to create competition entry" };
+        }
+      }
     }
 
     // Step 5: Insert ticket records (non-blocking - entry is source of truth)
