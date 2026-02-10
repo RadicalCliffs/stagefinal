@@ -41,18 +41,19 @@ export async function getOwnedTicketsForCompetition(
 ): Promise<Set<string>> {
   // A: View path - fast, uses stable view with legacy and new column names
   try {
+    // Filter to only truthy, non-empty string values
     const filters: Array<[string, string]> = [
       ['competition_id', competitionId],
       ['canonical_user_id', canonicalUserId],
       ['privy_user_id', privyId],
       ['wallet_address', walletAddress],
-    ].filter(([, v]) => !!v) as Array<[string, string]>;
+    ].filter(([, v]) => v != null && v !== '') as Array<[string, string]>;
 
     if (filters.length > 0) {
       let query = supabase
         .from('v_joincompetition_active')
-        .select('ticket_numbers,ticketnumbers') // request both to be safe
-        .limit(1);
+        .select('ticket_numbers,ticketnumbers'); // request both to be safe
+      // Note: No limit() - allow view to aggregate multiple entries if needed
 
       for (const [k, v] of filters) {
         query = query.eq(k, v);
@@ -61,16 +62,21 @@ export async function getOwnedTicketsForCompetition(
       const { data, error } = await query;
 
       if (!error && data && data.length > 0) {
-        // Try both column names (new snake_case and legacy)
-        const row = data[0] as any; // Type assertion for view columns
-        const tickets = (row?.ticket_numbers ?? row?.ticketnumbers ?? []) as (string | number)[];
-        if (tickets.length > 0) {
+        // Aggregate tickets from all matching rows
+        const allTickets = new Set<string>();
+        for (const row of data as any[]) {
+          const tickets = (row?.ticket_numbers ?? row?.ticketnumbers ?? []) as (string | number)[];
+          tickets.forEach(t => allTickets.add(String(t)));
+        }
+        
+        if (allTickets.size > 0) {
           console.info('[TicketGreen] A-path success', {
             competitionId,
             idType: inferIdType(canonicalUserId ?? privyId ?? walletAddress),
-            ticketCount: tickets.length
+            ticketCount: allTickets.size,
+            rowsFound: data.length
           });
-          return new Set(tickets.map(String));
+          return allTickets;
         }
       }
     }

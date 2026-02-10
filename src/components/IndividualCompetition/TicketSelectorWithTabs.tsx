@@ -241,8 +241,9 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
             // Path B: RPC-based (get_user_active_tickets) - automatic fallback
             const ownedSet = await getOwnedTicketsForCompetition(competitionId, {
                 walletAddress: baseUser?.id,
-                privyId: canonicalUserId,
                 canonicalUserId: canonicalUserId,
+                // privyId can be extracted from canonicalUserId if it's in did:privy: format
+                privyId: canonicalUserId?.startsWith('did:privy:') ? canonicalUserId : undefined,
             });
 
             // Convert Set to sorted array for backwards compatibility
