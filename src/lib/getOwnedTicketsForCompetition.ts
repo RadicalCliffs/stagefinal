@@ -18,6 +18,15 @@ interface UserIdentifiers {
 }
 
 /**
+ * View row type for v_joincompetition_active
+ * Supports both legacy (ticketnumbers) and new (ticket_numbers) column names
+ */
+interface ViewRow {
+  ticket_numbers?: (string | number)[] | null;
+  ticketnumbers?: (string | number)[] | null;
+}
+
+/**
  * Infer which identifier type is being used (for telemetry)
  */
 function inferIdType(id: string | null | undefined): string {
@@ -41,13 +50,13 @@ export async function getOwnedTicketsForCompetition(
 ): Promise<Set<string>> {
   // A: View path - fast, uses stable view with legacy and new column names
   try {
-    // Filter to only truthy, non-empty string values
+    // Filter to only truthy, non-empty string values for both key and value
     const filters: Array<[string, string]> = [
       ['competition_id', competitionId],
       ['canonical_user_id', canonicalUserId],
       ['privy_user_id', privyId],
       ['wallet_address', walletAddress],
-    ].filter(([, v]) => v != null && v !== '') as Array<[string, string]>;
+    ].filter(([k, v]) => k && v != null && v !== '') as Array<[string, string]>;
 
     if (filters.length > 0) {
       let query = supabase
@@ -64,7 +73,7 @@ export async function getOwnedTicketsForCompetition(
       if (!error && data && data.length > 0) {
         // Aggregate tickets from all matching rows
         const allTickets = new Set<string>();
-        for (const row of data as any[]) {
+        for (const row of data as ViewRow[]) {
           const tickets = (row?.ticket_numbers ?? row?.ticketnumbers ?? []) as (string | number)[];
           tickets.forEach(t => allTickets.add(String(t)));
         }
