@@ -126,7 +126,7 @@ export async function getActiveEntriesByCompetition(competitionUid: string): Pro
   const { data, error } = await supabase
     .from('v_joincompetition_active')
     .select('*')
-    .eq('competitionid', competitionUid)
+    .eq('competition_id', competitionUid)
     .order('purchasedate', { ascending: false });
 
   if (error) throw error;

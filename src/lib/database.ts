@@ -108,15 +108,15 @@ function transformJoinCompetitionEntry(jc: any, identity: ResolvedIdentity): any
     : false;
 
   // Generate a safe ID - use a combination of fields if uid/id are missing
-  // SCHEMA: Use userid and joinedat (not wallet_address and purchasedate)
-  const entryId = jc.uid || jc.id || `entry-${jc.competitionid || 'no-comp'}-${jc.userid?.substring(0, 8) || 'no-user'}-${jc.joinedat || 'unknown'}`;
+  // SCHEMA: Use user_id and joinedat (not wallet_address and purchasedate)
+  const entryId = jc.uid || jc.id || `entry-${jc.competition_id || jc.competitionid || 'no-comp'}-${jc.user_id?.substring(0, 8) || jc.userid?.substring(0, 8) || 'no-user'}-${jc.joinedat || 'unknown'}`;
 
-  // Calculate number of tickets from ticketnumbers array
-  const ticketCount = Array.isArray(jc.ticketnumbers) ? jc.ticketnumbers.length : 1;
+  // Calculate number of tickets from ticket_numbers array
+  const ticketCount = Array.isArray(jc.ticket_numbers || jc.ticketnumbers) ? (jc.ticket_numbers || jc.ticketnumbers).length : 1;
 
   return {
     id: entryId,
-    competition_id: jc.competitionid,
+    competition_id: jc.competition_id || jc.competitionid,
     title: comp?.title || 'Unknown Competition',
     description: comp?.description || '',
     image: comp?.image_url,
@@ -124,7 +124,7 @@ function transformJoinCompetitionEntry(jc: any, identity: ResolvedIdentity): any
     entry_type: 'completed', // joincompetition entries are always completed
     expires_at: null,
     is_winner: isWinner,
-    ticket_numbers: jc.ticketnumbers,
+    ticket_numbers: jc.ticket_numbers || jc.ticketnumbers,
     // SCHEMA: joincompetition doesn't have numberoftickets - calculate from array
     number_of_tickets: ticketCount,
     // SCHEMA: joincompetition doesn't have amountspent - calculate if ticket_price available
@@ -889,8 +889,8 @@ export const database = {
     const tickets = await Promise.all(
       data.map(async (ticket: any, index: number) => {
         // Try looking up competition by id first, then fallback to uid
-        // joincompetition.competitionid may contain either the UUID id or the text uid
-        const compId = ticket.competitionid;
+        // joincompetition.competition_id may contain either the UUID id or the text uid
+        const compId = ticket.competition_id || ticket.competitionid;
         let comp = null;
 
         // First try direct id match (if it's a valid UUID)
@@ -1183,7 +1183,7 @@ export const database = {
 
     // PERFORMANCE FIX: Batch fetch all competitions and users instead of N+1 queries
     // Extract unique IDs for batch fetching
-    const competitionIds = [...new Set((entryData || []).map(t => t.competitionid).filter(Boolean))];
+    const competitionIds = [...new Set((entryData || []).map(t => t.competition_id || t.competitionid).filter(Boolean))];
     const walletAddresses = [...new Set((entryData || []).map(t => t.wallet_address).filter(Boolean))];
 
     // Batch fetch competitions (single query instead of N queries)
@@ -1250,7 +1250,7 @@ export const database = {
     // Skip entries without valid competition data to avoid showing mock/placeholder info
     const entries: TableRow[] = [];
     for (const ticket of entryData || []) {
-      const comp = ticket.competitionid ? competitionMap.get(ticket.competitionid) : null;
+      const comp = (ticket.competition_id || ticket.competitionid) ? competitionMap.get(ticket.competition_id || ticket.competitionid) : null;
 
       // Skip entries where we can't find valid competition data
       if (!comp || !comp.competitionname) continue;
@@ -2262,7 +2262,7 @@ export const database = {
             databaseLogger.success('Base joincompetition query (wallet) found entries', { count: data.length });
 
             // Fetch competition data separately for all unique competition IDs
-            const competitionIds = [...new Set(data.map((jc: any) => jc.competitionid).filter(Boolean))];
+            const competitionIds = [...new Set(data.map((jc: any) => jc.competition_id || jc.competitionid).filter(Boolean))];
 
             // Fetch competitions by both id (UUID) and uid (legacy text)
             let competitionsMap = new Map<string, any>();
@@ -2306,8 +2306,8 @@ export const database = {
 
             // Transform entries with competition data
             data.forEach((jc: any) => {
-              // Try to find competition by competitionid (could be UUID or legacy text uid)
-              const comp = competitionsMap.get(jc.competitionid);
+              // Try to find competition by competition_id (could be UUID or legacy text uid)
+              const comp = competitionsMap.get(jc.competition_id || jc.competitionid);
 
               // Create synthetic jc.competitions object for transform function
               const jcWithComp = { ...jc, competitions: comp || null };
@@ -2333,7 +2333,7 @@ export const database = {
 
           if (!error && data && data.length > 0) {
             // Fetch competition data separately (same logic as above)
-            const competitionIds = [...new Set(data.map((jc: any) => jc.competitionid).filter(Boolean))];
+            const competitionIds = [...new Set(data.map((jc: any) => jc.competition_id || jc.competitionid).filter(Boolean))];
             let competitionsMap = new Map<string, any>();
 
             if (competitionIds.length > 0) {
@@ -2362,14 +2362,14 @@ export const database = {
             }
 
             data.forEach((jc: any) => {
-              const comp = competitionsMap.get(jc.competitionid);
+              const comp = competitionsMap.get(jc.competition_id || jc.competitionid);
               const jcWithComp = { ...jc, competitions: comp || null };
-              addEntry(transformJoinCompetitionEntry(jcWithComp, identity), 'joincompetition-userid');
+              addEntry(transformJoinCompetitionEntry(jcWithComp, identity), 'joincompetition-user_id');
             });
-            databaseLogger.debug('Base joincompetition query (userid) found entries', { count: data.length });
+            databaseLogger.debug('Base joincompetition query (user_id) found entries', { count: data.length });
           }
         } catch (e) {
-          databaseLogger.error('Base joincompetition query (userid) exception', e);
+          databaseLogger.error('Base joincompetition query (user_id) exception', e);
         }
       }
     }

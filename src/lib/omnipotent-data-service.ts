@@ -443,7 +443,7 @@ class OmnipotentDataService {
    * Transform competition entry for public display
    */
   private transformCompetitionEntry(raw: any): OmnipotentEntry {
-    const ticketNumbers = this.parseTicketNumbers(raw.ticketnumbers);
+    const ticketNumbers = this.parseTicketNumbers(raw.ticket_numbers || raw.ticketnumbers);
     const walletAddress = raw.wallet_address || raw.privy_user_id || '';
     
     // Filter out mock/zero addresses
@@ -453,7 +453,7 @@ class OmnipotentDataService {
 
     return {
       id: raw.uid || `entry-${Date.now()}`,
-      competition_id: raw.competitionid,
+      competition_id: raw.competition_id || raw.competitionid,
       competition_title: '',
       competition_image: '',
       competition_status: 'active',
