@@ -3611,9 +3611,10 @@ export const database = {
       const formattedEntries = data.map((entry: any) => {
         // Map entry_status to frontend status
         // Finished statuses: completed, drawn, sold_out, cancelled, expired
+        const finishedStatuses = ['completed', 'drawn', 'sold_out', 'cancelled', 'expired'];
         let status = 'live';
         if (entry.entry_status === 'confirmed') {
-          if (entry.competition_status === 'completed' || entry.competition_status === 'drawn' || entry.competition_status === 'sold_out' || entry.competition_status === 'cancelled' || entry.competition_status === 'expired') {
+          if (finishedStatuses.includes(entry.competition_status)) {
             status = 'completed';
           } else if (entry.competition_status === 'active') {
             status = 'live';

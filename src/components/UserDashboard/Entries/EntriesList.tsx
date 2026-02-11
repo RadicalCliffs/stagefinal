@@ -478,9 +478,10 @@ export default function EntriesList() {
     // Step 2: Normalize the status from database
     // Map all finished statuses to 'completed' for consistent filtering
     const rawStatus = (entry.status || '').toLowerCase().trim();
+    const finishedStatuses = ['ended', 'completed', 'sold_out', 'cancelled', 'expired'];
     const normalizedStatus = rawStatus === 'active' ? 'live'
       : rawStatus === 'drawing' ? 'drawn'
-      : (rawStatus === 'ended' || rawStatus === 'completed' || rawStatus === 'sold_out' || rawStatus === 'cancelled' || rawStatus === 'expired') ? 'completed'
+      : finishedStatuses.includes(rawStatus) ? 'completed'
       : rawStatus || 'live';
 
     // Step 3: Determine effective status
