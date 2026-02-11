@@ -19,10 +19,11 @@ export const FINISHED_COMPETITION_STATUSES: readonly CompetitionStatus[] = ['com
 /**
  * Type guard to check if a status is a finished status
  * Returns true if the status is one of the finished competition statuses
+ * Case-insensitive comparison for robustness
  */
 export function isFinishedStatus(status: string | null | undefined): status is CompetitionStatus {
   if (!status) return false;
-  return (FINISHED_COMPETITION_STATUSES as readonly string[]).includes(status);
+  return (FINISHED_COMPETITION_STATUSES as readonly string[]).includes(status.toLowerCase());
 }
 
 /**

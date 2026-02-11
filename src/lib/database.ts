@@ -3619,16 +3619,19 @@ export const database = {
         // (winner being selected) and is not yet "finished", but should display as 'drawn'
         let status = 'live';
         
+        // Normalize competition_status to lowercase for consistent comparison
+        const competitionStatus = (entry.competition_status || '').toLowerCase();
+        
         // Determine status based on competition_status
-        if (isFinishedStatus(entry.competition_status)) {
+        if (isFinishedStatus(competitionStatus)) {
           status = 'completed';
-        } else if (entry.competition_status === 'active') {
+        } else if (competitionStatus === 'active') {
           status = 'live';
-        } else if (entry.competition_status === 'drawing') {
+        } else if (competitionStatus === 'drawing') {
           // Transitional state: competition is being drawn, show as 'drawn'
           status = 'drawn';
-        } else {
-          status = entry.competition_status || 'live';
+        } else if (competitionStatus) {
+          status = competitionStatus;
         }
 
         // Check if competition has ended based on end_date
