@@ -6,6 +6,12 @@
  */
 
 /**
+ * Statuses that indicate a competition has finished
+ * Used for filtering entries in the dashboard
+ */
+export const FINISHED_COMPETITION_STATUSES = ['completed', 'drawn', 'sold_out', 'cancelled', 'expired'] as const;
+
+/**
  * Get human-readable status description
  */
 export const getStatusDescription = (status: string): string => {

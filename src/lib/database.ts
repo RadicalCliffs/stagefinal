@@ -12,6 +12,7 @@ import {
 } from './appConfig';
 import { userIdsEqual, normalizeWalletAddress, toPrizePid, isWalletAddress } from '../utils/userId';
 import { getDashboardEntries, getUnavailableTickets, getUserCompetitionEntries } from './supabase-rpc-helpers';
+import { FINISHED_COMPETITION_STATUSES } from '../constants/competition-status';
 import type {
   WinnerCardProps,
   Faq,
@@ -3610,11 +3611,10 @@ export const database = {
       // Transform to the format expected by the frontend
       const formattedEntries = data.map((entry: any) => {
         // Map entry_status to frontend status
-        // Finished statuses: completed, drawn, sold_out, cancelled, expired
-        const finishedStatuses = ['completed', 'drawn', 'sold_out', 'cancelled', 'expired'];
+        // Use shared FINISHED_COMPETITION_STATUSES constant
         let status = 'live';
         if (entry.entry_status === 'confirmed') {
-          if (finishedStatuses.includes(entry.competition_status)) {
+          if (FINISHED_COMPETITION_STATUSES.includes(entry.competition_status as any)) {
             status = 'completed';
           } else if (entry.competition_status === 'active') {
             status = 'live';
