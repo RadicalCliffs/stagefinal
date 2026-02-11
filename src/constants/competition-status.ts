@@ -6,17 +6,22 @@
  */
 
 /**
+ * All possible competition status values
+ */
+export type CompetitionStatus = 'active' | 'drawing' | 'drawn' | 'completed' | 'cancelled' | 'expired' | 'sold_out' | 'draft' | 'paused';
+
+/**
  * Statuses that indicate a competition has finished
  * Used for filtering entries in the dashboard
  */
-export const FINISHED_COMPETITION_STATUSES = ['completed', 'drawn', 'sold_out', 'cancelled', 'expired'] as const;
+export const FINISHED_COMPETITION_STATUSES: readonly CompetitionStatus[] = ['completed', 'drawn', 'sold_out', 'cancelled', 'expired'] as const;
 
 /**
  * Type guard to check if a status is a finished status
  */
 export function isFinishedStatus(status: string | null | undefined): boolean {
   if (!status) return false;
-  return FINISHED_COMPETITION_STATUSES.includes(status as any);
+  return (FINISHED_COMPETITION_STATUSES as readonly string[]).includes(status);
 }
 
 /**

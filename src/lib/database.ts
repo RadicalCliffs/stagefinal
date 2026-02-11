@@ -3612,6 +3612,8 @@ export const database = {
       const formattedEntries = data.map((entry: any) => {
         // Map entry_status to frontend status
         // Use shared isFinishedStatus type guard
+        // Note: 'drawing' is a transitional state between 'active' and 'drawn'
+        // and is mapped to 'drawn' for display purposes
         let status = 'live';
         if (entry.entry_status === 'confirmed') {
           if (isFinishedStatus(entry.competition_status)) {
