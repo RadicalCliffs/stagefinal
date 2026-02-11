@@ -3601,6 +3601,7 @@ export const database = {
           id: data[0].id,
           competition_id: data[0].competition_id,
           competition_title: data[0].competition_title,
+          competition_status: data[0].competition_status,
           competition_description: data[0].competition_description,
           competition_image_url: data[0].competition_image_url,
           ticket_count: data[0].tickets_count,
@@ -3610,26 +3611,24 @@ export const database = {
 
       // Transform to the format expected by the frontend
       const formattedEntries = data.map((entry: any) => {
-        // Map entry_status to frontend status
+        // Map competition_status to frontend status
+        // NOTE: The RPC get_user_competition_entries doesn't return entry_status,
+        // so we determine status solely based on competition_status
         // Use shared isFinishedStatus type guard
         // Note: 'drawing' is handled separately because it's a transitional state
         // (winner being selected) and is not yet "finished", but should display as 'drawn'
         let status = 'live';
-        if (entry.entry_status === 'confirmed') {
-          if (isFinishedStatus(entry.competition_status)) {
-            status = 'completed';
-          } else if (entry.competition_status === 'active') {
-            status = 'live';
-          } else if (entry.competition_status === 'drawing') {
-            // Transitional state: competition is being drawn, show as 'drawn'
-            status = 'drawn';
-          } else {
-            status = entry.competition_status || 'live';
-          }
-        } else if (entry.entry_status === 'pending') {
-          status = 'pending';
-        } else if (entry.entry_status === 'cancelled') {
-          return null; // Filter out cancelled entries
+        
+        // Determine status based on competition_status
+        if (isFinishedStatus(entry.competition_status)) {
+          status = 'completed';
+        } else if (entry.competition_status === 'active') {
+          status = 'live';
+        } else if (entry.competition_status === 'drawing') {
+          // Transitional state: competition is being drawn, show as 'drawn'
+          status = 'drawn';
+        } else {
+          status = entry.competition_status || 'live';
         }
 
         // Check if competition has ended based on end_date
@@ -3673,6 +3672,8 @@ export const database = {
           id: formattedEntries[0].id,
           competition_id: formattedEntries[0].competition_id,
           title: formattedEntries[0].title,
+          status: formattedEntries[0].status,
+          competition_status: formattedEntries[0].competition_status,
           image: formattedEntries[0].image?.substring(0, 50),
           ticket_numbers: formattedEntries[0].ticket_numbers,
           amount_spent: formattedEntries[0].amount_spent
