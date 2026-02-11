@@ -798,7 +798,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
 
                 <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg px-4 py-2.5">
                     <p className="text-blue-300 text-xs sequel-45 text-center">
-                        Pay with Base USDC for fast, low-fee transactions
+                        Pay with Base for fast, low-fee transactions
                     </p>
                 </div>
             </div>
