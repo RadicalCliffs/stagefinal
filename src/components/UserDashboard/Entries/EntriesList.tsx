@@ -479,12 +479,13 @@ export default function EntriesList() {
     const rawStatus = (entry.status || '').toLowerCase().trim();
     const normalizedStatus = rawStatus === 'active' ? 'live'
       : rawStatus === 'drawing' ? 'drawn'
-      : (rawStatus === 'ended' || rawStatus === 'completed') ? 'completed'
+      : (rawStatus === 'ended' || rawStatus === 'completed' || rawStatus === 'sold_out') ? 'completed'
       : rawStatus || 'live';
 
     // Step 3: Determine effective status
     // ISSUE 4C FIX: Use end_date as source of truth for "ended" status
     // If end_date has passed but status is still 'live', treat as 'completed'
+    // Also treat 'sold_out' competitions as 'completed' (they're finished)
     const effectiveStatus = isCompetitionEnded && normalizedStatus === 'live' ? 'completed' : normalizedStatus;
 
     // Step 4: Determine entry type (completed vs pending)
@@ -509,8 +510,9 @@ export default function EntriesList() {
 
     switch (activeTab.key) {
       case 'live':
-        // Live tab: Completed entries for competitions that haven't ended yet, excluding instant wins
-        willShow = !isCompetitionEnded && isCompletedEntry && !isInstantWin && !isPendingEntry;
+        // Live tab: Completed entries for competitions that are truly live
+        // effectiveStatus handles both time-based expiration and sold-out status
+        willShow = (effectiveStatus === 'live') && isCompletedEntry && !isInstantWin && !isPendingEntry;
         break;
 
       case 'pending':
