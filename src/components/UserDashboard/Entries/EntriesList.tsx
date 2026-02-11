@@ -8,7 +8,7 @@ import Loader from "../../Loader";
 import { useAuthUser } from '../../../contexts/AuthContext';
 import { useToast } from '../../Toast';
 import { Ticket, Trophy, AlertCircle, Clock, Zap, RefreshCw } from 'lucide-react';
-import { FINISHED_COMPETITION_STATUSES } from '../../../constants/competition-status';
+import { isFinishedStatus } from '../../../constants/competition-status';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -481,7 +481,7 @@ export default function EntriesList() {
     const rawStatus = (entry.status || '').toLowerCase().trim();
     const normalizedStatus = rawStatus === 'active' ? 'live'
       : rawStatus === 'drawing' ? 'drawn'
-      : FINISHED_COMPETITION_STATUSES.includes(rawStatus as any) ? 'completed'
+      : isFinishedStatus(rawStatus) ? 'completed'
       : rawStatus || 'live';
 
     // Step 3: Determine effective status

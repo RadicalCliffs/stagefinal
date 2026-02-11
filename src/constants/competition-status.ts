@@ -12,6 +12,14 @@
 export const FINISHED_COMPETITION_STATUSES = ['completed', 'drawn', 'sold_out', 'cancelled', 'expired'] as const;
 
 /**
+ * Type guard to check if a status is a finished status
+ */
+export function isFinishedStatus(status: string | null | undefined): boolean {
+  if (!status) return false;
+  return FINISHED_COMPETITION_STATUSES.includes(status as any);
+}
+
+/**
  * Get human-readable status description
  */
 export const getStatusDescription = (status: string): string => {
