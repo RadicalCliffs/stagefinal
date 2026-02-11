@@ -75,6 +75,11 @@ const LoggedInUserBtn = ({ fullWidth = false }: LoggedInUserBtnProps) => {
       return 'WalletConnect';
     }
 
+    // External wallets (e.g. linked via Privy)
+    if (walletClientType === 'external') {
+      return 'Base Account';
+    }
+
     // Fallback
     return walletClientType || 'Wallet';
   };
@@ -249,13 +254,11 @@ const LoggedInUserBtn = ({ fullWidth = false }: LoggedInUserBtnProps) => {
 
           {/* Account Balance - Prominent Display with responsive sizing */}
           <div className="p-3 sm:p-4 bg-[#DDE404]/5 border-b border-[#2A2A2A]">
+            <p className="sequel-45 text-white/60 text-[10px] sm:text-xs uppercase mb-1 sm:mb-2">Account Balance</p>
             <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="sequel-45 text-white/60 text-[10px] sm:text-xs uppercase">Account Balance</p>
-                <p className="sequel-95 text-[#DDE404] text-2xl sm:text-3xl mt-0.5 sm:mt-1">
-                  ${realTimeLoading ? '...' : realTimeBalance.toFixed(2)}
-                </p>
-              </div>
+              <p className="sequel-95 text-[#DDE404] text-xl sm:text-2xl truncate min-w-0">
+                ${realTimeLoading ? '...' : realTimeBalance.toFixed(2)}
+              </p>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -336,7 +339,7 @@ const LoggedInUserBtn = ({ fullWidth = false }: LoggedInUserBtnProps) => {
                               </p>
                               {isPrimary && (
                                 <span className="bg-[#DDE404] text-[#1A1A1A] sequel-75 text-[10px] px-1.5 py-0.5 rounded flex-shrink-0">
-                                  PRIMARY
+                                  WALLET
                                 </span>
                               )}
                             </div>
