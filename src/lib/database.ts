@@ -3612,10 +3612,12 @@ export const database = {
         // Map entry_status to frontend status
         let status = 'live';
         if (entry.entry_status === 'confirmed') {
-          if (entry.competition_status === 'completed' || entry.competition_status === 'drawn') {
+          if (entry.competition_status === 'completed' || entry.competition_status === 'drawn' || entry.competition_status === 'sold_out' || entry.competition_status === 'cancelled' || entry.competition_status === 'expired') {
             status = 'completed';
           } else if (entry.competition_status === 'active') {
             status = 'live';
+          } else if (entry.competition_status === 'drawing') {
+            status = 'drawn';
           } else {
             status = entry.competition_status || 'live';
           }

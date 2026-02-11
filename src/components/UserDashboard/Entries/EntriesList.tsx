@@ -479,7 +479,7 @@ export default function EntriesList() {
     const rawStatus = (entry.status || '').toLowerCase().trim();
     const normalizedStatus = rawStatus === 'active' ? 'live'
       : rawStatus === 'drawing' ? 'drawn'
-      : (rawStatus === 'ended' || rawStatus === 'completed' || rawStatus === 'sold_out') ? 'completed'
+      : (rawStatus === 'ended' || rawStatus === 'completed' || rawStatus === 'sold_out' || rawStatus === 'cancelled' || rawStatus === 'expired') ? 'completed'
       : rawStatus || 'live';
 
     // Step 3: Determine effective status
