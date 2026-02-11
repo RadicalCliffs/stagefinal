@@ -502,6 +502,7 @@ export default function EntriesList() {
       entryType === 'balance_purchase' ||
       entryType === 'transaction' ||
       entryType === 'competition_entry' ||
+      entryType === 'joincompetition' ||
       entryType === 'ticket';
 
     const isPendingEntry = entryType === 'pending' || entryType === 'pending_ticket' || normalizedStatus === 'pending';
