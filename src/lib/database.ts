@@ -294,17 +294,18 @@ export const database = {
 
       if (!data) return null;
 
-      // Fetch ticket count for this competition
-      // This ensures individual pages match the landing page ticket counts
+      // Fetch ticket count for this competition using the v_competition_ticket_stats view
+      // This view correctly filters by sold/purchased status and accounts for reserved tickets
       let ticketsSold = 0;
       try {
-        const { data: ticketCounts, error: countError } = (await supabase
-          .from('tickets')
-          .select('competition_id')
-          .eq('competition_id', competitionId)) as any;
+        const { data: stats, error: countError } = (await supabase
+          .from('v_competition_ticket_stats')
+          .select('sold')
+          .eq('competition_id', competitionId)
+          .single()) as any;
 
-        if (!countError && ticketCounts) {
-          ticketsSold = ticketCounts.length;
+        if (!countError && stats) {
+          ticketsSold = stats.sold || 0;
         }
       } catch (countError) {
         console.warn('Failed to fetch ticket count for competition:', competitionId, countError);
