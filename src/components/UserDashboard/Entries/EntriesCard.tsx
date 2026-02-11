@@ -110,7 +110,7 @@ const EntriesCard = ({
         {/* Winner/Loss/Pending Banner */}
         {showBanner && (
           <span
-            className={`${background} absolute right-0 top-0 w-fit text-center uppercase text-black rounded-bl-sm text-[10px] sm:text-xs sequel-95 py-1.5 sm:py-2 px-2 sm:px-3`}
+            className={`${background} absolute left-0 top-0 w-fit text-center uppercase text-black rounded-br-sm text-[10px] sm:text-xs sequel-95 py-1.5 sm:py-2 px-2 sm:px-3`}
           >
             {isPending ? "Pending" : isWinner ? "Winner!" : "Loss"}
           </span>
