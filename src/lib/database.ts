@@ -12,6 +12,7 @@ import {
 } from './appConfig';
 import { userIdsEqual, normalizeWalletAddress, toPrizePid, isWalletAddress } from '../utils/userId';
 import { getDashboardEntries, getUnavailableTickets, getUserCompetitionEntries } from './supabase-rpc-helpers';
+import { isFinishedStatus } from '../constants/competition-status';
 import type {
   WinnerCardProps,
   Faq,
@@ -3610,12 +3611,18 @@ export const database = {
       // Transform to the format expected by the frontend
       const formattedEntries = data.map((entry: any) => {
         // Map entry_status to frontend status
+        // Use shared isFinishedStatus type guard
+        // Note: 'drawing' is handled separately because it's a transitional state
+        // (winner being selected) and is not yet "finished", but should display as 'drawn'
         let status = 'live';
         if (entry.entry_status === 'confirmed') {
-          if (entry.competition_status === 'completed' || entry.competition_status === 'drawn') {
+          if (isFinishedStatus(entry.competition_status)) {
             status = 'completed';
           } else if (entry.competition_status === 'active') {
             status = 'live';
+          } else if (entry.competition_status === 'drawing') {
+            // Transitional state: competition is being drawn, show as 'drawn'
+            status = 'drawn';
           } else {
             status = entry.competition_status || 'live';
           }

@@ -6,6 +6,26 @@
  */
 
 /**
+ * All possible competition status values
+ */
+export type CompetitionStatus = 'active' | 'drawing' | 'drawn' | 'completed' | 'cancelled' | 'expired' | 'sold_out' | 'draft' | 'paused';
+
+/**
+ * Statuses that indicate a competition has finished
+ * Used for filtering entries in the dashboard
+ */
+export const FINISHED_COMPETITION_STATUSES: readonly CompetitionStatus[] = ['completed', 'drawn', 'sold_out', 'cancelled', 'expired'] as const;
+
+/**
+ * Type guard to check if a status is a finished status
+ * Returns true if the status is one of the finished competition statuses
+ */
+export function isFinishedStatus(status: string | null | undefined): status is CompetitionStatus {
+  if (!status) return false;
+  return (FINISHED_COMPETITION_STATUSES as readonly string[]).includes(status);
+}
+
+/**
  * Get human-readable status description
  */
 export const getStatusDescription = (status: string): string => {
