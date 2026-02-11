@@ -510,9 +510,9 @@ export default function EntriesList() {
 
     switch (activeTab.key) {
       case 'live':
-        // Live tab: Completed entries for competitions that haven't ended yet, excluding instant wins
-        // Exclude competitions that are completed/drawn/sold_out even if timer hasn't expired
-        willShow = (normalizedStatus === 'live') && !isCompetitionEnded && isCompletedEntry && !isInstantWin && !isPendingEntry;
+        // Live tab: Completed entries for competitions that are truly live
+        // effectiveStatus handles both time-based expiration and sold-out status
+        willShow = (effectiveStatus === 'live') && isCompletedEntry && !isInstantWin && !isPendingEntry;
         break;
 
       case 'pending':
