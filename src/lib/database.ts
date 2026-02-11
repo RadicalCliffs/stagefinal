@@ -3610,6 +3610,7 @@ export const database = {
       // Transform to the format expected by the frontend
       const formattedEntries = data.map((entry: any) => {
         // Map entry_status to frontend status
+        // Finished statuses: completed, drawn, sold_out, cancelled, expired
         let status = 'live';
         if (entry.entry_status === 'confirmed') {
           if (entry.competition_status === 'completed' || entry.competition_status === 'drawn' || entry.competition_status === 'sold_out' || entry.competition_status === 'cancelled' || entry.competition_status === 'expired') {

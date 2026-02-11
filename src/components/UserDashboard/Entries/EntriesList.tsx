@@ -476,6 +476,7 @@ export default function EntriesList() {
     const isCompetitionEnded = endDate !== null && endDate < now;
 
     // Step 2: Normalize the status from database
+    // Map all finished statuses to 'completed' for consistent filtering
     const rawStatus = (entry.status || '').toLowerCase().trim();
     const normalizedStatus = rawStatus === 'active' ? 'live'
       : rawStatus === 'drawing' ? 'drawn'
