@@ -1566,7 +1566,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                       </div>
                       <div className="text-left">
                         <p className="text-white sequel-75 text-sm uppercase">Pay With Base</p>
-                        <p className="text-white/80 sequel-45 text-xs">Fast USDC payments on Base</p>
+                        <p className="text-white/80 sequel-45 text-xs">Fast payments on Base</p>
                       </div>
                     </div>
                     <ChevronRight size={20} className="text-white" />
@@ -1662,7 +1662,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
               <div className="w-16 h-16 border-4 border-[#DDE404] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
               <h3 className="text-white sequel-75 text-xl mb-2">Processing Payment</h3>
               <p className="text-gray-400 sequel-45 mb-4">
-                {ticketCount} {ticketCount > 1 ? 'entries' : 'entry'} • ${amount.toFixed(2)} USDC
+                {ticketCount} {ticketCount > 1 ? 'entries' : 'entry'} • ${amount.toFixed(2)}
               </p>
               <p className="text-gray-500 text-xs sequel-45">
                 Please wait while we confirm your transaction on Base...
@@ -1676,14 +1676,14 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
               <div className="w-16 h-16 border-4 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
               <h3 className="text-white sequel-75 text-xl mb-2">Processing Base Payment</h3>
               <p className="text-gray-400 sequel-45 mb-4">
-                {ticketCount} {ticketCount > 1 ? 'entries' : 'entry'} • ${amount.toFixed(2)} USDC
+                {ticketCount} {ticketCount > 1 ? 'entries' : 'entry'} • ${amount.toFixed(2)}
               </p>
               <div className="flex items-center justify-center gap-2 text-blue-400 text-xs sequel-45 mb-3">
                 <div className="animate-pulse w-2 h-2 bg-blue-500 rounded-full"></div>
                 <span>Complete payment in Base popup</span>
               </div>
               <p className="text-gray-500 text-xs sequel-45">
-                Seamless one-tap USDC payment on Base network
+                Seamless one-tap payment on Base network
               </p>
             </div>
           )}
