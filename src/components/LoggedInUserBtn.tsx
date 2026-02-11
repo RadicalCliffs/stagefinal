@@ -265,7 +265,7 @@ const LoggedInUserBtn = ({ fullWidth = false }: LoggedInUserBtnProps) => {
               >
                 <Plus size={14} className="sm:w-4 sm:h-4" />
                 <span>Top Up</span>
-                <span className="ml-0.5">&lt;&lt;</span>
+                <span className="ml-0.5" aria-hidden="true">&lt;&lt;</span>
               </button>
             </div>
           </div>
