@@ -1284,7 +1284,13 @@ export const database = {
       const competitionImage = comp.imageurl ? getImageUrl(comp.imageurl) : DEFAULT_COMPETITION_IMAGE;
 
       // For Entry actions, show number of tickets purchased as the amount
-      const ticketCount = ticket.numberoftickets || 1;
+      // Calculate from ticketnumbers if numberoftickets is not available
+      let ticketCount = ticket.numberoftickets;
+      if (!ticketCount && ticket.ticketnumbers) {
+        // Parse comma-separated ticket numbers to get count
+        ticketCount = ticket.ticketnumbers.split(',').filter((t: string) => t.trim()).length;
+      }
+      ticketCount = ticketCount || 1;
       const ticketDisplay = ticketCount === 1 ? '1 Ticket' : `${ticketCount} Tickets`;
 
       entries.push({

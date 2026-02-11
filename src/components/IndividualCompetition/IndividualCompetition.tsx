@@ -46,6 +46,36 @@ const IndividualCompetition = ({ competition, competitionPageTextOverrides }: In
           <IndividualCompetitionInfo textOverrides={competitionPageTextOverrides} />
         </div>
       </div>
+      
+      {/* VRF Information Section */}
+      <div className="bg-[#1E1E1E] py-10 xl:px-0 px-4 relative">
+        <div className="max-w-7xl mx-auto">
+          <div className="bg-[#191919] rounded-2xl lg:px-14 px-6 lg:py-10 py-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="text-[#DDE404]">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/>
+                  <path d="m9 12 2 2 4-4"/>
+                </svg>
+              </div>
+              <h3 className="sequel-95 text-white text-xl lg:text-2xl uppercase">Provably Fair Draw</h3>
+            </div>
+            <p className="sequel-45 text-white/60 text-sm mb-6">
+              This competition uses Chainlink VRF (Verifiable Random Function) for provably fair winner selection on the Base blockchain.
+            </p>
+            <div className="bg-[#2A2A2A] rounded-xl p-4">
+              <p className="sequel-75 text-[#DDE404] text-sm mb-2">How It Works</p>
+              <ul className="sequel-45 text-white/80 text-sm space-y-2 list-disc list-inside">
+                <li>Winners are selected using blockchain-verified randomization (VRF)</li>
+                <li>Every draw is fair, transparent, and tamper-proof</li>
+                <li>Results are published on-chain for full transparency</li>
+                <li>After the draw, you can verify the VRF seed and winning calculation</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+      
       <div className=" bg-[#1E1E1E] xl:px-0 px-4 relative">
         <EntriesWithFilterTabs 
           key={entriesRefreshKey}
