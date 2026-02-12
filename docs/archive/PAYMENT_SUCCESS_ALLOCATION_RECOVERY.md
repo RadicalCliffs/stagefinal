@@ -5,9 +5,10 @@
 ### Questions Answered
 
 1. **"What is the maximum amount of tickets I can buy?"**
-   - **Answer:** 5000 tickets per transaction
+   - **Answer:** 999 tickets per transaction
    - Set by `MAX_TICKETS_PER_TRANSACTION` constant
    - Located in: `src/components/IndividualCompetition/TicketSelectorWithTabs.tsx`
+   - Note: Users can make multiple purchases to acquire more tickets
 
 2. **"Am I still going to error out buying more than 1 ticket with balance?"**
    - **Answer:** No, this has been fixed through multiple improvements:
@@ -505,7 +506,7 @@ This implementation ensures that **tickets are ALWAYS allocated when payment suc
 ✅ Zero security vulnerabilities
 ✅ Minimal performance overhead
 
-**Maximum tickets per purchase:** 5000
+**Maximum tickets per purchase:** 999
 **Balance payment multi-ticket:** ✅ Works correctly
 **Auto-recovery:** ✅ Implemented
 **User experience:** ✅ Clear, non-scary messaging
