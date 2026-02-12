@@ -75,8 +75,9 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
   }, [competition?.id]);
 
   const handleIncrement = () => {
-    // Limit to available tickets
-    if (ticketCount < availableCount) {
+    // Limit to available tickets and 999 per transaction
+    const maxAllowed = Math.min(availableCount, 999);
+    if (ticketCount < maxAllowed) {
       setTicketCount(ticketCount + 1);
     }
   };
@@ -306,7 +307,7 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
             <div className="mt-3">
               <div className=" flex justify-between mb-3">
                 <span className="sequel-45 text-white md:text-lg">0</span>
-                <span className="sequel-45 text-white md:text-lg">{availableCount}</span>
+                <span className="sequel-45 text-white md:text-lg">{Math.min(availableCount, 999)}</span>
               </div>
               
               {/* Show clear message when slider is disabled */}
@@ -324,13 +325,20 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
                   </p>
                 </div>
               )}
+              {availableCount > 999 && (
+                <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg px-3 py-2 mb-3">
+                  <p className="text-blue-400 text-sm sequel-45 text-center">
+                    Maximum 999 tickets per purchase. You can make multiple purchases for more tickets.
+                  </p>
+                </div>
+              )}
               
               <ReactRangeSliderInput
                 className="single-thumb"
                 value={[0, ticketCount]}
                 onInput={handleSliderChange}
                 min={0}
-                max={Math.max(availableCount, 1)}
+                max={Math.min(Math.max(availableCount, 1), 999)}
                 step={1}
                 thumbsDisabled={[true, false]}
                 rangeSlideDisabled={false}
