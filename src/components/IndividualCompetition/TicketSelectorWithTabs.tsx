@@ -20,7 +20,7 @@ import { getOwnedTicketsForCompetition } from "../../lib/getOwnedTicketsForCompe
 const PaymentModal = lazy(() => import("../PaymentModal"));
 
 // Maximum number of tickets that can be selected per transaction
-const MAX_TICKETS_PER_TRANSACTION = 5000;
+const MAX_TICKETS_PER_TRANSACTION = 999;
 
 interface TicketSelectorProps {
     competitionId: string;
