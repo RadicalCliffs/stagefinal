@@ -40,6 +40,9 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
   const totalTickets = competition?.total_tickets || 0;
   const availableCount = Math.max(0, totalTickets - soldCount);
   
+  // Maximum tickets per transaction (capped at 999)
+  const maxTicketsPerPurchase = Math.min(availableCount, 999);
+  
   // No more complex RPC calls - use competition data directly like main page
   const isSoldOut = totalTickets > 0 && soldCount >= totalTickets;
 
@@ -76,8 +79,7 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
 
   const handleIncrement = () => {
     // Limit to available tickets and 999 per transaction
-    const maxAllowed = Math.min(availableCount, 999);
-    if (ticketCount < maxAllowed) {
+    if (ticketCount < maxTicketsPerPurchase) {
       setTicketCount(ticketCount + 1);
     }
   };
@@ -307,7 +309,7 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
             <div className="mt-3">
               <div className=" flex justify-between mb-3">
                 <span className="sequel-45 text-white md:text-lg">0</span>
-                <span className="sequel-45 text-white md:text-lg">{Math.min(availableCount, 999)}</span>
+                <span className="sequel-45 text-white md:text-lg">{maxTicketsPerPurchase}</span>
               </div>
               
               {/* Show clear message when slider is disabled */}
@@ -338,7 +340,7 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
                 value={[0, ticketCount]}
                 onInput={handleSliderChange}
                 min={0}
-                max={Math.min(Math.max(availableCount, 1), 999)}
+                max={Math.max(maxTicketsPerPurchase, 1)}
                 step={1}
                 thumbsDisabled={[true, false]}
                 rangeSlideDisabled={false}
