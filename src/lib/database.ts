@@ -1309,12 +1309,23 @@ export const database = {
     }
 
     // Fetch all winners without date filter
-    // Include winner_username from the updated competition_winners view
+    // Query from winners table with competition data joined
     const { data: winnerData } = (await supabase
-      .from('competition_winners')
-      .select('competitionprize, Winner, winner_username, crDate, competitionname, imageurl')
-      .not('Winner', 'is', null as any)
-      .order('crDate', { ascending: false, nullsFirst: false } as any)
+      .from('winners')
+      .select(`
+        wallet_address,
+        username,
+        won_at,
+        competitions (
+          id,
+          title,
+          image_url,
+          prize_value,
+          prize_description
+        )
+      `)
+      .not('wallet_address', 'is', null as any)
+      .order('won_at', { ascending: false, nullsFirst: false } as any)
       .limit(50)) as any;
 
     // Helper to check if a wallet address looks like test/fake data
@@ -1333,9 +1344,12 @@ export const database = {
     // AND filter out test/fake winner addresses
     const filteredWinnerData = (winnerData || []).filter((winner) => {
       // First, filter out fake/test wallet addresses
-      if (!isValidWinnerAddress(winner.Winner)) return false;
+      if (!isValidWinnerAddress(winner.wallet_address)) return false;
+      
+      // Skip if no competition data
+      if (!winner.competitions) return false;
 
-      const prize = String(winner.competitionprize || '');
+      const prize = String(winner.competitions.prize_value || winner.competitions.prize_description || '');
       // Show if prize starts with $
       const isMonetary = prize.startsWith('$');
       // Show if prize contains crypto keywords
@@ -1348,10 +1362,10 @@ export const database = {
     });
 
     // PERFORMANCE FIX: Batch fetch winner user data instead of N+1 queries
-    const winnerIdentifiers = [...new Set(filteredWinnerData.slice(0, 10).map(w => w.Winner).filter(Boolean))];
+    const winnerIdentifiers = [...new Set(filteredWinnerData.slice(0, 10).map(w => w.wallet_address).filter(Boolean))];
 
     // Batch fetch winner users (single query instead of N queries)
-    // NOTE: Winner field can be either a plain wallet address OR a canonical_user_id (prize:pid:0x...)
+    // NOTE: wallet_address can be either a plain wallet address OR a canonical_user_id (prize:pid:0x...)
     const { data: winnerUsersData } = (winnerIdentifiers.length > 0
       ? await supabase
           .from('canonical_users')
@@ -1379,48 +1393,51 @@ export const database = {
     // Build winners using lookup map
     // Skip winners without valid competition/prize data to avoid showing mock/placeholder info
     const winners: TableRow[] = [];
-    for (const comp of filteredWinnerData.slice(0, 10)) {
+    for (const winner of filteredWinnerData.slice(0, 10)) {
       // Skip winners without a valid prize or competition name
-      if (!comp.competitionprize || !comp.competitionname) continue;
+      if (!winner.competitions || !winner.competitions.title) continue;
 
-      const userData = comp.Winner
-        ? (winnerUserMap.get(comp.Winner) || winnerUserMap.get(comp.Winner.toLowerCase()))
+      const userData = winner.wallet_address
+        ? (winnerUserMap.get(winner.wallet_address) || winnerUserMap.get(winner.wallet_address.toLowerCase()))
         : null;
 
       // Use actual date from database, not fabricated date
       let timeDisplay: string;
-      if (comp.crDate) {
-        const drawDate = new Date(comp.crDate);
+      if (winner.won_at) {
+        const drawDate = new Date(winner.won_at);
         timeDisplay = formatTimeDisplay(drawDate);
       } else {
         timeDisplay = 'Recent';
       }
 
       // Priority for username display:
-      // 1. winner_username from winners table (stored directly when winner is declared)
+      // 1. username from winners table (stored directly when winner is declared)
       // 2. username from canonical_users lookup
       // 3. Truncated wallet address as fallback
-      const displayName = comp.winner_username ||
+      const displayName = winner.username ||
         userData?.username ||
-        (comp.Winner
-          ? comp.Winner.substring(0, 6) + '...' + comp.Winner.slice(-4)
+        (winner.wallet_address
+          ? winner.wallet_address.substring(0, 6) + '...' + winner.wallet_address.slice(-4)
           : 'Anonymous');
 
       const avatarUrl = userData?.avatar_url || getRandomAvatar();
-      const competitionImage = comp.imageurl ? getImageUrl(comp.imageurl) : DEFAULT_COMPETITION_IMAGE;
+      const competitionImage = winner.competitions.image_url ? getImageUrl(winner.competitions.image_url) : DEFAULT_COMPETITION_IMAGE;
+      
+      // Use prize_value or prize_description as the prize display
+      const prizeDisplay = String(winner.competitions.prize_value || winner.competitions.prize_description || '');
 
       winners.push({
-        competition: comp.competitionname,
+        competition: winner.competitions.title,
         user: {
           name: displayName,
           avatar: avatarUrl,
         },
         action: 'Win' as const,
-        amount: comp.competitionprize,
+        amount: prizeDisplay,
         time: timeDisplay,
-        competitionId: '',
+        competitionId: winner.competitions.id || '',
         competitionImage,
-        competitionPrize: comp.competitionprize,
+        competitionPrize: prizeDisplay,
       });
     }
 
