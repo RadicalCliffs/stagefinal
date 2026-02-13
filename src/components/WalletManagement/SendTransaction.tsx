@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Send, AlertCircle, CheckCircle, ExternalLink, Loader2 } from 'lucide-react';
 import { useSendEvmTransaction, useEvmAddress } from '@coinbase/cdp-hooks';
 import { parseEther, isAddress, createPublicClient, http } from 'viem';
@@ -54,6 +54,12 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [estimatedGas, setEstimatedGas] = useState<{
+    maxFeePerGas: bigint;
+    maxPriorityFeePerGas: bigint;
+    estimatedCost: string;
+  } | null>(null);
+  const [isEstimatingGas, setIsEstimatingGas] = useState(false);
 
   // Memoize network info to avoid recreating object on every render
   const networkInfo = useMemo(() => getNetworkInfo(), []);
@@ -80,7 +86,63 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
 
   const canSend = isValidAddress && isValidAmount && !isSending && evmAddress;
 
-  // Memoized explorer URL generator
+  // Estimate gas fees when amount and recipient are valid
+  const estimateGas = useCallback(async () => {
+    if (!isValidAddress || !isValidAmount) {
+      setEstimatedGas(null);
+      return;
+    }
+
+    setIsEstimatingGas(true);
+    try {
+      const feeData = await publicClient.estimateFeesPerGas();
+      
+      if (feeData.maxFeePerGas && feeData.maxPriorityFeePerGas) {
+        // Estimate gas limit for a simple ETH transfer (21,000 gas units)
+        const gasLimit = BigInt(21000);
+        const totalGasCost = feeData.maxFeePerGas * gasLimit;
+        const totalGasInEth = Number(totalGasCost) / 1e18;
+        
+        setEstimatedGas({
+          maxFeePerGas: feeData.maxFeePerGas,
+          maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
+          estimatedCost: totalGasInEth.toFixed(6)
+        });
+      } else {
+        // Use fallback values
+        const gasLimit = BigInt(21000);
+        const totalGasCost = FALLBACK_MAX_FEE_PER_GAS * gasLimit;
+        const totalGasInEth = Number(totalGasCost) / 1e18;
+        
+        setEstimatedGas({
+          maxFeePerGas: FALLBACK_MAX_FEE_PER_GAS,
+          maxPriorityFeePerGas: FALLBACK_MAX_PRIORITY_FEE_PER_GAS,
+          estimatedCost: totalGasInEth.toFixed(6)
+        });
+      }
+    } catch (error) {
+      console.error('Failed to estimate gas:', error);
+      // Use fallback values on error
+      const gasLimit = BigInt(21000);
+      const totalGasCost = FALLBACK_MAX_FEE_PER_GAS * gasLimit;
+      const totalGasInEth = Number(totalGasCost) / 1e18;
+      
+      setEstimatedGas({
+        maxFeePerGas: FALLBACK_MAX_FEE_PER_GAS,
+        maxPriorityFeePerGas: FALLBACK_MAX_PRIORITY_FEE_PER_GAS,
+        estimatedCost: totalGasInEth.toFixed(6)
+      });
+    } finally {
+      setIsEstimatingGas(false);
+    }
+  }, [isValidAddress, isValidAmount, publicClient]);
+
+  // Trigger gas estimation when inputs change
+  useEffect(() => {
+    estimateGas();
+  }, [estimateGas]);
+
+  // Memoize explorer URL generator
   const getExplorerUrl = useCallback(() => {
     if (!txHash) return null;
     return `https://${networkInfo.explorerDomain}/tx/${txHash}`;
@@ -98,27 +160,34 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
       // Convert amount to wei (ETH has 18 decimals)
       const valueInWei = parseEther(amount);
 
-      // Estimate gas fees for EIP-1559 transaction with error handling
+      // Use estimated gas fees if available, otherwise estimate on-the-fly
       let maxFeePerGas: bigint;
       let maxPriorityFeePerGas: bigint;
       
-      try {
-        const feeData = await publicClient.estimateFeesPerGas();
-        
-        // Validate that gas values are present and use fallback if not
-        if (feeData.maxFeePerGas && feeData.maxPriorityFeePerGas) {
-          maxFeePerGas = feeData.maxFeePerGas;
-          maxPriorityFeePerGas = feeData.maxPriorityFeePerGas;
-        } else {
-          console.warn('Gas estimation returned null/undefined values, using fallback');
+      if (estimatedGas) {
+        // Use pre-estimated gas values
+        maxFeePerGas = estimatedGas.maxFeePerGas;
+        maxPriorityFeePerGas = estimatedGas.maxPriorityFeePerGas;
+      } else {
+        // Estimate gas fees for EIP-1559 transaction with error handling
+        try {
+          const feeData = await publicClient.estimateFeesPerGas();
+          
+          // Validate that gas values are present and use fallback if not
+          if (feeData.maxFeePerGas && feeData.maxPriorityFeePerGas) {
+            maxFeePerGas = feeData.maxFeePerGas;
+            maxPriorityFeePerGas = feeData.maxPriorityFeePerGas;
+          } else {
+            console.warn('Gas estimation returned null/undefined values, using fallback');
+            maxFeePerGas = FALLBACK_MAX_FEE_PER_GAS;
+            maxPriorityFeePerGas = FALLBACK_MAX_PRIORITY_FEE_PER_GAS;
+          }
+        } catch (gasEstimateError) {
+          console.error('Gas estimation failed, using fallback values:', gasEstimateError);
+          // Fallback to reasonable gas values if estimation fails
           maxFeePerGas = FALLBACK_MAX_FEE_PER_GAS;
           maxPriorityFeePerGas = FALLBACK_MAX_PRIORITY_FEE_PER_GAS;
         }
-      } catch (gasEstimateError) {
-        console.error('Gas estimation failed, using fallback values:', gasEstimateError);
-        // Fallback to reasonable gas values if estimation fails
-        maxFeePerGas = FALLBACK_MAX_FEE_PER_GAS;
-        maxPriorityFeePerGas = FALLBACK_MAX_PRIORITY_FEE_PER_GAS;
       }
 
       // Send transaction with EIP-1559 parameters
@@ -294,6 +363,20 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
           </p>
         </div>
       </div>
+
+      {/* Gas Fee Estimate Display */}
+      {estimatedGas && (
+        <div className="bg-[#2A2A2A] rounded-lg p-4 mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-white/60 sequel-75 text-sm">Estimated Network Fee</p>
+            {isEstimatingGas && <Loader2 size={14} className="text-white/40 animate-spin" />}
+          </div>
+          <p className="text-[#DDE404] sequel-75 text-xl">{estimatedGas.estimatedCost} ETH</p>
+          <p className="text-white/40 sequel-45 text-xs mt-1">
+            Gas fees are paid to network validators for processing your transaction
+          </p>
+        </div>
+      )}
 
       <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mb-6">
         <div className="flex items-start gap-2">

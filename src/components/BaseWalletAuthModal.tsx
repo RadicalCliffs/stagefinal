@@ -1618,15 +1618,10 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             </div>
 
             <h2 className="text-white text-2xl font-bold mb-2 text-center">
-              {options?.isReturningUser ? 'Welcome back!' : 'Connect your wallet'}
+              Continue with Base!
             </h2>
             <p className="text-white/60 text-sm mb-6 text-center">
-              {options?.isReturningUser
-                ? 'Connect your wallet to sign in to your account.'
-                : options?.resumeSignup
-                  ? 'Almost there! Connect your wallet to complete signup.'
-                  : 'Connect an existing wallet or create a new one in seconds.'
-              }
+              Sign in, or create a Base Account to activate your secure wallet on ThePrize.
             </p>
 
             {/* Display returning user's wallet address if available */}
@@ -1765,52 +1760,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                       </div>
                     )}
 
-                    <p className="text-white/60 text-xs text-center">
-                      {options?.isReturningUser
-                        ? 'Click the button above to connect and sign in.'
-                        : options?.resumeSignup
-                          ? 'Connect your Base wallet now, or create a free wallet below.'
-                          : 'Bring your own Base wallet or have one made for you below.'
-                      }
-                    </p>
                   </div>
-
-                  {/* Show create new wallet option only for new users, not returning users */}
-                  {!options?.isReturningUser && (
-                    <>
-                      {/* Divider */}
-                      <div className="relative">
-                        <div className="absolute inset-0 flex items-center">
-                          <div className="w-full border-t border-white/10"></div>
-                        </div>
-                        <div className="relative flex justify-center text-xs uppercase">
-                          <span className="bg-[#0A0A0F] px-2 text-white/50">OR</span>
-                        </div>
-                      </div>
-
-                      {/* Secondary text */}
-                      {options?.resumeSignup && (
-                        <p className="text-white/60 text-xs text-center">
-                          Decided you would rather a free Base native wallet instead? Click below to create a new wallet. Note: If you create a new wallet but regularly use another wallet, you may need to remember which wallet is associated with your theprize.io account.
-                        </p>
-                      )}
-
-                      {/* Secondary Button - Create New Wallet (Yellow) */}
-                      <button
-                        onClick={() => setFlowState('cdp-signin')}
-                        className="w-full bg-[#DDE404] hover:bg-[#DDE404]/90 text-black font-bold py-3 px-6 rounded-lg flex items-center justify-center gap-2"
-                      >
-                        <Shield size={20} className="flex-shrink-0" />
-                        <span>CREATE A FREE BASE WALLET</span>
-                      </button>
-
-                      {!options?.resumeSignup && (
-                        <p className="text-white/60 text-xs text-center">
-                          No wallet yet? Create one now and get started instantly.
-                        </p>
-                      )}
-                    </>
-                  )}
                 </>
               ) : (
                 <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg text-center">

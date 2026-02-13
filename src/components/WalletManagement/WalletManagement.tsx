@@ -694,7 +694,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1 flex-shrink-0">
+                  <div className="flex items-center gap-3 flex-shrink-0">
                     {/* Use as Primary button - only show for non-primary wallets */}
                     {!wallet.is_primary && (
                       <button
