@@ -444,7 +444,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               // NOTE: Parameters must match the database function signature exactly:
               // p_uid, p_canonical_user_id, p_email, p_username, p_wallet_address,
               // p_base_wallet_address, p_eth_wallet_address, p_privy_user_id,
-              // p_first_name, p_last_name, p_telegram_handle, p_wallet_linked
+              // p_first_name, p_last_name, p_telegram_handle, p_country, p_avatar_url,
+              // p_auth_provider, p_wallet_linked
               return await (supabase.rpc as any)('upsert_canonical_user', {
                 p_uid: userProfile.uid || userProfile.id,
                 p_canonical_user_id: canonicalUserId,
@@ -457,6 +458,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 p_first_name: userProfile.first_name || null,
                 p_last_name: userProfile.last_name || null,
                 p_telegram_handle: userProfile.telegram_handle || null,
+                p_country: userProfile.country || null,
+                p_avatar_url: userProfile.avatar_url || null,
+                p_auth_provider: 'cdp',
                 p_wallet_linked: false, // Not a wallet link event, just auth
               });
             },
