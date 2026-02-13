@@ -21,14 +21,21 @@ BEGIN
   END IF;
 
   -- Fetch competition title and description
-  SELECT 
-    COALESCE(title, 'Unknown Competition'),
-    COALESCE(description, '')
-  INTO v_competition_title, v_competition_description
-  FROM competitions
-  WHERE id = NEW.competitionid::uuid
-     OR uid = NEW.competitionid
-  LIMIT 1;
+  -- Handle both UUID and text competition IDs with safe casting
+  BEGIN
+    SELECT 
+      COALESCE(title, 'Unknown Competition'),
+      COALESCE(description, '')
+    INTO v_competition_title, v_competition_description
+    FROM competitions
+    WHERE id::text = NEW.competitionid
+       OR uid::text = NEW.competitionid
+    LIMIT 1;
+  EXCEPTION WHEN OTHERS THEN
+    -- If query fails, use defaults
+    v_competition_title := 'Unknown Competition';
+    v_competition_description := '';
+  END;
 
   -- If competition not found, use default
   IF v_competition_title IS NULL THEN
@@ -63,7 +70,7 @@ BEGIN
       tickets_count = COALESCE(tickets_count, 0) + COALESCE(NEW.numberoftickets, 0),
       amount_spent = COALESCE(amount_spent, 0) + COALESCE(NEW.amountspent, 0),
       ticket_numbers_csv = v_new_ticket_numbers_csv,
-      latest_purchase_at = GREATEST(COALESCE(latest_purchase_at, NEW.purchasedate), NEW.purchasedate),
+      latest_purchase_at = GREATEST(latest_purchase_at, NEW.purchasedate),
       competition_title = v_competition_title,
       competition_description = v_competition_description,
       updated_at = NOW()
@@ -120,13 +127,14 @@ $$;
 
 -- Step 2: Backfill existing competition_entries with competition titles
 -- Update all existing entries that have NULL or 'Unknown Competition' as title
+-- Use safe text comparison to handle both UUID and string IDs
 UPDATE public.competition_entries ce
 SET 
   competition_title = COALESCE(c.title, 'Unknown Competition'),
   competition_description = COALESCE(c.description, ''),
   updated_at = NOW()
 FROM public.competitions c
-WHERE (ce.competition_id::uuid = c.id OR ce.competition_id = c.uid)
+WHERE (ce.competition_id = c.id::text OR ce.competition_id = c.uid::text)
   AND (ce.competition_title IS NULL 
        OR ce.competition_title = '' 
        OR ce.competition_title = 'Unknown Competition');
