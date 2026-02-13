@@ -138,6 +138,13 @@ const KNOWN_TOKENS: Record<string, { symbol: string; name: string; decimals: num
     decimals: 18,
     logoUrl: 'https://assets.coingecko.com/coins/images/31126/small/toshi.jpg',
   },
+  // VIRTUAL on Base
+  '0x0b3e328455c4059eeb9e3f84b5543f74e24e7e1b': {
+    symbol: 'VIRTUAL',
+    name: 'Virtual Protocol',
+    decimals: 18,
+    logoUrl: 'https://assets.coingecko.com/coins/images/43957/small/virtual.png',
+  },
 };
 
 // Format balance for display
@@ -327,9 +334,7 @@ export function useWalletTokens(walletAddress?: string): UseWalletTokensResult {
         walletTokensLogger.error('Failed to fetch ETH balance', e);
       }
 
-      // Token addresses to check based on network
-      // Prioritized list: USDC first (most used for payments), then stablecoins, then other tokens
-      // Reduced from 9 to 5 tokens to avoid rate limiting on public RPC endpoints
+      // Increased to 10 tokens to show more of user's portfolio while managing rate limits
       const tokensToCheck = isMainnet
         ? [
             '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', // USDC (primary payment token)
@@ -337,6 +342,11 @@ export function useWalletTokens(walletAddress?: string): UseWalletTokensResult {
             '0x4200000000000000000000000000000000000006', // WETH
             '0x50c5725949a6f0c72e6c4a641f24049a917db0cb', // DAI
             '0x2ae3f1ec7f1f5012cfeab0185bfc7aa3cf0dec22', // cbETH
+            '0x4ed4e862860bed51a9570b96d89af5e1b0efefed', // DEGEN
+            '0x940181a94a35a4569e4529a3cdfb74e38fd98631', // AERO
+            '0x532f27101965dd16442e59d40670faf5ebb142e4', // BRETT
+            '0xac1bd2486aaf3b5c0fc3fd868558b082a531b2b4', // TOSHI
+            '0x0b3e328455c4059eeb9e3f84b5543f74e24e7e1b', // Virtual Protocol
           ]
         : [
             '0x036cbd53842c5426634e7929541ec2318f3dcf7e', // USDC on Base Sepolia
@@ -513,8 +523,8 @@ export function useWalletTokens(walletAddress?: string): UseWalletTokensResult {
         return 0;
       });
 
-      // Only keep top 5 tokens
-      return tokenBalances.slice(0, 5);
+      // Only keep top 10 tokens (increased from 5 to show more of user's portfolio)
+      return tokenBalances.slice(0, 10);
     })();
 
     // Register in-flight request for deduplication
