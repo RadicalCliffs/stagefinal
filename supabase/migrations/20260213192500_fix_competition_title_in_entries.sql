@@ -24,8 +24,8 @@ BEGIN
   -- Handle both UUID and text competition IDs with safe casting
   BEGIN
     SELECT 
-      COALESCE(title, 'Unknown Competition'),
-      COALESCE(description, '')
+      title,
+      description
     INTO v_competition_title, v_competition_description
     FROM competitions
     WHERE id::text = NEW.competitionid
@@ -33,8 +33,8 @@ BEGIN
     LIMIT 1;
   EXCEPTION WHEN OTHERS THEN
     -- If query fails, use defaults
-    v_competition_title := 'Unknown Competition';
-    v_competition_description := '';
+    v_competition_title := NULL;
+    v_competition_description := NULL;
   END;
 
   -- If competition not found, use default
@@ -106,18 +106,18 @@ BEGIN
     )
     ON CONFLICT (canonical_user_id, competition_id) 
     DO UPDATE SET
-      tickets_count = competition_entries.tickets_count + COALESCE(NEW.numberoftickets, 0),
-      amount_spent = competition_entries.amount_spent + COALESCE(NEW.amountspent, 0),
+      tickets_count = competition_entries.tickets_count + COALESCE(EXCLUDED.tickets_count, 0),
+      amount_spent = competition_entries.amount_spent + COALESCE(EXCLUDED.amount_spent, 0),
       ticket_numbers_csv = CASE
         WHEN competition_entries.ticket_numbers_csv IS NULL OR competition_entries.ticket_numbers_csv = ''
-          THEN COALESCE(NEW.ticketnumbers, '')
-        WHEN NEW.ticketnumbers IS NOT NULL AND NEW.ticketnumbers != ''
-          THEN competition_entries.ticket_numbers_csv || ',' || NEW.ticketnumbers
+          THEN EXCLUDED.ticket_numbers_csv
+        WHEN EXCLUDED.ticket_numbers_csv IS NOT NULL AND EXCLUDED.ticket_numbers_csv != ''
+          THEN competition_entries.ticket_numbers_csv || ',' || EXCLUDED.ticket_numbers_csv
         ELSE competition_entries.ticket_numbers_csv
       END,
-      latest_purchase_at = GREATEST(competition_entries.latest_purchase_at, NEW.purchasedate),
-      competition_title = v_competition_title,
-      competition_description = v_competition_description,
+      latest_purchase_at = GREATEST(competition_entries.latest_purchase_at, EXCLUDED.latest_purchase_at),
+      competition_title = EXCLUDED.competition_title,
+      competition_description = EXCLUDED.competition_description,
       updated_at = NOW();
   END IF;
 
@@ -145,6 +145,7 @@ DECLARE
   v_updated_count integer;
   v_total_count integer;
 BEGIN
+  -- Count entries with valid titles after backfill
   SELECT COUNT(*) INTO v_updated_count 
   FROM public.competition_entries 
   WHERE competition_title IS NOT NULL AND competition_title != 'Unknown Competition';
@@ -152,5 +153,5 @@ BEGIN
   SELECT COUNT(*) INTO v_total_count FROM public.competition_entries;
   
   RAISE NOTICE 'Migration complete: Updated competition titles in competition_entries';
-  RAISE NOTICE 'Records with valid titles: % out of %', v_updated_count, v_total_count;
+  RAISE NOTICE 'Entries with valid titles: % out of %', v_updated_count, v_total_count;
 END $$;
