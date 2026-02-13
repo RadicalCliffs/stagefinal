@@ -9,8 +9,11 @@ import {
   telegramSafeSmashLogo,
 } from "../assets/images";
 import { SwiperNavButtons } from "./SwiperCustomNav";
+import { useSectionTracking } from "../hooks/useSectionTracking";
 
 const NeverMissGame = () => {
+  const sectionRef = useSectionTracking('never_miss_game_section');
+
   const slides = [
     {
       title: "Join The Telegram",
@@ -36,7 +39,7 @@ const NeverMissGame = () => {
   ];
 
   return (
-    <div className="w-full max-w-7xl mx-auto" id="never-miss-game">
+    <div ref={sectionRef} className="w-full max-w-7xl mx-auto" id="never-miss-game">
       <Heading
         text="Never Miss a Win!"
         classes="text-white max-[600px]:text-2xl lg:text-4xl"

@@ -4,8 +4,10 @@ import Heading from "./Heading";
 import { ChevronDown } from "lucide-react";
 import { database } from "../lib/database";
 import type { Faq } from "../models/models";
+import { useSectionTracking } from "../hooks/useSectionTracking";
 
 export default function FaqSection() {
+  const sectionRef = useSectionTracking('faq_section');
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [faqs, setFaqs] = useState<Faq[]>([]);
 
@@ -24,7 +26,7 @@ export default function FaqSection() {
   const visibleFaqs = faqs.slice(0, 4);
 
   return (
-    <section>
+    <section ref={sectionRef}>
       <div className="max-w-5xl mx-auto">
         <Heading
           text="Faqs"

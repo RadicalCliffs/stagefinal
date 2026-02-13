@@ -1,8 +1,11 @@
 import { cashOutBg, responsiveCashOut } from '../assets/images'
+import { useSectionTracking } from '../hooks/useSectionTracking'
 
 const CashOutLikeAPro = () => {
+  const sectionRef = useSectionTracking('cash_out_section');
+
   return (
-    <div className='mx-auto w-full max-w-7xl relative'>
+    <div ref={sectionRef} className='mx-auto w-full max-w-7xl relative'>
         <img src={cashOutBg} alt="cashOutBg" className='md:block hidden w-full' loading="lazy" />
         <img src={responsiveCashOut} alt="cashOutBg" className='md:hidden block w-full max-h-[300px] object-cover rounded-3xl' loading="lazy" />
         {/* <div className='overlay md:hidden block absolute bg-black/40 md:rounded-3xl  rounded-[3rem] top-0 left-0 w-full h-full '></div> */}

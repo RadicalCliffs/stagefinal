@@ -39,3 +39,8 @@ supabase/.branches/
 
 # Front-end package for Bolt - temporary directory (not tracked in git)
 theprize-frontend/
+
+# Playwright test results and artifacts
+test-results/
+playwright-report/
+playwright/.cache/

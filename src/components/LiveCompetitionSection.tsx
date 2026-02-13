@@ -8,8 +8,11 @@ import type { Competition } from "../models/models";
 import { bitcoinV2 } from "../assets/images";
 import { useCompetitions } from "../hooks/useFetchCompetitions";
 import LandingPageTabs from "./LandingPageTabs";
+import { useSectionTracking } from "../hooks/useSectionTracking";
 
 const LiveCompetitionSection = () => {
+  const sectionRef = useSectionTracking('live_competitions_section');
+  
   const OPTIONS = [
     { label: "Bitcoin", key: "bitcoin" },
     { label: "Cars & Watches", key: "car-watches" },
@@ -98,7 +101,7 @@ const LiveCompetitionSection = () => {
   }
 
   return (
-    <div className="relative ">
+    <div ref={sectionRef} className="relative ">
       <FilterTabs
         containerClasses="sm:grid hidden lg:grid-cols-3 sm:grid-cols-2 grid-cols-1 lg:gap-x-2 lg:gap-y-3 sm:gap-4 gap-3 sm:px-0 px-5 max-w-7xl mx-auto"
         active={activeTab}

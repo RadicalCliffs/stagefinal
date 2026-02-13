@@ -8,9 +8,11 @@ import { useState, useEffect, useCallback } from "react";
 import { database } from "../lib/database";
 import { supabase } from "../lib/supabase";
 import type { WinnerCardProps } from "../models/models";
+import { useSectionTracking } from "../hooks/useSectionTracking";
 
 const WinnersV2 = () => {
   const isMobile = useIsMobile();
+  const sectionRef = useSectionTracking('winners_section');
   const [winners, setWinners] = useState<WinnerCardProps[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -91,6 +93,7 @@ const WinnersV2 = () => {
 
   return (
     <div
+      ref={sectionRef}
       id="landing-page-winners"
       className=" max-w-7xl mx-auto md:px-4 px-5 2xl:px-0 text-white relative z-10 pt-8"
     >

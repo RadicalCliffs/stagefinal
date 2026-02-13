@@ -5,11 +5,14 @@ import Partners from "./Partners";
 import Reviews from "./Reviews";
 import FairDrawsV2 from "./FairDrawsV2";
 import HeroCarouselV2 from "./HeroCarouselV2";
+import { useSectionTracking } from "../hooks/useSectionTracking";
 
 const HeroSection = () => {
+  const sectionRef = useSectionTracking('hero_section');
+
   return (
     <>
-      <div className="bg-[#1a1a1a] max-w-7xl mx-auto rounded-xl sm:p-3">
+      <div ref={sectionRef} className="bg-[#1a1a1a] max-w-7xl mx-auto rounded-xl sm:p-3">
         {/* <div>
           <img
             className="w-full"
