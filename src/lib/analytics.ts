@@ -25,7 +25,9 @@ export function initGA() {
   const measurementId = import.meta.env.VITE_GA_MEASUREMENT_ID;
   
   if (!measurementId) {
-    console.warn('[GA] Measurement ID not configured - analytics disabled');
+    if (import.meta.env.DEV) {
+      console.warn('[GA] Measurement ID not configured - analytics disabled');
+    }
     return false;
   }
 
@@ -41,7 +43,9 @@ export function initGA() {
       window.gtag('config', measurementId, {
         send_page_view: false, // We'll handle page views manually
       });
-      console.log('[GA] Initialized with ID:', measurementId);
+      if (import.meta.env.DEV) {
+        console.log('[GA] Initialized with ID:', measurementId);
+      }
     }
   };
 

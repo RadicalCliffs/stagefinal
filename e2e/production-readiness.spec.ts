@@ -89,7 +89,8 @@ test.describe('Production Readiness', () => {
       if (viewport.name === 'Mobile') {
         const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
         const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
-        expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 20); // Allow small margin
+        // Allow 20px margin for scrollbar width and subpixel rendering differences
+        expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 20);
       }
     }
   });

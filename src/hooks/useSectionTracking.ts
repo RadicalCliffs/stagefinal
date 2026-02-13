@@ -47,7 +47,9 @@ export function useSectionTracking(
     return () => {
       observer.disconnect();
     };
-  }, [sectionName, options]);
+    // Note: options is intentionally not in deps to avoid re-creating observer
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sectionName]);
 
   return sectionRef;
 }
