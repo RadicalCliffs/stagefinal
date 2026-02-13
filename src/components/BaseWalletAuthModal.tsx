@@ -300,6 +300,9 @@ async function linkWalletToExistingUser(
           p_first_name: existingUser.first_name || null,
           p_last_name: existingUser.last_name || null,
           p_telegram_handle: null,
+          p_country: existingUser.country || null,
+          p_avatar_url: existingUser.avatar_url || null,
+          p_auth_provider: 'cdp',
           p_wallet_linked: true, // CRITICAL: This is a wallet link event
         });
 
@@ -366,6 +369,9 @@ async function linkWalletToExistingUser(
           p_first_name: existingByWallet.first_name || null,
           p_last_name: existingByWallet.last_name || null,
           p_telegram_handle: null,
+          p_country: existingByWallet.country || null,
+          p_avatar_url: existingByWallet.avatar_url || null,
+          p_auth_provider: 'cdp',
           p_wallet_linked: true,
         });
 
@@ -582,6 +588,9 @@ async function saveUserWithProfile(email: string, walletAddress: string, profile
           p_first_name: profile.fullName?.split(' ')[0] || null,
           p_last_name: profile.fullName?.split(' ').slice(1).join(' ') || null,
           p_telegram_handle: profile.socialProfiles || null,
+          p_country: profile.country || null,
+          p_avatar_url: profile.avatar || null,
+          p_auth_provider: 'cdp',
           p_wallet_linked: true,
         });
 
