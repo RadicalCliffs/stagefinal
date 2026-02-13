@@ -30,6 +30,11 @@ import { coinbaseWallet, metaMask, injected } from 'wagmi/connectors';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 // Server-side OnchainKit configuration hook
 import { useOnchainKitConfig, type OnchainKitConfig } from './hooks/useOnchainKitConfig';
+// Google Analytics initialization
+import { initGA } from './lib/analytics';
+
+// Initialize Google Analytics
+initGA();
 
 // Determine which network to use based on environment variable
 // When VITE_BASE_MAINNET is 'true', use Base Mainnet; otherwise use Base Sepolia testnet

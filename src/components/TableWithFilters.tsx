@@ -6,6 +6,7 @@ import type { TableRow } from "../models/models";
 import { database } from "../lib/database";
 import Loader from "./Loader";
 import { useSupabaseRealtimeMultiple } from "../hooks/useSupabaseRealtime";
+import { useSectionTracking } from "../hooks/useSectionTracking";
 
 const OPTIONS = [
   { label: "Live Activity", key: "live" },
@@ -13,6 +14,7 @@ const OPTIONS = [
 ];
 
 const TableWithFilters = () => {
+  const sectionRef = useSectionTracking('live_activity_section');
   const [activeTab, setActiveTab] = useState(OPTIONS[0]);
   const [tableData, setTableData] = useState<TableRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,7 +91,7 @@ const TableWithFilters = () => {
   }
 
   return (
-    <div className=" md:bg-inherit bg-[#131313] rounded-md md:pt-0 pt-6 relative z-10 ">
+    <div ref={sectionRef} className=" md:bg-inherit bg-[#131313] rounded-md md:pt-0 pt-6 relative z-10 ">
       <FilterTabs
         options={OPTIONS}
         active={activeTab}

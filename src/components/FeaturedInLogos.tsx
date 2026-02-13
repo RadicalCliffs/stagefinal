@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
 import { ambCrypto, bitNews, cryptoNews, feast,  financialNews, uToday } from '../assets/images';
+import { useSectionTracking } from '../hooks/useSectionTracking';
 
 const FeaturedInLogos = () => {
+  const sectionRef = useSectionTracking('featured_in_section');
 
   useEffect(() => {
     const scrollers = document.querySelectorAll(".scroller");
@@ -28,7 +30,7 @@ const FeaturedInLogos = () => {
   }, [])
 
   return (
-    <div className='relative pt-8 sm:pb-14 pb-10 overflow-hidden'>
+    <div ref={sectionRef} className='relative pt-8 sm:pb-14 pb-10 overflow-hidden'>
       <div className='flex justify-center w-full px-8'>
         <h2 className='text-white sequel-95 uppercase text-2xl md:text-4xl sm:mb-10 mb-8'>Featured In</h2>
       </div>

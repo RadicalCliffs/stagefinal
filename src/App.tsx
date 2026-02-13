@@ -6,9 +6,13 @@ import DiscountBanner from './components/DiscountBanner'
 import { WinnerNotificationToast } from './components/WinnerNotification'
 import { ToastProvider } from './components/Toast'
 import { useAuthUser } from './contexts/AuthContext'
+import { usePageTracking } from './hooks/usePageTracking'
 
 function App() {
   const { authenticated } = useAuthUser();
+  
+  // Automatically track page views when routes change
+  usePageTracking();
 
   return (
     <ErrorBoundary>
