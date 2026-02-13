@@ -383,7 +383,7 @@ export function useWalletTokens(walletAddress?: string): UseWalletTokensResult {
           }
 
           // Declare timing variable outside try block to avoid reference errors
-          let requestStartTime = Date.now();
+          const requestStartTime = Date.now();
 
           try {
             const tokenBalanceResponse = await fetch(rpcUrl, {
