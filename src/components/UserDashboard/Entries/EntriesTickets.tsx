@@ -109,7 +109,7 @@ const EntriesTickets = ({
               const hasMoreTickets = entryTickets.length > 4;
 
               return (
-                <div key={entry.id || index} className="bg-[#1a1a1a] rounded-lg p-4">
+                <div key={entry.id} className="bg-[#1a1a1a] rounded-lg p-4">
                   {/* Purchase header */}
                   <div className="flex justify-between items-start mb-3">
                     <div>

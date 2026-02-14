@@ -94,7 +94,6 @@ BEGIN
      OR ut.canonical_user_id = v_canonical_user_id 
      OR ut.user_id = v_canonical_user_id
      OR (search_wallet IS NOT NULL AND LOWER(ut.wallet_address) = search_wallet)
-  ORDER BY ut.created_at DESC
   LIMIT 200; -- Increased limit to show more history
 
   -- Return array directly
@@ -237,10 +236,12 @@ CREATE TRIGGER trg_sync_competition_entries_from_ut
 
 DO $$
 DECLARE
+  v_result RECORD;
   v_inserted_count INTEGER := 0;
   v_updated_count INTEGER := 0;
 BEGIN
   -- Insert/update entries from user_transactions that aren't in competition_entries
+  -- Count inserts and updates using a CTE
   WITH aggregated_transactions AS (
     SELECT
       COALESCE(ut.canonical_user_id, ut.user_privy_id, ut.user_id) as canonical_user_id,
@@ -260,39 +261,48 @@ BEGIN
       COALESCE(ut.canonical_user_id, ut.user_privy_id, ut.user_id),
       ut.competition_id,
       ut.wallet_address
+  ),
+  upsert_results AS (
+    INSERT INTO competition_entries (
+      id,
+      canonical_user_id,
+      competition_id,
+      wallet_address,
+      tickets_count,
+      amount_spent,
+      latest_purchase_at,
+      created_at,
+      updated_at
+    )
+    SELECT
+      gen_random_uuid(),
+      at.canonical_user_id,
+      at.competition_id,
+      at.wallet_address,
+      at.total_tickets,
+      at.total_amount,
+      at.latest_purchase,
+      at.first_purchase,
+      NOW()
+    FROM aggregated_transactions at
+    ON CONFLICT (canonical_user_id, competition_id)
+    DO UPDATE SET
+      tickets_count = competition_entries.tickets_count + EXCLUDED.tickets_count,
+      amount_spent = competition_entries.amount_spent + EXCLUDED.amount_spent,
+      latest_purchase_at = GREATEST(competition_entries.latest_purchase_at, EXCLUDED.latest_purchase_at),
+      updated_at = NOW()
+    RETURNING 
+      CASE WHEN xmax = 0 THEN 1 ELSE 0 END as is_insert,
+      CASE WHEN xmax != 0 THEN 1 ELSE 0 END as is_update
   )
-  INSERT INTO competition_entries (
-    id,
-    canonical_user_id,
-    competition_id,
-    wallet_address,
-    tickets_count,
-    amount_spent,
-    latest_purchase_at,
-    created_at,
-    updated_at
-  )
-  SELECT
-    gen_random_uuid(),
-    at.canonical_user_id,
-    at.competition_id,
-    at.wallet_address,
-    at.total_tickets,
-    at.total_amount,
-    at.latest_purchase,
-    at.first_purchase,
-    NOW()
-  FROM aggregated_transactions at
-  ON CONFLICT (canonical_user_id, competition_id)
-  DO UPDATE SET
-    tickets_count = competition_entries.tickets_count + EXCLUDED.tickets_count,
-    amount_spent = competition_entries.amount_spent + EXCLUDED.amount_spent,
-    latest_purchase_at = GREATEST(competition_entries.latest_purchase_at, EXCLUDED.latest_purchase_at),
-    updated_at = NOW()
-  RETURNING 
-    CASE WHEN xmax = 0 THEN 1 ELSE 0 END as is_insert,
-    CASE WHEN xmax != 0 THEN 1 ELSE 0 END as is_update
-  INTO v_inserted_count, v_updated_count;
+  SELECT 
+    SUM(is_insert) as inserts,
+    SUM(is_update) as updates
+  INTO v_result
+  FROM upsert_results;
+
+  v_inserted_count := COALESCE(v_result.inserts, 0);
+  v_updated_count := COALESCE(v_result.updates, 0);
 
   RAISE NOTICE 'Backfill complete: % new entries, % updated entries', v_inserted_count, v_updated_count;
 END $$;
