@@ -144,9 +144,9 @@ const EntriesTickets = ({
                   {entryTickets.length > 0 && (
                     <div>
                       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
-                        {displayTickets.map((ticket, i) => (
+                        {displayTickets.map((ticket) => (
                           <div
-                            key={i}
+                            key={`${entry.id}-${ticket}`}
                             className="bg-[#393939] text-xs text-white text-center sequel-45 rounded-sm py-2 px-1"
                           >
                             <span>{ticket}</span>
@@ -226,9 +226,9 @@ const EntriesTickets = ({
         </div>
 
         <div className="grid xl:grid-cols-10 lg:grid-cols-7 md:grid-cols-5 grid-cols-3 gap-x-2 gap-y-4">
-          {tickets.map((ticket, i) => (
+          {tickets.map((ticket) => (
             <div
-              key={i}
+              key={ticket}
               className="bg-[#393939] sm:text-sm text-xs text-white text-center sequel-45 rounded-sm py-3 px-2 w-full"
             >
               <span>{ticket}</span>
