@@ -59,7 +59,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
   });
 
   // Determine wallet type and address
-  const isEmbeddedWallet = !!evmAddress;
+  const hasEmbeddedWallet = !!evmAddress;
   const walletAddress = evmAddress || wagmiAddress;
 
   const [recipientAddress, setRecipientAddress] = useState('');
@@ -174,7 +174,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
       // Convert amount to wei (ETH has 18 decimals)
       const valueInWei = parseEther(amount);
 
-      if (isEmbeddedWallet) {
+      if (hasEmbeddedWallet) {
         // CDP embedded wallet flow
         // Use estimated gas fees if available, otherwise estimate on-the-fly
         let maxFeePerGas: bigint;
@@ -247,7 +247,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
 
   // Handle Wagmi transaction success
   useEffect(() => {
-    if (wagmiIsSuccess && wagmiTxHash && !isEmbeddedWallet) {
+    if (wagmiIsSuccess && wagmiTxHash && !hasEmbeddedWallet) {
       setTxHash(wagmiTxHash);
       setSuccess(true);
       setIsSending(false);
@@ -257,7 +257,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
         if (onSuccess) onSuccess();
       }, SUCCESS_DISPLAY_DURATION);
     }
-  }, [wagmiIsSuccess, wagmiTxHash, isEmbeddedWallet, onSuccess]);
+  }, [wagmiIsSuccess, wagmiTxHash, hasEmbeddedWallet, onSuccess]);
 
   // Handle Wagmi transaction pending state
   useEffect(() => {
@@ -343,7 +343,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
         <div>
           <h3 className="text-white sequel-75 text-lg mb-2">Send ETH</h3>
           <p className="text-white/60 sequel-45 text-sm">
-            Transfer ETH from your {isEmbeddedWallet ? 'embedded' : 'external'} wallet to another address.
+            Transfer ETH from your {hasEmbeddedWallet ? 'embedded' : 'external'} wallet to another address.
           </p>
         </div>
       </div>
