@@ -149,11 +149,20 @@ export const TokenSwap: React.FC<TokenSwapProps> = ({ onClose, onSuccess }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4">
-      <div className="bg-[#101010] border border-white/10 rounded-2xl max-w-md w-full p-6">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="swap-modal-title"
+      className="bg-[#101010] border border-white/10 rounded-2xl max-w-md w-full p-6"
+      onKeyDown={(e) => {
+        if (e.key === 'Escape' && onClose) {
+          onClose();
+        }
+      }}
+    >
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-white sequel-95 text-xl uppercase">Swap Tokens</h2>
+          <h2 id="swap-modal-title" className="text-white sequel-95 text-xl uppercase">Swap Tokens</h2>
           <button
             onClick={onClose}
             className="text-white/60 hover:text-white transition-colors"
@@ -317,7 +326,6 @@ export const TokenSwap: React.FC<TokenSwapProps> = ({ onClose, onSuccess }) => {
             </div>
           </>
         )}
-      </div>
     </div>
   );
 };

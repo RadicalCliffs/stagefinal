@@ -375,7 +375,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
   const { tokens, isLoading: tokensLoading, refresh: refreshTokens } = useWalletTokens(primaryWalletAddress);
   
   // Fetch multi-network tokens (Ethereum, Base, Polygon, Arbitrum, Optimism)
-  const { tokens: multiNetworkTokens, isLoading: multiNetworkLoading, error: multiNetworkError, refresh: refreshMultiNetwork } = useMultiNetworkTokens(primaryWalletAddress || undefined);
+  const { tokens: multiNetworkTokens, isLoading: multiNetworkLoading, refresh: refreshMultiNetwork } = useMultiNetworkTokens(primaryWalletAddress || undefined);
 
   const handleCopyAddress = async (address: string) => {
     try {

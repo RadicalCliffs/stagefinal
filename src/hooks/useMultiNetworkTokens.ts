@@ -238,7 +238,7 @@ export function useMultiNetworkTokens(walletAddress?: string): UseMultiNetworkTo
 
   useEffect(() => {
     fetchTokens();
-  }, [fetchTokens]);
+  }, [walletAddress, isMainnet]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
     tokens,
