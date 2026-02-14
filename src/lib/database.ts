@@ -3633,64 +3633,114 @@ export const database = {
       });
 
       // Transform to the format expected by the frontend
-      const formattedEntries = data.map((entry: any) => {
+      // If individual_purchases exist, expand them into separate entries
+      const formattedEntries: any[] = [];
+      
+      data.forEach((entry: any) => {
         // Map competition_status to frontend status
-        // NOTE: The RPC get_user_competition_entries doesn't return entry_status,
-        // so we determine status solely based on competition_status
-        // Use shared isFinishedStatus type guard
-        // Note: 'drawing' is handled separately because it's a transitional state
-        // (winner being selected) and is not yet "finished", but should display as 'drawn'
+        // NOTE: Enhanced RPC now includes draw_date and vrf_tx_hash
         let status = 'live';
         
         // Normalize competition_status to lowercase for consistent comparison
         const competitionStatus = (entry.competition_status || '').toLowerCase();
         
-        // Determine status based on competition_status
+        // Determine status based on competition_status and draw status
+        const now = new Date();
+        const endDate = entry.competition_end_date ? new Date(entry.competition_end_date) : null;
+        const drawDate = entry.draw_date ? new Date(entry.draw_date) : null;
+        const isCompetitionEnded = endDate !== null && endDate < now;
+        const hasBeenDrawn = drawDate !== null;
+        
         if (isFinishedStatus(competitionStatus)) {
-          status = 'completed';
+          // Competition is finished
+          if (hasBeenDrawn || entry.is_winner) {
+            status = 'completed'; // Actually drawn/completed
+          } else if (isCompetitionEnded) {
+            status = 'drawn'; // Ended but not drawn yet - show as "Drawing" status
+          } else {
+            status = 'completed';
+          }
         } else if (competitionStatus === 'active') {
           status = 'live';
         } else if (competitionStatus === 'drawing') {
-          // Transitional state: competition is being drawn, show as 'drawn'
+          // Transitional state: competition is being drawn
           status = 'drawn';
         } else if (competitionStatus) {
           status = competitionStatus;
         }
 
-        // Check if competition has ended based on end_date
-        const now = new Date();
-        const endDate = entry.competition_end_date ? new Date(entry.competition_end_date) : null;
-        const isCompetitionEnded = endDate !== null && endDate < now;
-        if (isCompetitionEnded && status === 'live') {
+        // Override: if competition has ended but not drawn, show as 'drawn' (Drawing status)
+        if (isCompetitionEnded && status === 'live' && !hasBeenDrawn) {
+          status = 'drawn';
+        } else if (isCompetitionEnded && status === 'live') {
           status = 'completed';
         }
 
-        return {
-          id: entry.id,
-          competition_id: entry.competition_id,
-          title: entry.competition_title || 'Unknown Competition',
-          description: entry.competition_description || '',
-          image: entry.competition_image_url,
-          status: status,
-          entry_type: entry.entry_status === 'pending' ? 'pending' : 'completed',
-          expires_at: null,
-          is_winner: entry.is_winner || false,
-          ticket_numbers: Array.isArray(entry.ticket_numbers)
-            ? entry.ticket_numbers.join(',')
-            : entry.ticket_numbers || '',
-          number_of_tickets: entry.tickets_count || entry.ticket_count || 0,
-          amount_spent: entry.amount_spent || entry.amount_paid || 0,
-          purchase_date: entry.latest_purchase_at || entry.created_at,
-          wallet_address: entry.wallet_address,
-          transaction_hash: entry.transaction_hash,
-          is_instant_win: entry.is_instant_win || entry.competition_is_instant_win || false,
-          prize_value: entry.prize_value || entry.competition_prize_value
-            ? `$${Number(entry.prize_value || entry.competition_prize_value).toLocaleString()}`
-            : null,
-          competition_status: entry.competition_status || 'active',
-          end_date: entry.end_date || entry.competition_end_date,
-        };
-      }).filter((entry: any) => entry !== null);
+        // Check if individual_purchases exists and has items
+        const individualPurchases = entry.individual_purchases || [];
+        
+        if (Array.isArray(individualPurchases) && individualPurchases.length > 0) {
+          // Expand each individual purchase into a separate entry
+          individualPurchases.forEach((purchase: any) => {
+            formattedEntries.push({
+              id: purchase.id || entry.id,
+              competition_id: entry.competition_id,
+              title: entry.competition_title || 'Unknown Competition',
+              description: entry.competition_description || '',
+              image: entry.competition_image_url,
+              status: status,
+              entry_type: entry.entry_status === 'pending' ? 'pending' : 'completed',
+              expires_at: null,
+              is_winner: entry.is_winner || false,
+              ticket_numbers: purchase.ticket_numbers || entry.ticket_numbers || '',
+              number_of_tickets: purchase.tickets_count || 0,
+              amount_spent: purchase.amount_spent || 0,
+              purchase_date: purchase.purchased_at || purchase.created_at,
+              wallet_address: entry.wallet_address,
+              transaction_hash: null, // Individual purchases don't have tx hash
+              is_instant_win: entry.competition_is_instant_win || false,
+              prize_value: entry.competition_prize_value
+                ? `$${Number(entry.competition_prize_value).toLocaleString()}`
+                : null,
+              competition_status: entry.competition_status || 'active',
+              end_date: entry.competition_end_date,
+              draw_date: entry.draw_date,
+              vrf_tx_hash: entry.vrf_tx_hash,
+              vrf_status: entry.vrf_status,
+            });
+          });
+        } else {
+          // No individual purchases, create single entry with aggregated data
+          formattedEntries.push({
+            id: entry.id,
+            competition_id: entry.competition_id,
+            title: entry.competition_title || 'Unknown Competition',
+            description: entry.competition_description || '',
+            image: entry.competition_image_url,
+            status: status,
+            entry_type: entry.entry_status === 'pending' ? 'pending' : 'completed',
+            expires_at: null,
+            is_winner: entry.is_winner || false,
+            ticket_numbers: Array.isArray(entry.ticket_numbers)
+              ? entry.ticket_numbers.join(',')
+              : entry.ticket_numbers || '',
+            number_of_tickets: entry.tickets_count || entry.ticket_count || 0,
+            amount_spent: entry.amount_spent || entry.amount_paid || 0,
+            purchase_date: entry.latest_purchase_at || entry.created_at,
+            wallet_address: entry.wallet_address,
+            transaction_hash: null,
+            is_instant_win: entry.competition_is_instant_win || false,
+            prize_value: entry.competition_prize_value
+              ? `$${Number(entry.competition_prize_value).toLocaleString()}`
+              : null,
+            competition_status: entry.competition_status || 'active',
+            end_date: entry.competition_end_date,
+            draw_date: entry.draw_date,
+            vrf_tx_hash: entry.vrf_tx_hash,
+            vrf_status: entry.vrf_status,
+          });
+        }
+      });
 
       console.log('[Database.getUserEntriesFromCompetitionEntries] Formatted entries:', {
         count: formattedEntries.length,

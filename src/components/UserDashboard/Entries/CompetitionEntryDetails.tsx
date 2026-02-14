@@ -28,6 +28,9 @@ interface EntryData {
   competition_status: string;
   end_date?: string | null;
   expires_at?: string | null;
+  draw_date?: string | null;
+  vrf_tx_hash?: string | null;
+  vrf_status?: string | null;
 }
 
 interface AggregatedEntry {
@@ -45,6 +48,9 @@ interface AggregatedEntry {
   transaction_hashes: string[];
   prize_value?: string;
   end_date?: string;
+  draw_date?: string;
+  vrf_tx_hash?: string;
+  vrf_status?: string;
   individual_entries: EntryData[];
   is_pending: boolean;
   expires_at?: string;
@@ -207,6 +213,9 @@ const CompetitionEntryDetails = () => {
       transaction_hashes: uniqueHashes.filter((h): h is string => h != null),
       prize_value: firstEntry.prize_value ?? undefined,
       end_date: firstEntry.end_date ?? undefined,
+      draw_date: firstEntry.draw_date ?? undefined,
+      vrf_tx_hash: firstEntry.vrf_tx_hash ?? undefined,
+      vrf_status: firstEntry.vrf_status ?? undefined,
       individual_entries: uniqueEntries,
       is_pending: isPending,
       expires_at: expirations[0] || undefined,
@@ -235,31 +244,39 @@ const CompetitionEntryDetails = () => {
           label: "Competition Status",
           value: status === "live" 
             ? "Active" 
-            : status === "drawn" || status === "completed"
-              ? "Completed"
-              : status === "pending"
-                ? "Pending"
-                : "Drawing",
+            : status === "drawn"
+              ? "Drawing" // Orange status - ended but not drawn yet
+              : status === "completed"
+                ? "Completed" // Actually finished with draw
+                : status === "pending"
+                  ? "Pending"
+                  : "Drawing",
           copyable: false,
         },
         ...(status !== "live" && (status === "drawn" || status === "completed")
           ? [
               {
                 label: "Result",
-                value: isWinner ? "🎉 WINNER!" : "No Win",
+                value: isWinner ? "🎉 WINNER!" : "Competition Lost",
                 copyable: false,
               },
             ]
           : []),
         {
           label: "Draw Date",
-          value: aggregatedEntry.end_date
-            ? new Date(aggregatedEntry.end_date).toLocaleDateString("en-US", {
+          value: aggregatedEntry.draw_date
+            ? new Date(aggregatedEntry.draw_date).toLocaleDateString("en-US", {
                 month: "2-digit",
                 day: "2-digit",
                 year: "numeric",
               })
-            : "TBD",
+            : aggregatedEntry.end_date
+              ? new Date(aggregatedEntry.end_date).toLocaleDateString("en-US", {
+                  month: "2-digit",
+                  day: "2-digit",
+                  year: "numeric",
+                }) + " (Scheduled)"
+              : "TBD",
           copyable: false,
         },
         {
@@ -269,9 +286,9 @@ const CompetitionEntryDetails = () => {
         },
         {
           label: "Purchase History",
-          value: entries.length === 1
+          value: aggregatedEntry.individual_entries.length === 1
             ? "1 purchase"
-            : `${entries.length} purchases`,
+            : `${aggregatedEntry.individual_entries.length} purchases`,
           copyable: false,
         },
         ...(aggregatedEntry.transaction_hashes.length > 0
@@ -279,6 +296,16 @@ const CompetitionEntryDetails = () => {
               {
                 label: "Latest Transaction",
                 value: aggregatedEntry.transaction_hashes[aggregatedEntry.transaction_hashes.length - 1],
+                copyable: true,
+              },
+            ]
+          : []),
+        // Show VRF link for lost competitions that have been drawn
+        ...(!isWinner && aggregatedEntry.vrf_tx_hash && aggregatedEntry.draw_date
+          ? [
+              {
+                label: "VRF Transaction",
+                value: aggregatedEntry.vrf_tx_hash,
                 copyable: true,
               },
             ]
