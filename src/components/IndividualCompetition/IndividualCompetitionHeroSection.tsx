@@ -5,7 +5,7 @@ import Countdown from "../Countdown";
 import "react-range-slider-input/dist/style.css";
 import { MinusIcon, PlusIcon } from "lucide-react";
 import IndividualCompetitionHeroCardsInfo from "./IndividualCompetitionHeroCardsInfo";
-import TrustPilotReviewSection from "../TrustPilotReviewSection";
+import Reviews from "../Reviews";
 import CaptchaModal from "../CaptchaModal";
 import UserInfoModal from "../UserInfoModal";
 import type { UserInfo } from "../UserInfoModal";
@@ -471,7 +471,7 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
       <div className="mt-8 xl:px-8 md:px-4 px-0">
         <IndividualCompetitionHeroCardsInfo />
         <div className="mt-8">
-          <TrustPilotReviewSection />
+          <Reviews />
         </div>
       </div>
 

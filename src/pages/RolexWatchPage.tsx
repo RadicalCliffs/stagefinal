@@ -6,6 +6,7 @@ import EntriesWithFilterTabs from '../components/FinishedCompetition/EntriesWith
 import { database } from '../lib/database';
 import Loader from '../components/Loader';
 import { canEnterCompetition } from '../constants/competition-status';
+import Reviews from '../components/Reviews';
 
 const SLUG = 'rolex-watch';
 
@@ -192,6 +193,11 @@ const RolexWatchPage = () => {
                   </p>
                 </div>
               </div>
+            </div>
+
+            {/* Trust & Stats Section */}
+            <div className="mt-10">
+              <Reviews compact />
             </div>
           </div>
         </div>
