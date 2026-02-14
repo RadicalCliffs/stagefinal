@@ -20,10 +20,13 @@ import {
   Link,
   Star,
   Loader2,
-  Edit3
+  Edit3,
+  Repeat,
+  Network
 } from 'lucide-react';
 import { truncateString } from '../../utils/util';
 import { useWalletTokens } from '../../hooks/useWalletTokens';
+import { useMultiNetworkTokens } from '../../hooks/useMultiNetworkTokens';
 import { useRealTimeBalance } from '../../hooks/useRealTimeBalance';
 import { supabase } from '../../lib/supabase';
 import { database } from '../../lib/database';
@@ -37,6 +40,8 @@ const ExportWalletKey = lazy(() => import('./ExportWalletKey'));
 const SendTransaction = lazy(() => import('./SendTransaction'));
 // Lazy load wallet settings panel
 const WalletSettingsPanel = lazy(() => import('./WalletSettingsPanel'));
+// Lazy load token swap component
+const TokenSwap = lazy(() => import('./TokenSwap'));
 
 // Interface for transaction display
 interface WalletTransaction {
@@ -78,7 +83,9 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
   const [showTopUpModal, setShowTopUpModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showSendModal, setShowSendModal] = useState(false);
+  const [showSwapModal, setShowSwapModal] = useState(false);
   const [showSettingsPanel, setShowSettingsPanel] = useState(false);
+  const [showMultiNetworkView, setShowMultiNetworkView] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
   const [linkSuccess, setLinkSuccess] = useState<string | null>(null);
 
@@ -366,6 +373,9 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
 
   // Fetch token balances for the primary wallet
   const { tokens, isLoading: tokensLoading, refresh: refreshTokens } = useWalletTokens(primaryWalletAddress);
+  
+  // Fetch multi-network tokens (Ethereum, Base, Polygon, Arbitrum, Optimism)
+  const { tokens: multiNetworkTokens, isLoading: multiNetworkLoading, refresh: refreshMultiNetwork } = useMultiNetworkTokens(primaryWalletAddress || undefined);
 
   const handleCopyAddress = async (address: string) => {
     try {
@@ -544,11 +554,11 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
         )}
       </div>
 
-      {/* Wallet Actions Section - Export & Send */}
+      {/* Wallet Actions Section - Export, Send & Swap */}
       {embeddedWallet && (
         <div className="bg-[#1E1E1E] rounded-xl p-6">
           <h3 className="text-white sequel-75 text-lg mb-4">Wallet Actions</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <button
               onClick={() => setShowSendModal(true)}
               className="bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 py-4 px-6 rounded-xl flex items-center justify-center gap-3 transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98]"
@@ -557,16 +567,23 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
               <span className="text-base">Send ETH</span>
             </button>
             <button
+              onClick={() => setShowSwapModal(true)}
+              className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-600 text-white sequel-75 py-4 px-6 rounded-xl flex items-center justify-center gap-3 transition-all duration-300 shadow-lg shadow-purple-600/20 hover:shadow-purple-600/30 hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <Repeat size={22} />
+              <span className="text-base">Swap Tokens</span>
+            </button>
+            <button
               onClick={() => setShowExportModal(true)}
               className="bg-[#2A2A2A] hover:bg-[#3A3A3A] text-white sequel-75 py-4 px-6 rounded-xl flex items-center justify-center gap-3 transition-all duration-300 border border-white/10 hover:border-white/20 hover:scale-[1.02] active:scale-[0.98]"
             >
               <Download size={22} className="text-[#DDE404]" />
-              <span className="text-base">Export Private Key</span>
+              <span className="text-base">Export Key</span>
             </button>
           </div>
           <div className="mt-4 bg-blue-500 border border-blue-500 rounded-lg px-4 py-3">
             <p className="text-white sequel-45 text-xs">
-              Use your embedded wallet to send ETH to other addresses or export your private key to use in other wallet apps like MetaMask.
+              Send ETH to other addresses, swap between tokens, or export your private key to use in other wallet apps like MetaMask.
             </p>
           </div>
         </div>
@@ -918,62 +935,153 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
               <Coins size={20} className="text-[#DDE404]" />
               <h3 className="text-white sequel-75 text-lg">Wallet Tokens</h3>
             </div>
-            <button
-              onClick={refreshTokens}
-              disabled={tokensLoading}
-              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-              title="Refresh token balances"
-            >
-              <RefreshCw size={16} className={`text-white/40 hover:text-white ${tokensLoading ? 'animate-spin' : ''}`} />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowMultiNetworkView(!showMultiNetworkView)}
+                className={`px-3 py-1.5 rounded-lg sequel-75 text-xs transition-all flex items-center gap-1 ${
+                  showMultiNetworkView
+                    ? 'bg-[#DDE404] text-black'
+                    : 'bg-[#2A2A2A] text-white hover:bg-[#3A3A3A]'
+                }`}
+                title={showMultiNetworkView ? 'Showing all networks' : 'Showing Base only'}
+              >
+                <Network size={14} />
+                {showMultiNetworkView ? 'All Networks' : 'Base Only'}
+              </button>
+              <button
+                onClick={() => {
+                  refreshTokens();
+                  if (showMultiNetworkView) refreshMultiNetwork();
+                }}
+                disabled={tokensLoading || multiNetworkLoading}
+                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                title="Refresh token balances"
+              >
+                <RefreshCw size={16} className={`text-white/40 hover:text-white ${(tokensLoading || multiNetworkLoading) ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
           </div>
 
-          {tokensLoading ? (
+          {/* Loading State */}
+          {(tokensLoading || multiNetworkLoading) ? (
             <div className="flex items-center justify-center py-8">
               <div className="w-8 h-8 border-2 border-[#DDE404]/30 border-t-[#DDE404] rounded-full animate-spin"></div>
             </div>
-          ) : tokens.length > 0 ? (
-            <div className="space-y-2">
-              {tokens.map((token) => (
-                <div
-                  key={token.address}
-                  className="flex items-center justify-between bg-[#2A2A2A] rounded-lg px-4 py-3"
-                >
-                  <div className="flex items-center gap-3">
-                    {token.logoUrl ? (
-                      <img
-                        src={token.logoUrl}
-                        alt={token.symbol}
-                        className="w-8 h-8 rounded-full"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
-                        }}
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-[#404040] flex items-center justify-center">
-                        <span className="text-xs text-white/60 sequel-75">{token.symbol.slice(0, 2)}</span>
+          ) : showMultiNetworkView ? (
+            /* Multi-Network View */
+            multiNetworkTokens.length > 0 ? (
+              <div className="space-y-4">
+                {/* Group tokens by network */}
+                {Array.from(new Set(multiNetworkTokens.map(t => t.network))).map(networkName => {
+                  const networkTokens = multiNetworkTokens.filter(t => t.network === networkName);
+                  return (
+                    <div key={networkName} className="space-y-2">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="h-[1px] flex-1 bg-white/10"></div>
+                        <span className="text-white/60 sequel-75 text-xs uppercase">{networkName}</span>
+                        <div className="h-[1px] flex-1 bg-white/10"></div>
                       </div>
-                    )}
-                    <div>
-                      <p className="text-white sequel-75 text-sm">{token.symbol}</p>
-                      <p className="text-white/40 sequel-45 text-xs">{token.name}</p>
+                      {networkTokens.map((token) => (
+                        <div
+                          key={`${token.chainId}-${token.address}`}
+                          className="flex items-center justify-between bg-[#2A2A2A] rounded-lg px-4 py-3"
+                        >
+                          <div className="flex items-center gap-3">
+                            {token.logoUrl ? (
+                              <img
+                                src={token.logoUrl}
+                                alt={token.symbol}
+                                className="w-8 h-8 rounded-full"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-[#404040] flex items-center justify-center">
+                                <span className="text-xs text-white/60 sequel-75">{token.symbol.slice(0, 2)}</span>
+                              </div>
+                            )}
+                            <div>
+                              <p className="text-white sequel-75 text-sm">{token.symbol}</p>
+                              <p className="text-white/40 sequel-45 text-xs">{token.name}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-white sequel-75 text-sm">{parseFloat(token.formattedBalance).toFixed(4)}</p>
+                            {token.usdValue && (
+                              <p className="text-white/40 sequel-45 text-xs">${token.usdValue.toFixed(2)}</p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8 bg-[#2A2A2A] rounded-lg">
+                <Coins size={32} className="text-white/20 mx-auto mb-2" />
+                <p className="text-white/40 sequel-45 text-sm">No tokens found across networks</p>
+                <p className="text-white/30 sequel-45 text-xs mt-1">
+                  Showing tokens from Ethereum, Base, Polygon, Arbitrum, and Optimism
+                </p>
+              </div>
+            )
+          ) : (
+            /* Base Network Only View */
+            tokens.length > 0 ? (
+              <div className="space-y-2">
+                {tokens.map((token) => (
+                  <div
+                    key={token.address}
+                    className="flex items-center justify-between bg-[#2A2A2A] rounded-lg px-4 py-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      {token.logoUrl ? (
+                        <img
+                          src={token.logoUrl}
+                          alt={token.symbol}
+                          className="w-8 h-8 rounded-full"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-[#404040] flex items-center justify-center">
+                          <span className="text-xs text-white/60 sequel-75">{token.symbol.slice(0, 2)}</span>
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-white sequel-75 text-sm">{token.symbol}</p>
+                        <p className="text-white/40 sequel-45 text-xs">{token.name}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-white sequel-75 text-sm">{token.formattedBalance}</p>
+                      {token.usdValue && (
+                        <p className="text-white/40 sequel-45 text-xs">${token.usdValue.toFixed(2)}</p>
+                      )}
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-white sequel-75 text-sm">{token.formattedBalance}</p>
-                    {token.usdValue && (
-                      <p className="text-white/40 sequel-45 text-xs">${token.usdValue.toFixed(2)}</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 bg-[#2A2A2A] rounded-lg">
-              <Coins size={32} className="text-white/20 mx-auto mb-2" />
-              <p className="text-white/40 sequel-45 text-sm">No tokens found</p>
-              <p className="text-white/30 sequel-45 text-xs mt-1">
-                Top up your wallet to see tokens here
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 bg-[#2A2A2A] rounded-lg">
+                <Coins size={32} className="text-white/20 mx-auto mb-2" />
+                <p className="text-white/40 sequel-45 text-sm">No tokens found</p>
+                <p className="text-white/30 sequel-45 text-xs mt-1">
+                  Top up your wallet to see tokens here
+                </p>
+              </div>
+            )
+          )}
+          
+          {/* Multi-Network Info Banner */}
+          {showMultiNetworkView && (
+            <div className="mt-4 bg-purple-500/10 border border-purple-500/20 rounded-lg px-4 py-3">
+              <p className="text-purple-300/70 sequel-45 text-xs">
+                <Network size={12} className="inline mr-1" />
+                Showing tokens across Ethereum, Base, Polygon, Arbitrum, and Optimism networks. Switch to "Base Only" to see only Base network tokens.
               </p>
             </div>
           )}
@@ -1163,6 +1271,28 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
               />
             </Suspense>
           </div>
+        </div>
+      )}
+      
+      {/* Swap Token Modal */}
+      {showSwapModal && (
+        <div className="fixed inset-0 bg-black/70 flex justify-center items-center z-50 p-4">
+          <Suspense fallback={
+            <div className="bg-[#1E1E1E] rounded-xl p-6 flex items-center justify-center">
+              <div className="w-8 h-8 border-2 border-[#DDE404]/30 border-t-[#DDE404] rounded-full animate-spin"></div>
+            </div>
+          }>
+            <TokenSwap 
+              onClose={() => setShowSwapModal(false)}
+              onSuccess={() => {
+                setShowSwapModal(false);
+                refreshTokens();
+                if (showMultiNetworkView) refreshMultiNetwork();
+                refreshUserData();
+                refreshRealTimeBalance();
+              }}
+            />
+          </Suspense>
         </div>
       )}
 
