@@ -200,8 +200,8 @@ const EntriesCard = ({
                     </div>
                   )}
 
-                  {/* Amount Spent - hide for pending */}
-                  {amountSpent && !isPending && (
+                  {/* Amount Spent - show for all entries including pending */}
+                  {amountSpent && (
                     <div className="flex items-center gap-x-2">
                       <span className="text-[#DDE404] sequel-45 text-[10px] sm:text-xs whitespace-nowrap">Spent:</span>
                       <span className="text-white sequel-45 text-[10px] sm:text-xs">${amountSpent}</span>

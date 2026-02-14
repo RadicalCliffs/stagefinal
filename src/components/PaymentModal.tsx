@@ -934,7 +934,9 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           reservationStorage.clearReservation(competitionId);
           setRecoveredReservationId(null);
         }
-        setPaymentError(result.transactionHash || null, result.error || "Base Account payment failed. Please try again.");
+        // ISSUE FIX: Pass paymentSucceeded flag to properly handle partial success
+        // When payment succeeds but allocation fails, show "payment processing" instead of error
+        setPaymentError(result.transactionHash || null, result.error || "Base Account payment failed. Please try again.", result.paymentSucceeded || false);
       }
     } catch (error) {
       console.error('Base Account payment error:', error);

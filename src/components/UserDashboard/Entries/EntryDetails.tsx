@@ -157,6 +157,9 @@ const EntryDetail = () => {
       <EntriesTickets
         ticketNumbers={entry.ticket_numbers ?? undefined}
         numberOfTickets={entry.number_of_tickets ?? undefined}
+        amountSpent={entry.amount_spent ?? undefined}
+        purchaseDate={entry.purchase_date ?? undefined}
+        transactionHash={entry.transaction_hash ?? undefined}
       />
       <EntriesWinnerSection
         fields={fields}
