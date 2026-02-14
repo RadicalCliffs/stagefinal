@@ -9,6 +9,7 @@
 BEGIN;
 
 -- First, ensure the competition_entries_purchases table exists (idempotent)
+-- Note: Table creation is idempotent with IF NOT EXISTS
 CREATE TABLE IF NOT EXISTS competition_entries_purchases (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   canonical_user_id text NOT NULL,
@@ -18,20 +19,52 @@ CREATE TABLE IF NOT EXISTS competition_entries_purchases (
   amount_spent numeric NOT NULL DEFAULT 0,
   ticket_numbers_csv text,
   purchased_at timestamp with time zone NOT NULL DEFAULT now(),
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT competition_entries_purchases_pkey PRIMARY KEY (id)
+  created_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
--- Create unique constraint if it doesn't exist
+-- Ensure primary key exists (handle if table already existed)
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint 
-    WHERE conname = 'uq_cep_user_comp_key'
+    SELECT 1 
+    FROM pg_constraint c
+    JOIN pg_class t ON c.conrelid = t.oid
+    JOIN pg_namespace n ON t.relnamespace = n.oid
+    WHERE n.nspname = 'public'
+      AND t.relname = 'competition_entries_purchases'
+      AND c.contype = 'p'
   ) THEN
+    ALTER TABLE competition_entries_purchases
+    ADD CONSTRAINT competition_entries_purchases_pkey PRIMARY KEY (id);
+  END IF;
+END $$;
+
+-- Ensure unique constraint exists (handle multiple possible names)
+DO $$
+BEGIN
+  -- Check if any unique constraint exists on these columns
+  IF NOT EXISTS (
+    SELECT 1 
+    FROM pg_constraint c
+    JOIN pg_class t ON c.conrelid = t.oid
+    JOIN pg_namespace n ON t.relnamespace = n.oid
+    WHERE n.nspname = 'public'
+      AND t.relname = 'competition_entries_purchases'
+      AND c.contype = 'u'
+      AND c.conkey = (
+        SELECT ARRAY_AGG(a.attnum ORDER BY a.attnum)
+        FROM pg_attribute a
+        WHERE a.attrelid = t.oid
+          AND a.attname IN ('canonical_user_id', 'competition_id', 'purchase_key')
+      )
+  ) THEN
+    -- No unique constraint exists on these columns, create it
     ALTER TABLE competition_entries_purchases
     ADD CONSTRAINT uq_cep_user_comp_key UNIQUE (canonical_user_id, competition_id, purchase_key);
   END IF;
+  
+  -- If constraint exists but with different name, we're fine - it serves the same purpose
+  -- The constraint on these three columns is what matters, not its name
 END $$;
 
 -- Create indexes if they don't exist
