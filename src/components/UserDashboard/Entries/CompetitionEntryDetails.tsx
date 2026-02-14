@@ -350,10 +350,11 @@ const CompetitionEntryDetails = () => {
         isInstantWin={aggregatedEntry.is_instant_win}
       />
 
-      {/* Show all ticket numbers */}
+      {/* Show tickets grouped by purchase */}
       <EntriesTickets
         ticketNumbers={aggregatedEntry.all_ticket_numbers}
         numberOfTickets={aggregatedEntry.total_tickets}
+        individualEntries={aggregatedEntry.individual_entries}
       />
 
       {/* Purchase History Section */}
