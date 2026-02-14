@@ -3656,7 +3656,7 @@ export const database = {
           if (hasBeenDrawn || entry.is_winner) {
             status = 'completed'; // Actually drawn/completed
           } else if (isCompetitionEnded) {
-            status = 'drawn'; // Ended but not drawn yet - show as "Drawing" status
+            status = 'drawn'; // Ended but not yet drawn - show as "Drawing" status
           } else {
             status = 'completed';
           }
