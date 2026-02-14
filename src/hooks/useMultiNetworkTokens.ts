@@ -135,13 +135,6 @@ export function useMultiNetworkTokens(walletAddress?: string): UseMultiNetworkTo
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Determine which networks to query
-  const isMainnet = import.meta.env.VITE_BASE_MAINNET === 'true';
-  const networksToQuery = Object.entries(NETWORKS).filter(([key, config]) => {
-    if (key === 'baseSepolia') return !isMainnet;
-    return isMainnet ? config.enabled : key === 'baseSepolia';
-  });
-
   const fetchTokens = useCallback(async () => {
     if (!walletAddress || !walletAddress.startsWith('0x') || walletAddress.length !== 42) {
       setTokens([]);
@@ -152,6 +145,13 @@ export function useMultiNetworkTokens(walletAddress?: string): UseMultiNetworkTo
     setError(null);
 
     try {
+      // Determine which networks to query based on mainnet flag
+      const isMainnet = import.meta.env.VITE_BASE_MAINNET === 'true';
+      const networksToQuery = Object.entries(NETWORKS).filter(([key, config]) => {
+        if (key === 'baseSepolia') return !isMainnet;
+        return isMainnet ? config.enabled : key === 'baseSepolia';
+      });
+
       const allTokens: NetworkTokenBalance[] = [];
 
       // Fetch tokens from each network in parallel
@@ -234,11 +234,11 @@ export function useMultiNetworkTokens(walletAddress?: string): UseMultiNetworkTo
     } finally {
       setIsLoading(false);
     }
-  }, [walletAddress, isMainnet]);
+  }, [walletAddress]);
 
   useEffect(() => {
     fetchTokens();
-  }, [walletAddress, isMainnet]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fetchTokens]);
 
   return {
     tokens,

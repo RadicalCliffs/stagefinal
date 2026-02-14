@@ -96,15 +96,15 @@ export const TokenSwap: React.FC<TokenSwapProps> = ({ onClose, onSuccess }) => {
     }
   }, [fromAmount, fromToken, toToken, slippage, isValidFromAmount]);
 
-  // Get quote when from amount or tokens change
-  useCallback(() => {
+  // Get quote when from amount or tokens change (debounced)
+  useEffect(() => {
     const timer = setTimeout(() => {
       if (isValidFromAmount) {
         getQuote();
       }
     }, 500);
     return () => clearTimeout(timer);
-  }, [fromAmount, fromToken, toToken, getQuote, isValidFromAmount]);
+  }, [fromAmount, fromToken, toToken, isValidFromAmount, getQuote]);
 
   // Swap tokens (placeholder - needs actual DEX integration)
   const handleSwap = async () => {
