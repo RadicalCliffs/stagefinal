@@ -14,6 +14,9 @@ const EntriesTickets = ({ ticketNumbers, numberOfTickets, amountSpent, purchaseD
   const tickets = ticketNumbers
     ? ticketNumbers.split(',').map(t => t.trim()).filter(t => t).sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
     : [];
+  
+  // Format ticket numbers as comma-separated string for display
+  const ticketNumbersFormatted = tickets.join(', ');
 
   // If no tickets, show a placeholder message
   if (tickets.length === 0) {
@@ -100,7 +103,7 @@ const EntriesTickets = ({ ticketNumbers, numberOfTickets, amountSpent, purchaseD
                   <div className="flex items-start justify-between">
                     <span className="text-[#DDE404] sequel-45 text-sm">Ticket Numbers:</span>
                     <span className="text-white sequel-45 text-sm text-right max-w-[60%]">
-                      {ticketNumbers.split(',').map(t => t.trim()).filter(t => t).sort((a, b) => parseInt(a, 10) - parseInt(b, 10)).join(', ')}
+                      {ticketNumbersFormatted}
                     </span>
                   </div>
                 )}
