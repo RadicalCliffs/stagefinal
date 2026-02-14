@@ -6,7 +6,21 @@
  */
 
 /**
+ * Individual purchase record within a competition entry
+ */
+export interface IndividualPurchase {
+  id: string;
+  purchase_key: string;
+  tickets_count: number;
+  amount_spent: number;
+  ticket_numbers: string | null;
+  purchased_at: string; // ISO timestamp
+  created_at: string; // ISO timestamp
+}
+
+/**
  * Single user competition entry returned from get_user_competition_entries RPC
+ * Enhanced to include individual purchase records and draw information
  *
  * Note: amount_spent is a Postgres numeric which comes back as string.
  * Convert with: const amountSpentNum = Number(entry.amount_spent)
@@ -15,15 +29,42 @@
  * Parse with: new Date(entry.latest_purchase_at)
  */
 export interface UserCompetitionEntry {
+  // Entry identifiers
+  id: string;
   competition_id: string;
-  competition_name: string | null;
+  
+  // Competition information
+  competition_title: string | null;
+  competition_description: string | null;
   competition_image_url: string | null;
+  competition_status: string | null;
+  competition_end_date: string | null; // ISO timestamp
+  competition_prize_value: number | null;
+  competition_is_instant_win: boolean;
+  
+  // Draw information
+  draw_date: string | null; // ISO timestamp
+  vrf_tx_hash: string | null;
+  vrf_status: string | null;
+  vrf_draw_completed_at: string | null; // ISO timestamp
+  
+  // User entry data (aggregated)
   tickets_count: number;
+  ticket_numbers: string | null; // CSV: "1432, 5324"
   amount_spent: string; // numeric from Postgres comes back as string
-  latest_purchase_at: string | null; // timestamptz -> ISO string
+  amount_paid: number | null;
   is_winner: boolean;
-  winner_address: string | null;
-  ticket_numbers_csv: string | null; // e.g. "1432, 5324"
+  wallet_address: string | null;
+  
+  // Purchase timestamps
+  latest_purchase_at: string | null; // ISO timestamp
+  created_at: string | null; // ISO timestamp
+  
+  // Entry status
+  entry_status: string;
+  
+  // Individual purchases
+  individual_purchases: IndividualPurchase[];
 }
 
 /**
