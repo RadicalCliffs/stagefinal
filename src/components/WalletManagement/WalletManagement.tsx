@@ -480,10 +480,8 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
     return <Wallet size={20} className="text-white/60" />;
   };
 
-  // Check if user has only an external wallet (no embedded Base wallet)
-  const hasOnlyExternalWallet = linkedWallets.length > 0 &&
-    linkedWallets.every(w => w.isExternalWallet || w.walletClient === 'external') &&
-    !embeddedWallet;
+  // Check if user has any connected wallet (embedded or external)
+  const hasAnyWallet = embeddedWallet || linkedWallets.length > 0;
 
   return (
     <div className="space-y-6">
@@ -555,7 +553,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
       </div>
 
       {/* Wallet Actions Section - Export, Send & Swap */}
-      {embeddedWallet && (
+      {hasAnyWallet && (
         <div className="bg-[#1E1E1E] rounded-xl p-6">
           <h3 className="text-white sequel-75 text-lg mb-4">Wallet Actions</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -573,17 +571,22 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
               <Repeat size={22} />
               <span className="text-base">Swap Tokens</span>
             </button>
-            <button
-              onClick={() => setShowExportModal(true)}
-              className="bg-[#2A2A2A] hover:bg-[#3A3A3A] text-white sequel-75 py-4 px-6 rounded-xl flex items-center justify-center gap-3 transition-all duration-300 border border-white/10 hover:border-white/20 hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <Download size={22} className="text-[#DDE404]" />
-              <span className="text-base">Export Key</span>
-            </button>
+            {embeddedWallet && (
+              <button
+                onClick={() => setShowExportModal(true)}
+                className="bg-[#2A2A2A] hover:bg-[#3A3A3A] text-white sequel-75 py-4 px-6 rounded-xl flex items-center justify-center gap-3 transition-all duration-300 border border-white/10 hover:border-white/20 hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <Download size={22} className="text-[#DDE404]" />
+                <span className="text-base">Export Key</span>
+              </button>
+            )}
           </div>
-          <div className="mt-4 bg-blue-500 border border-blue-500 rounded-lg px-4 py-3">
-            <p className="text-white sequel-45 text-xs">
-              Send ETH to other addresses, swap between tokens, or export your private key to use in other wallet apps like MetaMask.
+          <div className="mt-4 bg-blue-500/10 border border-blue-500/30 rounded-lg px-4 py-3">
+            <p className="text-blue-300/90 sequel-45 text-xs">
+              {embeddedWallet 
+                ? "Send ETH to other addresses, swap between tokens using Coinbase's native infrastructure, or export your private key to use in other wallet apps like MetaMask."
+                : "Send ETH to other addresses and swap between tokens using Coinbase OnchainKit's native swap infrastructure with automatic approvals and gas optimization."
+              }
             </p>
           </div>
         </div>

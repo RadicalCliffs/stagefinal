@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Send, AlertCircle, CheckCircle, ExternalLink, Loader2 } from 'lucide-react';
 import { useSendEvmTransaction, useEvmAddress } from '@coinbase/cdp-hooks';
+import { useAccount, useSendTransaction, useWaitForTransactionReceipt } from 'wagmi';
 import { parseEther, isAddress, createPublicClient, http } from 'viem';
 import { base, baseSepolia } from 'viem/chains';
 
@@ -41,12 +42,25 @@ interface SendTransactionProps {
 /**
  * SendTransaction Component
  * 
- * Allows users to send ETH or tokens from their embedded wallet to other addresses.
- * Uses CDP's useSendEvmTransaction hook for secure transaction signing.
+ * Allows users to send ETH from their wallet (embedded or external) to other addresses.
+ * - Uses CDP's useSendEvmTransaction hook for embedded wallets (Base Account)
+ * - Uses Wagmi's useSendTransaction hook for external wallets (MetaMask, Coinbase Wallet, etc.)
  */
 export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuccess }) => {
+  // CDP hooks (for embedded wallets)
   const { evmAddress } = useEvmAddress();
   const { sendEvmTransaction } = useSendEvmTransaction();
+  
+  // Wagmi hooks (for external wallets)
+  const { address: wagmiAddress } = useAccount();
+  const { sendTransaction: wagmiSendTransaction, data: wagmiTxHash, isPending: wagmiIsPending } = useSendTransaction();
+  const { isLoading: wagmiIsConfirming, isSuccess: wagmiIsSuccess } = useWaitForTransactionReceipt({
+    hash: wagmiTxHash,
+  });
+
+  // Determine wallet type and address
+  const hasEmbeddedWallet = !!evmAddress;
+  const walletAddress = evmAddress || wagmiAddress;
 
   const [recipientAddress, setRecipientAddress] = useState('');
   const [amount, setAmount] = useState('');
@@ -84,7 +98,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
     return { isValidAmount, amountError };
   }, [amount]);
 
-  const canSend = isValidAddress && isValidAmount && !isSending && evmAddress;
+  const canSend = isValidAddress && isValidAmount && !isSending && walletAddress;
 
   // Estimate gas fees when amount and recipient are valid
   const estimateGas = useCallback(async () => {
@@ -160,67 +174,99 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
       // Convert amount to wei (ETH has 18 decimals)
       const valueInWei = parseEther(amount);
 
-      // Use estimated gas fees if available, otherwise estimate on-the-fly
-      let maxFeePerGas: bigint;
-      let maxPriorityFeePerGas: bigint;
-      
-      if (estimatedGas) {
-        // Use pre-estimated gas values
-        maxFeePerGas = estimatedGas.maxFeePerGas;
-        maxPriorityFeePerGas = estimatedGas.maxPriorityFeePerGas;
-      } else {
-        // Estimate gas fees for EIP-1559 transaction with error handling
-        try {
-          const feeData = await publicClient.estimateFeesPerGas();
-          
-          // Validate that gas values are present and use fallback if not
-          if (feeData.maxFeePerGas && feeData.maxPriorityFeePerGas) {
-            maxFeePerGas = feeData.maxFeePerGas;
-            maxPriorityFeePerGas = feeData.maxPriorityFeePerGas;
-          } else {
-            console.warn('Gas estimation returned null/undefined values, using fallback');
+      if (hasEmbeddedWallet) {
+        // CDP embedded wallet flow
+        // Use estimated gas fees if available, otherwise estimate on-the-fly
+        let maxFeePerGas: bigint;
+        let maxPriorityFeePerGas: bigint;
+        
+        if (estimatedGas) {
+          // Use pre-estimated gas values
+          maxFeePerGas = estimatedGas.maxFeePerGas;
+          maxPriorityFeePerGas = estimatedGas.maxPriorityFeePerGas;
+        } else {
+          // Estimate gas fees for EIP-1559 transaction with error handling
+          try {
+            const feeData = await publicClient.estimateFeesPerGas();
+            
+            // Validate that gas values are present and use fallback if not
+            if (feeData.maxFeePerGas && feeData.maxPriorityFeePerGas) {
+              maxFeePerGas = feeData.maxFeePerGas;
+              maxPriorityFeePerGas = feeData.maxPriorityFeePerGas;
+            } else {
+              console.warn('Gas estimation returned null/undefined values, using fallback');
+              maxFeePerGas = FALLBACK_MAX_FEE_PER_GAS;
+              maxPriorityFeePerGas = FALLBACK_MAX_PRIORITY_FEE_PER_GAS;
+            }
+          } catch (gasEstimateError) {
+            console.error('Gas estimation failed, using fallback values:', gasEstimateError);
+            // Fallback to reasonable gas values if estimation fails
             maxFeePerGas = FALLBACK_MAX_FEE_PER_GAS;
             maxPriorityFeePerGas = FALLBACK_MAX_PRIORITY_FEE_PER_GAS;
           }
-        } catch (gasEstimateError) {
-          console.error('Gas estimation failed, using fallback values:', gasEstimateError);
-          // Fallback to reasonable gas values if estimation fails
-          maxFeePerGas = FALLBACK_MAX_FEE_PER_GAS;
-          maxPriorityFeePerGas = FALLBACK_MAX_PRIORITY_FEE_PER_GAS;
         }
-      }
 
-      // Send transaction with EIP-1559 parameters
-      // recipientAddress is already validated by isAddress()
-      const result = await sendEvmTransaction({
-        evmAccount: evmAddress!,
-        network: networkInfo.cdpNetwork as any,
-        transaction: {
+        // Send transaction with EIP-1559 parameters via CDP
+        const result = await sendEvmTransaction({
+          evmAccount: evmAddress!,
+          network: networkInfo.cdpNetwork as any,
+          transaction: {
+            to: recipientAddress as `0x${string}`,
+            value: valueInWei,
+            maxFeePerGas,
+            maxPriorityFeePerGas,
+            chainId: networkInfo.chain.id,
+          } as any,
+        });
+
+        setTxHash(result.transactionHash || null);
+        setSuccess(true);
+        
+        // Call success callback after a delay to show success message
+        setTimeout(() => {
+          if (onSuccess) onSuccess();
+        }, SUCCESS_DISPLAY_DURATION);
+      } else {
+        // External wallet (Wagmi) flow
+        // Send transaction via Wagmi
+        wagmiSendTransaction({
           to: recipientAddress as `0x${string}`,
           value: valueInWei,
-          maxFeePerGas,
-          maxPriorityFeePerGas,
           chainId: networkInfo.chain.id,
-        } as any,
-      });
+        });
+        
+        // Success will be handled by the wagmiIsSuccess effect
+      }
+    } catch (err) {
+      console.error('Transaction failed:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Transaction failed';
+      setError(errorMessage);
+      setIsSending(false);
+    }
+  };
 
-      setTxHash(result.transactionHash || null);
+  // Handle Wagmi transaction success
+  useEffect(() => {
+    if (wagmiIsSuccess && wagmiTxHash && !hasEmbeddedWallet) {
+      setTxHash(wagmiTxHash);
       setSuccess(true);
+      setIsSending(false);
       
       // Call success callback after a delay to show success message
       setTimeout(() => {
         if (onSuccess) onSuccess();
       }, SUCCESS_DISPLAY_DURATION);
-    } catch (err) {
-      console.error('Transaction failed:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Transaction failed';
-      setError(errorMessage);
-    } finally {
-      setIsSending(false);
     }
-  };
+  }, [wagmiIsSuccess, wagmiTxHash, hasEmbeddedWallet, onSuccess]);
 
-  if (!evmAddress) {
+  // Handle Wagmi transaction pending state
+  useEffect(() => {
+    if (wagmiIsPending || wagmiIsConfirming) {
+      setIsSending(true);
+    }
+  }, [wagmiIsPending, wagmiIsConfirming]);
+
+  if (!walletAddress) {
     return (
       <div className="bg-[#1E1E1E] rounded-xl p-6 border border-red-500/30">
         <div className="flex items-start gap-3">
@@ -297,7 +343,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
         <div>
           <h3 className="text-white sequel-75 text-lg mb-2">Send ETH</h3>
           <p className="text-white/60 sequel-45 text-sm">
-            Transfer ETH from your embedded wallet to another address.
+            Transfer ETH from your {hasEmbeddedWallet ? 'embedded' : 'external'} wallet to another address.
           </p>
         </div>
       </div>
@@ -314,7 +360,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
 
       <div className="bg-[#2A2A2A] rounded-lg p-4 mb-4">
         <p className="text-white/40 sequel-45 text-xs mb-2">Your Wallet Address:</p>
-        <p className="text-white sequel-45 text-sm font-mono break-all">{evmAddress}</p>
+        <p className="text-white sequel-45 text-sm font-mono break-all">{walletAddress}</p>
       </div>
 
       <div className="space-y-4 mb-6">
