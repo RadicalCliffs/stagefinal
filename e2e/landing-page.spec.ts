@@ -14,10 +14,10 @@ test.describe('Landing Page - Section Visibility', () => {
   });
 
   test('should display live activity section', async ({ page }) => {
-    // Scroll to live activity section
-    const liveActivityHeading = page.getByText('Live Activity', { exact: false });
-    await liveActivityHeading.scrollIntoViewIfNeeded();
-    await expect(liveActivityHeading).toBeVisible();
+    // The "Live Activity" heading is mobile-only (md:hidden). On desktop, use the tab button.
+    const liveActivityButton = page.getByRole('button', { name: /live activity/i }).first();
+    await liveActivityButton.scrollIntoViewIfNeeded();
+    await expect(liveActivityButton).toBeVisible();
   });
 
   test('should display featured in section', async ({ page }) => {
@@ -77,7 +77,8 @@ test.describe('Landing Page - Section Visibility', () => {
     
     // Check that we can find elements related to each section
     await expect(page.locator('.bg-\\[\\#1a1a1a\\]').first()).toBeVisible(); // Hero
-    await expect(page.getByText('Live Activity', { exact: false })).toBeVisible();
+    // Live Activity heading is mobile-only; on desktop use the tab button
+    await expect(page.getByRole('button', { name: /live activity/i }).first()).toBeVisible();
     
     // Scroll through the page to make sections visible
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight / 4));
