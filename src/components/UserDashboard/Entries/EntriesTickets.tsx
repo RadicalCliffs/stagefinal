@@ -4,9 +4,12 @@ import { Link } from 'react-router';
 interface EntriesTicketsProps {
   ticketNumbers?: string;
   numberOfTickets?: number;
+  amountSpent?: string;
+  purchaseDate?: string;
+  transactionHash?: string;
 }
 
-const EntriesTickets = ({ ticketNumbers, numberOfTickets }: EntriesTicketsProps) => {
+const EntriesTickets = ({ ticketNumbers, numberOfTickets, amountSpent, purchaseDate, transactionHash }: EntriesTicketsProps) => {
   // Parse ticket numbers from comma-separated string and sort numerically
   const tickets = ticketNumbers
     ? ticketNumbers.split(',').map(t => t.trim()).filter(t => t).sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
@@ -56,6 +59,68 @@ const EntriesTickets = ({ ticketNumbers, numberOfTickets }: EntriesTicketsProps)
             </div>
           ))}
         </div>
+
+        {/* Payment Information Section */}
+        {(amountSpent || purchaseDate || transactionHash) && (
+          <>
+            <div className="bg-[#DDE404] h-0.5 w-full mt-8"></div>
+            <div className="mt-7">
+              <p className="sequel-45 text-white/60 mb-5">Payment Information</p>
+              <div className="space-y-3">
+                {amountSpent && (
+                  <div className="flex items-start justify-between">
+                    <span className="text-[#DDE404] sequel-45 text-sm">Amount Spent:</span>
+                    <span className="text-white sequel-45 text-sm">${amountSpent}</span>
+                  </div>
+                )}
+                {purchaseDate && (
+                  <div className="flex items-start justify-between">
+                    <span className="text-[#DDE404] sequel-45 text-sm">Purchase Date:</span>
+                    <span className="text-white sequel-45 text-sm">
+                      {new Date(purchaseDate).toLocaleString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true
+                      })}
+                    </span>
+                  </div>
+                )}
+                {numberOfTickets && (
+                  <div className="flex items-start justify-between">
+                    <span className="text-[#DDE404] sequel-45 text-sm">Tickets Purchased:</span>
+                    <span className="text-white sequel-45 text-sm">
+                      {numberOfTickets} {numberOfTickets === 1 ? 'ticket' : 'tickets'}
+                    </span>
+                  </div>
+                )}
+                {ticketNumbers && (
+                  <div className="flex items-start justify-between">
+                    <span className="text-[#DDE404] sequel-45 text-sm">Ticket Numbers:</span>
+                    <span className="text-white sequel-45 text-sm text-right max-w-[60%]">
+                      {ticketNumbers.split(',').map(t => t.trim()).filter(t => t).sort((a, b) => parseInt(a, 10) - parseInt(b, 10)).join(', ')}
+                    </span>
+                  </div>
+                )}
+                {transactionHash && transactionHash !== 'no-hash' && (
+                  <div className="flex items-start justify-between">
+                    <span className="text-[#DDE404] sequel-45 text-sm">Transaction:</span>
+                    <a 
+                      href={`https://basescan.org/tx/${transactionHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-white sequel-45 text-sm hover:text-[#DDE404] transition-colors underline max-w-[60%] break-all"
+                    >
+                      {transactionHash.slice(0, 10)}...{transactionHash.slice(-8)}
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
 
         <Link to={'/dashboard/entries'} className="border border-[#DDE404] rounded-md py-3 px-3 mt-8 cursor-pointer hover:scale-105 transition-all flex w-fit items-center lg:mx-0 mx-auto">
           <ChevronLeft color="#DDE404" size={18} />
