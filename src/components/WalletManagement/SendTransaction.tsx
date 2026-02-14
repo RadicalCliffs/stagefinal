@@ -52,7 +52,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
   const { sendEvmTransaction } = useSendEvmTransaction();
   
   // Wagmi hooks (for external wallets)
-  const { address: wagmiAddress, isConnected: wagmiIsConnected } = useAccount();
+  const { address: wagmiAddress } = useAccount();
   const { sendTransaction: wagmiSendTransaction, data: wagmiTxHash, isPending: wagmiIsPending } = useSendTransaction();
   const { isLoading: wagmiIsConfirming, isSuccess: wagmiIsSuccess } = useWaitForTransactionReceipt({
     hash: wagmiTxHash,

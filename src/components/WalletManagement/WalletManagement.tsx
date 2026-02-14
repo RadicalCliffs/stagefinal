@@ -480,11 +480,6 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
     return <Wallet size={20} className="text-white/60" />;
   };
 
-  // Check if user has only an external wallet (no embedded Base wallet)
-  const hasOnlyExternalWallet = linkedWallets.length > 0 &&
-    linkedWallets.every(w => w.isExternalWallet || w.walletClient === 'external') &&
-    !embeddedWallet;
-
   // Check if user has any connected wallet (embedded or external)
   const hasAnyWallet = embeddedWallet || linkedWallets.length > 0;
 
