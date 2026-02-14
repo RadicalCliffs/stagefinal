@@ -765,6 +765,7 @@ function isValidUserId(userId: string): boolean {
           uid: crypto.randomUUID(),
           competitionid: competitionId,
           userid: canonicalUserId,
+          canonical_user_id: canonicalUserId,
           privy_user_id: canonicalUserId,
           numberoftickets: ticketNumbers.length,
           ticketnumbers: ticketNumbers.join(","),
@@ -796,6 +797,7 @@ function isValidUserId(userId: string): boolean {
           await supabase
             .from("user_transactions")
             .update({
+              ticket_numbers: ticketNumbers.join(","),
               notes: `Tickets allocated: ${ticketNumbers.join(", ")}`,
               updated_at: new Date().toISOString(),
             })
@@ -1286,6 +1288,7 @@ function isValidUserId(userId: string): boolean {
             uid: crypto.randomUUID(),
             competitionid: finalCompetitionId,
             userid: canonicalUserId,
+            canonical_user_id: canonicalUserId,
             privy_user_id: canonicalUserId,
             numberoftickets: allocatedTickets.length,
             ticketnumbers: allocatedTickets.join(","),
@@ -1313,6 +1316,7 @@ function isValidUserId(userId: string): boolean {
               await supabase
                 .from("user_transactions")
                 .update({
+                  ticket_numbers: allocatedTickets.join(","),
                   notes: `Tickets allocated (fallback): ${allocatedTickets.join(", ")}`,
                   updated_at: new Date().toISOString(),
                 })
@@ -1448,6 +1452,7 @@ function isValidUserId(userId: string): boolean {
         uid: crypto.randomUUID(),
         competitionid: finalCompetitionId,
         userid: finalUserId,
+        canonical_user_id: finalUserId,
         privy_user_id: finalUserId,
         numberoftickets: ticketNumbers.length,
         ticketnumbers: ticketNumbers.join(","),
