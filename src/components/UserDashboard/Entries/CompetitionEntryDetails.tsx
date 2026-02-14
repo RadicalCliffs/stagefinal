@@ -108,36 +108,16 @@ const CompetitionEntryDetails = () => {
 
   // Helper function to deduplicate entries
   const deduplicateEntries = (entriesList: EntryData[]): EntryData[] => {
-    return entriesList.reduce((acc: EntryData[], entry) => {
-      // Create a unique key for deduplication based on:
-      // - ticket numbers (sorted, to handle different orderings)
-      // - amount spent
-      // - purchase date (rounded to the minute to handle slight timestamp variations)
-      const sortedTickets = entry.ticket_numbers
-        ? entry.ticket_numbers.split(',').map(t => t.trim()).sort((a, b) => parseInt(a) - parseInt(b)).join(',')
-        : '';
-      const roundedDate = entry.purchase_date
-        ? new Date(entry.purchase_date).setSeconds(0, 0) // Round to minute
-        : 0;
-      const dedupeKey = `${sortedTickets}|${entry.amount_spent}|${roundedDate}`;
-
-      // Check if we already have an entry with the same key
-      const existingIndex = acc.findIndex(e => {
-        const existingSortedTickets = e.ticket_numbers
-          ? e.ticket_numbers.split(',').map(t => t.trim()).sort((a, b) => parseInt(a) - parseInt(b)).join(',')
-          : '';
-        const existingRoundedDate = e.purchase_date
-          ? new Date(e.purchase_date).setSeconds(0, 0)
-          : 0;
-        const existingKey = `${existingSortedTickets}|${e.amount_spent}|${existingRoundedDate}`;
-        return existingKey === dedupeKey;
-      });
-
-      if (existingIndex === -1) {
-        acc.push(entry);
+    // Since we now get individual purchases from the RPC with unique IDs,
+    // we can simply deduplicate by ID
+    const seen = new Set<string>();
+    return entriesList.filter(entry => {
+      if (seen.has(entry.id)) {
+        return false;
       }
-      return acc;
-    }, []);
+      seen.add(entry.id);
+      return true;
+    });
   };
 
   // Aggregate all entries for this competition
