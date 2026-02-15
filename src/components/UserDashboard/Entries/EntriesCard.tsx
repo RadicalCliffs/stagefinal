@@ -222,6 +222,42 @@ const EntriesCard = ({
                   )}
                 </div>
               )}
+
+              {/* Rich Entry Data - Detailed variant summary */}
+              {isDetailed && (numberOfTickets || amountSpent || purchaseDate) && (
+                <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2">
+                  {numberOfTickets !== undefined && numberOfTickets > 0 && (
+                    <div className="flex items-center gap-x-2">
+                      <span className="text-[#DDE404] sequel-45 text-sm whitespace-nowrap">Tickets:</span>
+                      <span className="text-white sequel-45 text-sm">{numberOfTickets}</span>
+                    </div>
+                  )}
+                  {amountSpent && (
+                    <div className="flex items-center gap-x-2">
+                      <span className="text-[#DDE404] sequel-45 text-sm whitespace-nowrap">Total Spent:</span>
+                      <span className="text-white sequel-45 text-sm">${amountSpent}</span>
+                    </div>
+                  )}
+                  {purchaseDate && (
+                    <div className="flex items-center gap-x-2">
+                      <span className="text-[#DDE404] sequel-45 text-sm whitespace-nowrap">Last Purchase:</span>
+                      <span className="text-white sequel-45 text-sm">
+                        {new Date(purchaseDate).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric'
+                        })}
+                      </span>
+                    </div>
+                  )}
+                  {isInstantWin && (
+                    <div className="flex items-center text-[#DDE404]">
+                      <Zap className="h-4 w-4 mr-1" />
+                      <span className="text-sm font-medium sequel-45">Instant Win</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Chevron (only compact) */}

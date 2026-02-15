@@ -350,70 +350,19 @@ const CompetitionEntryDetails = () => {
         isInstantWin={aggregatedEntry.is_instant_win}
       />
 
-      {/* Show tickets grouped by purchase */}
+      {/* Show all tickets grid + purchase breakdown with dates and ticket numbers */}
       <EntriesTickets
         ticketNumbers={aggregatedEntry.all_ticket_numbers}
         numberOfTickets={aggregatedEntry.total_tickets}
+        amountSpent={aggregatedEntry.total_amount_spent.toFixed(2)}
+        purchaseDate={aggregatedEntry.last_purchase_date}
+        transactionHash={
+          aggregatedEntry.transaction_hashes.length > 0
+            ? aggregatedEntry.transaction_hashes[aggregatedEntry.transaction_hashes.length - 1]
+            : undefined
+        }
         individualEntries={aggregatedEntry.individual_entries}
       />
-
-      {/* Purchase History Section */}
-      {/* Uses deduplicated entries from aggregatedEntry to prevent showing the same purchase twice */}
-      {/* Duplicates can occur when the same purchase creates entries in both joincompetition and tickets/user_transactions tables */}
-      {aggregatedEntry.individual_entries.length > 1 && (
-        <div className="mt-8">
-          <h3 className="text-white sequel-95 uppercase text-xl mb-4">
-            Purchase History
-          </h3>
-          <div className="bg-[#1a1a1a] rounded-lg p-4 space-y-3">
-            {aggregatedEntry.individual_entries
-              .sort(
-                (a, b) =>
-                  new Date(b.purchase_date || 0).getTime() -
-                  new Date(a.purchase_date || 0).getTime()
-              )
-              .map((entry, index) => (
-                <div
-                  key={`${entry.id}-${index}`}
-                  className="flex flex-wrap justify-between items-center py-3 border-b border-white/10 last:border-b-0"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="text-white sequel-45 text-sm">
-                      {new Date(entry.purchase_date || 0).toLocaleDateString(
-                        "en-US",
-                        {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        }
-                      )}
-                    </div>
-                    <div className="text-white/60 sequel-45 text-xs mt-1">
-                      {entry.number_of_tickets} ticket
-                      {entry.number_of_tickets !== 1 ? "s" : ""} - $
-                      {typeof entry.amount_spent === 'number' 
-                        ? entry.amount_spent.toFixed(2)
-                        : entry.amount_spent || '0.00'}
-                    </div>
-                    {entry.ticket_numbers && (
-                      <div className="text-white/40 sequel-45 text-xs mt-1">
-                        #{entry.ticket_numbers.split(",").slice(0, 5).join(", ")}
-                        {entry.ticket_numbers.split(",").length > 5 && "..."}
-                      </div>
-                    )}
-                  </div>
-                  {entry.is_winner && (
-                    <span className="bg-[#DDE404] text-black text-xs sequel-95 px-2 py-1 rounded ml-2">
-                      WINNER
-                    </span>
-                  )}
-                </div>
-              ))}
-          </div>
-        </div>
-      )}
 
       <EntriesWinnerSection
         fields={fields}
