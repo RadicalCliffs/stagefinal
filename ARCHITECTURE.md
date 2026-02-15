@@ -102,27 +102,45 @@ Supabase (PostgreSQL 15+)
 
 ### Payment Providers
 ```
-Multi-Provider Payment Orchestration
+Multi-Provider Payment Orchestration (Clear Separation by Use Case)
 │
-├── Coinbase Commerce
+├── Coinbase Commerce ← WALLET TOP-UPS ONLY
 │   ├── Crypto payments (BTC, ETH, USDC, etc.)
+│   ├── Used exclusively for balance top-ups
 │   ├── Webhook-driven confirmation
 │   └── Implementation: supabase/functions/commerce-webhook
+│   └── UI: TopUpWalletModal.tsx
 │
-├── Coinbase Onramp/Offramp
+├── Base Account (CDP SDK) ← COMPETITION ENTRIES ONLY
+│   ├── Native Base network payments (USDC)
+│   ├── Used exclusively for competition ticket purchases
+│   ├── Smart wallet integration
+│   ├── Clear transaction type: always 'purchase'
+│   └── Implementation: netlify/functions/cdp-transfer
+│   └── UI: PaymentModal.tsx
+│
+├── Coinbase Onramp/Offramp (Optional)
 │   ├── Fiat → Crypto conversion
 │   ├── KYC integrated
 │   └── Implementation: supabase/functions/onramp-*/offramp-*
 │
-├── Base Account (CDP SDK)
-│   ├── Native Base network payments
-│   ├── Smart wallet integration
-│   └── Implementation: netlify/functions/cdp-transfer
-│
-└── Balance System (Internal)
+└── Balance System (Internal) ← COMPETITION ENTRIES ONLY
     ├── Account credit (USD)
+    ├── Used for competition ticket purchases
     ├── Instant confirmation
     └── Implementation: purchase_tickets_with_balance() RPC
+
+Payment Method Assignment Strategy:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Use Case                  | Payment Provider        | payment_provider Value
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Wallet Top-Up            | Coinbase Commerce       | 'commerce' or 'coinbase_commerce'
+Competition Entry        | Base Account (CDP SDK)  | 'base_account'
+Competition Entry        | Balance (Internal)      | 'balance'
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+This separation eliminates confusion between top-ups and purchases, ensuring
+data flows to the correct tables (sub_account_balances vs tickets).
 ```
 
 ---
