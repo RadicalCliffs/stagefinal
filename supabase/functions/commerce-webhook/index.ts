@@ -561,18 +561,23 @@ Deno.serve(async (req: Request) => {
             let creditSuccess = false;
             let creditError: Error | null = null;
             let newBalance = 0;
+            let bonusApplied = false;
+            let bonusAmount = 0;
+            let totalCredited = topUpAmount;
 
             for (let attempt = 1; attempt <= 3; attempt++) {
               try {
                 console.log(`[commerce-webhook][${requestId}] Credit attempt ${attempt}/3 for user ${transaction.user_id}`);
 
-                // Use the credit_sub_account_balance function which is the primary balance system
+                // Use credit_balance_with_first_deposit_bonus for modern fidelity
+                // This matches the instant-topup flow and ensures consistent bonus application
                 const { data: creditResult, error: rpcError } = await supabase.rpc(
-                  'credit_sub_account_balance',
+                  'credit_balance_with_first_deposit_bonus',
                   {
                     p_canonical_user_id: transaction.user_id,
                     p_amount: topUpAmount,
-                    p_currency: 'USD'
+                    p_reason: 'commerce_topup',
+                    p_reference_id: eventData.id || transaction.id
                   }
                 );
 
@@ -580,14 +585,23 @@ Deno.serve(async (req: Request) => {
                   throw new Error(`RPC error: ${rpcError.message}`);
                 }
 
-                newBalance = creditResult?.[0]?.new_balance ?? topUpAmount;
-                creditSuccess = creditResult?.[0]?.success ?? false;
+                // Extract bonus information from response
+                newBalance = creditResult?.new_balance ?? topUpAmount;
+                creditSuccess = creditResult?.success ?? false;
+                bonusApplied = creditResult?.bonus_applied ?? false;
+                bonusAmount = creditResult?.bonus_amount ?? 0;
+                totalCredited = creditResult?.total_credited ?? topUpAmount;
 
                 if (creditSuccess) {
                   console.log(`[commerce-webhook][${requestId}] ✅ Credit succeeded on attempt ${attempt}`);
+                  console.log(`[commerce-webhook][${requestId}] Amount credited: ${topUpAmount}`);
+                  console.log(`[commerce-webhook][${requestId}] Bonus applied: ${bonusApplied}`);
+                  console.log(`[commerce-webhook][${requestId}] Bonus amount: ${bonusAmount}`);
+                  console.log(`[commerce-webhook][${requestId}] Total credited: ${totalCredited}`);
+                  console.log(`[commerce-webhook][${requestId}] New balance: ${newBalance}`);
                   break;
                 } else {
-                  throw new Error(creditResult?.[0]?.error_message || 'Credit returned failure');
+                  throw new Error(creditResult?.error_message || 'Credit returned failure');
                 }
               } catch (err) {
                 creditError = err as Error;
@@ -604,34 +618,67 @@ Deno.serve(async (req: Request) => {
 
             // FALLBACK: If RPC failed, try direct table update as last resort
             if (!creditSuccess) {
-              console.log(`[commerce-webhook][${requestId}] RPC failed, attempting direct balance update...`);
+              console.log(`[commerce-webhook][${requestId}] RPC failed, attempting direct balance update with bonus check...`);
               try {
+                // Check if user has already used their bonus
+                const { data: userData } = await supabase
+                  .from('canonical_users')
+                  .select('has_used_new_user_bonus')
+                  .eq('canonical_user_id', transaction.user_id)
+                  .single();
+
+                const hasUsedBonus = userData?.has_used_new_user_bonus ?? false;
+                
+                // Calculate bonus if eligible (50% first deposit)
+                if (!hasUsedBonus) {
+                  bonusApplied = true;
+                  bonusAmount = topUpAmount * 0.50;
+                  totalCredited = topUpAmount + bonusAmount;
+                  
+                  console.log(`[commerce-webhook][${requestId}] First deposit detected - applying 50% bonus`);
+                  console.log(`[commerce-webhook][${requestId}] Base amount: ${topUpAmount}, Bonus: ${bonusAmount}`);
+                  
+                  // Mark bonus as used
+                  await supabase
+                    .from('canonical_users')
+                    .update({ 
+                      has_used_new_user_bonus: true,
+                      updated_at: new Date().toISOString()
+                    })
+                    .eq('canonical_user_id', transaction.user_id);
+                }
+
                 // Check if user has a balance record
                 const { data: existingBalance } = await supabase
                   .from('sub_account_balances')
-                  .select('id, available_balance')
+                  .select('id, available_balance, bonus_balance')
                   .eq('canonical_user_id', transaction.user_id)
                   .eq('currency', 'USD')
                   .maybeSingle();
 
                 if (existingBalance) {
-                  // Update existing record
-                  const newBalanceValue = (Number(existingBalance.available_balance) || 0) + topUpAmount;
+                  // Update existing record - credit both available and bonus balance
+                  const newAvailableBalance = (Number(existingBalance.available_balance) || 0) + topUpAmount;
+                  const newBonusBalance = (Number(existingBalance.bonus_balance) || 0) + bonusAmount;
+                  
                   const { error: updateError } = await supabase
                     .from('sub_account_balances')
                     .update({
-                      available_balance: newBalanceValue,
+                      available_balance: newAvailableBalance,
+                      bonus_balance: newBonusBalance,
                       last_updated: new Date().toISOString()
                     })
                     .eq('id', existingBalance.id);
 
                   if (!updateError) {
                     creditSuccess = true;
-                    newBalance = newBalanceValue;
+                    newBalance = newAvailableBalance + newBonusBalance;
                     console.log(`[commerce-webhook][${requestId}] ✅ Direct balance update succeeded`);
+                    console.log(`[commerce-webhook][${requestId}] Available balance: ${newAvailableBalance}`);
+                    console.log(`[commerce-webhook][${requestId}] Bonus balance: ${newBonusBalance}`);
                   }
                 } else {
-                  // Create new record
+                  // Create new record with both available and bonus balance
                   const { error: insertError } = await supabase
                     .from('sub_account_balances')
                     .insert({
@@ -639,14 +686,17 @@ Deno.serve(async (req: Request) => {
                       user_id: transaction.user_id,
                       currency: 'USD',
                       available_balance: topUpAmount,
+                      bonus_balance: bonusAmount,
                       pending_balance: 0,
                       last_updated: new Date().toISOString()
                     });
 
                   if (!insertError) {
                     creditSuccess = true;
-                    newBalance = topUpAmount;
+                    newBalance = topUpAmount + bonusAmount;
                     console.log(`[commerce-webhook][${requestId}] ✅ Created new balance record`);
+                    console.log(`[commerce-webhook][${requestId}] Available balance: ${topUpAmount}`);
+                    console.log(`[commerce-webhook][${requestId}] Bonus balance: ${bonusAmount}`);
                   }
                 }
               } catch (directErr) {
@@ -671,7 +721,12 @@ Deno.serve(async (req: Request) => {
             }
 
             if (creditSuccess) {
-              console.log(`[commerce-webhook][${requestId}] ✅ Credited ${topUpAmount} USDC to user ${transaction.user_id}. New balance: ${newBalance}`);
+              console.log(`[commerce-webhook][${requestId}] ✅ Credited ${topUpAmount} USDC to user ${transaction.user_id}`);
+              if (bonusApplied) {
+                console.log(`[commerce-webhook][${requestId}] 🎁 First deposit bonus applied: ${bonusAmount} (50%)`);
+                console.log(`[commerce-webhook][${requestId}] 💰 Total credited (base + bonus): ${totalCredited}`);
+              }
+              console.log(`[commerce-webhook][${requestId}] New total balance: ${newBalance}`);
 
               // Also confirm any pending_topups record (from optimistic crediting)
               try {
