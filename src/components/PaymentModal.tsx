@@ -447,7 +447,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           .from('pending_tickets')
           .select('expires_at, status')
           .eq('id', reservationId)
-          .maybeSingle();
+          .maybeSingle() as { data: { expires_at?: string; status?: string } | null };
 
         if (reservation?.expires_at) {
           const expiresAt = new Date(reservation.expires_at).getTime();
@@ -521,7 +521,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     try {
       const result = await getUserBalance(canonicalUserId);
       if (result.success) {
-        setUserBalance(result.data.usdc_balance);
+        setUserBalance(result.data.usdc_balance ?? 0);
       }
     } catch (error) {
       console.error('Failed to load user balance:', error);
@@ -589,7 +589,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
             .from('user_transactions')
             .select('status')
             .eq('tx_id', invoiceId)
-            .single();
+            .single() as { data: { status?: string } | null };
 
           if (data?.status && isSuccessStatus(data.status)) {
             clearInterval(pollInterval);

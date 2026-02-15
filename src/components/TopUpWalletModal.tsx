@@ -144,7 +144,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
             .from('user_transactions')
             .select('status')
             .eq('id', transactionId)
-            .single();
+            .single() as { data: { status?: string } | null };
 
           if (data?.status && isSuccessStatus(data.status)) {
             clearInterval(pollInterval);
@@ -721,7 +721,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
               <button
                 onClick={handleContinue}
                 disabled={
-                  ((paymentMethod === 'crypto' || paymentMethod === 'commerce') && !TOP_UP_CHECKOUT_URLS[amount])
+                  (paymentMethod === 'crypto' && !TOP_UP_CHECKOUT_URLS[amount])
                 }
                 className="w-full h-[56px] flex items-center justify-center px-6 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
               >
