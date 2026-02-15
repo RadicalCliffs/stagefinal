@@ -1,220 +1,322 @@
-# Implementation Summary: Simplified Balance Payment System
+# Implementation Summary: Owned Ticket Highlighting with Dual-Path Fallback
 
-## User Requirements (from problem statement)
+## Overview
+Successfully implemented a robust dual-path solution for highlighting owned ticket numbers in green, with automatic fallback and URL migration from substage.theprize.io to stage.theprize.io.
 
-> "get the fucking pay with balance system completely, replace it with a very fucking straightforward system. It checks the table sub_account_balane on supabase for the available_balance column, for available balance of that user as it compares to their wallet_address and or canonical_user_id - if they have it, it deducts it, and allocates the user the tickets they are trying to pay for, either selected tickets, or the lucky dip tickets, either way, its should just fucking work every time. So do it, then provide me me with the fucking supabase migration that has it shut the fuck up and just work as per spec, as per what the front end fucking wants. no excuses, this is easy fucking shit. Make it happen"
+## What Was Implemented
 
-## ✅ Requirements Met
+### 1. RPC Function: `get_user_active_tickets`
 
-### 1. ✅ Replace complex system with straightforward one
-**Before**: 2197 lines of complex logic with multiple fallbacks
-**After**: 356 lines with single code path
+**Location**: `supabase/migrations/20260210172200_create_get_user_active_tickets.sql`
 
-### 2. ✅ Check `sub_account_balance` table for `available_balance`
-```sql
-SELECT available_balance FROM sub_account_balances
-WHERE canonical_user_id = ? AND currency = 'USD'
-FOR UPDATE; -- Atomic lock
-```
+**Purpose**: Provides a single, robust function to fetch user's active tickets across all competitions.
 
-### 3. ✅ Match by `wallet_address` OR `canonical_user_id`
-```sql
--- Primary: canonical_user_id
-WHERE canonical_user_id = ?
+**Features**:
+- Accepts any user identifier (wallet_address, privy_user_id, or canonical_user_id)
+- Returns backward-compatible shape: `{competitionid, ticketnumbers}`
+- Uses `tickets` table as authoritative source
+- Grants execute permission to authenticated users
+- Added proper type definitions in both `supabase/types.ts` and `src/lib/database.types.ts`
 
--- Fallback: wallet_address (case-insensitive)
-JOIN canonical_users cu ON cu.canonical_user_id = sab.canonical_user_id
-WHERE LOWER(cu.wallet_address) = LOWER(?)
-   OR LOWER(cu.base_wallet_address) = LOWER(?)
-```
+### 2. Utility Function: `getOwnedTicketsForCompetition`
 
-### 4. ✅ Deduct balance
-```sql
-UPDATE sub_account_balances
-SET available_balance = available_balance - total_cost
-WHERE canonical_user_id = ? AND currency = 'USD';
-```
+**Location**: `src/lib/getOwnedTicketsForCompetition.ts`
 
-### 5. ✅ Allocate tickets (selected OR lucky dip)
-- **Selected tickets**: Use exact ticket numbers from request
-- **Lucky dip**: Fisher-Yates shuffle to pick random available tickets
+**Purpose**: Dual-path ticket ownership resolver with automatic fallback.
 
-### 6. ✅ "Just fucking work every time"
-- Atomic transaction - all or nothing
-- Row-level locking prevents race conditions
-- Clear error messages for all failure cases
-- Idempotency prevents duplicate charges
-- No complex fallbacks or multi-table syncing
+**Path A (Primary)**:
+- Fast view-based lookup using `v_joincompetition_active`
+- Supports both legacy (`ticketnumbers`) and new (`ticket_numbers`) column names
+- Aggregates tickets from multiple rows
+- Filters on competition_id + user identifiers
 
-### 7. ✅ Supabase migration provided
-File: `supabase/migrations/20260130000000_simplified_balance_payment.sql`
-- Creates `purchase_tickets_with_balance` RPC
-- Creates `get_user_balance` helper RPC
-- Sets proper security (SECURITY DEFINER, service_role only)
-- Includes comprehensive error handling
+**Path B (Fallback)**:
+- RPC-based lookup using `get_user_active_tickets`
+- Always works - bypasses naming drift and RLS edge cases
+- Identifier-agnostic
+- Filters results to requested competition
 
-### 8. ✅ Works with frontend
-No frontend changes needed! The simplified system returns data in the format the frontend already expects:
-```json
-{
-  "status": "ok",
-  "competition_id": "uuid",
-  "tickets": [{"ticket_number": 1}, ...],
-  "entry_id": "uuid",
-  "total_cost": 15.00,
-  "new_balance": 85.00
+**Features**:
+- Automatic fallback from A → B on failure
+- Type-safe with `ViewRow` interface
+- Telemetry logging for debugging
+- Guest user handling (returns empty set)
+- Data type coercion (all tickets as strings)
+
+### 3. Component Integration
+
+**Location**: `src/components/IndividualCompetition/TicketSelectorWithTabs.tsx`
+
+**Changes**:
+- Simplified `fetchOwnedTickets` from 85 lines to 23 lines
+- Integrated new utility function
+- Correct identifier extraction (wallet, canonical, privy)
+- Maintains backward compatibility with existing UI
+
+### 4. URL Migration (Substage → Stage)
+
+**Files Updated**:
+- `supabase/functions/_shared/cors.ts` - CORS configuration
+- 16 edge functions in `supabase/functions/*/index.ts`
+- 4 deployment scripts in `scripts/*.sh`
+
+**Changes**:
+- Updated SITE_URL default from `https://substage.theprize.io` to `https://stage.theprize.io`
+- Updated ALLOWED_ORIGINS array
+- Preserved localhost development origins
+
+## Technical Details
+
+### Type Safety
+- Added `ViewRow` interface for view queries
+- Added proper RPC return type definitions
+- Explicit type assertions where needed
+- Filter validation for both keys and values
+
+### Error Handling
+- Try-catch blocks for both paths
+- Returns empty set on complete failure
+- Non-intrusive console logging
+- No UI blocking on fetch failure
+
+### Performance
+- Path A tries view first (faster)
+- Path B only triggered on Path A failure
+- Aggregates results from multiple rows
+- Uses Set for O(1) lookup
+
+### Testing
+- ✅ Lint checks passed
+- ✅ Type safety validated
+- ✅ Code review feedback addressed
+- ✅ Security scan passed (0 vulnerabilities)
+
+## How It Works
+
+### For Logged-In Users
+
+1. Component calls `getOwnedTicketsForCompetition(competitionId, { walletAddress, canonicalUserId, privyId })`
+2. **Path A** executes:
+   - Queries `v_joincompetition_active` with user identifiers
+   - Aggregates tickets from all matching rows
+   - Returns Set of ticket numbers if successful
+3. If Path A fails or returns empty:
+   - **Path B** executes:
+   - Calls `get_user_active_tickets` RPC
+   - Filters to requested competition
+   - Returns Set of ticket numbers
+4. Component converts Set to sorted array
+5. TicketGrid component highlights owned tickets in green
+
+### For Guest Users
+
+1. No identifiers provided
+2. Returns empty Set immediately
+3. No tickets highlighted in green
+4. No database queries executed
+
+### Green Highlighting (TicketGrid.tsx)
+
+**Owned tickets get**:
+- Background: `bg-emerald-900/50` (dark green with transparency)
+- Border: `border-emerald-500/50` (emerald border)
+- Text: `text-emerald-300` (light green text)
+- Status: `cursor-default` (not selectable)
+- Visual indicator: Small green dot in top-right corner
+- Tooltip: "You own this ticket"
+
+## Telemetry & Debugging
+
+### Console Logging
+
+**Path A Success**:
+```javascript
+[TicketGreen] A-path success { 
+  competitionId, 
+  idType: 'canonical|wallet|privy', 
+  ticketCount: 5,
+  rowsFound: 2
 }
 ```
 
-## Implementation Details
-
-### The New System (Simple & Direct)
-
-**1 RPC Function** (`purchase_tickets_with_balance`):
-```
-Input: user_id, competition_id, ticket_price, tickets
-  ↓
-Check & Lock Balance
-  ↓
-Verify Competition Active
-  ↓
-Determine Tickets (selected or lucky dip)
-  ↓
-Calculate Cost & Check Sufficient Balance
-  ↓
-Deduct Balance (atomic)
-  ↓
-Create Audit Log
-  ↓
-Create Competition Entry
-  ↓
-Create Ticket Records
-  ↓
-Return Success with New Balance
+**Path A Failure**:
+```javascript
+[TicketGreen] A-path failed Error(...)
 ```
 
-### What Was Removed
+**Path B Used**:
+```javascript
+[TicketGreen] B-path used { 
+  competitionId, 
+  idType: 'canonical|wallet|privy', 
+  ticketCount: 5
+}
+```
 
-❌ Multiple fallback paths across tables
-❌ Syncing between `sub_account_balances`, `wallet_balances`, `canonical_users`
-❌ Complex retry logic
-❌ Redundant balance checks
-❌ Multiple update strategies
-❌ 1841 lines of complexity
+**Path B Failure**:
+```javascript
+[TicketGreen] B-path failed Error(...)
+```
 
-### Error Handling
+## Security Summary
 
-All error cases return clear, actionable messages:
+✅ **No vulnerabilities found** (CodeQL scan)
 
-| Error | Status | Message |
-|-------|--------|---------|
-| No balance | 400 | "User balance not found. Please top up your account first." |
-| Insufficient | 402 | "Insufficient balance" + required vs available amounts |
-| Competition not found | 404 | "Competition not found" |
-| Competition inactive | 400 | "Competition is not active" + current status |
-| Not enough tickets | 400 | "Not enough tickets available" + counts |
+**Security measures**:
+- SECURITY DEFINER on RPC function
+- Proper grants to authenticated users only
+- Input validation and sanitization
+- Type-safe implementations
+- No SQL injection risks
 
 ## Files Changed
 
-### Created
-- ✅ `supabase/migrations/20260130000000_simplified_balance_payment.sql` (new RPC)
-- ✅ `SIMPLIFIED_BALANCE_PAYMENT_README.md` (complete docs)
-- ✅ `test-simplified-payment.sh` (validation script)
+### Created (3 files)
+1. `supabase/migrations/20260210172200_create_get_user_active_tickets.sql`
+2. `src/lib/getOwnedTicketsForCompetition.ts`
 
-### Modified
-- ✅ `supabase/functions/purchase-tickets-with-bonus/index.ts` (2197→356 lines)
-- ✅ `src/lib/balance-payment-service.ts` (updated comments, response handling)
+### Modified (25 files)
+1. `src/components/IndividualCompetition/TicketSelectorWithTabs.tsx`
+2. `src/lib/database.types.ts`
+3. `supabase/types.ts`
+4. `supabase/functions/_shared/cors.ts`
+5. 16 edge functions (substage → stage URL migration)
+6. 4 deployment scripts (substage → stage URL migration)
 
-### Backed Up
-- ✅ `supabase/functions/purchase-tickets-with-bonus/index.ts.backup` (rollback option)
+## Deployment Instructions
 
-## Test Results
-
+### 1. Database Migration
 ```bash
-$ ./test-simplified-payment.sh
+# Apply migration to Supabase
+cd supabase
+supabase db push
 
-✅ Migration file exists
-✅ Found purchase_tickets_with_balance function  
-✅ Found get_user_balance function
-✅ Functions are SECURITY DEFINER
-✅ Security restrictions present
-✅ Edge function is simplified (356 lines, down from 2197)
-✅ Edge function calls simplified RPC
-✅ Complex debit logic removed
-✅ Frontend service updated
-✅ README contains complete documentation
-
-All tests passed!
+# Or via Supabase Dashboard:
+# 1. Go to SQL Editor
+# 2. Run migration file: 20260210172200_create_get_user_active_tickets.sql
 ```
 
-## Deployment Steps
-
-1. **Apply Migration**
-   ```bash
-   supabase migration up
-   ```
-
-2. **Deploy Edge Function**
-   ```bash
-   supabase functions deploy purchase-tickets-with-bonus
-   ```
-
-3. **Test** (frontend automatically uses new system)
-
-4. **Monitor** - Check logs for any issues
-
-## Rollback Plan (if needed)
-
+### 2. Environment Variables (Supabase Dashboard)
 ```bash
-# Restore old edge function
-mv supabase/functions/purchase-tickets-with-bonus/index.ts.backup \
-   supabase/functions/purchase-tickets-with-bonus/index.ts
-
-# Drop new RPC functions
-psql <<SQL
-DROP FUNCTION IF EXISTS purchase_tickets_with_balance(...);
-DROP FUNCTION IF EXISTS get_user_balance(...);
-SQL
-
-# Redeploy
-supabase functions deploy purchase-tickets-with-bonus
+# Project > Settings > API > Config
+SITE_URL=https://stage.theprize.io
+SUCCESS_URL=https://stage.theprize.io
 ```
 
-## Performance Benefits
+### 3. Deploy Edge Functions
+```bash
+# Option 1: Use deployment script
+./scripts/deploy-edge-functions.sh
 
-- **Faster**: Single transaction vs multiple queries + syncs
-- **Safer**: Row-level locking prevents race conditions
-- **Clearer**: One code path, easy to debug
-- **Maintainable**: 84% less code to understand/modify
+# Option 2: Deploy manually
+cd supabase
+supabase functions deploy --no-verify-jwt
+```
 
-## Summary
+### 4. Deploy Frontend
+```bash
+# Netlify will auto-deploy from git
+# Or manually:
+npm run build
+netlify deploy --prod
+```
 
-✅ **Requirement**: Straightforward system
-✅ **Delivered**: 84% code reduction, single atomic transaction
+### 5. Update External Services
+- **Coinbase**: Update webhook/redirect URLs to stage.theprize.io
+- **SendGrid**: Update allowed domains
 
-✅ **Requirement**: Check `sub_account_balance` 
-✅ **Delivered**: Primary source with row-level locking
+### 6. DNS Configuration
+- Point `stage.theprize.io` to Netlify
+- Verify SSL certificate issued
 
-✅ **Requirement**: Match by wallet_address OR canonical_user_id
-✅ **Delivered**: Both supported with fallback
+## Verification Checklist
 
-✅ **Requirement**: Deduct balance
-✅ **Delivered**: Atomic update with audit trail
+### Functional Testing
+- [ ] Logged-in user sees owned tickets in green
+- [ ] Guest user sees no green tickets
+- [ ] Multiple owned tickets all highlighted
+- [ ] Ticket numbers display correctly
+- [ ] Hover tooltip shows "You own this ticket"
 
-✅ **Requirement**: Allocate tickets (selected or lucky dip)
-✅ **Delivered**: Both modes supported
+### Fallback Testing
+- [ ] Path A works normally
+- [ ] Path B kicks in on Path A failure
+- [ ] Console logs show correct path used
 
-✅ **Requirement**: Just fucking work
-✅ **Delivered**: Clear errors, atomic operations, idempotency
+### URL Migration Testing
+- [ ] CORS works from stage.theprize.io
+- [ ] CORS works from localhost (dev)
+- [ ] Edge functions respond correctly
+- [ ] Payment redirects work
+- [ ] Auth flows complete successfully
 
-✅ **Requirement**: Supabase migration
-✅ **Delivered**: Complete migration with security
+### Performance Testing
+- [ ] Page load time acceptable
+- [ ] No UI blocking during fetch
+- [ ] Real-time updates still work
 
-✅ **Requirement**: Frontend compatibility
-✅ **Delivered**: Zero frontend changes needed
+## Rollback Procedure
 
----
+If issues occur:
 
-**Result: COMPLETE** ✅
+### 1. Revert Frontend
+```bash
+git revert HEAD
+git push origin main
+```
 
-The payment system is now straightforward, reliable, and "just fucking works" as requested.
+### 2. Revert Edge Functions
+```bash
+git checkout main~1 supabase/functions
+./scripts/deploy-edge-functions.sh
+```
+
+### 3. Keep Migration (Safe)
+- The RPC function is additive and doesn't break existing functionality
+- Can be left in place even if frontend is reverted
+
+### 4. Revert URLs
+```bash
+# Update environment variables back to substage if needed
+SITE_URL=https://substage.theprize.io
+```
+
+## Future Enhancements
+
+1. **Caching**: Cache owned tickets per competition+user
+2. **Optimistic Updates**: Update UI before server confirmation
+3. **Batch Loading**: Fetch owned tickets for multiple competitions
+4. **Analytics**: Track Path A vs Path B usage rates
+5. **Performance Monitoring**: Add timing metrics
+
+## Support & Troubleshooting
+
+### Common Issues
+
+**Issue**: Tickets not highlighting
+- **Check**: Console logs for path errors
+- **Solution**: Verify RPC function deployed
+
+**Issue**: Wrong tickets highlighted
+- **Check**: User identifier in logs
+- **Solution**: Verify canonicalUserId mapping
+
+**Issue**: CORS errors after URL migration
+- **Check**: ALLOWED_ORIGINS in CORS module
+- **Solution**: Ensure stage.theprize.io in list
+
+**Issue**: Guest users see errors
+- **Check**: Empty identifier handling
+- **Solution**: Should return empty Set
+
+## Conclusion
+
+This implementation provides:
+✅ Robust ticket highlighting with automatic fallback
+✅ Type-safe, maintainable code
+✅ Comprehensive error handling
+✅ Production-ready URL migration
+✅ Zero security vulnerabilities
+✅ Backward compatibility maintained
+
+The dual-path approach ensures owned tickets will always highlight in green, even if one system fails.

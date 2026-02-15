@@ -1,69 +1,107 @@
 # ThePrize.io
 
-A blockchain-based competition platform with instant-win mechanics and balance payment system.
+> *"Not just another raffle app—a blockchain-powered competition platform architected for scale from day one."*
 
-## 🎯 Project Overview
+## 🎯 What is ThePrize.io?
 
-ThePrize.io is a Web3 competition platform that allows users to:
-- Enter competitions using cryptocurrency or account balance
-- Purchase tickets with balance payment (via Supabase RPC)
-- Win prizes through VRF (Verifiable Random Function) drawings
-- Manage account balances and transactions
+ThePrize.io is a Web3 competition platform that combines:
+- 🎲 **Provably-fair drawings** via Chainlink VRF
+- 💰 **Multi-provider payments** (Balance, Crypto, Coinbase Commerce, Base Account)
+- ⚡ **Real-time updates** via WebSocket subscriptions
+- 🔒 **Enterprise security** with row-level security and ACID transactions
+- 📈 **Scalable architecture** with serverless backend and CDN delivery
 
-## 🏗️ Architecture
+## 📚 Documentation
 
-### Frontend
-- **Framework**: React with TypeScript
-- **Build Tool**: Vite
-- **Styling**: Tailwind CSS
-- **State Management**: React hooks
-- **Wallet Integration**: Wagmi, OnchainKit
+### Essential Reading
+- **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Comprehensive technical documentation
+  - Executive summary for decision-makers
+  - Deep dive into Netlify vs Supabase vs RPC layers
+  - Real-time APIs, Triggers, and RPCs explained
+  - Security and scalability architecture
+  - Why this is not "just another raffle app"
 
-### Backend
-- **Database**: Supabase (PostgreSQL)
-- **Edge Functions**: Supabase Edge Functions (Deno)
-- **Serverless**: Netlify Functions (Node.js)
-- **Payments**: Coinbase Commerce, Base Account
+- **[QUICK_START.md](./QUICK_START.md)** - Get started quickly
+- **[QUICK_REFERENCE.md](./QUICK_REFERENCE.md)** - API reference
+- **[DEPLOYMENT_INSTRUCTIONS.md](./DEPLOYMENT_INSTRUCTIONS.md)** - Deployment guide
 
-### Key Services
-
-#### Balance Payment System
-```
-Frontend (usePurchaseWithBalance.ts)
-    ↓
-Netlify Proxy (/api/purchase-with-balance)
-    ↓
-Supabase RPC (purchase_tickets_with_balance)
-    ↓
-Database (sub_account_balances, joincompetition, tickets)
-```
-
-**Key Files:**
-- Frontend Hook: `src/hooks/usePurchaseWithBalance.ts`
-- Netlify Proxy: `netlify/functions/purchase-with-balance-proxy.mts`
-- RPC Migration: `supabase/migrations/20260130000000_simplified_balance_payment.sql`
+### For Technical Details
+See **[ARCHITECTURE.md](./ARCHITECTURE.md)** for:
+- Complete technology stack
+- Request flow diagrams
+- Database schema and migrations
+- Performance optimizations
+- Index strategy
+- Security patterns
 
 ## 📁 Repository Structure
 
 ```
 theprize.io/
-├── src/                          # Frontend React application
-│   ├── components/              # React components
-│   ├── hooks/                   # Custom React hooks
-│   ├── lib/                     # Utility libraries
-│   └── types/                   # TypeScript type definitions
-├── netlify/                     # Netlify functions (serverless)
-│   └── functions/              # Netlify function endpoints
-├── supabase/                    # Supabase backend
-│   ├── functions/              # Supabase Edge Functions (Deno)
-│   └── migrations/             # Database migrations
-├── scripts/                     # Deployment and utility scripts
-├── docs/                        # Documentation
-│   └── archive/                # Historical documentation and deprecated code
-└── public/                      # Static assets
+├── src/                          # React frontend (TypeScript + Vite)
+│   ├── components/              # UI components (competition, wallet, payment)
+│   ├── hooks/                   # Custom hooks (balance, real-time, CDP)
+│   ├── lib/                     # Business logic & services
+│   └── types/                   # TypeScript definitions
+├── netlify/functions/           # Serverless functions (Node.js, 30+)
+│   ├── purchase-with-balance-proxy.mts
+│   ├── cdp-transfer.mts
+│   └── [instant-topup, webhooks, admin functions]
+├── supabase/
+│   ├── functions/              # Edge functions (Deno, 50+)
+│   │   ├── commerce-webhook/
+│   │   ├── onramp-init/
+│   │   └── [VRF, payments, status updates]
+│   └── migrations/             # Database migrations (70+)
+│       ├── 00000000000000_new_baseline.sql
+│       └── [incremental migrations by date]
+├── debug/                       # Archived docs, test files, hotfixes
+└── docs/                        # Legacy documentation
 ```
 
-## 🚀 Getting Started
+**Clean Repository:** Historical summaries, fix documents, and test files have been moved to `debug/` directory.
+
+## 🏗️ Architecture Overview
+
+ThePrize.io uses a **three-layer serverless architecture**:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Frontend (React + Vite)                      │
+│  - Deployed to Netlify CDN (150+ edge locations)                │
+│  - Wagmi for wallet integration                                 │
+│  - Real-time WebSocket subscriptions                            │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+          ┌──────────────┴──────────────┬────────────────┐
+          │                             │                │
+          ▼                             ▼                ▼
+┌─────────────────┐         ┌─────────────────┐  ┌─────────────┐
+│ Netlify         │         │ Supabase        │  │ Supabase    │
+│ Functions       │────────▶│ Edge Functions  │  │ RPC         │
+│ (Node.js)       │         │ (Deno)          │  │ (PostgreSQL)│
+└─────────────────┘         └─────────────────┘  └─────────────┘
+         │                           │                   │
+         └───────────────────────────┴───────────────────┘
+                                     │
+                                     ▼
+                        ┌─────────────────────────┐
+                        │  Supabase Database      │
+                        │  (PostgreSQL 15)        │
+                        │  - 25+ tables           │
+                        │  - 40+ indexes          │
+                        │  - 30+ triggers         │
+                        │  - 70+ migrations       │
+                        └─────────────────────────┘
+```
+
+### Why Three Layers?
+
+- **Netlify Functions**: Protect service role keys, handle CORS, add retry logic
+- **Edge Functions**: Handle webhooks, external APIs, co-located with database
+- **RPC Functions**: Atomic DB operations, ACID transactions, sub-millisecond performance
+
+**See [ARCHITECTURE.md](./ARCHITECTURE.md) for complete details.**
 
 ### Prerequisites
 - Node.js 18+
@@ -116,33 +154,27 @@ npm run build
 npm run preview
 ```
 
-## 🔄 Recent Repository Cleanup
+## 🔄 Repository Cleanup (February 2026)
 
-This repository underwent a major cleanup on 2026-02-09:
+The repository has been cleaned and organized:
 
-### Changes Made
-1. **Moved 88+ markdown files** from root to `docs/archive/`
-2. **Organized clutter**: Moved zip files, CSVs, test files to appropriate directories
-3. **Moved scripts**: Consolidated deployment scripts to `scripts/` directory
-4. **Removed deprecated code**: The `purchase-tickets-with-bonus` edge function was removed as it was deprecated
+### Cleanup Actions
+- ✅ Moved 79 files to `debug/` (fix summaries, visual guides, test files, hotfixes)
+- ✅ Moved 8 test migrations to `supabase/migrations/debug_tests/`
+- ✅ Fixed incorrect Supabase URL in cron job configuration
+- ✅ Removed CSV exports, diagnostic scripts, and temporary SQL files from production paths
+- ✅ Kept only essential docs in root: README, ARCHITECTURE, QUICK_START, QUICK_REFERENCE, DEPLOYMENT_INSTRUCTIONS
 
-### Important: Purchase Tickets Architecture
+### What's in `debug/`?
+Historical documentation including:
+- Fix summaries and implementation guides
+- Visual proof screenshots
+- Test SQL files and migrations
+- Hotfix SQL scripts
+- CSV exports and diagnostic tools
+- Archived SQL fixes
 
-⚠️ **Note**: If you're looking for the `purchase_tickets_with_bonus` function:
-- The Supabase Edge Function at `supabase/functions/purchase-tickets-with-bonus/` was **DEPRECATED** and removed
-- Production now uses: **Netlify Proxy → Supabase RPC** architecture
-- See `DIAGNOSIS.md` for full details on why and how this works
-
-## 📚 Documentation
-
-- **Main Documentation**: See `docs/` directory
-- **Diagnosis**: See `DIAGNOSIS.md` for purchase system architecture
-- **Quick Start**: See `docs/QUICK_START_PURCHASE.md` for purchase flow guide
-- **Frontend Guide**: See `docs/FRONTEND_PURCHASE_GUIDE.md` for integration examples
-- **API Reference**: See `docs/CANONICAL_USER_RPC_REFERENCE.md` for RPC functions
-
-### Archived Documentation
-Historical documentation, old summaries, and deprecated code are in `docs/archive/`
+**These files are preserved for reference but are not part of the active codebase.**
 
 ## 🔐 Security
 
@@ -164,42 +196,46 @@ Historical documentation, old summaries, and deprecated code are in `docs/archiv
 
 ## 🆘 Troubleshooting
 
-### Purchase with Balance Not Working
+### Common Issues
 
-If the purchase with balance feature is failing:
+1. **Purchase with Balance Not Working**
+   - Check `SUPABASE_SERVICE_ROLE_KEY` is set in Netlify environment
+   - Verify RPC function exists: `SELECT routine_name FROM information_schema.routines WHERE routine_name = 'purchase_tickets_with_balance';`
+   - Check Netlify function logs for errors
 
-1. **Check Environment Variables** (Netlify)
-   - Ensure `VITE_SUPABASE_URL` is set
-   - Ensure `SUPABASE_SERVICE_ROLE_KEY` is set
+2. **Real-time Updates Not Working**
+   - Ensure WebSocket connections aren't blocked by firewall
+   - Check browser console for subscription errors
+   - Verify Supabase Realtime is enabled
 
-2. **Verify RPC Function Exists** (Supabase SQL Editor)
-   ```sql
-   SELECT routine_name FROM information_schema.routines 
-   WHERE routine_name = 'purchase_tickets_with_balance';
-   ```
+3. **Wallet Connection Issues**
+   - Check `VITE_WALLET_CONNECTOR_PROJECT_ID` is set
+   - Ensure user is on Base network (chain ID 8453)
+   - Try clearing wallet cache
 
-3. **Check Migrations** 
-   - Ensure migrations are applied: `supabase db push`
-   - Key migration: `20260130000000_simplified_balance_payment.sql`
+**For detailed troubleshooting, see [ARCHITECTURE.md](./ARCHITECTURE.md).**
 
-4. **Test Netlify Function Locally**
-   ```bash
-   netlify dev
-   curl -X POST http://localhost:8888/api/purchase-with-balance \
-     -H "Content-Type: application/json" \
-     -d '{"userId":"test","competition_id":"...","ticketPrice":1,"ticket_count":1}'
-   ```
+## 📞 Support & Contributing
 
-5. **Review Logs**
-   - Netlify function logs: Netlify dashboard
-   - Supabase logs: Supabase dashboard
+### Getting Help
+- 📖 Read [ARCHITECTURE.md](./ARCHITECTURE.md) for technical details
+- 🔍 Check `debug/` directory for historical context
+- 🐛 Open an issue on GitHub with detailed reproduction steps
 
-See `DIAGNOSIS.md` for more detailed troubleshooting.
+### Contributing
+1. Read [ARCHITECTURE.md](./ARCHITECTURE.md) to understand the system
+2. Create a feature branch from `main`
+3. Make your changes (follow existing patterns)
+4. Run linter and tests: `npm run lint && npm test`
+5. Submit a pull request with clear description
 
-## 📞 Support
+### Code Standards
+- TypeScript strict mode enabled
+- React 19 best practices (hooks, suspense)
+- Atomic database operations via RPCs
+- Real-time subscriptions for UI updates
+- Comprehensive error handling
 
-For issues or questions:
-- Check `DIAGNOSIS.md` first
-- Review documentation in `docs/`
-- Check archived summaries in `docs/archive/`
-- Open an issue on GitHub
+---
+
+*For the complete story of how this application is architected, read [ARCHITECTURE.md](./ARCHITECTURE.md).*

@@ -41,7 +41,7 @@ export interface PurchaseTicketsRequest {
   /** Explicit idempotency key for proper tracking and retry behavior */
   idempotency_key?: string;
   
-  /** Payment provider for balance_ledger tracking (e.g., 'base_account', 'coinbase', 'stripe') */
+  /** Payment provider for balance_ledger tracking (e.g., 'base_account', 'coinbase', 'balance') */
   payment_provider?: string;
   
   /** Transaction type for balance_ledger (e.g., 'purchase', 'entry', 'topup') */
