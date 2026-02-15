@@ -595,7 +595,7 @@ export default async (req: Request) => {
 
 #### Supabase Edge Functions (Deno)
 **Use When:**
-- Handling webhooks from external services (Coinbase, Stripe)
+- Handling webhooks from external services (Coinbase)
 - Calling external APIs with authentication
 - Generating JWTs or performing cryptographic operations
 - Need co-location with database (zero cold start)
