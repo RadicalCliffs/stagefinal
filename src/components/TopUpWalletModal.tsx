@@ -552,6 +552,8 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
     if (method === 'crypto' && !TOP_UP_CHECKOUT_URLS[amount]) {
       setAmount(50);
     }
+    // Automatically advance to amount selection step
+    setStep('amount');
   };
 
   const handleContinue = () => {
@@ -564,10 +566,6 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
     }
     setError('');
     void initiatePayment();
-  };
-
-  const handleMethodContinue = () => {
-    setStep('amount');
   };
 
   if (!isOpen) return null;
@@ -648,14 +646,6 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                   </button> */}
                 </div>
               </div>
-
-              <button
-                onClick={handleMethodContinue}
-                disabled={!paymentMethod}
-                className="w-full h-[56px] flex items-center justify-center px-6 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
-              >
-                <span className="text-white sequel-75 text-sm uppercase">Next</span>
-              </button>
             </div>
           )}
 
