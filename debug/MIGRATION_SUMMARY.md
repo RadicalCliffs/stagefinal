@@ -1,230 +1,161 @@
-# Database and Frontend Migration - Implementation Summary
+# Migration Summary: Fix Competition Entries Display Issue
 
-## Changes Completed
+## Issue Description
+User reported that after purchasing tickets successfully:
+1. **Orders table shows "Unknown Competition"** instead of actual competition names
+2. Entries may not be visible in various sections of the application
+3. Payment was processed and tickets were allocated (confirmed in success modal)
 
-### 1. Database Migration (supabase/migrations/20260117150000_add_active_entries_view_and_finalize_order.sql)
+## Root Cause Analysis
 
-Created new migration that includes:
+### Primary Issue: Missing Competition Titles
+The `sync_competition_entries_from_joincompetition()` trigger function was syncing data from the `joincompetition` table to the `competition_entries` table but was NOT populating the following fields:
+- `competition_title` 
+- `competition_description`
 
-#### a) `v_joincompetition_active` View
-- Provides a stable read interface for active competition entries
-- Filters only active/completed/drawing/drawn competitions
-- Excludes test/invalid entries (numberoftickets > 0, ticketnumbers NOT NULL)
-- Removes dependency on `privy_user_id` column
-- Uses canonical identifiers: `userid`, `walletaddress`, `uid`
-- Includes competition metadata via LEFT JOIN
-- **Permissions:** Granted SELECT to `anon`, `authenticated`, and `service_role`
+### Data Flow
+1. User purchases tickets → `purchase_tickets_with_balance()` RPC function
+2. Entry created in `joincompetition` table
+3. Trigger `trg_sync_competition_entries` fires
+4. Trigger function `sync_competition_entries_from_joincompetition()` executes
+5. Entry created/updated in `competition_entries` table
+6. **PROBLEM**: Competition title/description NOT populated (left as NULL)
 
-#### b) `finalize_order()` RPC Function
-Atomic checkout function with the following features:
-- **Parameters:**
-  - `p_reservation_id` (UUID) - The pending ticket reservation ID
-  - `p_user_id` (TEXT) - User identifier (canonical_user_id or wallet address)
-  - `p_competition_id` (UUID) - Competition UUID
-  - `p_unit_price` (NUMERIC) - Price per ticket
+### Impact
+- `user_overview` view reads from `competition_entries` and returns NULL for `competition_title`
+- `userOverviewService.ts` transforms this data with fallback: `entry.competition_title || 'Unknown Competition'`
+- Orders table displays "Unknown Competition" for all entries
+- Dashboard entries may not display correctly
 
-- **Operations (all in single transaction):**
-  1. Locks and validates pending_tickets reservation
-  2. Checks reservation hasn't expired
-  3. Computes total amount = unit_price × ticket_count
-  4. Resolves user identity (supports multiple ID formats)
-  5. Verifies user has sufficient balance in `canonical_users.usdc_balance`
-  6. Deducts balance atomically
-  7. Creates `orders` record with non-null amount
-  8. Creates `order_tickets` entries for each ticket
-  9. Creates `tickets` entries (with conflict handling)
-  10. Creates `user_transactions` record with non-null amount
-  11. Marks `pending_tickets` as confirmed
+## Solution
 
-- **Error Handling:**
-  - Returns JSONB with success/error status
-  - Handles already-confirmed reservations gracefully
-  - Validates sufficient balance before deduction
-  - Automatic rollback on any error
+### Migration File
+`supabase/migrations/20260213192500_fix_competition_title_in_entries.sql`
 
-- **Permissions:** Granted EXECUTE to `authenticated` and `service_role`
+### Changes Made
 
-#### c) `release_reservation()` RPC Function (Helper)
-- Cancels a pending ticket reservation
-- Makes tickets available again for other users
-- **Parameters:** `p_reservation_id` (UUID), `p_user_id` (TEXT)
-- **Permissions:** Granted EXECUTE to `authenticated` and `service_role`
+#### 1. Updated Trigger Function
+**Modified**: `sync_competition_entries_from_joincompetition()`
 
-### 2. Frontend Updates
+**New behavior**:
+- Queries `competitions` table to fetch `title` and `description` when syncing entries
+- Safely handles both UUID and text competition IDs with error handling
+- Populates `competition_title` and `competition_description` in both INSERT and UPDATE operations
+- Falls back to "Unknown Competition" if competition not found
 
-Updated all references from `joincompetition` table to `v_joincompetition_active` view:
+**Key improvements**:
+- Added safe UUID casting with exception handling
+- Used `EXCLUDED` keyword in ON CONFLICT clause for proper variable scope
+- Handles edge cases (NULL values, missing competitions)
 
-#### Core Libraries
-- ✅ `src/lib/database.ts` - 8 query locations updated
-- ✅ `src/lib/identity.ts` - 1 query location updated
-- ✅ `src/lib/omnipotent-data-service.ts` - 2 query locations updated
-- ✅ `src/lib/competition-lifecycle.ts` - 2 query locations updated
-- ✅ `src/lib/user-auth.ts` - 2 query locations updated
-- ✅ `src/lib/payment-validation.ts` - 1 query location updated
+#### 2. Backfill Existing Data
+**Action**: Updates ALL existing entries with NULL or "Unknown Competition" titles
 
-#### Services
-- ✅ `src/services/userDataService.ts` - 4 query locations updated
-
-#### Components
-- ✅ `src/components/UserDashboard/Entries/EntriesList.tsx` - Real-time subscription updated
-- ✅ `src/components/FinishedCompetition/EntriesWithFilterTabs.tsx` - Fallback queries updated
-- ✅ `src/components/IndividualCompetition/TicketSelectorWithTabs.tsx` - Ticket queries and real-time subscription updated
-
-#### Hooks
-- ✅ `src/hooks/useRealTimeCompetition.ts` - Real-time subscription updated
-- ✅ `src/hooks/useFetchCompetitions.ts` - Real-time subscription updated
-- ✅ `src/hooks/useRealTimeBalance.ts` - Real-time subscription updated
-- ✅ `src/hooks/useUserProfile.ts` - Direct query and real-time subscription updated
-
-#### Root-Level Files
-- ✅ `dashboard-hooks.tsx` - Fallback query updated
-
-### 3. Removed `privy_user_id` References
-
-All frontend queries now use canonical identifiers instead of `privy_user_id`:
-- ✅ Removed `privy_user_id` from OR filters in database queries
-- ✅ Replaced with `userid` (canonical_user_id) and `walletaddress`
-- ✅ Updated real-time subscription filters to remove `privy_user_id`
-- ✅ Updated individual query functions to use `canonical_user_id` instead of `privy_user_id`
-
-### 4. Foreign Key Relationship Updates
-
-Changed JOIN syntax from:
-```typescript
-competitions!joincompetition_competitionid_fkey (...)
+**Query**:
+```sql
+UPDATE public.competition_entries ce
+SET 
+  competition_title = COALESCE(c.title, 'Unknown Competition'),
+  competition_description = COALESCE(c.description, ''),
+  updated_at = NOW()
+FROM public.competitions c
+WHERE (ce.competition_id = c.id::text OR ce.competition_id = c.uid::text)
+  AND (ce.competition_title IS NULL 
+       OR ce.competition_title = '' 
+       OR ce.competition_title = 'Unknown Competition');
 ```
 
-To:
-```typescript
-competitions!inner (...)
-```
+#### 3. Logging
+Logs the number of entries successfully updated with valid competition titles.
 
-This is more reliable for views and doesn't depend on specific foreign key names.
+## Expected Results
 
-## What Still Needs to Be Done
+### Immediate (After Migration)
+1. ✅ All existing entries in `competition_entries` will have proper competition titles
+2. ✅ Orders table will display actual competition names instead of "Unknown Competition"
+3. ✅ User dashboard entries will show correct competition information
 
-### 1. Update Supabase Type Definitions
-After deploying the migration to Supabase, regenerate types:
-```bash
-npx supabase gen types typescript --project-id YOUR_PROJECT_ID > supabase/types.ts
-```
+### Ongoing (For New Entries)
+1. ✅ All new ticket purchases will automatically populate competition titles
+2. ✅ Updates to existing entries will refresh competition titles
+3. ✅ System will gracefully handle missing competitions (show "Unknown Competition")
 
-This will add:
-- `v_joincompetition_active` to the Views section
-- `finalize_order` to the Functions section
-- `release_reservation` to the Functions section
+## What This Fix Does NOT Address
 
-### 2. Update Reservation/Checkout Flow
+This migration specifically fixes the `competition_entries` table and the Orders display. However:
 
-The problem statement mentions updating the checkout flow to use the new RPCs. Here's what needs to be done:
+1. **Live Activity on Homepage**: Uses `v_joincompetition_active` view which already joins with `competitions` table - should work correctly
+2. **Competition Entries Section**: Uses direct queries from `joincompetition` table - should work correctly
+3. **Missing Entries**: If entries are truly missing from `joincompetition` table (not just showing wrong names), that's a different issue requiring separate investigation
 
-#### Current Flow (needs updating):
-- Uses `confirm_pending_to_sold()` function
+## Verification Steps
 
-#### New Flow (to implement):
-```typescript
-// 1. Reserve tickets (already exists)
-const { data: reservation } = await supabase.rpc('reserve_tickets', {
-  p_competition_id: competitionId,
-  p_ticket_numbers: selectedTickets,
-  p_user_id: userIdentifier, // wallet or canonical_user_id
-  p_hold_minutes: 15
-});
+After applying this migration, verify:
 
-// 2. Finalize order (new RPC - deducts balance and issues tickets)
-const { data: result } = await supabase.rpc('finalize_order', {
-  p_reservation_id: reservation.reservation_id,
-  p_user_id: userIdentifier,
-  p_competition_id: competitionId,
-  p_unit_price: ticketPrice // numeric value
-});
+1. **Check Orders Table**:
+   ```sql
+   SELECT id, competition_title, tickets_count, amount_spent 
+   FROM competition_entries 
+   WHERE canonical_user_id = '<user-canonical-id>'
+   ORDER BY created_at DESC;
+   ```
 
-// 3. Optional: Release reservation if user cancels
-const { data } = await supabase.rpc('release_reservation', {
-  p_reservation_id: reservationId,
-  p_user_id: userIdentifier
-});
-```
+2. **Check user_overview View**:
+   ```sql
+   SELECT canonical_user_id, entries_json 
+   FROM user_overview 
+   WHERE canonical_user_id = '<user-canonical-id>';
+   ```
 
-#### Files to Update:
-- `src/lib/ticketPurchaseService.ts` - Update balance payment flow
-- `src/components/PaymentModal.tsx` - Update checkout logic
-- Any other files that call `confirm_pending_to_sold()`
-
-### 3. Verify Balance Column Names
-
-The `finalize_order` function uses `canonical_users.usdc_balance`. Verify this is the correct column name in your production database. If different, update the migration file before deploying.
-
-### 4. Test in Development Environment
-
-Before deploying to production:
-1. Apply migration to dev/staging Supabase instance
-2. Test the `finalize_order` RPC with various scenarios:
-   - Successful purchase with sufficient balance
-   - Insufficient balance error handling
-   - Already confirmed reservation handling
-   - Expired reservation handling
-   - Concurrent purchase attempts
-3. Test view performance with real data
-4. Verify all frontend queries work with the view
-5. Test real-time subscriptions with the view
-
-### 5. Update Documentation
-
-If you have API documentation or developer guides, update them to:
-- Document the new view structure
-- Document the `finalize_order` RPC parameters and return values
-- Update any examples using `joincompetition` to use `v_joincompetition_active`
-- Document the checkout flow changes
-
-## Benefits of These Changes
-
-1. **Stability:** View provides consistent interface regardless of underlying table changes
-2. **Security:** RPC function prevents balance manipulation attacks
-3. **Atomicity:** Single transaction ensures data consistency
-4. **Simplicity:** Removes complex privy_user_id dependencies
-5. **Performance:** View can be indexed and optimized independently
-6. **Maintainability:** Centralized business logic in database layer
-
-## Migration Checklist
-
-- [x] Create database migration file
-- [x] Update frontend queries to use view
-- [x] Remove privy_user_id dependencies
-- [x] Test TypeScript compilation
-- [ ] Deploy migration to Supabase
-- [ ] Regenerate TypeScript types
-- [ ] Update checkout flow to use finalize_order RPC
-- [ ] Test in development environment
-- [ ] Update documentation
-- [ ] Deploy to production
-- [ ] Monitor for issues
+3. **Test New Purchase**:
+   - Purchase tickets for a competition
+   - Verify entry shows correct competition name in Orders table
+   - Verify entry appears in user dashboard
 
 ## Rollback Plan
 
-If issues occur after deployment:
+If issues arise, the migration can be rolled back by:
 
-1. **Quick rollback:** Keep the old code path as fallback
-   ```typescript
-   // Try new view first, fallback to old table
-   let data = await supabase.from('v_joincompetition_active').select('*');
-   if (!data) {
-     data = await supabase.from('joincompetition').select('*');
-   }
-   ```
+1. Reverting the trigger function to the previous version (without competition title fetching)
+2. No data loss risk - only the `competition_title` and `competition_description` fields are affected
 
-2. **Database rollback:** Drop the view if needed
-   ```sql
-   DROP VIEW IF EXISTS public.v_joincompetition_active;
-   DROP FUNCTION IF EXISTS public.finalize_order;
-   DROP FUNCTION IF EXISTS public.release_reservation;
-   ```
+## Security Considerations
 
-3. **Code rollback:** Revert git commits if necessary
+- ✅ No new security vulnerabilities introduced
+- ✅ Uses existing RLS policies on `competition_entries` table
+- ✅ Safe UUID casting with exception handling
+- ✅ No exposure of sensitive data
 
-## Notes
+## Performance Considerations
 
-- The `vrf_draw_completed_at` column already exists (added in migration 20251226000000_add_vrf_onchain_competition_support.sql)
-- All TypeScript type checks pass
-- No breaking changes to existing functionality - view is additive
-- Real-time subscriptions work with views (tested pattern)
+- **Trigger overhead**: Small additional query per entry creation (SELECT from competitions)
+- **Backfill impact**: One-time UPDATE query on existing entries (should complete quickly)
+- **Index usage**: Leverages existing indexes on `competitions(id)` and `competitions(uid)`
+
+## Related Files
+
+- `supabase/migrations/20260213192500_fix_competition_title_in_entries.sql` - The migration
+- `supabase/migrations/20260202062200_sync_competition_entries.sql` - Original trigger creation
+- `src/services/userOverviewService.ts` - Frontend service that uses `user_overview` view
+- `src/components/UserDashboard/Orders/OrdersTable.tsx` - Component displaying orders
+- `src/lib/database.ts` - Database utilities (not directly affected)
+
+## Next Steps
+
+1. ✅ Migration created and reviewed
+2. ✅ Code review completed and feedback addressed
+3. ✅ Security check passed
+4. ⏳ **TODO**: Apply migration to production database
+5. ⏳ **TODO**: Verify entries display correctly
+6. ⏳ **TODO**: Monitor for any issues after deployment
+
+## Contact
+
+For questions or issues with this migration, contact the development team.
+
+---
+
+**Migration Date**: 2026-02-13  
+**Migration ID**: 20260213192500  
+**Issue**: Competition entries showing "Unknown Competition"  
+**Status**: Ready for deployment
