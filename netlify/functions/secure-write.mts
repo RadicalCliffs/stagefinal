@@ -249,10 +249,10 @@ async function handleCreateTransaction(
     return errorResponse("Invalid amount - must be a positive number");
   }
 
-  // Look up the user's privy_user_id
+  // Look up the user's privy_user_id and canonical_user_id
   const { data: userData, error: userError } = await serviceClient
     .from("canonical_users")
-    .select("privy_user_id")
+    .select("privy_user_id, canonical_user_id")
     .eq("id", userId)
     .single();
 
@@ -262,6 +262,7 @@ async function handleCreateTransaction(
   }
 
   const privyUserId = userData.privy_user_id;
+  const canonicalUserId = userData.canonical_user_id;
 
   // Create transaction record in user_transactions
   // Use client-provided payment_provider and network, with sensible defaults
@@ -289,9 +290,27 @@ async function handleCreateTransaction(
     'onchainkit_checkout', // OnchainKit checkout - direct on-chain transfer
   ].includes(finalPaymentProvider);
 
+  // For external payments, we need to set balance_before and balance_after
+  // to satisfy the user_tx_posted_balance_chk constraint
+  // Since external payments don't affect internal balance, both values are the current balance
+  let currentBalance = 0;
+  if (isExternalPayment && canonicalUserId) {
+    const { data: balanceData } = await serviceClient
+      .from("sub_account_balances")
+      .select("available_balance")
+      .eq("canonical_user_id", canonicalUserId)
+      .eq("currency", "USD")
+      .maybeSingle();
+    
+    if (balanceData) {
+      currentBalance = balanceData.available_balance || 0;
+    }
+  }
+
   // Build the transaction data
   const transactionData: Record<string, unknown> = {
     user_id: privyUserId,
+    canonical_user_id: canonicalUserId,
     wallet_address,
     competition_id,
     ticket_count,
@@ -305,6 +324,13 @@ async function handleCreateTransaction(
     posted_to_balance: isExternalPayment, // Skip balance triggers for external payments
     created_at: new Date().toISOString(),
   };
+
+  // For external payments, set balance_before and balance_after to current balance
+  // since these payments don't affect the internal balance
+  if (isExternalPayment) {
+    transactionData.balance_before = currentBalance;
+    transactionData.balance_after = currentBalance;
+  }
 
   let transaction: { id: string } | null = null;
   let txError: Error | { message: string } | null = null;
