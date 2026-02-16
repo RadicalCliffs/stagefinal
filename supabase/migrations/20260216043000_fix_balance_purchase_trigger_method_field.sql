@@ -36,29 +36,35 @@ BEGIN
   -- 3. Amount was spent (amountspent > 0)
   
   -- Check if this looks like a balance purchase
-  IF NEW.chain IS NULL OR TRIM(NEW.chain) = '' THEN
-    -- No chain means it's not a blockchain payment
-    v_is_balance_purchase := true;
-  ELSIF NEW.transactionhash IS NOT NULL THEN
-    -- If transactionhash is UUID format (36 chars with dashes), it's likely a balance purchase
+  -- Must satisfy both conditions: no chain AND UUID transaction hash
+  IF (NEW.chain IS NULL OR TRIM(NEW.chain) = '') AND NEW.transactionhash IS NOT NULL THEN
+    -- If transactionhash is UUID format, it's a balance purchase
     -- Blockchain tx hashes are typically 66 chars (0x + 64 hex chars)
     BEGIN
       PERFORM NEW.transactionhash::UUID;
       v_is_balance_purchase := true;
     EXCEPTION WHEN OTHERS THEN
+      -- Not a valid UUID, so not a balance purchase
       v_is_balance_purchase := false;
     END;
   END IF;
   
   -- Only process if this is identified as a balance payment
   IF v_is_balance_purchase AND COALESCE(NEW.amountspent, 0) > 0 THEN
-    -- Get current balance
+    -- Get current balance (after the transaction)
     SELECT available_balance INTO v_balance_after
     FROM sub_account_balances
     WHERE canonical_user_id = NEW.canonical_user_id
       AND currency = 'USD';
     
-    v_balance_before := COALESCE(v_balance_after, 0) + COALESCE(ABS(NEW.amountspent), 0);
+    -- If no balance record found, skip this transaction record
+    IF v_balance_after IS NULL THEN
+      RETURN NEW;
+    END IF;
+    
+    -- Calculate balance before: current balance + amount spent
+    -- (The balance after spending is less than before, so we add back the spent amount)
+    v_balance_before := v_balance_after + COALESCE(ABS(NEW.amountspent), 0);
     
     -- Create user_transactions record if it doesn't exist
     -- Use transactionhash as unique identifier to prevent duplicates
