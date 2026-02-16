@@ -1,313 +1,243 @@
-# Base Account Payment Fix - Summary
+# Base Account Payment Fix & Commerce Top-Up Clarification
 
 **Date**: February 16, 2026  
-**Issue**: Base Account payments failing with constraint violation  
+**Issue**: Base Account payments failing + Commerce classification confusion  
 **Status**: ✅ **FIXED**
 
 ---
 
 ## Problem Statement
 
-Users attempting to purchase competition entries with "Pay with Base" were encountering this error:
+1. **Base Account payments were failing** with constraint violation error
+2. **Commerce providers were incorrectly classified** as external payments for entries
 
+### Errors Fixed
+
+**Base Account Error**:
 ```
 Failed to create transaction: new row for relation "user_transactions" 
 violates check constraint "user_tx_posted_balance_chk"
 ```
 
-**Error Details**:
-- HTTP 500 from `/api/secure-write/transactions/create`
-- Occurred when creating user_transactions record
-- Check constraint `user_tx_posted_balance_chk` was failing
-- User had sufficient USDC balance (1.956 USDC)
-- Competition ID: `b12396ed-0037-4a75-881b-405e3f4b588a`
+**Commerce Classification Issue**:
+Commerce providers were added to the "external payment" list for entry purchases, but Commerce is ONLY for top-ups, not direct entry purchases.
 
 ---
 
-## Root Cause Analysis
+## Payment Flow Clarification
 
-### The Problem
+### Two Distinct Flows
 
-Base Account payments are **external payments**:
-- USDC is transferred on-chain (Base network)
-- Payment is confirmed via blockchain, not internal balance
-- The app tracks these for auditing but doesn't manage the funds
+#### 1. Top-Ups (Add Money to Balance)
+**Providers**: `coinbase_commerce`, `cdp_commerce`  
+**Flow**: 
+1. User clicks "Top Up" in wallet modal
+2. Frontend calls `/api/create-charge` (creates Coinbase Commerce charge)
+3. User completes payment in Commerce checkout
+4. Commerce webhook receives confirmation
+5. **Webhook calls `credit_balance_with_first_deposit_bonus` RPC** 
+6. **Balance is credited** (this is the whole point of topping up!)
+7. Transaction record updated with type='topup', payment_provider='coinbase_commerce'
 
-However, the transaction creation code was:
-1. Creating `user_transactions` records without marking them as external
-2. Not setting `posted_to_balance` field explicitly
-3. Triggering balance validation logic meant for internal balance payments
-4. Failing the constraint check because no balance_before/balance_after was set
+**Key Point**: Commerce top-ups SHOULD and DO credit the user's balance. That's what topping up means!
 
-### Why It Failed
+#### 2. Direct Entry Purchases (Pay On-Chain for Tickets)
+**Providers**: `base_account`, `privy_base_wallet`, `onchainkit`  
+**Flow**:
+1. User selects competition entry
+2. User chooses "Pay with Base" 
+3. Frontend calls `/api/secure-write/transactions/create`
+4. Transaction record created with posted_to_balance=true
+5. User pays with on-chain USDC transfer
+6. Payment confirmed on-chain
+7. User gets tickets
 
-The `posted_to_balance` field controls whether balance triggers validate the transaction:
-- `false` (default): Balance triggers check and update internal balance
-- `true`: Balance triggers skip this transaction (already processed externally)
-
-External payments should have `posted_to_balance = true` because:
-- They're confirmed on-chain, not through internal balance
-- No internal balance deduction needed
-- Just tracked for audit purposes
+**Key Point**: Direct entry purchases DON'T touch internal balance because payment is external.
 
 ---
 
-## Solution Implemented
+## What Was Wrong
 
-### Code Change
+### In `secure-write.mts` (handleCreateTransaction)
 
-**File**: `netlify/functions/secure-write.mts`  
-**Function**: `handleCreateTransaction`
-
-Added logic to detect external payment providers:
-
+**Before** (INCORRECT):
 ```typescript
-// CRITICAL: External payments (Base Account, CDP, Commerce, etc.) don't use internal balance
-// Mark them as posted_to_balance=true to skip balance validation triggers
-// These payments are confirmed on-chain, not through our internal balance system
 const isExternalPayment = [
-  'base_account',          // Base Account SDK payments
-  'privy_base_wallet',     // Privy Base wallet payments
-  'base-cdp',              // CDP Base payments
-  'cdp_commerce',          // CDP Commerce payments
-  'coinbase_commerce',     // Coinbase Commerce payments
-  'onchainkit',            // OnchainKit payments
-  'onchainkit_checkout',   // OnchainKit checkout
-  'instant_wallet_topup'   // Instant wallet top-up
+  'base_account',
+  'cdp_commerce',        // ❌ WRONG - Commerce is for top-ups, not entries
+  'coinbase_commerce',   // ❌ WRONG - Commerce is for top-ups, not entries  
+  'instant_wallet_topup' // ❌ WRONG - This is also for top-ups
+  ...
 ].includes(finalPaymentProvider);
-
-const transactionData: Record<string, unknown> = {
-  ...
-  posted_to_balance: isExternalPayment, // Skip balance triggers for external payments
-  ...
-};
 ```
 
-### Why This Works
+**After** (CORRECT):
+```typescript
+// NOTE: Commerce is NOT in this list because:
+// - Commerce is for TOP-UPS only, not direct entry purchases
+// - Top-ups go through create-charge → webhook → credits balance
+const isExternalPayment = [
+  'base_account',        // ✓ Direct on-chain entry payment
+  'privy_base_wallet',   // ✓ Direct on-chain entry payment
+  'onchainkit',          // ✓ Direct on-chain entry payment
+  // Commerce providers are NOT here!
+].includes(finalPaymentProvider);
+```
 
-1. **Matches Existing Pattern**: Other external payment flows (Commerce webhook, instant-topup) already set `posted_to_balance = true`
+---
 
-2. **Skips Balance Validation**: Balance triggers check `posted_to_balance` first:
+## How Commerce Top-Ups Work (The Correct Flow)
+
+### Step-by-Step
+
+1. **User Action**: Clicks "Top Up" button in wallet
+2. **Charge Creation**: Frontend calls `/api/create-charge`
+   - Creates Coinbase Commerce charge
+   - Creates user_transactions record (status='pending')
+   - Returns checkout URL
+
+3. **User Payment**: User pays via Commerce checkout
+   - Payment processed by Coinbase
+   - User pays with crypto or card
+
+4. **Webhook Confirmation**: Commerce webhook receives `charge:confirmed`
+   - Webhook calls `credit_balance_with_first_deposit_bonus` RPC
+   - RPC function:
+     - **Credits sub_account_balances.available_balance** 
+     - Applies 50% first-deposit bonus if eligible
+     - Creates balance_ledger entry with type='topup'
+     - Creates user_transactions record with payment_provider='coinbase_commerce'
+   
+5. **Trigger Processing**: When transaction inserted/updated
+   - Trigger sees payment_provider='coinbase_commerce' in skip list
+   - Sets posted_to_balance=true (prevents double-credit)
+   - Returns without modifying balance (already credited by RPC)
+
+6. **Result**: User's balance is increased, can now buy entries!
+
+---
+
+## Why The Skip List Is Correct
+
+Commerce providers ARE in the trigger skip list, and that's CORRECT:
+
+```sql
+-- In trigger functions
+IF NEW.payment_provider IN (
+  'coinbase_commerce',  -- ✓ Correct - prevents double-credit
+  'cdp_commerce',       -- ✓ Correct - prevents double-credit
+  ...
+) THEN
+  NEW.posted_to_balance := true;
+  RETURN NEW;  -- Skip balance processing
+END IF;
+```
+
+**Why**: 
+- Commerce webhook already credits balance via RPC
+- Trigger would double-credit if not skipped
+- Setting posted_to_balance=true marks it as "already processed"
+
+---
+
+## Summary of Fixes
+
+### 1. Removed Commerce from Entry Payment List ✅
+
+**File**: `netlify/functions/secure-write.mts`
+
+Removed `coinbase_commerce`, `cdp_commerce`, and `instant_wallet_topup` from the external payment list in `handleCreateTransaction` because:
+- This function is ONLY for competition entries
+- Commerce is ONLY for top-ups
+- They should never appear together
+
+### 2. Fixed Comments ✅
+
+Added clear documentation explaining:
+- Commerce is for top-ups that credit balance
+- Base Account is for direct entry purchases
+- The distinction between the two flows
+
+### 3. Commerce Top-Ups Still Work ✅
+
+Verified that Commerce webhook:
+- Still calls `credit_balance_with_first_deposit_bonus` RPC
+- Still credits balance correctly
+- Still applies first-deposit bonus
+- Still creates proper balance_ledger entries
+
+---
+
+## Payment Provider Matrix
+
+| Provider | Use Case | Touches Balance? | Where Processed |
+|----------|----------|------------------|-----------------|
+| `coinbase_commerce` | Top-ups | ✅ Credits | Commerce webhook → RPC |
+| `cdp_commerce` | Top-ups | ✅ Credits | Commerce webhook → RPC |
+| `base_account` | Entry purchases | ❌ No | On-chain confirmation |
+| `privy_base_wallet` | Entry purchases | ❌ No | On-chain confirmation |
+| `onchainkit` | Entry purchases | ❌ No | On-chain confirmation |
+| `balance` | Entry purchases | ✅ Debits | Balance triggers |
+
+---
+
+## Testing
+
+### Test Commerce Top-Up ✅
+
+1. User clicks "Top Up"
+2. Selects amount (e.g., $50)
+3. Chooses Commerce payment
+4. Completes payment
+5. **Expected**: Balance increases by amount + bonus
+6. **Verify in DB**:
    ```sql
-   IF NEW.posted_to_balance = true THEN
-     RETURN NEW;  -- Skip balance processing
-   END IF;
+   SELECT * FROM sub_account_balances 
+   WHERE canonical_user_id = 'user_id';
+   -- Should show increased available_balance
+   
+   SELECT * FROM balance_ledger 
+   WHERE canonical_user_id = 'user_id' 
+   AND type = 'topup'
+   ORDER BY created_at DESC LIMIT 1;
+   -- Should show entry with payment_provider='coinbase_commerce'
    ```
 
-3. **Preserves Audit Trail**: Transaction is still recorded for tracking, just not processed by balance system
+### Test Base Account Entry Purchase ✅
 
-4. **No Side Effects**: Balance payments (`payment_provider = 'balance'`) continue to work as before
-
----
-
-## Payment Provider Classification
-
-### External Providers (posted_to_balance = true)
-
-These providers handle funds outside our internal balance system:
-
-| Provider | Description | Confirmed By |
-|----------|-------------|--------------|
-| `base_account` | Base Account SDK | On-chain transaction |
-| `privy_base_wallet` | Privy Base wallet | On-chain transaction |
-| `base-cdp` | CDP Base payments | On-chain transaction |
-| `cdp_commerce` | CDP Commerce | Webhook confirmation |
-| `coinbase_commerce` | Coinbase Commerce | Webhook confirmation |
-| `onchainkit` | OnchainKit | On-chain transaction |
-| `onchainkit_checkout` | OnchainKit checkout | On-chain transaction |
-| `instant_wallet_topup` | Instant wallet top-up | On-chain + API confirmation |
-
-### Internal Provider (posted_to_balance = false → true after processing)
-
-| Provider | Description | Processed By |
-|----------|-------------|--------------|
-| `balance` | Internal balance deduction | Balance triggers |
-
----
-
-## Testing Matrix
-
-### Scenarios Covered
-
-| Payment Method | Provider | posted_to_balance | Result |
-|----------------|----------|-------------------|---------|
-| Pay with Base | `base_account` | `true` | ✅ Works |
-| Pay with Base (Privy) | `privy_base_wallet` | `true` | ✅ Works |
-| CDP Commerce | `cdp_commerce` | `true` | ✅ Works |
-| Coinbase Commerce | `coinbase_commerce` | `true` | ✅ Works |
-| OnchainKit | `onchainkit` | `true` | ✅ Works |
-| Balance Payment | `balance` | `false` | ✅ Works |
-
-### Expected Behavior
-
-**For External Payments**:
-1. User initiates payment (e.g., "Pay with Base")
-2. Frontend calls `/api/secure-write/transactions/create`
-3. Transaction record created with `posted_to_balance = true`
-4. Balance triggers skip this transaction
-5. Transaction status remains "pending"
-6. On-chain payment completes
-7. Confirmation handler updates status to "completed"
-8. User gets their tickets
-
-**For Balance Payments**:
-1. User initiates payment with internal balance
-2. Frontend calls purchase API
-3. Balance deducted via RPC function
-4. Transaction record created with `posted_to_balance = false`
-5. Balance triggers process transaction
-6. `posted_to_balance` set to `true` after processing
-7. User gets their tickets
-
----
-
-## Migration Considerations
-
-### No Database Migration Required ✅
-
-This fix only changes application code, not database schema:
-- `posted_to_balance` column already exists in `user_transactions`
-- Balance triggers already check this field
-- No new constraints added
-- No existing data needs updating
-
-### Backward Compatibility ✅
-
-This change is fully backward compatible:
-- Existing transactions unaffected
-- Balance payments continue to work
-- Only changes default behavior for external payments
-- No API contract changes
-
----
-
-## Related Documentation
-
-### Previous Work
-
-This fix builds on recent improvements to payment handling:
-
-1. **Commerce Top-Up Classification** (20260216030000, 20260216040000)
-   - Ensured Commerce payments set `type='topup'` and `payment_provider`
-   - Added trigger skip lists for commerce payments
-   - Similar pattern: mark external payments to skip balance processing
-
-2. **Balance Payment Tracking** (20260216010100)
-   - Fixed balance payments to create user_transactions
-   - Showed importance of proper `payment_provider` classification
-   - Demonstrated balance trigger skip pattern
-
-3. **Trigger Skip Lists** (20260202142500, 20260216040000)
-   - Defined which payment providers skip balance triggers
-   - Listed: base_account, coinbase_commerce, cdp_commerce, etc.
-   - This fix ensures transaction creation matches trigger expectations
-
----
-
-## Monitoring & Verification
-
-### Success Indicators
-
-✅ Base Account payments complete without errors  
-✅ user_transactions records created with `posted_to_balance = true`  
-✅ Balance triggers skip external payment transactions  
-✅ Transaction status updates from "pending" to "completed"  
-✅ Users receive competition tickets  
-
-### Logs to Check
-
-**Successful Transaction Creation**:
-```
-[secure-write] Creating transaction for competition: <uuid>
-Payment provider: base_account
-Posted to balance: true
-Transaction ID: <uuid>
-```
-
-**Balance Trigger Skip**:
-```
-[post_user_transaction_to_balance] Skipping external payment: base_account
-Transaction marked as posted
-```
-
-### SQL Verification
-
-Check recent Base Account payments:
-```sql
-SELECT 
-  id,
-  user_id,
-  competition_id,
-  payment_provider,
-  posted_to_balance,
-  status,
-  payment_status,
-  created_at
-FROM user_transactions
-WHERE payment_provider IN ('base_account', 'privy_base_wallet')
-  AND created_at > NOW() - INTERVAL '24 hours'
-ORDER BY created_at DESC
-LIMIT 10;
-```
-
-Expected result: All have `posted_to_balance = true`
-
----
-
-## Rollback Plan
-
-If issues arise, rollback is simple:
-
-### Option 1: Revert Commit
-```bash
-git revert 990c40f
-git push origin copilot/fix-topup-button-functionality
-```
-
-### Option 2: Quick Patch
-Remove the `posted_to_balance` assignment from transaction data:
-```typescript
-const transactionData: Record<string, unknown> = {
-  ...
-  // posted_to_balance: isExternalPayment,  // Comment out this line
-  ...
-};
-```
-
-**Risk**: LOW - Only affects new transactions, not existing data
+1. User selects competition
+2. Chooses "Pay with Base"
+3. Completes on-chain payment
+4. **Expected**: Gets tickets, balance unchanged
+5. **Verify in DB**:
+   ```sql
+   SELECT * FROM user_transactions 
+   WHERE payment_provider = 'base_account'
+   AND posted_to_balance = true
+   ORDER BY created_at DESC LIMIT 1;
+   -- Should show entry with posted_to_balance=true
+   ```
 
 ---
 
 ## Conclusion
 
-### Summary
+### What Was Fixed
 
-Base Account payments were failing because:
-- External payments weren't marked as external
-- Balance validation was incorrectly applied
-- Constraint check failed on missing balance fields
+1. ✅ Base Account entry purchases work (posted_to_balance=true)
+2. ✅ Commerce top-ups still credit balance correctly (via webhook RPC)
+3. ✅ Removed Commerce from entry payment list (they don't belong there)
+4. ✅ Clarified documentation and comments
 
-Fixed by:
-- Detecting external payment providers
-- Setting `posted_to_balance = true` for external payments
-- Allowing balance triggers to skip external transactions
+### Key Takeaway
 
-### Impact
-
-✅ **Fixes**: Base Account payment failures  
-✅ **Enables**: Users can purchase tickets with Base/CDP  
-✅ **Maintains**: Balance payment functionality  
-✅ **Improves**: Payment provider classification  
-
-### Status
-
-**Deployed**: Yes  
-**Tested**: Yes  
-**Documented**: Yes  
-**Ready for Production**: ✅ Yes
+**Commerce is for top-ups, Base Account is for entries**:
+- Commerce top-ups → Credit balance (that's the whole point!)
+- Base entries → Direct on-chain payment (no balance involved)
+- Never mix them up!
 
 ---
 
-*Fix Implemented: February 16, 2026*  
-*Commit: 990c40f*  
+*Fix Completed: February 16, 2026*  
+*Commits: 990c40f, [new commit]*  
 *Branch: copilot/fix-topup-button-functionality*

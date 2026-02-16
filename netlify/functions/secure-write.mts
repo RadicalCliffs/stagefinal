@@ -272,18 +272,21 @@ async function handleCreateTransaction(
     ? network
     : "base";
 
-  // CRITICAL: External payments (Base Account, CDP, Commerce, etc.) don't use internal balance
+  // CRITICAL: Direct on-chain payments (Base Account, OnchainKit) don't use internal balance
   // Mark them as posted_to_balance=true to skip balance validation triggers
-  // These payments are confirmed on-chain, not through our internal balance system
+  // These are direct wallet-to-wallet transfers confirmed on-chain
+  // 
+  // NOTE: Commerce (coinbase_commerce, cdp_commerce) is NOT in this list because:
+  // - Commerce is for TOP-UPS only, not direct entry purchases
+  // - Top-ups go through create-charge → webhook → credits balance
+  // - Users then use that balance to purchase entries
+  // - If Commerce somehow appears here, it's an error in the payment flow
   const isExternalPayment = [
-    'base_account',
-    'privy_base_wallet', 
-    'base-cdp',
-    'cdp_commerce',
-    'coinbase_commerce',
-    'onchainkit',
-    'onchainkit_checkout',
-    'instant_wallet_topup'
+    'base_account',        // Base Account SDK - direct on-chain USDC transfer
+    'privy_base_wallet',   // Privy Base wallet - direct on-chain transfer
+    'base-cdp',            // CDP Base - direct on-chain transfer
+    'onchainkit',          // OnchainKit - direct on-chain transfer
+    'onchainkit_checkout', // OnchainKit checkout - direct on-chain transfer
   ].includes(finalPaymentProvider);
 
   // Build the transaction data
