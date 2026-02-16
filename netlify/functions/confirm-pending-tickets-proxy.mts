@@ -790,19 +790,23 @@ function isValidUserId(userId: string): boolean {
         supabase.from("tickets").upsert(ticketRows, { onConflict: "competition_id,ticket_number" })
       );
 
-      // URGENT FIX: Update user_transactions with allocated ticket numbers
+      // URGENT FIX: Update user_transactions with allocated ticket numbers and status
       // This is critical for base_account payments where payment succeeds but tickets weren't allocated
+      // Status must be 'completed' to trigger sync to competition_entries
       if (sessionId) {
         try {
           await supabase
             .from("user_transactions")
             .update({
               ticket_numbers: ticketNumbers.join(","),
+              status: "completed",
+              payment_status: "completed",
+              completed_at: new Date().toISOString(),
               notes: `Tickets allocated: ${ticketNumbers.join(", ")}`,
               updated_at: new Date().toISOString(),
             })
             .eq("id", sessionId);
-          console.log(`[Confirm Tickets] PATH A: Updated user_transaction ${sessionId} with ticket numbers`);
+          console.log(`[Confirm Tickets] PATH A: Updated user_transaction ${sessionId} with ticket numbers and completed status`);
         } catch (updateErr) {
           console.warn(`[Confirm Tickets] PATH A: Failed to update user_transaction ${sessionId}:`, updateErr);
         }
@@ -1311,12 +1315,16 @@ function isValidUserId(userId: string): boolean {
           await supabase.from("tickets").upsert(ticketRows, { onConflict: "competition_id,ticket_number" });
 
           // Update user_transactions if sessionId available
+          // Status must be 'completed' to trigger sync to competition_entries
           if (sessionId) {
             try {
               await supabase
                 .from("user_transactions")
                 .update({
                   ticket_numbers: allocatedTickets.join(","),
+                  status: "completed",
+                  payment_status: "completed",
+                  completed_at: new Date().toISOString(),
                   notes: `Tickets allocated (fallback): ${allocatedTickets.join(", ")}`,
                   updated_at: new Date().toISOString(),
                 })
