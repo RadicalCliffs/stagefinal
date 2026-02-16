@@ -294,16 +294,23 @@ async function handleCreateTransaction(
   // to satisfy the user_tx_posted_balance_chk constraint
   // Since external payments don't affect internal balance, both values are the current balance
   let currentBalance = 0;
-  if (isExternalPayment && canonicalUserId) {
-    const { data: balanceData } = await serviceClient
-      .from("sub_account_balances")
-      .select("available_balance")
-      .eq("canonical_user_id", canonicalUserId)
-      .eq("currency", "USD")
-      .maybeSingle();
-    
-    if (balanceData) {
-      currentBalance = balanceData.available_balance || 0;
+  if (isExternalPayment) {
+    if (!canonicalUserId) {
+      console.warn("[secure-write] External payment attempted without canonical_user_id, balance will be set to 0");
+    } else {
+      const { data: balanceData, error: balanceError } = await serviceClient
+        .from("sub_account_balances")
+        .select("available_balance")
+        .eq("canonical_user_id", canonicalUserId)
+        .eq("currency", "USD")
+        .maybeSingle();
+      
+      if (balanceError) {
+        console.error("[secure-write] Error querying balance:", balanceError.message);
+        // Continue with currentBalance = 0 as fallback
+      } else if (balanceData) {
+        currentBalance = balanceData.available_balance || 0;
+      }
     }
   }
 
