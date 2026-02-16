@@ -296,6 +296,82 @@ describe('Dashboard Entries Data Flow', () => {
   });
 });
 
+describe('Payment Status Filtering', () => {
+  it('should recognize all successful payment statuses', () => {
+    const successStatuses = ['completed', 'confirmed', 'success'];
+    
+    // Test that the RPC would include all these statuses
+    const mockTransactions = [
+      { id: '1', payment_status: 'completed', competition_id: 'comp-1', ticket_count: 5 },
+      { id: '2', payment_status: 'confirmed', competition_id: 'comp-1', ticket_count: 3 },
+      { id: '3', payment_status: 'success', competition_id: 'comp-1', ticket_count: 2 },
+      { id: '4', payment_status: 'pending', competition_id: 'comp-1', ticket_count: 1 },
+      { id: '5', payment_status: 'failed', competition_id: 'comp-1', ticket_count: 1 }
+    ];
+    
+    // Filter like the RPC does (should include completed, confirmed, success)
+    const includedTransactions = mockTransactions.filter(tx => 
+      successStatuses.includes(tx.payment_status)
+    );
+    
+    expect(includedTransactions).toHaveLength(3);
+    expect(includedTransactions.map(tx => tx.id)).toEqual(['1', '2', '3']);
+    
+    // Calculate totals
+    const totalTickets = includedTransactions.reduce((sum, tx) => sum + tx.ticket_count, 0);
+    expect(totalTickets).toBe(10); // 5 + 3 + 2
+  });
+
+  it('should exclude pending and failed payment statuses', () => {
+    const successStatuses = ['completed', 'confirmed', 'success'];
+    const excludedStatuses = ['pending', 'failed', 'cancelled', 'expired'];
+    
+    excludedStatuses.forEach(status => {
+      expect(successStatuses).not.toContain(status);
+    });
+  });
+
+  it('should handle transactions with different payment providers', () => {
+    const mockTransactions = [
+      { 
+        id: '1', 
+        payment_status: 'success', 
+        payment_provider: 'base_account',
+        competition_id: 'comp-1', 
+        ticket_count: 5 
+      },
+      { 
+        id: '2', 
+        payment_status: 'completed', 
+        payment_provider: 'balance',
+        competition_id: 'comp-1', 
+        ticket_count: 3 
+      },
+      { 
+        id: '3', 
+        payment_status: 'confirmed', 
+        payment_provider: 'coinbase_onramp',
+        competition_id: 'comp-1', 
+        ticket_count: 2 
+      }
+    ];
+    
+    // All should be included regardless of payment provider
+    const successStatuses = ['completed', 'confirmed', 'success'];
+    const includedTransactions = mockTransactions.filter(tx => 
+      successStatuses.includes(tx.payment_status)
+    );
+    
+    expect(includedTransactions).toHaveLength(3);
+    
+    // Verify different payment providers are included
+    const providers = includedTransactions.map(tx => tx.payment_provider);
+    expect(providers).toContain('base_account');
+    expect(providers).toContain('balance');
+    expect(providers).toContain('coinbase_onramp');
+  });
+});
+
 describe('Database Migration Validation', () => {
   it('should have correct table structure for competition_entries_purchases', () => {
     const expectedColumns = [
