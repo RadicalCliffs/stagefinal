@@ -272,6 +272,20 @@ async function handleCreateTransaction(
     ? network
     : "base";
 
+  // CRITICAL: External payments (Base Account, CDP, Commerce, etc.) don't use internal balance
+  // Mark them as posted_to_balance=true to skip balance validation triggers
+  // These payments are confirmed on-chain, not through our internal balance system
+  const isExternalPayment = [
+    'base_account',
+    'privy_base_wallet', 
+    'base-cdp',
+    'cdp_commerce',
+    'coinbase_commerce',
+    'onchainkit',
+    'onchainkit_checkout',
+    'instant_wallet_topup'
+  ].includes(finalPaymentProvider);
+
   // Build the transaction data
   const transactionData: Record<string, unknown> = {
     user_id: privyUserId,
@@ -285,6 +299,7 @@ async function handleCreateTransaction(
     status: "pending",
     payment_status: "pending",
     type: "entry", // This route is for entry purchases (competition_id is required)
+    posted_to_balance: isExternalPayment, // Skip balance triggers for external payments
     created_at: new Date().toISOString(),
   };
 
