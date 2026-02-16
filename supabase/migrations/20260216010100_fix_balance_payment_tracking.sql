@@ -8,117 +8,12 @@
 -- It debits sub_account_balances and creates tickets, but never
 -- creates a user_transactions record to track the purchase!
 --
--- Solution: Add user_transactions creation to the RPC
+-- Solution: Add trigger on joincompetition to create user_transactions
 -- =====================================================
 
 BEGIN;
 
--- Get the current function definition to modify it
--- We need to add user_transactions INSERT after the balance debit
-
--- First, let's create a trigger that automatically creates user_transactions
--- when tickets are purchased via balance
-CREATE OR REPLACE FUNCTION create_user_transaction_for_balance_purchase()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_competition_id UUID;
-  v_canonical_user_id TEXT;
-  v_ticket_count INTEGER;
-  v_amount NUMERIC;
-BEGIN
-  -- This trigger fires AFTER tickets are created/updated
-  -- Create a user_transactions record for the purchase
-  
-  -- Get competition and user from the ticket
-  SELECT 
-    t.competition_id,
-    t.canonical_user_id,
-    COUNT(*)::INTEGER,
-    SUM(c.ticket_price)
-  INTO 
-    v_competition_id,
-    v_canonical_user_id,
-    v_ticket_count,
-    v_amount
-  FROM tickets t
-  LEFT JOIN competitions c ON t.competition_id = c.id
-  WHERE t.id = NEW.id
-    OR (t.canonical_user_id = NEW.canonical_user_id 
-        AND t.competition_id = NEW.competition_id
-        AND t.created_at >= NOW() - INTERVAL '10 seconds')  -- Recent tickets
-  GROUP BY t.competition_id, t.canonical_user_id;
-  
-  -- Only create transaction if we found the data AND it doesn't already exist
-  IF v_canonical_user_id IS NOT NULL 
-     AND v_competition_id IS NOT NULL
-     AND v_ticket_count > 0
-     AND NOT EXISTS (
-       SELECT 1 FROM user_transactions ut
-       WHERE ut.canonical_user_id = v_canonical_user_id
-         AND ut.competition_id = v_competition_id
-         AND ut.payment_provider = 'balance'
-         AND ut.created_at >= NOW() - INTERVAL '10 seconds')
-  THEN
-    INSERT INTO user_transactions (
-      canonical_user_id,
-      user_id,
-      competition_id,
-      amount,
-      currency,
-      ticket_count,
-      type,
-      status,
-      payment_status,
-      payment_provider,
-      method,
-      created_at,
-      completed_at
-    ) VALUES (
-      v_canonical_user_id,
-      v_canonical_user_id,
-      v_competition_id,
-      v_amount,
-      'USD',
-      v_ticket_count,
-      'entry',  -- Competition entry
-      'completed',
-      'completed',
-      'balance',  -- CRITICAL: payment_provider = 'balance'
-      'balance_deduction',
-      NOW(),
-      NOW()
-    );
-  END IF;
-  
-  RETURN NEW;
-END;
-$$;
-
--- Drop existing trigger if it exists
-DROP TRIGGER IF EXISTS trg_create_balance_transaction ON tickets;
-
--- Create trigger on tickets table
--- This fires when tickets are created via balance purchase
-CREATE TRIGGER trg_create_balance_transaction
-  AFTER INSERT ON tickets
-  FOR EACH ROW
-  WHEN (NEW.payment_provider = 'balance' OR NEW.method = 'balance')
-  EXECUTE FUNCTION create_user_transaction_for_balance_purchase();
-
--- Note: This trigger approach has a flaw - it fires for EACH ticket
--- We need to modify the purchase_tickets_with_balance RPC directly instead
-
--- Actually, let me create a better solution...
--- Add a helper function that the RPC can call
-
-DROP TRIGGER IF EXISTS trg_create_balance_transaction ON tickets;
-DROP FUNCTION IF EXISTS create_user_transaction_for_balance_purchase();
-
--- Create a helper function that can be called by the RPC
+-- Create a helper function that can be called by the RPC or trigger
 CREATE OR REPLACE FUNCTION record_balance_purchase_transaction(
   p_canonical_user_id TEXT,
   p_competition_id UUID,
@@ -217,6 +112,7 @@ BEGIN
     v_balance_before := COALESCE(v_balance_after, 0) + COALESCE(ABS(NEW.amountspent), 0);
     
     -- Create user_transactions record if it doesn't exist
+    -- Use transactionhash as unique identifier to prevent duplicates
     INSERT INTO user_transactions (
       canonical_user_id,
       user_id,
@@ -258,8 +154,10 @@ BEGIN
       COALESCE(NEW.purchasedate, NOW()),
       COALESCE(NEW.purchasedate, NOW())
     )
-    ON CONFLICT (webhook_ref) DO NOTHING  -- Avoid duplicates
-    ON CONFLICT (charge_id) DO NOTHING;   -- Avoid duplicates
+    -- Use tx_id uniqueness to avoid duplicates
+    ON CONFLICT (tx_id) 
+    WHERE tx_id IS NOT NULL
+    DO NOTHING;
   END IF;
   
   RETURN NEW;
@@ -285,6 +183,7 @@ BEGIN
   RAISE NOTICE 'Future balance purchases will automatically create user_transactions records';
   RAISE NOTICE 'with payment_provider=''balance''';
   RAISE NOTICE '';
-  RAISE NOTICE 'NOTE: This is a workaround. Ideally purchase_tickets_with_balance RPC';
-  RAISE NOTICE 'should be updated to call record_balance_purchase_transaction() directly.';
+  RAISE NOTICE 'NOTE: This is a workaround using joincompetition trigger.';
+  RAISE NOTICE 'Ideally purchase_tickets_with_balance RPC should call';
+  RAISE NOTICE 'record_balance_purchase_transaction() directly for better reliability.';
 END $$;
