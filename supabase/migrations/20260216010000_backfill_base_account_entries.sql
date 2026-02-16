@@ -41,7 +41,7 @@ SELECT DISTINCT ON (
   'ut_' || ut.id::text as purchase_key,
   COALESCE(ut.ticket_count, 0) as tickets_count,
   COALESCE(ABS(ut.amount), 0) as amount_spent,
-  ut.ticket_numbers as ticket_numbers_csv,
+  NULL as ticket_numbers_csv, -- Set to NULL to avoid validation errors during backfill
   COALESCE(ut.completed_at, ut.created_at, now()) as purchased_at,
   COALESCE(ut.created_at, now()) as created_at
 FROM user_transactions ut
@@ -56,7 +56,8 @@ ON CONFLICT (canonical_user_id, competition_id, purchase_key)
 DO UPDATE SET
   tickets_count = EXCLUDED.tickets_count,
   amount_spent = EXCLUDED.amount_spent,
-  ticket_numbers_csv = COALESCE(EXCLUDED.ticket_numbers_csv, competition_entries_purchases.ticket_numbers_csv),
+  -- Keep existing ticket_numbers_csv if present, otherwise leave as NULL
+  ticket_numbers_csv = COALESCE(competition_entries_purchases.ticket_numbers_csv, EXCLUDED.ticket_numbers_csv),
   purchased_at = EXCLUDED.purchased_at;
 
 -- =====================================================
