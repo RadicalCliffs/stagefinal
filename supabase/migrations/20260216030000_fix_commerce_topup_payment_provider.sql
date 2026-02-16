@@ -26,11 +26,12 @@ DECLARE
   v_transaction_id UUID;
   v_bonus_applied BOOLEAN := false;
   v_payment_provider TEXT;
+  v_currency CONSTANT TEXT := 'USD';  -- Constant for currency to ensure consistency
 BEGIN
   -- Get previous balance (this is the key check!)
   SELECT available_balance INTO v_previous_balance
   FROM sub_account_balances
-  WHERE canonical_user_id = p_canonical_user_id AND currency = 'USD';
+  WHERE canonical_user_id = p_canonical_user_id AND currency = v_currency;
   
   v_previous_balance := COALESCE(v_previous_balance, 0);
 
@@ -66,7 +67,7 @@ BEGIN
 
   -- Credit total amount including any applicable bonus to available_balance
   INSERT INTO sub_account_balances (canonical_user_id, currency, available_balance)
-  VALUES (p_canonical_user_id, 'USD', v_total_credit)
+  VALUES (p_canonical_user_id, v_currency, v_total_credit)
   ON CONFLICT (canonical_user_id, currency)
   DO UPDATE SET
     available_balance = sub_account_balances.available_balance + v_total_credit,
@@ -75,7 +76,7 @@ BEGIN
   -- Get the new balance after credit
   SELECT available_balance INTO v_new_balance
   FROM sub_account_balances
-  WHERE canonical_user_id = p_canonical_user_id AND currency = 'USD';
+  WHERE canonical_user_id = p_canonical_user_id AND currency = v_currency;
 
   -- Determine payment provider based on reason
   -- CRITICAL: Properly classify commerce payments as 'coinbase_commerce'
@@ -90,7 +91,7 @@ BEGIN
 
   -- CRITICAL FIX: Create user_transactions record with type='topup' and proper payment_provider
   -- This ensures the top-up shows in the dashboard with correct classification
-  -- NOTE: Using 'USD' to match sub_account_balances currency (balance operations use USD)
+  -- NOTE: Using v_currency constant to ensure consistency with sub_account_balances
   INSERT INTO user_transactions (
     canonical_user_id,
     amount,
@@ -109,7 +110,7 @@ BEGIN
   ) VALUES (
     p_canonical_user_id,
     v_total_credit, -- Total including bonus
-    'USD',  -- FIXED: Use 'USD' to match sub_account_balances currency
+    v_currency,  -- Use currency constant for consistency
     'topup',  -- CRITICAL: Always set type='topup' for top-up transactions
     'completed',
     'confirmed',
