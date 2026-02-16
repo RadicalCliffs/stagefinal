@@ -19,6 +19,11 @@ import { toPrizePid, normalizeWalletAddress } from "../_shared/userId.ts";
  * - charge:pending - Payment pending
  * - charge:resolved - Payment resolved
  *
+ * Payment Provider Classification:
+ * - Sets payment_provider to 'coinbase_commerce' (whitelisted)
+ * - Also supports 'cdp_commerce' as alternate name (whitelisted)
+ * - Ensures type='topup' for wallet top-up transactions
+ *
  * Endpoint: https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1/commerce-webhook
  */
 
@@ -78,8 +83,14 @@ Deno.serve(async (req: Request) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    // Support both COINBASE_COMMERCE_WEBHOOK_SECRET and COMMERCE_WEBHOOK_SECRET for flexibility
-    const webhookSecret = Deno.env.get("COINBASE_COMMERCE_WEBHOOK_SECRET") || Deno.env.get("COMMERCE_WEBHOOK_SECRET");
+    // Support multiple secret names for flexibility and compatibility:
+    // - COINBASE_COMMERCE_WEBHOOK_SECRET (Coinbase Commerce standard)
+    // - CDP_COMMERCE_WEBHOOK_SECRET (CDP Commerce alternate name)
+    // - COMMERCE_WEBHOOK_SECRET (legacy fallback)
+    const webhookSecret = 
+      Deno.env.get("COINBASE_COMMERCE_WEBHOOK_SECRET") || 
+      Deno.env.get("CDP_COMMERCE_WEBHOOK_SECRET") ||
+      Deno.env.get("COMMERCE_WEBHOOK_SECRET");
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Read raw body for signature verification
@@ -758,10 +769,28 @@ Deno.serve(async (req: Request) => {
               const payerWallet = payment?.payer_addresses?.[0] || walletAddress || null;
 
               // Update user_transactions status (for wallet history display)
+              // PATCH request to update transaction with payment details and classification
               const txnId = metadata.transaction_id;
               // Validate transaction ID format (should be a UUID)
               if (supabaseUrl && supabaseServiceKey && txnId && typeof txnId === 'string' && txnId.length > 0) {
                 try {
+                  // Complete update payload with all critical fields
+                  const updatePayload = {
+                    type: 'topup', // CRITICAL: Mark as top-up transaction for proper classification
+                    payment_provider: 'coinbase_commerce', // CRITICAL: Set payment provider for filtering
+                    status: 'completed',
+                    payment_status: 'completed',
+                    tx_id: charge.id,
+                    wallet_address: payerWallet,
+                    network: payment?.network || 'base',
+                    payment_id: payment?.payment_id || payment?.transaction_id,
+                    completed_at: new Date().toISOString(),
+                    credit_synced: true,
+                    wallet_credited: creditSuccess
+                  };
+
+                  console.log(`[commerce-webhook][${requestId}] Updating transaction ${txnId} with payload:`, updatePayload);
+
                   await fetch(
                     `${supabaseUrl}/rest/v1/user_transactions?id=eq.${encodeURIComponent(txnId)}`,
                     {
@@ -772,17 +801,7 @@ Deno.serve(async (req: Request) => {
                         'Authorization': `Bearer ${supabaseServiceKey}`,
                         'Prefer': 'return=minimal'
                       },
-                      body: JSON.stringify({
-                        status: 'completed',
-                        payment_status: 'completed',
-                        tx_id: charge.id,
-                        wallet_address: payerWallet,
-                        network: payment?.network || 'base',
-                        payment_id: payment?.payment_id || payment?.transaction_id,
-                        completed_at: new Date().toISOString(),
-                        credit_synced: true,
-                        wallet_credited: creditSuccess
-                      })
+                      body: JSON.stringify(updatePayload)
                     }
                   );
                   console.log(`[commerce-webhook][${requestId}] Updated user_transactions with payment details`);

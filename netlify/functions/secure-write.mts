@@ -272,6 +272,23 @@ async function handleCreateTransaction(
     ? network
     : "base";
 
+  // CRITICAL: Direct on-chain payments (Base Account, OnchainKit) don't use internal balance
+  // Mark them as posted_to_balance=true to skip balance validation triggers
+  // These are direct wallet-to-wallet transfers confirmed on-chain
+  // 
+  // NOTE: Commerce (coinbase_commerce, cdp_commerce) is NOT in this list because:
+  // - Commerce is for TOP-UPS only, not direct entry purchases
+  // - Top-ups go through create-charge → webhook → credits balance
+  // - Users then use that balance to purchase entries
+  // - If Commerce somehow appears here, it's an error in the payment flow
+  const isExternalPayment = [
+    'base_account',        // Base Account SDK - direct on-chain USDC transfer
+    'privy_base_wallet',   // Privy Base wallet - direct on-chain transfer
+    'base-cdp',            // CDP Base - direct on-chain transfer
+    'onchainkit',          // OnchainKit - direct on-chain transfer
+    'onchainkit_checkout', // OnchainKit checkout - direct on-chain transfer
+  ].includes(finalPaymentProvider);
+
   // Build the transaction data
   const transactionData: Record<string, unknown> = {
     user_id: privyUserId,
@@ -285,6 +302,7 @@ async function handleCreateTransaction(
     status: "pending",
     payment_status: "pending",
     type: "entry", // This route is for entry purchases (competition_id is required)
+    posted_to_balance: isExternalPayment, // Skip balance triggers for external payments
     created_at: new Date().toISOString(),
   };
 
