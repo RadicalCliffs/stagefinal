@@ -769,10 +769,28 @@ Deno.serve(async (req: Request) => {
               const payerWallet = payment?.payer_addresses?.[0] || walletAddress || null;
 
               // Update user_transactions status (for wallet history display)
+              // PATCH request to update transaction with payment details and classification
               const txnId = metadata.transaction_id;
               // Validate transaction ID format (should be a UUID)
               if (supabaseUrl && supabaseServiceKey && txnId && typeof txnId === 'string' && txnId.length > 0) {
                 try {
+                  // Complete update payload with all critical fields
+                  const updatePayload = {
+                    type: 'topup', // CRITICAL: Mark as top-up transaction for proper classification
+                    payment_provider: 'coinbase_commerce', // CRITICAL: Set payment provider for filtering
+                    status: 'completed',
+                    payment_status: 'completed',
+                    tx_id: charge.id,
+                    wallet_address: payerWallet,
+                    network: payment?.network || 'base',
+                    payment_id: payment?.payment_id || payment?.transaction_id,
+                    completed_at: new Date().toISOString(),
+                    credit_synced: true,
+                    wallet_credited: creditSuccess
+                  };
+
+                  console.log(`[commerce-webhook][${requestId}] Updating transaction ${txnId} with payload:`, updatePayload);
+
                   await fetch(
                     `${supabaseUrl}/rest/v1/user_transactions?id=eq.${encodeURIComponent(txnId)}`,
                     {
@@ -783,19 +801,7 @@ Deno.serve(async (req: Request) => {
                         'Authorization': `Bearer ${supabaseServiceKey}`,
                         'Prefer': 'return=minimal'
                       },
-                      body: JSON.stringify({
-                        type: 'topup', // CRITICAL: Mark as top-up transaction for proper classification
-                        payment_provider: 'coinbase_commerce', // CRITICAL: Set payment provider for filtering
-                        status: 'completed',
-                        payment_status: 'completed',
-                        tx_id: charge.id,
-                        wallet_address: payerWallet,
-                        network: payment?.network || 'base',
-                        payment_id: payment?.payment_id || payment?.transaction_id,
-                        completed_at: new Date().toISOString(),
-                        credit_synced: true,
-                        wallet_credited: creditSuccess
-                      })
+                      body: JSON.stringify(updatePayload)
                     }
                   );
                   console.log(`[commerce-webhook][${requestId}] Updated user_transactions with payment details`);

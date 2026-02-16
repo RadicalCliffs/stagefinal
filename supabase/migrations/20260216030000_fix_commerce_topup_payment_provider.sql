@@ -90,6 +90,7 @@ BEGIN
 
   -- CRITICAL FIX: Create user_transactions record with type='topup' and proper payment_provider
   -- This ensures the top-up shows in the dashboard with correct classification
+  -- NOTE: Using 'USD' to match sub_account_balances currency (balance operations use USD)
   INSERT INTO user_transactions (
     canonical_user_id,
     amount,
@@ -108,7 +109,7 @@ BEGIN
   ) VALUES (
     p_canonical_user_id,
     v_total_credit, -- Total including bonus
-    'USDC',
+    'USD',  -- FIXED: Use 'USD' to match sub_account_balances currency
     'topup',  -- CRITICAL: Always set type='topup' for top-up transactions
     'completed',
     'confirmed',
