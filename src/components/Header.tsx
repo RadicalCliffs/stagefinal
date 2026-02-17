@@ -160,7 +160,7 @@ const Header: React.FC = () => {
                   </li>
                 ))}
 
-                {/* User Dashboard link for logged-in users */}
+                {/* My Activity link for logged-in users */}
                 {isLoggedIn && (
                   <li>
                     <NavLink
@@ -172,7 +172,7 @@ const Header: React.FC = () => {
                           : "hover:text-[#DDE404]"
                       }
                     >
-                      User Dashboard
+                      My Activity
                     </NavLink>
                   </li>
                 )}

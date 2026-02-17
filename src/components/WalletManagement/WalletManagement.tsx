@@ -600,11 +600,15 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
       {/* Connected Wallets Section - Enhanced Multi-Wallet Management */}
       <div className="bg-[#1E1E1E] rounded-xl p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-white sequel-75 text-lg">Your Wallets</h3>
+          <h3 className="text-white sequel-75 text-lg">Connected Wallets</h3>
           <span className="text-white/40 sequel-45 text-sm">
             {allUserWallets.length > 0 ? allUserWallets.length : linkedWallets.length + (linkedExternalWallet ? 1 : 0)} connected
           </span>
         </div>
+        
+        <p className="text-white/60 sequel-45 text-sm mb-4">
+          Wallet funds can be used to top up your balance
+        </p>
 
         {linkError && (
           <div className="mb-4 bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 flex items-start gap-2">
@@ -700,8 +704,8 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
                           </span>
                         )}
                         {wallet.type === 'external' && !wallet.is_primary && (
-                          <span className="bg-purple-500 text-white sequel-75 text-[10px] px-2 py-0.5 rounded flex-shrink-0">
-                            EXTERNAL
+                          <span className="bg-[#0052FF] text-white sequel-75 text-[10px] px-2 py-0.5 rounded flex-shrink-0">
+                            CONNECTED
                           </span>
                         )}
                       </div>
@@ -928,6 +932,13 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
             </p>
           </div>
         )}
+        
+        {/* Security footer */}
+        <div className="mt-4 text-center">
+          <p className="text-white/40 sequel-45 text-xs">
+            Secured by Base & Coinbase infrastructure
+          </p>
+        </div>
       </div>
 
       {/* Wallet Token Balances */}

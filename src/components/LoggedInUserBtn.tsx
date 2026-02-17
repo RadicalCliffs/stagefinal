@@ -283,7 +283,7 @@ const LoggedInUserBtn = ({ fullWidth = false }: LoggedInUserBtnProps) => {
               className="flex items-center justify-center sm:justify-start gap-2 px-3 py-3 sm:py-2.5 bg-[#2A2A2A] hover:bg-[#3A3A3A] rounded-lg transition-colors active:scale-[0.98]"
             >
               <LayoutDashboard size={18} className="text-[#DDE404]" />
-              <span className="sequel-75 text-white text-[11px] sm:text-xs">Dashboard</span>
+              <span className="sequel-75 text-white text-[11px] sm:text-xs">My Activity</span>
             </button>
             <button
               onClick={(e) => {
