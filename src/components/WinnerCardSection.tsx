@@ -63,7 +63,7 @@ const WinnersV2 = () => {
     };
   }, [fetchWinners]);
 
-  const displayedWinners = winners.slice(0, 6);
+  const displayedWinners = winners.slice(0, 9);
 
   if (loading) {
     return (
@@ -119,7 +119,7 @@ const WinnersV2 = () => {
           </div>
         </Swiper>
       ) : (
-        <div className="grid md:grid-cols-2 xl:grid-cols-3 md:gap-5 gap-8 md:mt-10 mt-8 ">
+        <div className="grid grid-cols-3 gap-x-3 gap-y-8 md:mt-10 mt-8 ">
           {displayedWinners.map((winner, idx) => (
             <WinnerCard key={idx} {...winner} />
           ))}
