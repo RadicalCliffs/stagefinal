@@ -43,8 +43,10 @@ const CountUp = ({ end, duration = 1500, prefix = "", suffix = "", classes="" }:
     return () => observer.disconnect();
   }, [end, duration]);
 
+  // Note: text-ellipsis requires whitespace-nowrap and a max-width constraint.
+  // The max-width should be provided via the classes prop when overflow handling is needed.
   return (
-    <span ref={ref} className={`inline-block ${classes}`}>
+    <span ref={ref} className={`inline-block overflow-hidden whitespace-nowrap text-ellipsis ${classes}`}>
       {prefix}{count.toLocaleString()}{suffix}
     </span>
   );
