@@ -33,7 +33,7 @@ const WinnersPage = () => {
   });
   const [winners, setWinners] = useState<WinnerCardProps[]>([]);
   const [loading, setLoading] = useState(true);
-  const [displayCount, setDisplayCount] = useState(3);
+  const [displayCount, setDisplayCount] = useState(9);
   const [showSearchBar, setShowSearchBar] = useState(false);
 
   // Function to fetch winners
@@ -85,7 +85,7 @@ const WinnersPage = () => {
   }, [fetchWinners]);
 
   const handleLoadMore = () => {
-    setDisplayCount((prev) => prev + 4);
+    setDisplayCount((prev) => prev + 9);
   };
 
   const filterOptions: Options[] = [
@@ -190,7 +190,7 @@ const WinnersPage = () => {
               /> */}
             </div>
 
-            <div className="grid sm:grid-cols-2 xl:grid-cols-3 grid-cols-1 sm:gap-5 gap-y-4 max-w-7xl mx-auto sm:px-0 ">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-1 gap-y-8 max-w-7xl mx-auto sm:px-0 ">
               {displayedWinners.map((winner, index) => (
                 <WinnerCard key={index} {...winner} />
               ))}
