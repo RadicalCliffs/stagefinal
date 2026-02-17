@@ -1102,28 +1102,6 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
         </div>
       )}
 
-      {/* Recent Top-Ups Section - from getUserTransactions */}
-      {topUps.length > 0 && (
-        <div className="bg-[#1E1E1E] rounded-xl p-6">
-          <h3 className="text-white sequel-75 text-lg mb-4">Recent Top-Ups</h3>
-          <div className="space-y-2">
-            {topUps.slice(0, 5).map(t => (
-              <div key={t.id} className="flex items-center justify-between bg-[#2A2A2A] rounded-lg px-4 py-3">
-                <div>
-                  <p className="text-white sequel-75 text-sm">
-                    {Number(t.amount || 0) >= 0 ? '+' : ''}${Math.abs(Number(t.amount || 0)).toFixed(2)}
-                  </p>
-                  <p className="text-white/40 sequel-45 text-xs">{t.status}</p>
-                </div>
-                <p className="text-white/60 sequel-45 text-xs">
-                  {new Date(t.created_at).toLocaleDateString()}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Transaction History Section */}
       <div className="bg-[#1A1A1A] border border-white/10 rounded-xl overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
