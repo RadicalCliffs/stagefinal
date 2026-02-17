@@ -3,7 +3,7 @@ import { useAuthUser } from '../contexts/AuthContext'
 import { userDataService } from '../services/userDataService'
 import { useMemo, useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { truncateString } from '../utils/util'
-import { useNavigate } from 'react-router'
+import { useNavigate, useLocation } from 'react-router'
 import { notificationService } from '../lib/notification-service'
 import { avatar as localDefaultAvatar } from '../assets/images'
 import { useWalletTokens } from '../hooks/useWalletTokens'
@@ -22,6 +22,7 @@ const LoggedInUserBtn = ({ fullWidth = false }: LoggedInUserBtnProps) => {
   // walletBalance from AuthContext only updates on refresh, while useRealTimeBalance has Supabase subscriptions
   const { displayBalance: realTimeBalance, isLoading: realTimeLoading, refresh: refreshRealTimeBalance } = useRealTimeBalance();
   const navigate = useNavigate();
+  const location = useLocation();
   const [showDropdown, setShowDropdown] = useState(false);
   const [showTopUpModal, setShowTopUpModal] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -172,6 +173,11 @@ const LoggedInUserBtn = ({ fullWidth = false }: LoggedInUserBtnProps) => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showDropdown]);
+
+  // Close dropdown when location changes (e.g., when navigating to a new page)
+  useEffect(() => {
+    setShowDropdown(false);
+  }, [location.pathname]);
 
   useEffect(() => {
     if (!baseUser?.id) return;

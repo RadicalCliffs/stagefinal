@@ -3607,39 +3607,12 @@ export const database = {
         return [];
       }
 
-      // Query competition_entries directly with exact field mappings from spec
-      // This ensures we get all the fields mentioned in PR #355
-      const { data, error } = await supabase
-        .from('competition_entries')
-        .select(`
-          id,
-          canonical_user_id,
-          competition_id,
-          wallet_address,
-          tickets_count,
-          ticket_numbers_csv,
-          amount_spent,
-          amount_paid,
-          latest_purchase_at,
-          is_winner,
-          competition_title,
-          competition_description,
-          competitions:competition_id (
-            image_url,
-            status,
-            end_time,
-            end_date,
-            is_instant_win,
-            prize_value,
-            draw_date,
-            vrf_tx_hash,
-            vrf_status
-          )
-        `)
-        .eq('canonical_user_id', userId);
+      // Use the RPC function to get entries with individual_purchases
+      // This ensures we get all the fields mentioned in PR #355, including individual_purchases
+      const { data, error } = await getUserCompetitionEntries(supabase, userId);
 
       if (error) {
-        databaseLogger.warn('get_user_competition_entries RPC not available, falling back to getUserEntries', error.message);
+        databaseLogger.warn('get_user_competition_entries RPC failed, falling back to getUserEntries', error.message);
         // Fallback to the legacy method
         return this.getUserEntries(userId);
       }
@@ -3659,19 +3632,18 @@ export const database = {
           competition_id: data[0].competition_id,
           competition_title: data[0].competition_title,
           tickets_count: data[0].tickets_count,
-          ticket_numbers_csv: data[0].ticket_numbers_csv,
+          ticket_numbers: data[0].ticket_numbers,
           amount_spent: data[0].amount_spent,
-          competitions: data[0].competitions ? {
-            image_url: (data[0].competitions as any).image_url,
-            status: (data[0].competitions as any).status,
-            end_time: (data[0].competitions as any).end_time
-          } : null
+          individual_purchases: data[0].individual_purchases,
+          competition_image_url: data[0].competition_image_url,
+          competition_status: data[0].competition_status,
+          competition_end_date: data[0].competition_end_date
         } : null
       });
 
       // Transform to the format expected by the frontend
       // Exact mapping as specified in PR #355:
-      // Use competition_entries and competitions table fields directly
+      // Use data from RPC function which includes individual_purchases
       const formattedEntries: any[] = [];
       
       // Helper to map status from competitions.status to UI buckets
@@ -3703,19 +3675,12 @@ export const database = {
       };
       
       data.forEach((entry: any) => {
-        // Extract competitions data from joined table
-        const comp = entry.competitions || {};
-        
-        // Exact field mapping from spec:
-        // competitionImage: competitions.image_url
-        // status: competitions.status mapped to live/completed/drawn/pending
-        // endDate: competitions.end_time or competitions.end_date (prefer end_time if set)
-        const rawCompetitionStatus = comp.status;
+        // RPC function returns flattened data with competition_ prefixes
+        const rawCompetitionStatus = entry.competition_status;
         const status = mapStatus(rawCompetitionStatus);
         
-        // Exact field mapping from spec:
-        // endDate: prefer end_time over end_date
-        const endDate = comp.end_time ?? comp.end_date ?? null;
+        // endDate from RPC
+        const endDate = entry.competition_end_date ?? null;
         
         // amountSpent: amount_spent (fallback to amount_paid if null)
         const amountSource = entry.amount_spent ?? entry.amount_paid ?? null;
@@ -3729,40 +3694,40 @@ export const database = {
             formattedEntries.push({
               id: purchase.id || entry.id,
               competition_id: entry.competition_id,
-              // title: competition_entries.competition_title
+              // title: competition_title from RPC
               title: entry.competition_title || 'Unknown Competition',
-              // description: competition_entries.competition_description
+              // description: competition_description from RPC
               description: entry.competition_description || '',
-              // competitionImage: competitions.image_url
-              image: comp.image_url,
-              // status: mapped from competitions.status
+              // competitionImage: competition_image_url from RPC
+              image: entry.competition_image_url,
+              // status: mapped from competition_status
               status: status,
               entry_type: entry.entry_status === 'pending' ? 'pending' : 'completed',
               expires_at: null,
-              // isWinner: competition_entries.is_winner
+              // isWinner: is_winner from RPC
               is_winner: entry.is_winner || false,
-              // ticketNumbers: competition_entries.ticket_numbers_csv (prioritized as per spec)
-              ticket_numbers: entry.ticket_numbers_csv || purchase.ticket_numbers || entry.ticket_numbers || '',
-              // numberOfTickets: competition_entries.tickets_count
+              // ticketNumbers: ticket_numbers from RPC (prioritized as per spec)
+              ticket_numbers: entry.ticket_numbers || purchase.ticket_numbers || '',
+              // numberOfTickets: from individual purchase
               number_of_tickets: purchase.tickets_count || 0,
-              // amountSpent: formatted amount_spent
+              // amountSpent: formatted amount_spent from individual purchase
               amount_spent: formatAmount(purchase.amount_spent || 0),
-              // purchaseDate: competition_entries.latest_purchase_at
+              // purchaseDate: from individual purchase
               purchase_date: purchase.purchased_at || purchase.created_at,
               wallet_address: entry.wallet_address,
               transaction_hash: null, // Individual purchases don't have tx hash
-              // isInstantWin: competitions.is_instant_win
-              is_instant_win: comp.is_instant_win || false,
-              // prizeValue: competitions.prize_value (plain string as per PR #355 spec)
-              prize_value: comp.prize_value !== null && comp.prize_value !== undefined
-                ? String(comp.prize_value)
+              // isInstantWin: competition_is_instant_win from RPC
+              is_instant_win: entry.competition_is_instant_win || false,
+              // prizeValue: competition_prize_value from RPC (plain string as per PR #355 spec)
+              prize_value: entry.competition_prize_value !== null && entry.competition_prize_value !== undefined
+                ? String(entry.competition_prize_value)
                 : null,
               competition_status: rawCompetitionStatus || 'active',
-              // endDate: prefer end_time over end_date
+              // endDate: competition_end_date from RPC
               end_date: endDate,
-              draw_date: comp.draw_date,
-              vrf_tx_hash: comp.vrf_tx_hash,
-              vrf_status: comp.vrf_status,
+              draw_date: entry.draw_date,
+              vrf_tx_hash: entry.vrf_tx_hash,
+              vrf_status: entry.vrf_status,
             });
           });
         } else {
@@ -3770,42 +3735,42 @@ export const database = {
           formattedEntries.push({
             id: entry.id,
             competition_id: entry.competition_id,
-            // title: competition_entries.competition_title
+            // title: competition_title from RPC
             title: entry.competition_title || 'Unknown Competition',
-            // description: competition_entries.competition_description
+            // description: competition_description from RPC
             description: entry.competition_description || '',
-            // competitionImage: competitions.image_url
-            image: comp.image_url,
-            // status: mapped from competitions.status
+            // competitionImage: competition_image_url from RPC
+            image: entry.competition_image_url,
+            // status: mapped from competition_status
             status: status,
             entry_type: entry.entry_status === 'pending' ? 'pending' : 'completed',
             expires_at: null,
-            // isWinner: competition_entries.is_winner
+            // isWinner: is_winner from RPC
             is_winner: entry.is_winner || false,
-            // ticketNumbers: competition_entries.ticket_numbers_csv
+            // ticketNumbers: ticket_numbers from RPC
             ticket_numbers: Array.isArray(entry.ticket_numbers)
               ? entry.ticket_numbers.join(',')
-              : entry.ticket_numbers_csv || entry.ticket_numbers || '',
-            // numberOfTickets: competition_entries.tickets_count
-            number_of_tickets: entry.tickets_count || entry.ticket_count || 0,
+              : entry.ticket_numbers || '',
+            // numberOfTickets: tickets_count from RPC
+            number_of_tickets: entry.tickets_count || 0,
             // amountSpent: formatted amount_spent (fallback to amount_paid)
             amount_spent: formatAmount(amountSource),
-            // purchaseDate: competition_entries.latest_purchase_at
+            // purchaseDate: latest_purchase_at from RPC
             purchase_date: entry.latest_purchase_at || entry.created_at,
             wallet_address: entry.wallet_address,
             transaction_hash: null,
-            // isInstantWin: competitions.is_instant_win
-            is_instant_win: comp.is_instant_win || false,
-            // prizeValue: competitions.prize_value (plain string as per PR #355 spec)
-            prize_value: comp.prize_value !== null && comp.prize_value !== undefined
-              ? String(comp.prize_value)
+            // isInstantWin: competition_is_instant_win from RPC
+            is_instant_win: entry.competition_is_instant_win || false,
+            // prizeValue: competition_prize_value from RPC (plain string as per PR #355 spec)
+            prize_value: entry.competition_prize_value !== null && entry.competition_prize_value !== undefined
+              ? String(entry.competition_prize_value)
               : null,
             competition_status: rawCompetitionStatus || 'active',
-            // endDate: prefer end_time over end_date
+            // endDate: competition_end_date from RPC
             end_date: endDate,
-            draw_date: comp.draw_date,
-            vrf_tx_hash: comp.vrf_tx_hash,
-            vrf_status: comp.vrf_status,
+            draw_date: entry.draw_date,
+            vrf_tx_hash: entry.vrf_tx_hash,
+            vrf_status: entry.vrf_status,
           });
         }
       });
