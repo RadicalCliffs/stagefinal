@@ -25,12 +25,12 @@ export const WinnerCard = ({
   const [imgError, setImgError] = useState(false);
 
   return (
-    <div className="w-full bg-[#181818] text-white md:p-2.5 md:pb-6 p-4 pb-7 md:rounded-2xl rounded-xl shadow-lg  overflow-hidden h-full flex flex-col">
-      <div className="flex justify-center relative mb-[1.32rem]">
+    <div className="w-full bg-[#181818] text-white md:p-2 md:pb-4 p-3 pb-5 md:rounded-xl rounded-lg shadow-lg  overflow-hidden h-full flex flex-col">
+      <div className="flex justify-center relative mb-3">
         <img
           src={imgError ? avatar : (avatarUrl || avatar)}
           alt="Winner"
-          className="w-full rounded-t-xl"
+          className="w-full rounded-t-lg"
           onError={() => setImgError(true)}
         />
         {showInstantWin && (
@@ -42,43 +42,43 @@ export const WinnerCard = ({
         )}
       </div>
 
-      <div className="md:px-6 px-3 overflow-hidden flex-1 flex flex-col">
+      <div className="md:px-4 px-2 overflow-hidden flex-1 flex flex-col">
         <div>
-          <h5 className="sequel-75 uppercase md:text-2xl text-xl mb-3.5 break-words">{username}</h5>
-          <div className="mt-2 w-full h-[3px] bg-[#DDE404]"></div>
+          <h5 className="sequel-75 uppercase md:text-lg text-base mb-2 break-words">{username}</h5>
+          <div className="mt-1.5 w-full h-[2px] bg-[#DDE404]"></div>
         </div>
 
-        <div className="flex justify-between items-center md:mt-3 md:mb-2 my-4 gap-2">
+        <div className="flex justify-between items-center md:mt-2 md:mb-1.5 my-3 gap-2">
           <div className="min-w-0 flex-shrink">
-            <h6 className="sequel-75 uppercase text-white md:text-base text-sm">Prize:</h6>
-            <span className="sequel-45 text-[#727272] md:text-sm text-xs truncate block">
+            <h6 className="sequel-75 uppercase text-white md:text-sm text-xs">Prize:</h6>
+            <span className="sequel-45 text-[#727272] md:text-xs text-[10px] truncate block">
               {prize}
             </span>
           </div>
 
-          <div className="flex items-center md:space-x-2 space-x-2 flex-shrink-0">
+          <div className="flex items-center md:space-x-1.5 space-x-1.5 flex-shrink-0">
             <a href="https://www.instagram.com/theprize.io/">
-              <img src={instagramV2} className="md:w-8 w-7" alt="instagram" />
+              <img src={instagramV2} className="md:w-6 w-5" alt="instagram" />
             </a>
             <a href="https://t.me/theprizeannouncements">
-              <img src={telegramV2} className="md:w-8 w-7" alt="telegram" />
+              <img src={telegramV2} className="md:w-6 w-5" alt="telegram" />
             </a>
             <a href="https://x.com/the_prize_io">
-              <img src={twitterV2} className="md:w-8 w-7" alt="X / Twitter" />
+              <img src={twitterV2} className="md:w-6 w-5" alt="X / Twitter" />
             </a>
             <a href="https://discord.com/invite/theprize">
-              <img src={discordV2} className="md:w-8 w-7" alt="discord" />
+              <img src={discordV2} className="md:w-6 w-5" alt="discord" />
             </a>
           </div>
         </div>
         <div>
-          <h6 className="sequel-75 uppercase text-white md:text-base text-sm">Country:</h6>
-          <p className="sequel-45 text-[#727272] md:text-sm text-xs break-words">{country}</p>
+          <h6 className="sequel-75 uppercase text-white md:text-sm text-xs">Country:</h6>
+          <p className="sequel-45 text-[#727272] md:text-xs text-[10px] break-words">{country}</p>
         </div>
 
-        <div className="md:mt-3 mt-4">
-          <h6 className="sequel-75 uppercase text-white md:text-base text-sm">Winner Wallet:</h6>
-          <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3 text-[#DDE404] md:text-sm text-xs mt-1">
+        <div className="md:mt-2 mt-3">
+          <h6 className="sequel-75 uppercase text-white md:text-sm text-xs">Winner Wallet:</h6>
+          <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-2 text-[#DDE404] md:text-xs text-[10px] mt-1">
             <p className="sequel-45 truncate">{wallet}</p>
             {txHash && (
               <a
@@ -93,10 +93,10 @@ export const WinnerCard = ({
           </div>
         </div>
 
-        <div className="text-center mt-5 ">
+        <div className="text-center mt-4 ">
           <Link
             to="/competitions/live-competition"
-            className="bg-[#DDE404] block cursor-pointer hover:bg-[#DDE404]/90 text-[#151517] sequel-95 border border-white md:pt-3 md:pb-[0.838rem] py-3.5 w-full rounded-md uppercase md:text-lg text-base"
+            className="bg-[#DDE404] block cursor-pointer hover:bg-[#DDE404]/90 text-[#151517] sequel-95 border border-white md:pt-2.5 md:pb-2 py-3 w-full rounded-md uppercase md:text-base text-sm"
           >
             View Competition
           </Link>
