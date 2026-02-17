@@ -2,7 +2,7 @@ import { applePay, bancontactLogo, blikLogo, googlePay, iDealLogo, interacLogo, 
 
 const CardPayments = () => {
     return (
-        <div className="flex sm:flex-wrap flex-nowrap justify-center items-center sm:gap-6 gap-1 lg:px-0 px-2 max-[400px]:px-1 py-6 sm:py-8">
+        <div className="flex sm:flex-wrap flex-nowrap justify-center items-center sm:gap-6 gap-1 lg:px-0 px-2 max-[400px]:px-1 pt-6 pb-3 sm:py-8">
             <img src={masterCardLogo} alt="Mastercard" title="Mastercard" className="rounded py-[5px] sm:px-2 px-1 max-sm:max-w-[22%]" />
             <img src={visaLogo} alt="Visa" title="Visa" className="rounded py-[5px] sm:px-2 px-1 max-sm:max-w-[22%]" />
             <img src={applePay} alt="Apple Pay" title="Apple Pay" className="rounded py-[5px] sm:px-2 px-1 max-sm:max-w-[22%]" />
