@@ -3,7 +3,6 @@ import { heroSectionImage, priceTag } from "../assets/images";
 import CardPayments from "./CardPayments";
 import Partners from "./Partners";
 import Reviews from "./Reviews";
-import FairDrawsV2 from "./FairDrawsV2";
 import HeroCarouselV2 from "./HeroCarouselV2";
 import { useSectionTracking } from "../hooks/useSectionTracking";
 
@@ -66,9 +65,6 @@ const HeroSection = () => {
             BROWSE ALL COMPETITIONS
           </Link>
         </div>
-      </div>
-      <div className="overflow-hidden">
-        <FairDrawsV2 />
       </div>
     </>
   );

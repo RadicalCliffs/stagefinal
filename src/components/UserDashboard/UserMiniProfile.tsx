@@ -123,16 +123,16 @@ const UserMiniProfile = () => {
               <p className='text-white sequel-75 text-base sm:text-lg md:text-xl truncate mb-1'>
                 {displayName}
               </p>
-              {/* Prize ID (canonical user identifier) - Always show for all users */}
+              {/* Account ID (canonical user identifier) - Always show for all users */}
               {canonicalUserId && (
                 <div className='flex items-center gap-2 sequel-45 text-[#DDE404] py-1'>
                     <div className='min-w-0 flex-1'>
-                      <span className='text-[10px] sm:text-xs text-white/60'>Prize ID</span>
+                      <span className='text-[10px] sm:text-xs text-white/60'>Account ID</span>
                       <p className='text-[10px] sm:text-xs truncate'>
                         {formatPid(canonicalUserId)}
                       </p>
                     </div>
-                    <button onClick={handleCopyPid} className='flex-shrink-0 p-0.5' title='Copy Prize ID'>
+                    <button onClick={handleCopyPid} className='flex-shrink-0 p-0.5' title='Copy Account ID'>
                       {copiedPid ? (
                         <CheckIcon size={14} className='cursor-pointer text-[#DDE404]' />
                       ) : (

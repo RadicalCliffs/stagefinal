@@ -76,7 +76,7 @@ const LiveCompetitionCard: React.FC<CompetitionCardProps> = ({
           onClick={onEnter}
           className="bg-[#DDE404] block border border-white text-center hover:bg-[#DDE404] sm:hover:scale-105 cursor-pointer sequel-95 md:pt-3 md:pb-3 custom-box-shadow pt-2.5 pb-2 uppercase md:text-sm text-[0.88rem] px-2 md:rounded-xl rounded-md w-full max-[400px]:text-[0.75rem]"
         >
-          Enter Now
+          BUY NOW
         </Link>
       </div>
     </div>

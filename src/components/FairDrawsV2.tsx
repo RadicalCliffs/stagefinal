@@ -12,18 +12,12 @@ const FairDrawsV2 = () => {
       id="landing-page-fair-draws"
       className="sm:py-10 py-2 max-w-7xl mx-auto 2xl:px-0 sm:px-4 overflow-visible"
     >
-      <h1 className="text-white xl:block hidden uppercase text-[2.1rem] leading-normal sequel-95 text-center">
-        How Blockchain Powers <br />
-        Our Fair Draws
-      </h1>
-      <h1 className="text-white xl:hidden block uppercase sm:text-4xl text-2xl leading-14 sequel-75 text-center">
-        How it Works
-      </h1>
+      {/* Remove duplicate headers - header is now in LandingPage */}
 
       {/* --- Conditional Layout --- */}
       {isMobile ? (
         // Mobile Static Image Layout
-        <div className="sm:hidden mt-4 flex justify-center px-4">
+        <div className="sm:hidden mt-0 flex justify-center px-4">
           <img
             src={howItWorksMobile}
             alt="How It Works - Transparent Ticketing, Tamper-Proof Prize Draws, Instant & Verified Payouts"
@@ -86,7 +80,7 @@ const FairDrawsV2 = () => {
         </div>
       )}
 
-      <p className="sequel-45 text-center sm:mt-11 mt-7 sm:text-lg text-white md:leading-none leading-relaxed">
+      <p className="sequel-45 text-center sm:mt-11 mt-4 sm:text-lg text-white md:leading-none leading-relaxed">
         For more information on how to enter see{" "}
         <Link
           to={"/how-to-play"}

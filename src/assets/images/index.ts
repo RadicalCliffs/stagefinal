@@ -16,6 +16,7 @@ import applePay from "./paymentMethods/PaymentMethod_Logos_EH-08.svg";
 import iDealLogo from "./paymentMethods/PaymentMethod_Logos_EH-09.svg";
 import spelLogo from "./paymentMethods/PaymentMethod_Logos_EH-10.svg";
 import sofortLogo from "./paymentMethods/PaymentMethod_Logos_EH-11.svg";
+// Ecosystem & Partners images
 import partnersLogoDesktop from "./ecosystem-partners-desktop.png";
 import partnersLogoMobile from "./ecosystem-partners-mobile.png";
 import crown from "./crown.svg";

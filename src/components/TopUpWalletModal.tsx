@@ -790,7 +790,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
               </div>
 
               <p className="text-gray-500 text-xs sequel-45 text-center">
-                Fast funding for Coinbase users. USDC is deposited to your Base wallet.
+                Fast funding for Coinbase users. Funds are deposited to your Base wallet.
               </p>
 
               {/* Completion button */}

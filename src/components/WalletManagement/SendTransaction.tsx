@@ -341,9 +341,9 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
           <Send size={24} className="text-[#DDE404]" />
         </div>
         <div>
-          <h3 className="text-white sequel-75 text-lg mb-2">Send ETH</h3>
+          <h3 className="text-white sequel-75 text-lg mb-2">Send Crypto</h3>
           <p className="text-white/60 sequel-45 text-sm">
-            Transfer ETH from your {hasEmbeddedWallet ? 'embedded' : 'external'} wallet to another address.
+            Transfer crypto from your {hasEmbeddedWallet ? 'embedded' : 'external'} wallet to another address.
           </p>
         </div>
       </div>

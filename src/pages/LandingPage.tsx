@@ -9,6 +9,7 @@ import LiveCompetitionSection from "../components/LiveCompetitionSection";
 import { Link } from "react-router";
 import WinnersV2 from "../components/WinnerCardSection";
 import FeaturedInLogos from "../components/FeaturedInLogos";
+import FairDrawsV2 from "../components/FairDrawsV2";
 
 const LandingPage = () => {
   return (
@@ -17,7 +18,7 @@ const LandingPage = () => {
       <div className="mt-5 xl:px-0 px-4 relative">
         <HeroSection />
       </div>
-      <div className="bg-[#1A1B1A] relative xl:px-0 px-4  md:py-10 py-7">
+      <div className="bg-[#1A1B1A] relative xl:px-0 px-4 md:py-10 py-7 mt-2">
         <Heading
           text="Live Activity"
           classes="sequel-95 text-white uppercase mb-8 md:hidden block"
@@ -31,7 +32,7 @@ const LandingPage = () => {
             text="Live Competitions"
             classes="text-[#DDE404] md:text-[2.1rem] max-[600px]:text-2xl sm:mb-0 mb-9 sm:px-0 px-2"
           />
-          <div className="text-center mt-9 sm:block hidden">
+          <div className="text-center mt-9 mb-[calc(0.75rem+8px)] sm:block hidden">
             <Link
               to={"/competitions"}
               className="uppercase mb-3 inline-block border border-white py-3 px-10 rounded-lg sequel-45 hover:bg-[#DDE404] text-[0.85rem] cursor-pointer bg-transparent text-[#fff] hover:text-[#280508] custom-box-shadow hover:font-bold"
@@ -42,6 +43,18 @@ const LandingPage = () => {
           <div className="relative xl:px-0 sm:px-6 px-3">
             <LiveCompetitionSection />
           </div>
+        </div>
+      </div>
+
+      {/* How It Works section moved here from HeroSection */}
+      <div className="pt-6 pb-0 relative z-10">
+        <div className="max-w-7xl mx-auto px-4">
+          <h2 className="text-[#DDE404] md:text-[2.1rem] text-2xl sequel-95 text-center uppercase mb-1">
+            HOW IT WORKS
+          </h2>
+        </div>
+        <div className="overflow-visible scale-[0.85]">
+          <FairDrawsV2 />
         </div>
       </div>
 
