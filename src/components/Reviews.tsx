@@ -8,7 +8,7 @@ interface ReviewsProps {
 
 const Reviews = ({ compact = false }: ReviewsProps) => {
   return (
-    <div className={compact ? "bg-[#111111] rounded-xl border border-white/10 py-4 sm:py-6 px-4 overflow-hidden" : "overflow-hidden"}>
+    <div className={`overflow-hidden ${compact ? "bg-[#111111] rounded-xl border border-white/10 py-4 sm:py-6 px-4" : ""}`}>
       <div className={`flex flex-row ${compact ? "gap-4 sm:gap-6" : "md:gap-4 gap-8"} text-white ${compact ? "justify-center" : "md:justify-between justify-center"} items-center ${compact ? "max-w-full" : "xl:max-w-6xl lg:max-w-4xl max-w-3xl"} mx-auto ${compact ? "sm:pt-4 pt-2 sm:pb-2 pb-3" : "sm:pt-8 pt-4 sm:pb-2 pb-7"}`}>
         <div className="flex-shrink-0 overflow-hidden">
           <p className={`sequel-95 ${compact ? "md:text-3xl text-lg" : "md:text-4xl text-xl"} md:text-left text-center`}>
