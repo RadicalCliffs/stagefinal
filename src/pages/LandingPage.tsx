@@ -47,13 +47,13 @@ const LandingPage = () => {
       </div>
 
       {/* How It Works section moved here from HeroSection */}
-      <div className="bg-[#1A1A1A] py-8">
+      <div className="bg-[#0D0D0D] py-12 relative z-10">
         <div className="max-w-7xl mx-auto px-4">
-          <h2 className="text-[#DDE404] md:text-[2.1rem] text-2xl sequel-95 text-center uppercase mb-6">
+          <h2 className="text-[#DDE404] md:text-[2.1rem] text-2xl sequel-95 text-center uppercase mb-8">
             HOW IT WORKS
           </h2>
         </div>
-        <div className="overflow-hidden">
+        <div className="overflow-visible">
           <FairDrawsV2 />
         </div>
       </div>
