@@ -18,7 +18,7 @@ const LandingPage = () => {
       <div className="mt-5 xl:px-0 px-4 relative">
         <HeroSection />
       </div>
-      <div className="bg-[#1A1B1A] relative xl:px-0 px-4  md:py-10 py-7">
+      <div className="bg-[#1A1B1A] relative xl:px-0 px-4 md:py-10 py-7 mt-2">
         <Heading
           text="Live Activity"
           classes="sequel-95 text-white uppercase mb-8 md:hidden block"
