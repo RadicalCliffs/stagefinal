@@ -44,7 +44,7 @@ const CountUp = ({ end, duration = 1500, prefix = "", suffix = "", classes="" }:
   }, [end, duration]);
 
   return (
-    <span ref={ref} className={`inline-block ${classes}`}>
+    <span ref={ref} className={`inline-block overflow-hidden text-ellipsis ${classes}`}>
       {prefix}{count.toLocaleString()}{suffix}
     </span>
   );
