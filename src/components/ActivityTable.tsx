@@ -121,7 +121,7 @@ export default function ActivityTable({ data }: { data: TableRow[] }) {
             </div>
 
             {/* Divider */}
-            <div className="border-b border-[#5A5A5A] my-2"></div>
+            <div className="border-b border-[#DDE404] my-2"></div>
 
             {/* Bottom row: competition & time */}
             <div className="flex justify-between items-center gap-2 text-[11px] text-[#bdbdbd]">

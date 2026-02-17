@@ -3,6 +3,7 @@ import { steps } from "../../constants/constant";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import FairSteps from "../FairSteps";
 import { SwiperNavButtons } from "../SwiperCustomNav";
+import { howItWorksMobile } from "../../assets/images";
 
 const IndividualFairDraws = ({
   showSteps = false,
@@ -18,36 +19,19 @@ const IndividualFairDraws = ({
   return (
     <>
       {isMobile ? (
-        // ✅ Mobile Swiper Layout
-        <Swiper
-          spaceBetween={20}
-          loop
-          slidesPerView={1}
-          className="sm:hidden mt-6 text-white w-11/12"
-          autoHeight
-        >
-          {steps.map((step, index) => (
-            <SwiperSlide className="!h-max" key={index}>
-              <FairSteps
-                titleDesktop={"How it Works"}
-                titleMobile="How it Works"
-                steps={[step]}
-                linkText="How to Play"
-                linkTo="/how-to-play"
-                primaryColor="#EF008F"
-                titleClasses="uppercase !text-lg"
-                descriptionClasses="leading-loose text-xs"
-                containerClasses={containerClasses}
-                showSteps={showSteps}
-                cardClasses={cardClasses}
-                bgImageClasses="opacity-20 top-10 !left-1/2 -translate-x-1/2 w-9/12"
-                showInstructionLink={false}
-                outerContainerClasses="pt-1"
-              />
-            </SwiperSlide>
-          ))}
-            <SwiperNavButtons />
-        </Swiper>
+        // ✅ Mobile Static Image Layout (matching landing page)
+        <div className="sm:hidden mt-6 flex justify-center px-4">
+          <div className="text-center">
+            <h2 className="text-white sequel-75 text-xl uppercase mb-4">
+              How it Works
+            </h2>
+            <img
+              src={howItWorksMobile}
+              alt="How It Works - Transparent Ticketing, Tamper-Proof Prize Draws, Instant & Verified Payouts"
+              className="w-full max-w-sm mx-auto"
+            />
+          </div>
+        </div>
       ) : (
         // ✅ Desktop / Tablet Layout
         <FairSteps
