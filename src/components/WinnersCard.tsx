@@ -25,7 +25,7 @@ export const WinnerCard = ({
   const [imgError, setImgError] = useState(false);
 
   return (
-    <div className="w-full bg-[#1A1A1A] text-white rounded-xl overflow-hidden border border-white/10 flex flex-col max-w-[320px] mx-auto">
+    <div className="w-full bg-[#1A1A1A] text-white rounded-xl overflow-hidden border border-white/10 flex flex-col max-w-[300px] mx-auto">
       {/* Prize header */}
       <div className="bg-black px-3 py-2 text-center">
         <h5 className="sequel-95 uppercase text-white text-base mb-0 break-words leading-tight">{prize}</h5>

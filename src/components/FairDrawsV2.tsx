@@ -12,13 +12,7 @@ const FairDrawsV2 = () => {
       id="landing-page-fair-draws"
       className="sm:py-10 py-2 max-w-7xl mx-auto 2xl:px-0 sm:px-4 overflow-visible"
     >
-      <h1 className="text-white xl:block hidden uppercase text-[2.1rem] leading-normal sequel-95 text-center">
-        How Blockchain Powers <br />
-        Our Fair Draws
-      </h1>
-      <h1 className="text-white xl:hidden block uppercase sm:text-4xl text-2xl leading-14 sequel-75 text-center">
-        How it Works
-      </h1>
+      {/* Remove duplicate headers - header is now in LandingPage */}
 
       {/* --- Conditional Layout --- */}
       {isMobile ? (
