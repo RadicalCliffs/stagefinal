@@ -95,7 +95,7 @@ const WinnersV2 = () => {
     <div
       ref={sectionRef}
       id="landing-page-winners"
-      className=" max-w-7xl mx-auto md:px-4 px-5 2xl:px-0 text-white relative z-10 pt-2"
+      className=" max-w-7xl mx-auto md:px-4 px-5 2xl:px-0 text-white relative z-10 pt-1"
     >
       <h1 className="text-white text-center uppercase sequel-75 md:text-4xl text-2xl">
         Winners
