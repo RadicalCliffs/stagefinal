@@ -1193,19 +1193,20 @@ export const database = {
     const { data: competitionsData } = (competitionIds.length > 0
       ? await supabase
           .from('competitions')
-          .select('id, title, image_url, prize_value, end_date')
+          .select('id, title, image_url, prize_value, end_date, ticket_price')
           .in('id', competitionIds as string[])
       : { data: [] }) as any;
 
     // Create competition lookup map for O(1) access
-    const competitionMap = new Map<string, { competitionname: string; uid: string; imageurl: string | null; competitionprize: string | null; end_date: string | null }>();
+    const competitionMap = new Map<string, { competitionname: string; uid: string; imageurl: string | null; competitionprize: string | null; end_date: string | null; ticket_price: number | null }>();
     for (const comp of competitionsData || []) {
       competitionMap.set(comp.id, {
         competitionname: comp.title || '',
         uid: comp.id,
         imageurl: comp.image_url,
         competitionprize: String(comp.prize_value || ''),
-        end_date: comp.end_date
+        end_date: comp.end_date,
+        ticket_price: comp.ticket_price || 1
       });
     }
 
@@ -1283,7 +1284,7 @@ export const database = {
 
       const competitionImage = comp.imageurl ? getImageUrl(comp.imageurl) : DEFAULT_COMPETITION_IMAGE;
 
-      // For Entry actions, show number of tickets purchased as the amount
+      // For Buy actions, show dollar amount spent (ticket_price * number of tickets)
       // Calculate from ticketnumbers if numberoftickets is not available
       let ticketCount = ticket.numberoftickets;
       if (!ticketCount && ticket.ticketnumbers) {
@@ -1291,7 +1292,9 @@ export const database = {
         ticketCount = ticket.ticketnumbers.split(',').filter((t: string) => t.trim()).length;
       }
       ticketCount = ticketCount || 1;
-      const ticketDisplay = ticketCount === 1 ? '1 Ticket' : `${ticketCount} Tickets`;
+      const ticketPrice = comp.ticket_price || 1;
+      const totalAmount = ticketPrice * ticketCount;
+      const amountDisplay = `$${totalAmount.toFixed(2)}`;
 
       entries.push({
         competition: comp.competitionname,
@@ -1299,8 +1302,8 @@ export const database = {
           name: displayName,
           avatar: avatarUrl,
         },
-        action: 'Entry' as const,
-        amount: ticketDisplay,
+        action: 'Buy' as const,
+        amount: amountDisplay,
         time: timeDisplay,
         competitionId: comp.uid,
         competitionImage,

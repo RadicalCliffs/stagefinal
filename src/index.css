@@ -10,6 +10,13 @@ body {
   padding: 0;
 }
 
+/* Mobile scaling: Reduce overall size by 7.5% for mobile devices */
+@media (max-width: 768px) {
+  html {
+    font-size: 92.5%; /* 7.5% reduction from default 100% */
+  }
+}
+
 * {
   box-sizing: border-box;
 }

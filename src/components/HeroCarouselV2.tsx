@@ -91,7 +91,7 @@ const HeroCarouselV2 = () => {
                         <span className="sequel-45 text-xs text-black/70">/ Entry</span>
                       </div>
                       <span
-                        className="sequel-95 bg-[#494949] text-white/70 px-4 py-1.5 rounded-lg text-xs flex-1 text-center -ml-5 relative cursor-not-allowed"
+                        className="sequel-95 bg-[#DDE404] text-[#280508] px-4 py-1.5 rounded-lg text-xs flex-1 text-center -ml-5 relative cursor-not-allowed"
                         style={{ boxShadow: '-8px 0 16px rgba(0, 0, 0, 0.3)' }}
                       >
                         {slide.cta}
@@ -119,7 +119,7 @@ const HeroCarouselV2 = () => {
                     </p>
 
                     <span
-                      className="md:sequel-95 text-center block sequel-95 bg-[#494949] text-white/70 sm:py-2 pt-2 pb-1.5 rounded-xl sm:text-base text-xs w-full cursor-not-allowed border border-white/30"
+                      className="md:sequel-95 text-center block sequel-95 bg-[#DDE404] text-[#280508] sm:py-2 pt-2 pb-1.5 rounded-xl sm:text-base text-xs w-full cursor-not-allowed border border-white/30"
                     >
                       {slide.cta}
                     </span>

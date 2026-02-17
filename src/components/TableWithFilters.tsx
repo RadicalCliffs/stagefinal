@@ -27,12 +27,12 @@ const TableWithFilters = () => {
     const data = await database.getRecentActivity(limit);
 
     // Filter based on active tab:
-    // - "live" tab shows ENTRIES only (ticket purchases) - this is "Live Activity"
+    // - "live" tab shows BUYS only (ticket purchases) - this is "Live Activity"
     // - "wins" tab shows WINS only
     const filteredData =
       activeTab.key === "wins"
         ? data.filter((row) => row.action === "Win")
-        : data.filter((row) => row.action === "Entry");
+        : data.filter((row) => row.action === "Buy");
 
     setTableData(filteredData);
     setLoading(false);
