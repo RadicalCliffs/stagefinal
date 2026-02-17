@@ -305,10 +305,11 @@ const LoggedInUserBtn = ({ fullWidth = false }: LoggedInUserBtnProps) => {
 
           {/* Connected Wallets - scrollable section with responsive padding */}
           <div className="p-3 sm:p-4 flex-1 overflow-y-auto overscroll-contain">
-            <div className="flex items-center justify-between mb-2 sm:mb-3">
+            <div className="flex items-center justify-between mb-1">
               <span className="sequel-75 text-white text-xs sm:text-sm">Connected Wallets</span>
               <span className="sequel-45 text-white/40 text-[10px] sm:text-xs">{connectedWallets.length} connected</span>
             </div>
+            <p className="sequel-45 text-white/50 text-[10px] sm:text-xs mb-2 sm:mb-3">Wallet funds can be used to top up your balance</p>
 
             {connectedWallets.length > 0 ? (
               <div className="space-y-2">
@@ -432,6 +433,9 @@ const LoggedInUserBtn = ({ fullWidth = false }: LoggedInUserBtnProps) => {
                           ) : (
                             <p className="sequel-45 text-white/40 text-[10px] text-center py-2">No tokens found</p>
                           )}
+
+                          {/* Security notice */}
+                          <p className="sequel-45 text-white/40 text-[10px] text-center mt-3">Secured by Base &amp; Coinbase infrastructure</p>
                         </div>
                       )}
                     </div>
@@ -448,16 +452,7 @@ const LoggedInUserBtn = ({ fullWidth = false }: LoggedInUserBtnProps) => {
           </div>
 
           {/* Action Buttons - responsive with safe area for mobile */}
-          <div className="p-3 sm:p-3 border-t border-[#2A2A2A] space-y-2 pb-4 sm:pb-3">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                alert('Export wallet functionality coming soon');
-              }}
-              className="w-full bg-[#2A2A2A] hover:bg-[#3A3A3A] text-white sequel-75 py-3 sm:py-2.5 rounded-lg transition-colors text-sm active:scale-[0.98]"
-            >
-              Export Wallet
-            </button>
+          <div className="p-3 sm:p-3 border-t border-[#2A2A2A] pb-4 sm:pb-3">
             <button
               onClick={(e) => {
                 e.stopPropagation();
