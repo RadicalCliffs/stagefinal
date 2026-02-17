@@ -9,6 +9,7 @@ import LiveCompetitionSection from "../components/LiveCompetitionSection";
 import { Link } from "react-router";
 import WinnersV2 from "../components/WinnerCardSection";
 import FeaturedInLogos from "../components/FeaturedInLogos";
+import FairDrawsV2 from "../components/FairDrawsV2";
 
 const LandingPage = () => {
   return (
