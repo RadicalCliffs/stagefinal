@@ -25,30 +25,32 @@ const EntriesWinnerSection = ({
   const isFinished = status === "drawn" || status === "completed" || status === "tbd" || activeTab.key === 'finished';
   
   // Determine button color based on status and outcome
-  // TBD = yellow (#DDE404)
-  // Drawing = orange (#FF8C00)
-  // Won = green (#10B981)
-  // Lost = pink (#EF008F)
+  // Check status first, then determine winner/loser within completed status
   let background = "bg-[#EF008F]"; // Default to pink (lost)
   let statusText = "Competition Lost";
   
   if (status === "tbd") {
+    // Competition completed but no VRF data yet
     background = "bg-[#DDE404]";
     statusText = "TBD";
   } else if (status === "drawn") {
+    // Competition ended, VRF draw in progress
     background = "bg-[#FF8C00]";
     statusText = "Drawing";
-  } else if (isWinner) {
-    background = "bg-[#10B981]";
-    statusText = "Competition Won!";
-  } else if (status === "completed" && vrfTxHash) {
-    // Only show "Competition Lost" if there's a VRF transaction hash
-    background = "bg-[#EF008F]";
-    statusText = "Competition Lost";
   } else if (status === "completed") {
-    // No VRF hash yet, show as TBD
-    background = "bg-[#DDE404]";
-    statusText = "TBD";
+    // Competition fully completed with VRF data
+    if (isWinner) {
+      background = "bg-[#10B981]";
+      statusText = "Competition Won!";
+    } else if (vrfTxHash) {
+      // User lost and VRF hash exists
+      background = "bg-[#EF008F]";
+      statusText = "Competition Lost";
+    } else {
+      // Completed but no VRF hash (shouldn't happen, but fallback to TBD)
+      background = "bg-[#DDE404]";
+      statusText = "TBD";
+    }
   }
   
   // Create blockchain explorer link for VRF transaction
@@ -97,7 +99,7 @@ const EntriesWinnerSection = ({
                 {/* VRF Link Display for Lost Competitions */}
                 {!isWinner && vrfTxHash && status === "completed" && (
                   <a 
-                    href={vrfExplorerLink || '#'} 
+                    href={vrfExplorerLink!} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="text-[0.7rem] sequel-75 mt-2 block underline hover:opacity-80 transition-opacity"
@@ -110,7 +112,7 @@ const EntriesWinnerSection = ({
                 {isWinner && vrfTxHash && (
                   <div className="mt-2 space-y-1">
                     <a 
-                      href={vrfExplorerLink || '#'} 
+                      href={vrfExplorerLink!} 
                       target="_blank" 
                       rel="noopener noreferrer"
                       className="text-[0.7rem] sequel-75 block underline hover:opacity-80 transition-opacity"
