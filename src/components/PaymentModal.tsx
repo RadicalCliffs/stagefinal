@@ -209,6 +209,8 @@ interface PaymentModalProps {
   maxAvailableTickets?: number; // Hard limit from inventory
   // Optional text overrides for visual editor live preview
   textOverrides?: PaymentModalTextOverrides;
+  // Optional competition name to display
+  competitionName?: string;
 }
 
 // Payment steps: removed 'onchainkit-processing', 'crypto-selection', 'othercrypto-processing' - OnchainKit checkout disabled
@@ -229,6 +231,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   onPaymentSuccess,
   maxAvailableTickets,
   textOverrides,
+  competitionName,
 }) => {
   // Ensure ticketPrice is a valid positive number (handles string coercion from database)
   const ticketPrice = Number(rawTicketPrice) || 1;
@@ -1426,6 +1429,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       <div className={`bg-[#1A1A1A] relative w-full border-2 border-white rounded-xl max-h-[90vh] overflow-y-auto ${modalWidth}`}>
         <div className="sticky top-0 bg-[#1A1A1A] pt-4 pb-2 z-10">
           <img src={footerLogo} alt="prize-io" className="mx-auto w-24 sm:w-32 md:w-auto" />
+          {competitionName && (
+            <p className="text-white sequel-95 text-center uppercase text-sm sm:text-base mt-3">
+              {competitionName}
+            </p>
+          )}
         </div>
         <button
           onClick={handleCloseModal}

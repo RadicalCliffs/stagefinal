@@ -517,6 +517,7 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
             userInfo={userInfo}
             selectedTickets={reservedTickets}
             reservationId={reservationId}
+            competitionName={competition?.title}
             onPaymentSuccess={() => {
               setReservationId(null);
               setReservedTickets([]);
