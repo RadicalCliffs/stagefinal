@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import FilterTabs from "./FilterButtons";
 import ActivityTable from "./ActivityTable";
-import WinsCompetitionCard from "./WinsCompetitionCard";
 import type { TableRow } from "../models/models";
 import { database } from "../lib/database";
 import Loader from "./Loader";
@@ -99,30 +98,8 @@ const TableWithFilters = () => {
         containerClasses="flex justify-center gap-4 md:mb-8"
         buttonClasses="md:min-w-[260px] min-w-[110px] md:!text-lg !text-sm sequel-95 !px-4 "
       />
-      {activeTab.key === "wins" ? (
-        <div className="w-full max-w-7xl mx-auto mb-4 md:py-0 py-6">
-          <div className="grid 2xl:grid-cols-4 lg:grid-cols-3 sm:grid-cols-2 grid-cols-1 gap-6 px-4">
-            {tableData.map((row, idx) => (
-              <WinsCompetitionCard
-                key={idx}
-                id={row.competitionId || ""}
-                image={row.competitionImage || ""}
-                title={row.competition}
-                prize={row.competitionPrize || row.amount}
-                winner={row.user}
-                date={row.time}
-              />
-            ))}
-          </div>
-          {tableData.length === 0 && (
-            <p className="text-white/70 text-center py-12 sequel-45">
-              No recent wins to display
-            </p>
-          )}
-        </div>
-      ) : (
-        <ActivityTable data={tableData} />
-      )}
+      {/* Use ActivityTable for both Live Activity and Wins tabs */}
+      <ActivityTable data={tableData} />
     </div>
   );
 };

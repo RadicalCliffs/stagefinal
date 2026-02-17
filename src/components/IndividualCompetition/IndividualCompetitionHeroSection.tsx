@@ -436,7 +436,7 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
                         : 'cursor-pointer hover:bg-[#DDE404]/90 bg-[#DDE404]'
                     }`}
                   >
-                    {ticketCount === 0 ? 'Select Tickets' : 'Enter Now'}
+                    {ticketCount === 0 ? 'Select Tickets' : 'BUY NOW'}
                   </button>
                   <a
                     href="/terms-and-conditions#3-11"

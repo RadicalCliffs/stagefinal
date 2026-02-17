@@ -562,7 +562,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
               className="bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 py-4 px-6 rounded-xl flex items-center justify-center gap-3 transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98]"
             >
               <Send size={22} />
-              <span className="text-base">Send ETH</span>
+              <span className="text-base">Send Crypto</span>
             </button>
             <button
               onClick={() => setShowSwapModal(true)}
@@ -584,8 +584,8 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
           <div className="mt-4 bg-blue-500/10 border border-blue-500/30 rounded-lg px-4 py-3">
             <p className="text-blue-300/90 sequel-45 text-xs">
               {embeddedWallet 
-                ? "Send ETH to other addresses, swap between tokens using Coinbase's native infrastructure, or export your private key to use in other wallet apps like MetaMask."
-                : "Send ETH to other addresses and swap between tokens using Coinbase OnchainKit's native swap infrastructure with automatic approvals and gas optimization."
+                ? "Send crypto to other addresses, swap between tokens using Coinbase's native infrastructure, or export your private key to use in other wallet apps like MetaMask."
+                : "Send crypto to other addresses and swap between tokens using Coinbase OnchainKit's native swap infrastructure with automatic approvals and gas optimization."
               }
             </p>
           </div>

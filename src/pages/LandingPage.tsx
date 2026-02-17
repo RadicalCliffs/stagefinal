@@ -45,6 +45,11 @@ const LandingPage = () => {
         </div>
       </div>
 
+      {/* How It Works section moved here from HeroSection */}
+      <div className="overflow-hidden">
+        <FairDrawsV2 />
+      </div>
+
       <div className=" relative overflow-hidden">
         <WinnersV2 />
         <img
