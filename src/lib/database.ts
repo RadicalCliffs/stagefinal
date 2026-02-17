@@ -3690,11 +3690,13 @@ export const database = {
             return 'pending';
           case 'upcoming':
           default:
-            return 'live'; // choose live for countdown
+            // Per PR #355 spec: choose live for countdown; change if you have a separate "upcoming" tab
+            return 'live';
         }
       };
 
       // Helper to format amount to 2 decimal places
+      // Returns string as per PR #355 spec: amountSpent?: string; // 2-decimal string
       const formatAmount = (n: any) => {
         const v = parseFloat(String(n ?? '0'));
         return Number.isFinite(v) ? v.toFixed(2) : '0.00';
@@ -3739,8 +3741,8 @@ export const database = {
               expires_at: null,
               // isWinner: competition_entries.is_winner
               is_winner: entry.is_winner || false,
-              // ticketNumbers: competition_entries.ticket_numbers_csv
-              ticket_numbers: purchase.ticket_numbers || entry.ticket_numbers_csv || entry.ticket_numbers || '',
+              // ticketNumbers: competition_entries.ticket_numbers_csv (prioritized as per spec)
+              ticket_numbers: entry.ticket_numbers_csv || purchase.ticket_numbers || entry.ticket_numbers || '',
               // numberOfTickets: competition_entries.tickets_count
               number_of_tickets: purchase.tickets_count || 0,
               // amountSpent: formatted amount_spent
@@ -3751,7 +3753,7 @@ export const database = {
               transaction_hash: null, // Individual purchases don't have tx hash
               // isInstantWin: competitions.is_instant_win
               is_instant_win: comp.is_instant_win || false,
-              // prizeValue: competitions.prize_value
+              // prizeValue: competitions.prize_value (plain string as per PR #355 spec)
               prize_value: comp.prize_value !== null && comp.prize_value !== undefined
                 ? String(comp.prize_value)
                 : null,
@@ -3794,7 +3796,7 @@ export const database = {
             transaction_hash: null,
             // isInstantWin: competitions.is_instant_win
             is_instant_win: comp.is_instant_win || false,
-            // prizeValue: competitions.prize_value
+            // prizeValue: competitions.prize_value (plain string as per PR #355 spec)
             prize_value: comp.prize_value !== null && comp.prize_value !== undefined
               ? String(comp.prize_value)
               : null,
