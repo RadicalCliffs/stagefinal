@@ -60,7 +60,7 @@ const HeroSection = () => {
         <div className="text-center sm:px-0 px-4">
           <Link
             to={"/competitions"}
-            className="sequel-95 inline-block md:mt-9 mt-6 md:mb-4 mb-6 font-medium  md:text-xl sm:text-sm text-xs md:max-w-7xl bg-[#DDE404] sm:pt-2.5 sm:pb-3 pt-3.5 pb-2.5 sm:rounded-xl rounded-lg text-[#1B1B1B] md:px-14 px-4 max-[410px]:text-[0.65rem] max-w-11/12 cursor-pointer border border-white hover:bg-[#c7cc04] custom-box-shadow"
+            className="sequel-95 inline-block md:mt-4 mt-2 md:mb-4 mb-6 font-medium  md:text-xl sm:text-sm text-xs md:max-w-7xl bg-[#DDE404] sm:pt-2.5 sm:pb-3 pt-3.5 pb-2.5 sm:rounded-xl rounded-lg text-[#1B1B1B] md:px-14 px-4 max-[410px]:text-[0.65rem] max-w-11/12 cursor-pointer border border-white hover:bg-[#c7cc04] custom-box-shadow"
           >
             BROWSE ALL COMPETITIONS
           </Link>
