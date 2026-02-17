@@ -96,23 +96,19 @@ export const WinnerCard = ({
         </p>
       </div>
 
-      {/* Winner wallet at bottom - CENTERED and CLICKABLE */}
+      {/* Winner wallet at bottom - CENTERED and ALWAYS CLICKABLE */}
       <div className="bg-[#0A0A0A] px-2.5 py-1.5 border-t border-white/10">
         <p className="sequel-75 text-[8px] text-white/80 uppercase mb-0.5 text-center">WINNER WALLET:</p>
         <div className="flex flex-col gap-0.5 items-center">
-          {txHash ? (
-            <a
-              href={`https://basescan.org/tx/${txHash}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="sequel-45 text-[8px] text-[#DDE404] hover:text-[#DDE404]/80 hover:underline font-mono break-all text-center"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {wallet}
-            </a>
-          ) : (
-            <p className="sequel-45 text-[8px] text-[#DDE404] font-mono break-all text-center">{wallet}</p>
-          )}
+          <a
+            href={`https://basescan.org/address/${wallet}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="sequel-45 text-[8px] text-[#DDE404] hover:text-[#DDE404]/80 hover:underline font-mono break-all text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {wallet}
+          </a>
         </div>
       </div>
     </div>
