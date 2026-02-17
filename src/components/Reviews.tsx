@@ -1,4 +1,4 @@
-import { astheticCircle, trustpilotDesktop } from "../assets/images";
+import { astheticCircle, trustpilotDesktop, trustpilotMobile } from "../assets/images";
 import CountUp from "./CountUp";
 
 interface ReviewsProps {
@@ -21,7 +21,10 @@ const Reviews = ({ compact = false }: ReviewsProps) => {
         {/* TrustPilot logo centered between the two stats - SMALLER */}
         <div className="flex items-center justify-center flex-shrink-0">
           <a href="https://uk.trustpilot.com/review/theprize.io" target="_blank" rel="noopener noreferrer">
-            <img src={trustpilotDesktop} alt="Trustpilot Reviews" className={`${compact ? "max-w-[100px]" : "max-w-[120px]"} mx-auto`} />
+            {/* Desktop version */}
+            <img src={trustpilotDesktop} alt="Trustpilot Reviews" className={`${compact ? "max-w-[100px]" : "max-w-[120px]"} mx-auto sm:block hidden`} />
+            {/* Mobile version */}
+            <img src={trustpilotMobile} alt="Trustpilot Reviews" className={`${compact ? "max-w-[100px]" : "max-w-[120px]"} mx-auto sm:hidden block`} />
           </a>
         </div>
         <div className="flex-shrink-0 overflow-hidden">
