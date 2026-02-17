@@ -25,7 +25,7 @@ export const WinnerCard = ({
   const [imgError, setImgError] = useState(false);
 
   return (
-    <div className="w-full bg-[#1A1A1A] text-white rounded-xl overflow-hidden border border-white/10 flex flex-col max-w-[260px] mx-auto">
+    <div className="w-full bg-[#1A1A1A] text-white rounded-xl overflow-hidden border-[3px] border-white hover:border-[#DDE404] transition-colors flex flex-col max-w-[260px] mx-auto cursor-pointer">
       {/* Prize header */}
       <div className="bg-black px-3 py-2 text-center">
         <h5 className="sequel-95 uppercase text-white text-sm mb-0 break-words leading-tight">{prize}</h5>
@@ -96,20 +96,22 @@ export const WinnerCard = ({
         </p>
       </div>
 
-      {/* Winner wallet at bottom */}
+      {/* Winner wallet at bottom - CENTERED and CLICKABLE */}
       <div className="bg-[#0A0A0A] px-2.5 py-1.5 border-t border-white/10">
-        <p className="sequel-75 text-[8px] text-white/80 uppercase mb-0.5">WINNER WALLET:</p>
-        <div className="flex flex-col gap-0.5">
-          <p className="sequel-45 text-[8px] text-[#DDE404] truncate font-mono">{wallet}</p>
-          {txHash && (
+        <p className="sequel-75 text-[8px] text-white/80 uppercase mb-0.5 text-center">WINNER WALLET:</p>
+        <div className="flex flex-col gap-0.5 items-center">
+          {txHash ? (
             <a
               href={`https://basescan.org/tx/${txHash}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="sequel-45 text-[8px] text-[#DDE404] underline hover:text-[#DDE404]/80"
+              className="sequel-45 text-[8px] text-[#DDE404] hover:text-[#DDE404]/80 hover:underline font-mono break-all text-center"
+              onClick={(e) => e.stopPropagation()}
             >
-              [View on Explorer]
+              {wallet}
             </a>
+          ) : (
+            <p className="sequel-45 text-[8px] text-[#DDE404] font-mono break-all text-center">{wallet}</p>
           )}
         </div>
       </div>
