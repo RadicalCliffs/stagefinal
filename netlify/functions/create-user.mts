@@ -228,6 +228,38 @@ export default async function handler(request: Request, _context: Context) {
     // Send welcome email using SendGrid template
     await sendWelcomeEmail(normalizedEmail, normalizedUsername, requestId);
 
+    // Create welcome notification for new user
+    try {
+      const welcomeNotification = {
+        canonical_user_id: createdUser.id,
+        user_id: createdUser.id,
+        title: '👋 Welcome to ThePrize.io!',
+        message: 'Get started by exploring our active competitions and entering for a chance to win amazing prizes. Good luck!',
+        type: 'announcement',
+        is_read: false,
+        created_at: new Date().toISOString()
+      };
+
+      const notificationResponse = await fetch(`${supabaseUrl}/rest/v1/user_notifications`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": supabaseServiceKey,
+          "Authorization": `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify(welcomeNotification)
+      });
+
+      if (!notificationResponse.ok) {
+        console.error(`[create-user][${requestId}] Failed to create welcome notification`);
+      } else {
+        console.log(`[create-user][${requestId}] Welcome notification created for user ${createdUser.id}`);
+      }
+    } catch (error) {
+      console.error(`[create-user][${requestId}] Error creating welcome notification:`, error);
+      // Don't fail user creation if notification fails
+    }
+
     // Mark email_auth_session as used
     await fetch(`${supabaseUrl}/rest/v1/email_auth_sessions?email=eq.${encodeURIComponent(normalizedEmail)}`, {
       method: "PATCH",

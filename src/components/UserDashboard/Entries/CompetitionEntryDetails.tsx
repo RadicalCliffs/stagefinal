@@ -211,12 +211,31 @@ const CompetitionEntryDetails = () => {
   const isWinner = aggregatedEntry?.is_winner ?? stateIsWinner ?? false;
 
   // Helper function to map status for EntriesWinnerSection component
-  // EntriesWinnerSection only accepts "live" | "drawn"
+  // Determines the display status based on competition state and VRF data
   const getWinnerSectionStatus = (
     currentStatus: "live" | "drawn" | "pending" | "completed"
-  ): "live" | "drawn" => {
+  ): "live" | "drawn" | "completed" | "tbd" => {
     if (currentStatus === "pending") return "live";
-    if (currentStatus === "completed") return "drawn";
+    if (currentStatus === "live") return "live";
+    
+    // For finished competitions, determine if it's:
+    // - "tbd" if no draw date and no VRF (yellow)
+    // - "drawn" if ended but VRF not yet processed (orange)
+    // - "completed" if VRF processed (green for win, pink for loss)
+    if (currentStatus === "drawn") {
+      // Competition ended, waiting for VRF draw
+      return aggregatedEntry?.vrf_tx_hash ? "completed" : "drawn";
+    }
+    
+    if (currentStatus === "completed") {
+      // Check if we have VRF data
+      if (aggregatedEntry?.vrf_tx_hash) {
+        return "completed";
+      }
+      // No VRF data yet - show as TBD
+      return "tbd";
+    }
+    
     return currentStatus;
   };
 
@@ -326,7 +345,8 @@ const CompetitionEntryDetails = () => {
     <div className="mt-10">
       <EntriesCard
         variant="detailed"
-        showButton
+        showButton={false}
+        showBackButton={true}
         showCountDown={status === "live"}
         status={status}
         isWinner={isWinner}
@@ -369,6 +389,8 @@ const CompetitionEntryDetails = () => {
         activeTab={activeTab}
         status={getWinnerSectionStatus(status)}
         isWinner={isWinner}
+        vrfTxHash={aggregatedEntry.vrf_tx_hash || null}
+        winnerWalletAddress={isWinner ? baseUser?.wallet?.address || null : null}
       />
     </div>
   );
