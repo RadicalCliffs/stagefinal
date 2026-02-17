@@ -49,7 +49,7 @@ const LandingPage = () => {
       {/* How It Works section moved here from HeroSection */}
       <div className="py-6 relative z-10">
         <div className="max-w-7xl mx-auto px-4">
-          <h2 className="text-[#DDE404] md:text-[2.1rem] text-2xl sequel-95 text-center uppercase mb-4">
+          <h2 className="text-[#DDE404] md:text-[2.1rem] text-2xl sequel-95 text-center uppercase mb-2">
             HOW IT WORKS
           </h2>
         </div>

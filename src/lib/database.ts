@@ -592,13 +592,16 @@ export const database = {
         const winnerAddress = winner.wallet_address;
         const userData = winnerAddress ? userMap.get(winnerAddress.toLowerCase()) : null;
 
-        // Format wallet address for display
-        const walletDisplay = winnerAddress && winnerAddress.length > 10
+        // Use FULL wallet address - NO TRUNCATION
+        const walletDisplay = winnerAddress || 'N/A';
+
+        // For username display, truncate wallet if no username exists
+        const truncatedWallet = winnerAddress && winnerAddress.length > 10
           ? winnerAddress.substring(0, 8) + '...' + winnerAddress.slice(-4)
           : winnerAddress || 'N/A';
-
-        // Use real username if available, otherwise truncated wallet
-        const displayName = userData?.username || walletDisplay;
+        
+        // Use real username if available, otherwise truncated wallet for username field
+        const displayName = userData?.username || truncatedWallet;
 
         // Use won_at date for display, or competition end_date/draw_date as fallback
         const drawDate = formatDate(winner.won_at || competition?.draw_date || competition?.end_date || winner.created_at);
