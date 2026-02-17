@@ -27,7 +27,7 @@ const Reviews = ({ compact = false }: ReviewsProps) => {
         </div>
         <div className="flex-shrink-0 overflow-hidden">
           <p className={`sequel-95 ${compact ? "md:text-3xl text-lg" : "md:text-4xl text-xl"} md:text-left text-center`}>
-            <CountUp end={500} suffix="+" />
+            <CountUp end={500} suffix="+" classes={compact ? "sm:min-w-[140px] sm:max-w-[140px]" : "sm:min-w-[189px] sm:max-w-[189px]"}/>
           </p>
           <p className={`sequel-45 ${compact ? "text-[0.6rem] sm:text-xs" : "sm:text-sm text-[0.65rem]"} uppercase  mt-2`}>
             Happy Winners
