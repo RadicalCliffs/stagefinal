@@ -435,7 +435,7 @@ const LoggedInUserBtn = ({ fullWidth = false }: LoggedInUserBtnProps) => {
                           )}
 
                           {/* Security notice */}
-                          <p className="sequel-45 text-white/40 text-[10px] text-center mt-3">Secured by Base &amp; Coinbase infrastructure</p>
+                          <p className="sequel-45 text-white/40 text-[10px] sm:text-xs text-center mt-3">Secured by Base &amp; Coinbase infrastructure</p>
                         </div>
                       )}
                     </div>
