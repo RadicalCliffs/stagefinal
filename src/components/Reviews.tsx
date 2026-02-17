@@ -46,7 +46,7 @@ const Reviews = ({ compact = false }: ReviewsProps) => {
         {/* Animated numbers below - centered and 20% larger */}
         <div className="flex flex-row gap-8 justify-center items-center">
           <div className="flex-shrink-0 overflow-hidden">
-            <p className={`sequel-95 ${compact ? "text-2xl" : "text-2xl"} text-center`}>
+            <p className="sequel-95 text-2xl text-center">
               <CountUp prefix="$" end={200} suffix="k" />
             </p>
             <p className={`sequel-45 ${compact ? "text-[0.72rem]" : "text-[0.78rem]"} uppercase text-center mt-2`}>
@@ -54,7 +54,7 @@ const Reviews = ({ compact = false }: ReviewsProps) => {
             </p>
           </div>
           <div className="flex-shrink-0 overflow-hidden">
-            <p className={`sequel-95 ${compact ? "text-2xl" : "text-2xl"} text-center`}>
+            <p className="sequel-95 text-2xl text-center">
               <CountUp end={500} suffix="+" />
             </p>
             <p className={`sequel-45 ${compact ? "text-[0.72rem]" : "text-[0.78rem]"} uppercase text-center mt-2`}>
