@@ -17,7 +17,7 @@ const FairDrawsV2 = () => {
       {/* --- Conditional Layout --- */}
       {isMobile ? (
         // Mobile Static Image Layout
-        <div className="sm:hidden mt-4 flex justify-center px-4">
+        <div className="sm:hidden mt-0 flex justify-center px-4">
           <img
             src={howItWorksMobile}
             alt="How It Works - Transparent Ticketing, Tamper-Proof Prize Draws, Instant & Verified Payouts"
@@ -80,7 +80,7 @@ const FairDrawsV2 = () => {
         </div>
       )}
 
-      <p className="sequel-45 text-center sm:mt-11 mt-7 sm:text-lg text-white md:leading-none leading-relaxed">
+      <p className="sequel-45 text-center sm:mt-11 mt-4 sm:text-lg text-white md:leading-none leading-relaxed">
         For more information on how to enter see{" "}
         <Link
           to={"/how-to-play"}
