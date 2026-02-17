@@ -22,7 +22,7 @@ const Reviews = ({ compact = false }: ReviewsProps) => {
         {/* TrustPilot logo centered between the two stats */}
         <div className="flex items-center justify-center flex-shrink-0">
           <a href="https://uk.trustpilot.com/review/theprize.io" target="_blank" rel="noopener noreferrer">
-            <img src={trustpilotDesktopHero} alt="Trustpilot Reviews" className={`${compact ? "max-w-[200px]" : "max-w-[300px]"} mx-auto`} />
+            <img src={trustpilotDesktopHero} alt="Trustpilot Reviews" className={`${compact ? "max-w-[400px]" : "max-w-[600px]"} mx-auto`} />
           </a>
         </div>
         <div className="flex-shrink-0 overflow-hidden">
