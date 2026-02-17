@@ -119,7 +119,7 @@ const WinnersV2 = () => {
           </div>
         </Swiper>
       ) : (
-        <div className="grid grid-cols-3 gap-x-1 gap-y-8 md:mt-10 mt-8 ">
+        <div className="grid grid-cols-3 gap-8 md:mt-10 mt-8 ">
           {displayedWinners.map((winner, idx) => (
             <WinnerCard key={idx} {...winner} />
           ))}
