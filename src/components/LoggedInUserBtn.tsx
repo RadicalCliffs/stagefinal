@@ -252,9 +252,9 @@ const LoggedInUserBtn = ({ fullWidth = false }: LoggedInUserBtnProps) => {
             </button>
           </div>
 
-          {/* Account Balance - Prominent Display with responsive sizing */}
+          {/* Play Balance - Prominent Display with responsive sizing */}
           <div className="p-3 sm:p-4 bg-[#DDE404]/5 border-b border-[#2A2A2A]">
-            <p className="sequel-45 text-white/60 text-[10px] sm:text-xs uppercase mb-1 sm:mb-2">Account Balance</p>
+            <p className="sequel-45 text-white/60 text-[10px] sm:text-xs uppercase mb-1 sm:mb-2">Play Balance</p>
             <div className="flex items-center justify-between gap-3">
               <p className="sequel-95 text-[#DDE404] text-xl sm:text-2xl truncate min-w-0">
                 ${realTimeLoading ? '...' : realTimeBalance.toFixed(2)}
