@@ -32,7 +32,7 @@ const LandingPage = () => {
             text="Live Competitions"
             classes="text-[#DDE404] md:text-[2.1rem] max-[600px]:text-2xl sm:mb-0 mb-9 sm:px-0 px-2"
           />
-          <div className="text-center mt-9 sm:block hidden">
+          <div className="text-center mt-9 mb-[calc(0.75rem+8px)] sm:block hidden">
             <Link
               to={"/competitions"}
               className="uppercase mb-3 inline-block border border-white py-3 px-10 rounded-lg sequel-45 hover:bg-[#DDE404] text-[0.85rem] cursor-pointer bg-transparent text-[#fff] hover:text-[#280508] custom-box-shadow hover:font-bold"
@@ -47,7 +47,12 @@ const LandingPage = () => {
       </div>
 
       {/* How It Works section moved here from HeroSection */}
-      <div className="overflow-hidden">
+      <div className="overflow-hidden bg-[#1A1A1A] pt-8">
+        <div className="max-w-7xl mx-auto px-4">
+          <h2 className="text-[#DDE404] md:text-[2.1rem] text-2xl sequel-95 text-center uppercase mb-6">
+            HOW IT WORKS
+          </h2>
+        </div>
         <FairDrawsV2 />
       </div>
 
