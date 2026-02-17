@@ -28,6 +28,8 @@ interface EntriesCardProps {
   expiresAt?: string;
   // Instant win props
   isInstantWin?: boolean;
+  // Back button for detailed view
+  showBackButton?: boolean;
 }
 
 const EntriesCard = ({
@@ -54,7 +56,9 @@ const EntriesCard = ({
   isPending = false,
   expiresAt,
   // Instant win props
-  isInstantWin = false
+  isInstantWin = false,
+  // Back button for detailed view
+  showBackButton = false
 }: EntriesCardProps) => {
   const isDetailed = variant === "detailed";
   // 'completed' and 'drawn' both indicate finished competitions
@@ -301,12 +305,20 @@ const EntriesCard = ({
           )}
 
           {/* Button */}
-          {showButton && (
+          {showButton && !showBackButton && (
             <Link
               to={competitionId ? `/competitions/${competitionId}` : "/competitions"}
               className="uppercase sequel-75 block text-center text-lg bg-[#DDE404] text-[#000000] w-full rounded-lg py-3 mt-8"
             >
               View Competition
+            </Link>
+          )}
+          {showBackButton && (
+            <Link
+              to="/dashboard/entries"
+              className="uppercase sequel-75 block text-center text-lg bg-[#DDE404] text-[#000000] w-full rounded-lg py-3 mt-8"
+            >
+              Back to Live Entries
             </Link>
           )}
         </div>
