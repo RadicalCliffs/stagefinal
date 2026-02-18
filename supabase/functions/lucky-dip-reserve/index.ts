@@ -1,8 +1,81 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "jsr:@supabase/supabase-js@2";
-import { toPrizePid } from "../_shared/userId.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
+// ============================================================================
+// Inlined User ID Utilities (bundler doesn't support shared module imports)
+// ============================================================================
+
+/**
+ * Checks if a string is a valid Ethereum wallet address
+ */
+function isWalletAddress(identifier: string): boolean {
+  return /^0x[a-fA-F0-9]{40}$/.test(identifier);
+}
+
+/**
+ * Checks if a string is already in prize:pid: format
+ */
+function isPrizePid(identifier: string): boolean {
+  return identifier.startsWith('prize:pid:');
+}
+
+/**
+ * Extracts the actual ID from a prize:pid: formatted string
+ */
+function extractPrizePid(prizePid: string): string {
+  if (!isPrizePid(prizePid)) {
+    return prizePid;
+  }
+  return prizePid.substring('prize:pid:'.length);
+}
+
+/**
+ * Returns a canonical user ID in the form of prize:pid:<id>
+ * Handles wallets, existing prize:pid format, and generates UUID for empty values
+ */
+function toPrizePid(inputUserId: string | null | undefined): string {
+  // Handle null/undefined/empty
+  if (!inputUserId || inputUserId.trim() === '') {
+    return `prize:pid:${crypto.randomUUID()}`;
+  }
+
+  const trimmedId = inputUserId.trim();
+
+  // Already in prize:pid: format - normalize and return
+  if (isPrizePid(trimmedId)) {
+    const extracted = extractPrizePid(trimmedId);
+    // If it's a wallet address, ensure lowercase
+    if (isWalletAddress(extracted)) {
+      return `prize:pid:${extracted.toLowerCase()}`;
+    }
+    return trimmedId.toLowerCase();
+  }
+
+  // Wallet address - normalize to lowercase
+  if (isWalletAddress(trimmedId)) {
+    return `prize:pid:${trimmedId.toLowerCase()}`;
+  }
+
+  // Check if it's a UUID pattern
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (uuidPattern.test(trimmedId)) {
+    throw new Error(
+      `UUID cannot be used as canonical_user_id: ${trimmedId}. ` +
+      `Use allocate_temp_canonical_user() for users without wallets, ` +
+      `or provide a wallet address to create prize:pid:0x{wallet} format.`
+    );
+  }
+
+  // For any other identifier format, this is an error
+  throw new Error(
+    `Invalid user identifier format: ${trimmedId}. ` +
+    `Must be wallet address (0x...) or already in prize:pid: format.`
+  );
+}
+
+// ============================================================================
 // Inlined CORS configuration (bundler doesn't support shared module imports)
+// ============================================================================
 const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://stage.theprize.io';
 const ALLOWED_ORIGINS = [
   SITE_URL,
