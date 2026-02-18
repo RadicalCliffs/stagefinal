@@ -581,10 +581,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       refreshInProgressRef.current = false;
       setIsLoading(false);
     }
-  // CRITICAL FIX: Remove fetchUserData from dependencies to prevent circular re-rendering
-  // fetchUserData is stable (useCallback with no dependencies) so it doesn't need to be a dependency
+  // CRITICAL FIX: Remove fetchUserData and extractLinkedWallets from dependencies to prevent circular re-rendering
+  // Both functions are stable (fetchUserData uses useCallback with no deps, extractLinkedWallets is a plain function)
   // This prevents the infinite loop where refreshUserData changes, triggering useEffect, which calls refreshUserData again
-  }, [effectiveWalletAddress, userEmail, isCDPAuthenticated, extractLinkedWallets, fetchUserData]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveWalletAddress, userEmail, isCDPAuthenticated]);
 
   useEffect(() => {
     const handleAuthStateChange = async () => {
@@ -777,7 +778,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   // CRITICAL FIX: Remove refreshUserData and fetchUserData from dependencies to prevent re-registration
   // These functions are stable and don't need to be dependencies
-  }, [effectiveWalletAddress, profile?.wallet_address, profile?.id, profile?.uid, preAuthState]);
+  // preAuthState is only used for logging, not functional logic, so it's excluded
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveWalletAddress, profile?.wallet_address, profile?.id, profile?.uid]);
 
   // Compute canonical user ID for Supabase calls
   // This is the ONLY acceptable identifier for database queries and RPC calls
