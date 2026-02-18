@@ -426,7 +426,31 @@ Deno.serve(async (req: Request) => {
 
     // Validate that we received the hosted_url (checkout URL)
     if (!charge.hosted_url) {
-      console.error(`[create-charge][${requestId}] WARNING: Coinbase Commerce did not return hosted_url. Charge data:`, JSON.stringify(charge).substring(0, 500));
+      console.error(`[create-charge][${requestId}] ERROR: Coinbase Commerce did not return hosted_url. Charge data:`, JSON.stringify(charge).substring(0, 500));
+      
+      // Update transaction status to failed
+      const { error: failedUpdateError } = await supabase
+        .from("user_transactions")
+        .update({
+          payment_status: "failed",
+        })
+        .eq("id", transactionId);
+      
+      if (failedUpdateError) {
+        console.error(`[create-charge][${requestId}] Error updating transaction to failed status:`, failedUpdateError);
+      }
+      
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Payment service error: Unable to generate checkout URL. Please try again or contact support.",
+          code: "CHECKOUT_URL_MISSING",
+          data: {
+            transactionId,
+          },
+        }),
+        { status: 500, headers: { "Content-Type": "application/json", ...cors } }
+      );
     }
 
     // Update transaction with charge info
