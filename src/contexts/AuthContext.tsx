@@ -112,6 +112,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const authCompleteHandledRef = useRef<number>(0);
   // Store the email from the auth-complete event to use in case of race conditions
   const lastAuthCompleteEmailRef = useRef<string | null>(null);
+  // Debounce timer for realtime subscription callbacks
+  const realtimeDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Extract email from currentUser (memoized to prevent unnecessary recalculations)
   const userEmail = (currentUser as any)?.email || (currentUser as any)?.emails?.[0]?.value || (currentUser as any)?.emails?.[0]?.address;
@@ -305,20 +307,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const fetchUserData = useCallback(async (userId: string, walletAddress?: string, options?: { skipBalance?: boolean }) => {
     try {
       const inputIdentifier = userId || walletAddress || '';
+      
+      // CRITICAL FIX: Validate identifier before making RPC calls
+      // This prevents 400 errors from invalid/empty identifiers
+      if (!inputIdentifier || inputIdentifier.trim().length === 0) {
+        console.warn('[AuthContext] fetchUserData called with empty identifier, skipping');
+        return;
+      }
+      
       // Convert to canonical format for consistency
       const canonicalId = toPrizePid(inputIdentifier);
+      
+      // CRITICAL FIX: Validate canonical ID format before RPC calls
+      if (!canonicalId || !canonicalId.startsWith('prize:pid:')) {
+        console.warn('[AuthContext] Invalid canonical ID format:', canonicalId);
+        return;
+      }
 
-      const { data: entryData } = await supabase
-        .rpc('get_user_active_tickets', { p_user_identifier: canonicalId }) as any;
-
-      setEntryCount(Number(entryData) || 0);
+      const { data: entryData, error: entryError } = (await supabase
+        .rpc('get_user_active_tickets', { p_user_identifier: canonicalId })) as any;
+      
+      if (entryError) {
+        console.error('[AuthContext] Error fetching entry data:', entryError);
+      } else {
+        setEntryCount(Number(entryData) || 0);
+      }
 
       // Only fetch balance if not skipped - this prevents overwriting balance
       // from a recent payment with stale data due to database replication lag
       if (!options?.skipBalance) {
-        const { data: balanceData } = await supabase
-          .rpc('get_user_wallet_balance', { p_user_identifier: canonicalId }) as any;
-        setWalletBalance(Number(balanceData) || 0);
+        const { data: balanceData, error: balanceError } = (await supabase
+          .rpc('get_user_wallet_balance', { p_user_identifier: canonicalId })) as any;
+        
+        if (balanceError) {
+          console.error('[AuthContext] Error fetching balance data:', balanceError);
+        } else {
+          setWalletBalance(Number(balanceData) || 0);
+        }
       }
     } catch (error) {
       console.error('Error fetching user data:', error);
@@ -556,7 +581,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       refreshInProgressRef.current = false;
       setIsLoading(false);
     }
-  }, [effectiveWalletAddress, userEmail, fetchUserData, isCDPAuthenticated]);
+  // CRITICAL FIX: Remove fetchUserData and extractLinkedWallets from dependencies to prevent circular re-rendering
+  // Both functions are stable (fetchUserData uses useCallback with no deps, extractLinkedWallets is a plain function)
+  // This prevents the infinite loop where refreshUserData changes, triggering useEffect, which calls refreshUserData again
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveWalletAddress, userEmail, isCDPAuthenticated]);
 
   useEffect(() => {
     const handleAuthStateChange = async () => {
@@ -602,7 +631,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     void handleAuthStateChange();
-  }, [ready, authenticated, effectiveWalletAddress, refreshUserData]);
+  // CRITICAL FIX: Remove refreshUserData from dependencies to prevent circular re-rendering
+  // The function is stable and will be called when needed based on ready/authenticated/effectiveWalletAddress changes
+  }, [ready, authenticated, effectiveWalletAddress]);
 
   useEffect(() => {
     if (!profile?.uid && !profile?.wallet_address && !baseUser?.id) return;
@@ -648,16 +679,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           };
 
           if (recordMatchesUser(record)) {
-            void fetchUserData(profile?.uid || profile?.id || '', profile?.wallet_address || undefined);
+            // CRITICAL FIX: Debounce fetchUserData calls to prevent rate limiting
+            // Clear any existing timer
+            if (realtimeDebounceTimerRef.current) {
+              clearTimeout(realtimeDebounceTimerRef.current);
+            }
+            
+            // Set a new timer to call fetchUserData after 2 seconds of inactivity
+            // This prevents excessive RPC calls when multiple database changes happen in quick succession
+            realtimeDebounceTimerRef.current = setTimeout(() => {
+              console.log('[AuthContext] Debounced realtime update triggered fetchUserData');
+              void fetchUserData(profile?.uid || profile?.id || '', profile?.wallet_address || undefined);
+            }, 2000);
           }
         }
       )
       .subscribe();
 
     return () => {
+      // Clean up debounce timer
+      if (realtimeDebounceTimerRef.current) {
+        clearTimeout(realtimeDebounceTimerRef.current);
+        realtimeDebounceTimerRef.current = null;
+      }
       supabase.removeChannel(channel);
     };
-  }, [profile?.id, profile?.uid, profile?.wallet_address, baseUser?.id, fetchUserData]);
+  // CRITICAL FIX: Remove fetchUserData from dependencies to prevent re-subscription
+  // fetchUserData is stable so doesn't need to be a dependency
+  }, [profile?.id, profile?.uid, profile?.wallet_address, baseUser?.id]);
 
   // Listen for auth-complete event from BaseWalletAuthModal
   // This ensures user data is refreshed immediately after authentication
@@ -727,7 +776,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       window.removeEventListener('auth-complete', handleAuthComplete as EventListener);
       window.removeEventListener('balance-updated', handleBalanceUpdated as EventListener);
     };
-  }, [effectiveWalletAddress, refreshUserData, fetchUserData, profile?.wallet_address, profile?.id, profile?.uid]);
+  // CRITICAL FIX: Remove refreshUserData and fetchUserData from dependencies to prevent re-registration
+  // These functions are stable and don't need to be dependencies
+  // preAuthState is only used for logging, not functional logic, so it's excluded
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveWalletAddress, profile?.wallet_address, profile?.id, profile?.uid]);
 
   // Compute canonical user ID for Supabase calls
   // This is the ONLY acceptable identifier for database queries and RPC calls

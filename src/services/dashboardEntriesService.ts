@@ -131,12 +131,22 @@ export interface PendingTransaction {
  * const entries = await fetchUserDashboardEntries('prize:pid:0x2137af5047526a1180...');
  */
 export async function fetchUserDashboardEntries(identifier: string): Promise<DashboardEntry[]> {
+  // CRITICAL FIX: Validate identifier before making RPC call
+  // This prevents 400 errors from invalid/empty identifiers
+  if (!identifier || identifier.trim().length === 0) {
+    console.warn('[dashboardEntriesService] fetchUserDashboardEntries called with empty identifier, returning empty array');
+    return [];
+  }
+  
   const { data, error } = await (supabase.rpc as any)(
     'get_comprehensive_user_dashboard_entries',
     { p_user_identifier: identifier }
   );
 
-  if (error) throw error;
+  if (error) {
+    console.error('[dashboardEntriesService] Error in fetchUserDashboardEntries:', error);
+    throw error;
+  }
 
   // Cast RPC result from Json to expected type
   const typedData = (data as ComprehensiveDashboardEntryResponse[] | null) ?? [];
@@ -170,12 +180,22 @@ export async function fetchUserDashboardEntries(identifier: string): Promise<Das
  * const entries = await fetchUserEntriesDetailed('prize:pid:0x2137af5047526a1180...');
  */
 export async function fetchUserEntriesDetailed(identifier: string): Promise<DetailedEntry[]> {
+  // CRITICAL FIX: Validate identifier before making RPC call
+  // This prevents 400 errors from invalid/empty identifiers
+  if (!identifier || identifier.trim().length === 0) {
+    console.warn('[dashboardEntriesService] fetchUserEntriesDetailed called with empty identifier, returning empty array');
+    return [];
+  }
+  
   const { data, error } = await (supabase.rpc as any)(
     'get_user_competition_entries',
     { p_user_identifier: identifier }
   );
 
-  if (error) throw error;
+  if (error) {
+    console.error('[dashboardEntriesService] Error in fetchUserEntriesDetailed:', error);
+    throw error;
+  }
 
   // Cast RPC result from Json to expected type
   const typedData = (data as UserCompetitionEntryResponse[] | null) ?? [];
