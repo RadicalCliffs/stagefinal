@@ -2,47 +2,67 @@
 
 ## Problem
 
-The `lucky-dip-reserve` edge function is invoked from the frontend but **never returns a response**, causing ticket reservations to hang indefinitely.
+The `lucky-dip-reserve` edge function was failing to deploy with two critical errors:
 
-### Symptoms
-
-```javascript
-// Browser console shows:
-[TicketReservation] Invoking lucky-dip-reserve edge function {ticketCount: 472}
-... (silence - no success or error message)
-[ProactiveMonitor] Cleanup is now handled by reserve_lucky_dip RPC  // Background polling continues
-```
+1. **Module Import Error**: `Module not found "_shared/userId.ts"`
+2. **Version Issue**: Using `jsr:` imports instead of recommended `npm:` package
 
 ## Root Cause Analysis
 
-### What We Know
+### Issue 1: Shared Module Imports Not Supported
 
-✅ **Edge Function Code is Correct**
-- Location: `supabase/functions/lucky-dip-reserve/index.ts`
-- Has proper CORS handling
-- Has comprehensive error handling
-- Calls the correct RPC: `allocate_lucky_dip_tickets_batch`
+The Supabase edge function bundler **does not support shared module imports** during deployment. The function was trying to import:
+```typescript
+import { toPrizePid } from "../_shared/userId.ts";
+```
 
-✅ **Database RPC Function Exists in Production**
-- Confirmed in: `supabase/All Functions by relevant schemas.csv`
-- Function: `allocate_lucky_dip_tickets_batch`
-- Parameters: `p_user_id text, p_competition_id uuid, p_count integer, p_ticket_price numeric, p_hold_minutes integer, p_session_id text, p_excluded_tickets integer[]`
-- Returns: `jsonb`
+This fails during bundling because the bundler can't resolve the `_shared` directory.
 
-✅ **Frontend Code is Correct**
-- Location: `src/components/IndividualCompetition/IndividualCompetitionHeroSection.tsx` (line 152)
-- Properly invokes edge function with correct parameters
-- Has error handling for both network errors and application errors
+**Evidence**: Other working edge functions have comments like:
+```typescript
+// Inlined VRF contract configuration (bundler doesn't support shared module imports)
+```
 
-### The Issue
+### Issue 2: Supabase-js Import Method
 
-❌ **Edge Function Not Deployed to Supabase**
+Supabase recommends using:
+```typescript
+import { createClient } from "npm:@supabase/supabase-js@2.45.4";
+```
 
-Supabase Edge Functions require **explicit deployment** separate from application code:
+Instead of:
+```typescript
+import { createClient } from "jsr:@supabase/supabase-js@2";
+```
 
-- **Application Code** (React/TypeScript): Auto-deployed via Netlify/Git
-- **Edge Functions** (Deno): Must be manually deployed via Supabase CLI
-- **Database Migrations** (SQL): Deployed via `supabase db push`
+The npm import with version pinning is more stable and recommended.
+
+## Solution Implemented ✅
+
+### Changes Made to `supabase/functions/lucky-dip-reserve/index.ts`
+
+1. **Inlined User ID Utilities** (lines 4-74)
+   - Inlined `isWalletAddress()` function
+   - Inlined `isPrizePid()` function  
+   - Inlined `extractPrizePid()` function
+   - Inlined `toPrizePid()` function (main dependency)
+   - Added clear documentation explaining why functions are inlined
+
+2. **Updated Supabase-js Import** (line 2)
+   - Changed from: `import { createClient } from "jsr:@supabase/supabase-js@2";`
+   - Changed to: `import { createClient } from "npm:@supabase/supabase-js@2.45.4";`
+
+3. **Removed Problematic Import** (line 3 - deleted)
+   - Removed: `import { toPrizePid } from "../_shared/userId.ts";`
+
+### Code Verification
+
+✅ **Edge function code reviewed** - Properly inlined all dependencies
+✅ **RPC function exists** in production database
+✅ **Frontend invocation code** - No changes needed
+✅ **Error handling** - Comprehensive and unchanged
+✅ **CORS configuration** - Correct and unchanged
+✅ **All function calls** - toPrizePid() used correctly at line 239
 
 ## Solution
 

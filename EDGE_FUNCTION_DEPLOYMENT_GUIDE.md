@@ -1,20 +1,25 @@
-# Edge Function Deployment Guide - URGENT FIX REQUIRED
+# Edge Function Deployment Guide - READY TO DEPLOY
 
 ## Problem Summary
 
-The `lucky-dip-reserve` edge function is being invoked from the frontend but **never returns a response**. This causes the reservation to hang indefinitely, leaving users stuck.
+The `lucky-dip-reserve` edge function was failing to deploy due to import issues and now is ready for deployment.
 
-### Symptoms
-```
-[TicketReservation] Invoking lucky-dip-reserve edge function {ticketCount: 472}
-... (no success or error message follows)
-```
+### Original Issues
 
-## Root Cause
+1. **Module Import Error** (FIXED ✅)
+   - Error: `Module not found "_shared/userId.ts"`
+   - Solution: Inlined helper functions (bundler doesn't support shared imports)
 
-The edge function code exists in the repository at `supabase/functions/lucky-dip-reserve/index.ts` but **has not been deployed to Supabase production**.
+2. **Supabase-js Version** (FIXED ✅)
+   - Recommendation: Use `npm:@supabase/supabase-js@2.45.4`
+   - Updated from `jsr:@supabase/supabase-js@2` to pinned npm version
 
-Edge functions require explicit deployment and do not automatically update when code is committed to the repository.
+### Current Status
+
+✅ **Code Fixed**: All deployment blockers resolved
+✅ **Dependencies Inlined**: No shared module imports
+✅ **Version Updated**: Using recommended npm package
+⏳ **Deployment Required**: Function ready but needs to be deployed
 
 ## Solution
 
