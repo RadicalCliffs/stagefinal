@@ -44,15 +44,14 @@ const COMMERCE_PRESET_AMOUNTS = PRESET_AMOUNTS;
 /**
  * Get CDP project ID with fallback chain (cached at module level)
  * 
+ * Both VITE_ONCHAINKIT_PROJECT_ID and VITE_CDP_PROJECT_ID should be set to the same value
+ * from CDP Portal (https://portal.cdp.coinbase.com).
+ * 
  * Precedence order:
  * 1. VITE_ONCHAINKIT_PROJECT_ID (OnchainKit-specific configuration)
  * 2. VITE_CDP_PROJECT_ID (General CDP configuration, used by CDP React Provider)
  * 
- * Both variables should have the same value from CDP Portal.
- * The fallback ensures consistency if only one is set.
- * 
- * Cached at module initialization to avoid repeated environment variable access
- * and to log warnings/errors only once.
+ * Cached at module initialization to avoid repeated environment variable access.
  */
 const getCDPProjectId = (() => {
   // Read and cache environment variables at module initialization
@@ -60,14 +59,10 @@ const getCDPProjectId = (() => {
   const cdpId = import.meta.env.VITE_CDP_PROJECT_ID;
   const projectId = onchainKitId || cdpId || '';
   
-  // Log warning if using fallback (only once at initialization)
-  if (!onchainKitId && cdpId) {
-    console.warn('[TopUpWalletModal] Using VITE_CDP_PROJECT_ID as fallback for VITE_ONCHAINKIT_PROJECT_ID');
-  }
-  
   // Log error if no project ID is configured (only once at initialization)
   if (!projectId) {
     console.error('[TopUpWalletModal] No CDP project ID configured. OnchainKit onramp will not work.');
+    console.error('[TopUpWalletModal] Please set VITE_ONCHAINKIT_PROJECT_ID or VITE_CDP_PROJECT_ID in your environment.');
   }
   
   // Return a function that returns the cached project ID
