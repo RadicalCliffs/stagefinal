@@ -14,6 +14,14 @@ import { useRealTimeBalance } from '../hooks/useRealTimeBalance';
 import { useRealtimeSubscriptions } from '../hooks/useRealtimeSubscriptions';
 import { pay, type PaymentOptions, type PaymentResult } from '@base-org/account/payment/browser';
 
+// ========================================
+// FIXED VERSION LOADED - CHECK CONSOLE
+// ========================================
+console.log('🔥🔥🔥 TOP UP MODAL FIXED VERSION LOADED 🔥🔥🔥');
+console.log('If you see this message, the new code is running');
+console.log('Build time:', new Date().toISOString());
+// ========================================
+
 // Text overrides for visual editor live preview
 export interface TopUpWalletModalTextOverrides {
   modalTitle?: string;
@@ -75,6 +83,12 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
   onSuccess,
   textOverrides,
 }) => {
+  // ========================================
+  // COMPONENT RENDERING - THIS SHOULD ALWAYS SHOW
+  // ========================================
+  console.log('🎯 TOP UP MODAL COMPONENT RENDERING', { isOpen });
+  // ========================================
+  
   const { baseUser, linkedWallets, refreshUserData } = useAuthUser();
   const { hasUsedBonus, refresh: refreshBalance, addPendingTopUp, removePendingTopUp } = useRealTimeBalance();
   const [step, setStep] = useState<PaymentStep>('method');
@@ -756,7 +770,8 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
   };
 
   const handleMethodSelect = (method: PaymentMethod) => {
-    console.log('[TopUpWalletModal] Payment method selected:', method);
+    alert(`🔥 FIXED CODE RUNNING: Selected ${method}`);
+    console.log('🔥🔥🔥 [TopUpWalletModal] Payment method selected:', method);
     setPaymentMethod(method);
     // Reset amount to a valid default for the selected method
     if (method === 'crypto' && !TOP_UP_CHECKOUT_URLS[amount]) {
@@ -768,7 +783,8 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
   };
 
   const handleContinue = async () => {
-    console.log('[TopUpWalletModal] handleContinue called', { paymentMethod, amount });
+    alert(`🔥 FIXED CODE RUNNING: Continue clicked with amount $${amount}`);
+    console.log('🔥🔥🔥 [TopUpWalletModal] handleContinue called', { paymentMethod, amount });
     
     if (paymentMethod === 'crypto') {
       // Validate selected amount is available
@@ -789,6 +805,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
     } catch (err) {
       console.error('[TopUpWalletModal] handleContinue error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to initiate payment';
+      alert(`ERROR: ${errorMessage}`);
       setError(errorMessage);
       setStep('error');
     }
