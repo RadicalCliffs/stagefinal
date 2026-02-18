@@ -122,20 +122,24 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
       if (!canonicalUserId) return;
 
       try {
-        // Use RPC function which bypasses RLS and handles case-insensitive matching
-        const { data, error } = await (supabase.rpc as any)('get_linked_external_wallet', {
-          user_identifier: canonicalUserId
-        });
+        // Query canonical_users table directly (production doesn't have get_linked_external_wallet RPC)
+        const { data, error } = await supabase
+          .from('canonical_users')
+          .select('wallet_address, base_wallet_address, eth_wallet_address')
+          .eq('canonical_user_id', canonicalUserId)
+          .maybeSingle();
 
         if (error) {
           console.error('Error fetching linked wallet:', error);
           return;
         }
 
-        // RPC returns { success: boolean, linked_wallet: string | null }
-        const result = data as any;
-        if (result?.success && result?.linked_wallet) {
-          setLinkedExternalWallet(result.linked_wallet);
+        // Use the primary wallet_address or fall back to base/eth
+        if (data) {
+          const linkedWallet = data.wallet_address || data.base_wallet_address || data.eth_wallet_address;
+          if (linkedWallet) {
+            setLinkedExternalWallet(linkedWallet);
+          }
         }
       } catch (err) {
         console.error('Error fetching linked wallet:', err);
@@ -269,10 +273,11 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
     setLinkSuccess(null);
 
     try {
-      const { data, error } = await (supabase.rpc as any)('set_primary_wallet', {
-        user_identifier: canonicalUserId,
-        p_wallet_address: walletAddress
-      });
+      // Update canonical_users table directly (production doesn't have set_primary_wallet RPC)
+      const { error } = await supabase
+        .from('canonical_users')
+        .update({ wallet_address: walletAddress })
+        .eq('canonical_user_id', canonicalUserId);
 
       if (error) {
         console.error('[WalletManagement] Error setting primary wallet:', error);
@@ -280,15 +285,10 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
         return;
       }
 
-      const result = data as { success: boolean; message?: string; error?: string };
-      if (result?.success) {
-        setLinkSuccess('Primary wallet updated successfully!');
-        // Refresh user data and wallets
-        await fetchUserWallets();
-        refreshUserData();
-      } else {
-        setLinkError(result?.error || 'Failed to set primary wallet. Please try again.');
-      }
+      setLinkSuccess('Primary wallet updated successfully!');
+      // Refresh user data and wallets
+      await fetchUserWallets();
+      refreshUserData();
     } catch (err) {
       console.error('[WalletManagement] Error setting primary wallet:', err);
       setLinkError('Failed to set primary wallet. Please try again.');

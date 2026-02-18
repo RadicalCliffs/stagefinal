@@ -810,17 +810,16 @@ export async function executeBalancePaymentRPC({
 }
 
 /**
- * Finalize a balance payment using the finalize_purchase2 RPC
+ * Finalize a balance payment using the finalize_purchase RPC (PRODUCTION)
  *
- * This is the preferred method for balance payments as it:
- * - Is idempotent (same key = same result, no double-charges or double-allocations)
- * - Works even if reservation expired or ticket list is missing
- * - Auto-allocates from available tickets up to ticket_count if needed
- * - Handles partial failures by topping up from available inventory
- * - Upserts competition_entries, inserts user_transactions (one-per-idempotency)
- * - Balance updates are soft-idempotent using balance_ledger.reference_id='entry:{key}'
- * - Always returns the same success payload for the same idempotency key
- * - On failure, stores and returns an error payload; retried calls return stored result
+ * This finalizes a pending ticket reservation:
+ * - Is idempotent (reservation ID serves as key)
+ * - Confirms the purchase
+ * - Allocates tickets from the reservation
+ * - Updates competition_entries and user_transactions
+ *
+ * Note: Production function only requires reservation_id.
+ * Idempotency is handled by the reservation ID itself.
  *
  * @param params - Payment parameters
  * @returns Payment result with detailed success/error info surfaced to frontend
@@ -846,29 +845,22 @@ export async function finalizeBalancePayment({
     };
   }
 
-  // Use reservationId as idempotency key if not provided (recommended pattern)
-  const finalIdempotencyKey = idempotencyKey || reservationId;
-
   try {
-    console.log('[finalizeBalancePayment] Calling finalize_purchase2 RPC with:', {
-      reservationId,
-      idempotencyKey: finalIdempotencyKey,
-      ticketCount: ticketCount || 'auto'
+    console.log('[finalizeBalancePayment] Calling finalize_purchase RPC with:', {
+      reservationId
     });
 
-    // Call the finalize_purchase2 RPC using the centralized helper
+    // Call the finalize_purchase RPC using the centralized helper
     const { data, error } = await withRetry(
       async () => {
         return await finalizePurchase(supabase, {
-          reservationId,
-          idempotencyKey: finalIdempotencyKey,
-          ticketCount: ticketCount ?? null
+          reservationId
         });
       },
       {
         maxRetries: 3,
         delayMs: 1500,
-        context: 'finalize_purchase2_rpc',
+        context: 'finalize_purchase_rpc',
         shouldRetry: (error) => {
           const errorMessage = error instanceof Error ? error.message : String(error);
           // Retry on network errors but not on validation errors

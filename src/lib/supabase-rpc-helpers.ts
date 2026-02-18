@@ -11,16 +11,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 /**
- * Finalize a purchase using the finalize_purchase2 RPC
+ * Finalize a purchase using the finalize_purchase RPC (PRODUCTION)
  *
- * SQL Function: public.finalize_purchase2(p_reservation_id uuid, p_idempotency_key text, p_ticket_count int default null)
+ * SQL Function: public.finalize_purchase(p_reservation_id uuid) RETURNS jsonb
  *
- * This is the preferred method for balance payments as it:
- * - Is idempotent (same key = same result, no double-charges)
- * - Auto-allocates tickets from available inventory if needed
- * - Handles partial failures gracefully by topping up from available tickets
- * - Updates competition_entries and user_transactions atomically
- * - Stores and returns results for retrieval on retry
+ * This finalizes a pending ticket reservation:
+ * - Confirms the purchase
+ * - Allocates tickets from the reservation
+ * - Updates competition_entries and user_transactions
  *
  * @param supabaseClient - Supabase client instance
  * @param params - Finalize parameters
@@ -28,40 +26,30 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  *
  * @example
  * const { data, error } = await finalizePurchase(supabase, {
- *   reservationId: 'uuid-here',
- *   idempotencyKey: 'uuid-or-payment-session-id',
- *   ticketCount: 5 // optional but recommended
+ *   reservationId: 'uuid-here'
  * });
  *
- * if (data?.success) {
- *   // data contains: entry_id, tickets_created[], total_cost, balance_before, balance_after, competition_id
- * } else {
- *   // data.error is a human-readable message
- * }
+ * Note: idempotencyKey and ticketCount are no longer used in production.
+ * The reservation ID serves as the idempotency key.
  */
 export const finalizePurchase = (
   supabaseClient: SupabaseClient,
   params: {
     reservationId: string;
-    idempotencyKey: string;
-    ticketCount?: number | null;
+    idempotencyKey?: string; // Kept for backward compatibility but not used
+    ticketCount?: number | null; // Kept for backward compatibility but not used
   }
 ) => {
-  const { reservationId, idempotencyKey, ticketCount } = params;
+  const { reservationId } = params;
 
   // Validate required parameters
   if (!reservationId || typeof reservationId !== 'string' || reservationId.trim() === '') {
     throw new Error('reservationId is required for finalizePurchase');
   }
 
-  if (!idempotencyKey || typeof idempotencyKey !== 'string' || idempotencyKey.trim() === '') {
-    throw new Error('idempotencyKey is required for finalizePurchase');
-  }
-
-  return supabaseClient.rpc('finalize_purchase2', {
-    p_reservation_id: reservationId,
-    p_idempotency_key: idempotencyKey,
-    p_ticket_count: ticketCount ?? null
+  // Call production function with only reservation_id
+  return supabaseClient.rpc('finalize_purchase', {
+    p_reservation_id: reservationId
   });
 };
 
