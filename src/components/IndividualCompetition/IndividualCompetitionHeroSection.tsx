@@ -118,7 +118,6 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
 
   // Reserve random tickets for lucky dip before payment
   // This uses server-side allocation via lucky-dip-reserve edge function
-  // Automatically batches requests >500 tickets into multiple calls
   const reserveLuckyDipTickets = async (): Promise<boolean> => {
     if (!baseUser?.id || !competition?.id || ticketCount <= 0) {
       ticketReservationLogger.warn('Pre-validation failed', {
@@ -134,141 +133,97 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
     setReservationError(null);
 
     const reservationStartTime = Date.now();
-    const BATCH_SIZE = 500; // Database function limit
 
     ticketReservationLogger.group(`Lucky Dip Reservation - ${ticketCount} tickets`);
     ticketReservationLogger.info('Starting server-side Lucky Dip reservation', {
       userId: baseUser.id.substring(0, 10) + '...',
       competitionId: competition.id.substring(0, 8) + '...',
       ticketCount,
-      totalTickets: competition.total_tickets,
-      batchingRequired: ticketCount > BATCH_SIZE
+      totalTickets: competition.total_tickets
     });
 
     try {
-      // Calculate number of batches needed
-      const numBatches = Math.ceil(ticketCount / BATCH_SIZE);
+      ticketReservationLogger.info('Invoking lucky-dip-reserve edge function', {
+        ticketCount
+      });
+
+      const edgeFunctionStartTime = Date.now();
       
-      if (numBatches > 1) {
-        ticketReservationLogger.info(`Splitting into ${numBatches} batches (max ${BATCH_SIZE} per batch)`, {
-          totalTickets: ticketCount,
-          batchSize: BATCH_SIZE
+      const { data, error } = await supabase.functions.invoke('lucky-dip-reserve', {
+        body: {
+          userId: baseUser.id,
+          competitionId: competition.id,
+          count: ticketCount,
+          ticketPrice: Number(competition.ticket_price) || 1,
+          holdMinutes: 15
+        }
+      });
+
+      const edgeFunctionDuration = Date.now() - edgeFunctionStartTime;
+
+      if (error) {
+        ticketReservationLogger.edgeFunctionError('lucky-dip-reserve', error, 1, 1);
+        showDebugHintOnError();
+
+        requestTracker.addRequest({
+          timestamp: Date.now(),
+          endpoint: 'edge:lucky-dip-reserve',
+          method: 'EDGE_FUNCTION',
+          success: false,
+          error: error.message || 'Reservation failed',
+          errorCode: 'INVOKE_ERROR',
+          duration: edgeFunctionDuration
         });
+
+        setReservationError("Could not reserve tickets. Please try again.");
+        setReserving(false);
+        ticketReservationLogger.groupEnd();
+        return false;
       }
 
-      // Arrays to collect results from all batches
-      const allReservationIds: string[] = [];
-      const allTicketNumbers: number[] = [];
-      let totalDuration = 0;
-
-      // Process each batch
-      for (let i = 0; i < numBatches; i++) {
-        const batchStart = i * BATCH_SIZE;
-        const batchCount = Math.min(BATCH_SIZE, ticketCount - batchStart);
-        
-        ticketReservationLogger.info(`Processing batch ${i + 1}/${numBatches}`, {
-          batchCount,
-          totalProcessed: batchStart,
-          remaining: ticketCount - batchStart - batchCount
-        });
-
-        const edgeFunctionStartTime = Date.now();
-        
-        const { data, error } = await supabase.functions.invoke('lucky-dip-reserve', {
-          body: {
-            userId: baseUser.id,
-            competitionId: competition.id,
-            count: batchCount,
-            ticketPrice: Number(competition.ticket_price) || 1,
-            holdMinutes: 15
-          }
-        });
-
-        const edgeFunctionDuration = Date.now() - edgeFunctionStartTime;
-        totalDuration += edgeFunctionDuration;
-
-        if (error) {
-          ticketReservationLogger.edgeFunctionError('lucky-dip-reserve', error, i + 1, numBatches);
-          showDebugHintOnError();
-
-          requestTracker.addRequest({
-            timestamp: Date.now(),
-            endpoint: 'edge:lucky-dip-reserve',
-            method: 'EDGE_FUNCTION',
-            success: false,
-            error: error.message || 'Reservation failed',
-            errorCode: 'INVOKE_ERROR',
-            duration: edgeFunctionDuration
-          });
-
-          setReservationError(`Failed on batch ${i + 1}/${numBatches}. Please try again.`);
-          setReserving(false);
-          ticketReservationLogger.groupEnd();
-          return false;
-        }
-
-        if (!data || data.success !== true) {
-          const errorMsg = data?.error || "Failed to reserve tickets";
-          ticketReservationLogger.warn('Application-level error', {
-            error: errorMsg,
-            response: data,
-            batch: i + 1,
-            totalBatches: numBatches
-          });
-
-          requestTracker.addRequest({
-            timestamp: Date.now(),
-            endpoint: 'edge:lucky-dip-reserve',
-            method: 'EDGE_FUNCTION',
-            success: false,
-            error: errorMsg,
-            errorCode: data?.errorCode || 'APP_ERROR',
-            duration: edgeFunctionDuration
-          });
-
-          setReservationError(`${errorMsg} (batch ${i + 1}/${numBatches})`);
-          setReserving(false);
-          ticketReservationLogger.groupEnd();
-          return false;
-        }
-
-        // Collect results from this batch
-        const batchTicketNumbers = data.ticketNumbers || [];
-        const batchReservationId = data.reservationId;
-
-        if (batchReservationId) {
-          allReservationIds.push(batchReservationId);
-        }
-        allTicketNumbers.push(...batchTicketNumbers);
-
-        ticketReservationLogger.info(`Batch ${i + 1}/${numBatches} completed`, {
-          ticketsReserved: batchTicketNumbers.length,
-          reservationId: batchReservationId,
-          duration: edgeFunctionDuration
+      if (!data || data.success !== true) {
+        const errorMsg = data?.error || "Failed to reserve tickets";
+        ticketReservationLogger.warn('Application-level error', {
+          error: errorMsg,
+          response: data
         });
 
         requestTracker.addRequest({
           timestamp: Date.now(),
           endpoint: 'edge:lucky-dip-reserve',
           method: 'EDGE_FUNCTION',
-          success: true,
+          success: false,
+          error: errorMsg,
+          errorCode: data?.errorCode || 'APP_ERROR',
           duration: edgeFunctionDuration
         });
+
+        setReservationError(errorMsg);
+        setReserving(false);
+        ticketReservationLogger.groupEnd();
+        return false;
       }
 
-      // All batches completed successfully
+      const reservedTicketNumbers = data.ticketNumbers || [];
+      const ticketCountReserved = data.ticketCount || reservedTicketNumbers.length;
+
       ticketReservationLogger.success('Server-side Lucky Dip reservation successful', {
-        ticketCountReserved: allTicketNumbers.length,
-        batches: numBatches,
-        reservationIds: allReservationIds,
-        algorithm: numBatches > 1 ? 'batched-lucky-dip' : 'server-side-atomic-random',
+        ticketCountReserved,
+        reservationId: data.reservationId || '(none)',
+        algorithm: data.algorithm || 'server-side-atomic-random',
         totalDuration: Date.now() - reservationStartTime
       });
 
-      // Use the first reservation ID as the primary (or combine them)
-      // For payment, we'll pass all reservation IDs
-      setReservationId(allReservationIds.length > 0 ? allReservationIds.join(',') : null);
-      setReservedTickets(allTicketNumbers);
+      requestTracker.addRequest({
+        timestamp: Date.now(),
+        endpoint: 'edge:lucky-dip-reserve',
+        method: 'EDGE_FUNCTION',
+        success: true,
+        duration: edgeFunctionDuration
+      });
+
+      setReservationId(data.reservationId || null);
+      setReservedTickets(reservedTicketNumbers);
       setReserving(false);
       ticketReservationLogger.groupEnd();
       return true;
