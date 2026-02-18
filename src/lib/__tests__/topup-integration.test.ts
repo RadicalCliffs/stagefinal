@@ -388,4 +388,61 @@ describe('Top-Up Wallet Integration Test', () => {
       })
     );
   });
+
+  it('should handle missing checkout URL error properly', async () => {
+    const { CoinbaseCommerceService } = await import('../coinbase-commerce');
+
+    // Mock API response when Coinbase Commerce fails to return hosted_url
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      text: async () => JSON.stringify({
+        success: false,
+        error: 'Payment service error: Unable to generate checkout URL. Please try again or contact support.',
+        code: 'CHECKOUT_URL_MISSING',
+        data: {
+          transactionId: 'txn_missing_url_123'
+        }
+      })
+    });
+
+    const userId = 'prize:pid:0x2222222222222222222222222222222222222222';
+    const amount = 50;
+
+    // ============================================
+    // VERIFY ERROR HANDLING
+    // ============================================
+    await expect(
+      CoinbaseCommerceService.createTopUpTransaction(userId, amount)
+    ).rejects.toThrow('Payment service error: Unable to generate checkout URL');
+
+    // Verify the API was called
+    expect(mockFetch).toHaveBeenCalledWith(
+      '/api/create-charge',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Content-Type': 'application/json'
+        }),
+        body: expect.stringContaining('"type":"topup"')
+      })
+    );
+
+    // Verify optimistic top-up was still created (before error)
+    expect(mockSupabaseInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: userId,
+        amount,
+        status: 'pending',
+        payment_provider: 'coinbase_commerce'
+      })
+    );
+
+    console.log('\n✅ Missing Checkout URL Error Test Summary:');
+    console.log('================================');
+    console.log('Scenario:          Coinbase Commerce fails to return checkout URL');
+    console.log('Expected Behavior: Error thrown with user-friendly message');
+    console.log('Error Message:     Payment service error: Unable to generate checkout URL');
+    console.log('Result:            ✅ Error properly handled and surfaced to user');
+    console.log('================================\n');
+  });
 });
