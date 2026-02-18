@@ -54,6 +54,10 @@ BEGIN
   -- Get total spent from joincompetition (SOURCE OF TRUTH for spending)
   -- CRITICAL: Only count entries where payment_provider != 'base_account'
   -- If payment_provider is NOT base_account, it means the user paid with their balance
+  -- Logic:
+  --   - NULL or empty payment_provider = balance payment (legacy entries before field existed)
+  --   - payment_provider = 'base_account' = paid with crypto wallet (NOT balance)
+  --   - payment_provider = anything else = paid with balance
   SELECT COALESCE(SUM(
     CASE 
       WHEN jc.ticketCount IS NOT NULL AND c.ticket_price IS NOT NULL THEN
@@ -72,11 +76,11 @@ BEGIN
   )
   AND (
     -- CRITICAL FILTER: Only count balance payments
-    -- If payment_provider is NULL or empty, assume it's a balance payment (legacy entries)
-    -- If payment_provider exists and is NOT 'base_account', it's a balance payment
-    jc.payment_provider IS NULL
-    OR jc.payment_provider = ''
-    OR jc.payment_provider != 'base_account'
+    -- NULL/empty = legacy balance payment (before field existed)
+    (jc.payment_provider IS NULL OR jc.payment_provider = '')
+    OR
+    -- Non-NULL and not base_account = balance payment
+    (jc.payment_provider IS NOT NULL AND jc.payment_provider != 'base_account')
   );
 
   RETURN jsonb_build_object(
@@ -178,7 +182,9 @@ BEGIN
     END AS amount_paid,
     'USD' AS currency,
     jc.transactionhash AS transaction_hash,
-    COALESCE(jc.payment_provider, 'balance_payment') AS payment_provider,
+    -- Default to NULL if not set (indicates unknown/legacy payment method)
+    -- Frontend should handle NULL as legacy balance payment
+    jc.payment_provider AS payment_provider,
     COALESCE(jc.status, 'completed') AS entry_status,
     COALESCE(jc.is_winner, false) AS is_winner,
     COALESCE(jc.prize_claimed, false) AS prize_claimed,
