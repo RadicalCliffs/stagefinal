@@ -43,13 +43,14 @@ const EntriesWinnerSection = ({
       background = "bg-[#10B981]";
       statusText = "Competition Won!";
     } else if (vrfTxHash) {
-      // User lost and VRF hash exists
+      // User lost and VRF hash exists - show pink lost banner
       background = "bg-[#EF008F]";
       statusText = "Competition Lost";
     } else {
-      // Completed but no VRF hash (shouldn't happen, but fallback to TBD)
-      background = "bg-[#DDE404]";
-      statusText = "TBD";
+      // Completed but no VRF hash - show orange drawing banner (not pink lost banner)
+      // Competition cannot show as "finished" unless it has a verifiable VRF link
+      background = "bg-[#FF8C00]";
+      statusText = "Drawing";
     }
   }
   
