@@ -14,13 +14,7 @@ import { useRealTimeBalance } from '../hooks/useRealTimeBalance';
 import { useRealtimeSubscriptions } from '../hooks/useRealtimeSubscriptions';
 import { pay, type PaymentOptions, type PaymentResult } from '@base-org/account/payment/browser';
 
-// ========================================
-// FIXED VERSION LOADED - CHECK CONSOLE
-// ========================================
-console.log('🔥🔥🔥 TOP UP MODAL FIXED VERSION LOADED 🔥🔥🔥');
-console.log('If you see this message, the new code is running');
-console.log('Build time:', new Date().toISOString());
-// ========================================
+
 
 // Text overrides for visual editor live preview
 export interface TopUpWalletModalTextOverrides {
@@ -86,11 +80,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
   onSuccess,
   textOverrides,
 }) => {
-  // ========================================
-  // COMPONENT RENDERING - THIS SHOULD ALWAYS SHOW
-  // ========================================
-  console.log('🎯 TOP UP MODAL COMPONENT RENDERING', { isOpen });
-  // ========================================
+
   
   const { baseUser, linkedWallets, refreshUserData } = useAuthUser();
   const { hasUsedBonus, refresh: refreshBalance, addPendingTopUp, removePendingTopUp } = useRealTimeBalance();
@@ -110,7 +100,6 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
   useRealtimeSubscriptions({
     onBalanceLedgerChange: useCallback(() => {
       if (baseUser?.id && isOpen) {
-        console.log('[TopUpWalletModal] Balance ledger changed, refreshing balance');
         refreshBalance();
       }
     }, [baseUser?.id, isOpen, refreshBalance]),
@@ -118,7 +107,6 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
       if (baseUser?.id && isOpen) {
         const status = (payload.new?.status || '').toLowerCase();
         if (status === 'completed' || status === 'confirmed' || status === 'success') {
-          console.log('[TopUpWalletModal] Transaction completed, refreshing balance');
           refreshBalance();
         }
       }
@@ -135,13 +123,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
   const walletAddress = primaryWallet?.address;
 
   useEffect(() => {
-    console.log('[TopUpWalletModal] Modal state changed:', { 
-      isOpen,
-      currentStep: step
-    });
-    
     if (!isOpen) {
-      console.log('[TopUpWalletModal] Modal closed - resetting state');
       setStep('method');
       setPaymentMethod('commerce');
       setAmount(50);
@@ -150,28 +132,18 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
       setTransactionId('');
       setCryptoChargeId('');
       setOnrampUrl('');
-    } else {
-      console.log('[TopUpWalletModal] Modal opened', {
-        hasBaseUser: !!baseUser?.id,
-        hasLinkedWallets: linkedWallets.length > 0,
-        hasUsedBonus
-      });
     }
   }, [isOpen]);
 
   // Timeout handler for commerce-checkout when URL is missing
   useEffect(() => {
     if (step === 'commerce-checkout' && !checkoutUrl) {
-      console.warn('[TopUpWalletModal] Commerce checkout without URL - starting 30s timeout');
-      
       const timeoutId = setTimeout(() => {
-        console.error('[TopUpWalletModal] Commerce checkout timeout - no URL received after 30 seconds');
         setError('Checkout creation timed out. Please try again.');
         setStep('error');
       }, 30000); // 30 second timeout
 
       return () => {
-        console.log('[TopUpWalletModal] Clearing commerce checkout timeout');
         clearTimeout(timeoutId);
       };
     }
@@ -191,13 +163,6 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
           if (data?.status && isSuccessStatus(data.status)) {
             clearInterval(pollInterval);
             setStep('success');
-
-            // Send in-app notification for the successful top-up
-            if (baseUser?.id) {
-              notificationService.notifyTopUp(baseUser.id, amount).catch(err => {
-                console.warn('[TopUpWalletModal] Failed to send commerce top-up notification:', err);
-              });
-            }
 
             onSuccess?.();
           } else if (data?.status && isFailureStatus(data.status)) {
@@ -228,41 +193,28 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
   }, [onSuccess]);
 
   const initiatePayment = async () => {
-    console.log('[TopUpWalletModal] initiatePayment called', { 
-      paymentMethod, 
-      amount, 
-      hasBaseUser: !!baseUser?.id,
-      baseUserId: baseUser?.id ? 'present' : 'missing'
-    });
-    
     if (!baseUser?.id) {
       const errorMsg = 'Please log in to continue';
-      console.error('[TopUpWalletModal] No base user ID:', errorMsg);
       setError(errorMsg);
       setStep('error');
       return;
     }
 
-    console.log('[TopUpWalletModal] Setting step to loading...');
     setStep('loading');
     setError('');
 
     try {
       if (paymentMethod === 'crypto') {
-        console.log('[TopUpWalletModal] Processing crypto payment...');
         // Crypto payment now uses OnchainKit in-modal checkout
         if (!TOP_UP_CHECKOUT_URLS[amount]) {
           const errorMsg = `Amount $${amount} is not available. Please select from: $${PRESET_AMOUNTS.join(', $')}`;
-          console.error('[TopUpWalletModal] Invalid crypto amount:', errorMsg);
           setError(errorMsg);
           setStep('error');
           return;
         }
         // Go directly to the OnchainKit checkout step
-        console.log('[TopUpWalletModal] Advancing to crypto-checkout step');
         setStep('crypto-checkout');
       } else if (paymentMethod === 'commerce') {
-        console.log('[TopUpWalletModal] Processing commerce payment...');
         
         // Check if we have a pre-configured checkout URL for this amount
         const checkoutUrl = TOP_UP_CHECKOUT_URLS[amount];
@@ -270,13 +222,10 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
         if (!checkoutUrl) {
           const availableAmounts = Object.keys(TOP_UP_CHECKOUT_URLS).map(Number).join(', ');
           const errorMsg = `Amount $${amount} is not available. Available amounts: $${availableAmounts}`;
-          console.error('[TopUpWalletModal] Invalid amount:', errorMsg);
           setError(errorMsg);
           setStep('error');
           return;
         }
-        
-        console.log('[TopUpWalletModal] Using pre-configured checkout URL for $' + amount);
         
         // Create a transaction record for tracking (without calling create-charge API)
         // This ensures we have a record of the payment attempt
@@ -298,38 +247,25 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
             });
           
           if (insertError) {
-            console.error('[TopUpWalletModal] Failed to create transaction record:', insertError);
             // Continue anyway - the webhook will create the record if needed
-          } else {
-            console.log('[TopUpWalletModal] Created transaction record:', transactionId);
           }
         } catch (dbError) {
-          console.error('[TopUpWalletModal] Database error creating transaction:', dbError);
           // Continue anyway
         }
-        
-        console.log('[TopUpWalletModal] Using pre-configured checkout:', {
-          amount,
-          transactionId,
-          checkoutUrl
-        });
         
         setTransactionId(transactionId);
         setCheckoutUrl(checkoutUrl);
         setStep('commerce-checkout');
       } else if (paymentMethod === 'offramp') {
-        console.log('[TopUpWalletModal] Processing offramp payment...');
         
         // Coinbase Offramp (cash out) payment flow
         if (!walletAddress) {
           const errorMsg = 'No wallet connected. Please connect a wallet first.';
-          console.error('[TopUpWalletModal] No wallet for offramp:', errorMsg);
           setError(errorMsg);
           setStep('error');
           return;
         }
 
-        console.log('[TopUpWalletModal] Generating offramp URL...');
         const result = await CoinbaseOnrampService.generateOfframpUrl({
           sourceAddress: walletAddress,
           sourceAsset: 'USDC',
@@ -339,26 +275,21 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
           redirectUrl: window.location.origin,
         });
 
-        console.log('[TopUpWalletModal] Offramp URL generated:', result.url);
         setCheckoutUrl(result.url);
         setStep('checkout');
       } else if (paymentMethod === 'fund') {
-        console.log('[TopUpWalletModal] Processing fund button payment...');
         
         // FundButton flow - uses OnchainKit's built-in fund button
         // This shows the Coinbase Onramp widget in a popup
         if (!walletAddress) {
           const errorMsg = 'No wallet connected. Please connect a wallet first.';
-          console.error('[TopUpWalletModal] No wallet for fund button:', errorMsg);
           setError(errorMsg);
           setStep('error');
           return;
         }
         
-        console.log('[TopUpWalletModal] Advancing to fund-button step');
         setStep('fund-button');
       } else if (paymentMethod === 'base-account') {
-        console.log('[TopUpWalletModal] Processing Base Account payment...');
         
         // Base Account payment flow - one-tap USDC payment
         setStep('base-account-processing');
@@ -366,13 +297,6 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
         await handleBaseAccountTopUp();
       }
     } catch (err) {
-      console.error('[TopUpWalletModal] Payment initiation error:', {
-        error: err,
-        message: err instanceof Error ? err.message : String(err),
-        stack: err instanceof Error ? err.stack : undefined,
-        paymentMethod,
-        amount
-      });
       const errorMessage = err instanceof Error ? err.message : 'Failed to initiate payment';
       setError(errorMessage);
       setStep('error');
@@ -391,7 +315,6 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
 
     // Validate wallet address is available for sender identification
     if (!walletAddress) {
-      console.error('[TopUpWalletModal] No wallet address available for top-up');
       setError('No wallet connected. Please connect a wallet first.');
       setStep('error');
       setBaseAccountLoading(false);
@@ -401,21 +324,13 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
     try {
       const treasuryAddress = import.meta.env.VITE_TREASURY_ADDRESS;
       if (!treasuryAddress) {
-        console.error('[TopUpWalletModal] VITE_TREASURY_ADDRESS not configured');
         throw new Error('Payment system configuration error. Please contact support.');
       }
 
       // Validate treasury address format
       if (!treasuryAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
-        console.error('[TopUpWalletModal] Invalid treasury address format');
         throw new Error('Payment system configuration error. Please contact support.');
       }
-
-      console.log('[TopUpWalletModal] Starting Base Account top-up flow', {
-        amount,
-        senderWallet: walletAddress.substring(0, 10) + '...',
-        treasuryConfigured: !!treasuryAddress,
-      });
 
       // Determine if using testnet
       const isTestnet = import.meta.env.VITE_BASE_MAINNET !== 'true';
@@ -428,14 +343,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
         testnet: isTestnet,
       };
 
-      console.log('[TopUpWalletModal] Calling Base Account SDK pay()');
-
       const paymentResult = await pay(paymentOptions);
-
-      console.log('[TopUpWalletModal] Base Account payment result:', {
-        success: (paymentResult as any).success,
-        hasTransactionHash: !!(paymentResult as any).transactionHash,
-      });
 
       if (!(paymentResult as any).success) {
         throw new Error((paymentResult as any).error || 'Payment failed');
@@ -450,7 +358,6 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
       const topUpId = `topup_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
       setOptimisticTopUpId(topUpId);
       addPendingTopUp(amount, topUpId);
-      console.log('[TopUpWalletModal] Added optimistic balance update:', amount);
 
       // Show success immediately (optimistic) - verification will happen in background
       setTransactionId(transactionHash);
@@ -466,7 +373,6 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
 
       // After successful on-chain payment, call instant-topup to verify and credit balance
       // This runs in the background and doesn't block the user experience
-      console.log('[TopUpWalletModal] Starting background verification and balance credit');
 
       // Get auth token for API call - prefer wallet-based auth
       const walletToken = `wallet:${walletAddress}`;
@@ -491,20 +397,10 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
           const topupResult = await topupResponse.json();
 
           if (!topupResponse.ok || !topupResult.success) {
-            // Log error but don't retry - backend now credits immediately
-            console.error('[TopUpWalletModal] Backend top-up processing failed:', topupResult);
             // Don't show error to user - transaction was sent successfully on-chain
             // The optimistic UI update is sufficient
             return;
           }
-
-          console.log('[TopUpWalletModal] Balance credited successfully:', {
-            creditedAmount: topupResult.creditedAmount,
-            bonusApplied: topupResult.bonusApplied,
-            bonusAmount: topupResult.bonusAmount,
-            newBalance: topupResult.newBalance,
-            verificationStatus: topupResult.verificationStatus,
-          });
 
           // Clear optimistic update now that balance is confirmed
           if (optimisticTopUpId) {
@@ -526,15 +422,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
               detail: { newBalance: topupResult.newBalance }
             }));
           }
-
-          // Send in-app notification
-          if (baseUser?.id) {
-            notificationService.notifyTopUp(baseUser.id, amount, topupResult.newBalance).catch(err => {
-              console.warn('[TopUpWalletModal] Failed to send top-up notification:', err);
-            });
-          }
         } catch (err) {
-          console.error('[TopUpWalletModal] Background verification error:', err);
           // Don't retry - the on-chain transaction was successful
           // Backend will credit the balance, and optimistic UI is already showing it
         }
@@ -542,17 +430,15 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
 
       // Start background verification and crediting
       verifyAndCredit().catch(err => {
-        console.error('[TopUpWalletModal] Verification failed:', err);
+        // Silent error handling
       });
     } catch (err) {
-      console.error('[TopUpWalletModal] Base Account top-up error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Payment failed';
 
       // Rollback optimistic update on error
       if (optimisticTopUpId) {
         removePendingTopUp(optimisticTopUpId);
         setOptimisticTopUpId(null);
-        console.log('[TopUpWalletModal] Rolled back optimistic balance update');
       }
 
       // Provide user-friendly error messages
@@ -573,21 +459,13 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
 
   // OnchainKit charge handler for crypto top-up
   const handleCryptoChargeCreate = useCallback(async (): Promise<string> => {
-    console.log('[TopUpWalletModal] handleCryptoChargeCreate called', { 
-      hasBaseUser: !!baseUser?.id,
-      amount,
-      amountValid: Number.isFinite(amount) && amount > 0
-    });
-    
     if (!baseUser?.id) {
       const errorMsg = 'Please login first';
-      console.error('[TopUpWalletModal] Crypto charge creation - no user:', errorMsg);
       throw new Error(errorMsg);
     }
 
     if (!amount || !Number.isFinite(amount) || amount <= 0) {
       const errorMsg = `Invalid amount: ${amount}`;
-      console.error('[TopUpWalletModal] Crypto charge creation - invalid amount:', errorMsg);
       throw new Error(errorMsg);
     }
 
@@ -600,11 +478,6 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData.session?.access_token;
       
-      console.log('[TopUpWalletModal] Crypto charge - session data:', {
-        hasSession: !!sessionData.session,
-        hasToken: !!token
-      });
-      
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
@@ -615,12 +488,6 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
         type: 'topup',
         paymentMethod: 'onchainkit',
       };
-      
-      console.log('[TopUpWalletModal] Creating crypto charge with:', {
-        url: '/api/create-charge',
-        hasAuth: !!headers['Authorization'],
-        requestBody
-      });
 
       // Create charge via the same endpoint used for entries, but for topup
       const response = await fetch('/api/create-charge', {
@@ -629,98 +496,46 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
         body: JSON.stringify(requestBody),
       });
 
-      console.log('[TopUpWalletModal] Crypto charge API response:', {
-        status: response.status,
-        ok: response.ok,
-        statusText: response.statusText
-      });
-
       const result = await response.json();
-      
-      console.log('[TopUpWalletModal] Crypto charge result:', {
-        success: result.success,
-        hasChargeId: !!result.data?.chargeId,
-        hasTransactionId: !!result.data?.transactionId,
-        error: result.error
-      });
 
       if (!response.ok || result.success === false) {
         const errorMsg = result.error?.message || result.error || 'Failed to create charge';
-        console.error('[TopUpWalletModal] Crypto charge creation failed:', {
-          status: response.status,
-          result,
-          errorMsg
-        });
         throw new Error(errorMsg);
       }
 
       setTransactionId(result.data?.transactionId || '');
       setCryptoChargeId(result.data?.chargeId || '');
 
-      console.log('[TopUpWalletModal] Crypto charge created successfully:', {
-        chargeId: result.data?.chargeId,
-        transactionId: result.data?.transactionId
-      });
-
       return result.data?.chargeId || '';
     } catch (error) {
-      console.error('[TopUpWalletModal] Crypto charge creation error:', {
-        error,
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
-      });
       throw error;
     }
   }, [baseUser?.id, amount]);
 
   // OnchainKit status handler for crypto top-up
   const handleCryptoStatus = useCallback(async (status: LifecycleStatus) => {
-    console.log('[TopUpWalletModal] Crypto top-up checkout status:', {
-      statusName: status.statusName,
-      statusData: status.statusData
-    });
-
     if (status.statusName === 'success') {
-      console.log('[TopUpWalletModal] Crypto payment successful');
-      
       // Payment completed successfully
       setStep('success');
       
       // Refresh user data to show updated balance
-      console.log('[TopUpWalletModal] Refreshing user data...');
       await refreshUserData();
-
-      // Send in-app notification for the successful top-up
-      if (baseUser?.id) {
-        console.log('[TopUpWalletModal] Sending top-up notification...');
-        notificationService.notifyTopUp(baseUser.id, amount).catch(err => {
-          console.warn('[TopUpWalletModal] Failed to send crypto top-up notification:', err);
-        });
-      }
 
       onSuccess?.();
     } else if (status.statusName === 'error') {
-      console.error('[TopUpWalletModal] Crypto payment error:', {
-        statusName: status.statusName,
-        statusData: status.statusData
-      });
       setError('Payment failed. Please try again.');
       setStep('error');
     }
-  }, [refreshUserData, onSuccess, baseUser?.id, amount]);
+  }, [refreshUserData, onSuccess]);
 
   const handleAmountSelect = (selectedAmount: number) => {
-    console.log('[TopUpWalletModal] Amount selected:', selectedAmount);
     setAmount(selectedAmount);
   };
 
   const handleMethodSelect = (method: PaymentMethod) => {
-    alert(`🔥 FIXED CODE RUNNING: Selected ${method}`);
-    console.log('🔥🔥🔥 [TopUpWalletModal] Payment method selected:', method);
     setPaymentMethod(method);
     // Reset amount to a valid default for the selected method
     if (method === 'crypto' && !TOP_UP_CHECKOUT_URLS[amount]) {
-      console.log('[TopUpWalletModal] Resetting amount to $50 for crypto method');
       setAmount(50);
     }
     // Automatically advance to amount selection step
@@ -728,14 +543,10 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
   };
 
   const handleContinue = async () => {
-    alert(`🔥 FIXED CODE RUNNING: Continue clicked with amount $${amount}`);
-    console.log('🔥🔥🔥 [TopUpWalletModal] handleContinue called', { paymentMethod, amount });
-    
     if (paymentMethod === 'crypto') {
       // Validate selected amount is available
       if (!TOP_UP_CHECKOUT_URLS[amount]) {
         const errorMsg = `Please select one of the available amounts: $${PRESET_AMOUNTS.join(', $')}`;
-        console.error('[TopUpWalletModal] Invalid amount for crypto:', errorMsg);
         setError(errorMsg);
         return;
       }
@@ -744,30 +555,13 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
     setError('');
     
     try {
-      console.log('[TopUpWalletModal] Calling initiatePayment...');
       await initiatePayment();
-      console.log('[TopUpWalletModal] initiatePayment completed');
     } catch (err) {
-      console.error('[TopUpWalletModal] handleContinue error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to initiate payment';
-      alert(`ERROR: ${errorMessage}`);
       setError(errorMessage);
       setStep('error');
     }
   };
-
-  // Log render information
-  console.log('[TopUpWalletModal] Rendering', {
-    isOpen,
-    step,
-    paymentMethod,
-    amount,
-    hasError: !!error,
-    errorMessage: error,
-    hasBaseUser: !!baseUser?.id,
-    hasCheckoutUrl: !!checkoutUrl,
-    hasTransactionId: !!transactionId
-  });
 
   if (!isOpen) return null;
 
