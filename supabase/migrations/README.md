@@ -2,6 +2,17 @@
 
 This directory contains the database schema migrations for ThePrize.io.
 
+## ⚠️ Production State Reference
+
+**IMPORTANT**: The actual production database state is documented in CSV exports located in `/supabase/`:
+- `All Functions by relevant schemas.csv` - Function catalog (457 lines, 410 functions)
+- `All Functions.csv` - Complete function DDL (1023 lines)
+- `All Indexes.csv` - Index definitions (101 lines)
+- `All triggers.csv` - Trigger definitions (2360 lines, 667 triggers)
+
+These CSV files represent the **source of truth** for what exists in production.  
+See `/supabase/PRODUCTION_CSV_README.md` for details.
+
 ## Migration Files
 
 ### Baseline Migrations
@@ -122,12 +133,33 @@ AND tgrelid IN (SELECT oid FROM pg_class WHERE relnamespace =
 
 For detailed information about the database schema and migrations:
 
+- **Production State:** `/supabase/PRODUCTION_CSV_README.md` - CSV exports from production
 - **Schema Overview:** `/BASELINE_MIGRATION_README.md`
 - **Technical Details:** `/BASELINE_MIGRATION_SUMMARY.md`
 - **Deployment Guide:** `/BASELINE_MIGRATION_USAGE.md`
 - **Triggers Documentation:** `/TRIGGERS_MIGRATION_README.md`
 - **RPC Functions Restoration:** `/RESTORE_RPC_FUNCTIONS_DEPLOYMENT.md`
 - **Diagnostics:** `/supabase/diagnostics/ACTUAL_DATABASE_ANALYSIS.md`
+
+## Production Schema Validation
+
+To verify that your local database matches production:
+
+```bash
+# Run validation script
+python3 scripts/validate-schema.py
+
+# Or manually check counts
+supabase db execute "SELECT COUNT(*) FROM information_schema.routines WHERE routine_schema = 'public';"
+# Should return ~406
+```
+
+The production database state (as of 2026-02-18):
+- **Functions**: 410 total (406 public + 4 auth)
+- **Indexes**: 101 total
+- **Triggers**: 667 total (87 public + 1 cron)
+
+See `/supabase/*.csv` files for complete production schema.
 
 ## Migration History
 
