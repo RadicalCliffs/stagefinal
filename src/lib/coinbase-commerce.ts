@@ -256,17 +256,10 @@ export class CoinbaseCommerceService {
       return;
     }
 
-    // Also add to pending_balance in sub_account_balances for immediate visibility
-    const { error: balanceError } = await supabase.rpc('add_pending_balance', {
-      user_identifier: canonicalUserId,
-      amount: amount
-    });
-
-    if (balanceError) {
-      // RPC might not exist yet - that's OK, webhook will handle it
-      console.warn('[CoinbaseCommerce] add_pending_balance RPC not available:', balanceError.message);
-    }
-
+    // NOTE: add_pending_balance RPC does not exist in production
+    // The webhook will handle crediting the balance via apply_wallet_mutation
+    // when the payment is confirmed
+    
     console.log(`[CoinbaseCommerce] Created pending top-up for $${amount}, txId=${transactionId}`);
   }
 

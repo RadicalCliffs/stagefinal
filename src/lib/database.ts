@@ -3381,28 +3381,27 @@ export const database = {
       const reservationId = crypto.randomUUID();
       const expiresAt = new Date(Date.now() + timeoutMinutes * 60 * 1000).toISOString();
 
-      // ISSUE #4 FIX: Try to use atomic RPC function first for transaction-level consistency
+      // Use production reserve_tickets RPC for atomic reservation
       // This prevents race conditions by using database-level locking
       try {
-        const { data: rpcResult, error: rpcError } = (await supabase.rpc('reserve_tickets_atomically', {
+        const { data: rpcResult, error: rpcError } = await supabase.rpc('reserve_tickets', {
           p_competition_id: competitionId,
-          p_user_id: userId,
+          p_wallet_address: userId, // Note: function expects wallet_address
           p_ticket_count: ticketNumbers.length,
-          p_hold_minutes: timeoutMinutes,
-        } as any)) as any;
+          p_hold_minutes: timeoutMinutes
+        });
 
         if (!rpcError && rpcResult) {
-          const result = typeof rpcResult === 'string' ? JSON.parse(rpcResult) : rpcResult;
-          if (result.success) {
-            return { reservationId: result.reservation_id || reservationId, success: true };
-          } else {
-            return { reservationId: '', success: false, error: result.error || 'Atomic reservation failed' };
-          }
+          // Production function returns: { pending_ticket_id, expires_at, ticket_numbers }
+          return { 
+            reservationId: rpcResult.pending_ticket_id || reservationId, 
+            success: true 
+          };
         }
-        // If RPC not available, fall back to non-atomic approach
-        console.warn('Atomic reservation RPC not available, using fallback');
+        // If RPC fails, fall back to non-atomic approach
+        console.warn('reserve_tickets RPC failed, using fallback:', rpcError);
       } catch (rpcErr) {
-        console.warn('Atomic reservation RPC failed, using fallback:', rpcErr);
+        console.warn('reserve_tickets RPC exception, using fallback:', rpcErr);
       }
 
       // Fallback: non-atomic approach (original implementation)
