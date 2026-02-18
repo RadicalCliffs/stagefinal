@@ -92,86 +92,141 @@ export function subscribeToTable<T = any>(
     ? `${tableName}-${filter.replace(/[^a-zA-Z0-9]/g, '_')}`
     : `${tableName}-all`;
 
-  const channel = supabase.channel(channelName);
+  let channel: RealtimeChannel | null = supabase.channel(channelName);
+  let reconnectAttempts = 0;
+  const maxReconnectAttempts = 5;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let isUnsubscribed = false;
 
-  // Subscribe to INSERT events
-  if (handlers.onInsert) {
-    const config: any = {
-      event: 'INSERT',
-      schema: 'public',
-      table: tableName,
-    };
-    if (filter) {
-      config.filter = filter;
-    }
-    channel.on('postgres_changes', config, (payload: any) => {
-      handlers.onInsert?.({
-        new: payload.new,
-        eventType: 'INSERT',
-        schema: payload.schema,
-        table: payload.table,
+  const setupChannel = () => {
+    if (isUnsubscribed || !channel) return;
+
+    // Subscribe to INSERT events
+    if (handlers.onInsert) {
+      const config: any = {
+        event: 'INSERT',
+        schema: 'public',
+        table: tableName,
+      };
+      if (filter) {
+        config.filter = filter;
+      }
+      channel.on('postgres_changes', config, (payload: any) => {
+        handlers.onInsert?.({
+          new: payload.new,
+          eventType: 'INSERT',
+          schema: payload.schema,
+          table: payload.table,
+        });
       });
-    });
-  }
-
-  // Subscribe to UPDATE events
-  if (handlers.onUpdate) {
-    const config: any = {
-      event: 'UPDATE',
-      schema: 'public',
-      table: tableName,
-    };
-    if (filter) {
-      config.filter = filter;
     }
-    channel.on('postgres_changes', config, (payload: any) => {
-      handlers.onUpdate?.({
-        old: payload.old,
-        new: payload.new,
-        eventType: 'UPDATE',
-        schema: payload.schema,
-        table: payload.table,
+
+    // Subscribe to UPDATE events
+    if (handlers.onUpdate) {
+      const config: any = {
+        event: 'UPDATE',
+        schema: 'public',
+        table: tableName,
+      };
+      if (filter) {
+        config.filter = filter;
+      }
+      channel.on('postgres_changes', config, (payload: any) => {
+        handlers.onUpdate?.({
+          old: payload.old,
+          new: payload.new,
+          eventType: 'UPDATE',
+          schema: payload.schema,
+          table: payload.table,
+        });
       });
-    });
-  }
-
-  // Subscribe to DELETE events
-  if (handlers.onDelete) {
-    const config: any = {
-      event: 'DELETE',
-      schema: 'public',
-      table: tableName,
-    };
-    if (filter) {
-      config.filter = filter;
     }
-    channel.on('postgres_changes', config, (payload: any) => {
-      handlers.onDelete?.({
-        old: payload.old,
-        eventType: 'DELETE',
-        schema: payload.schema,
-        table: payload.table,
+
+    // Subscribe to DELETE events
+    if (handlers.onDelete) {
+      const config: any = {
+        event: 'DELETE',
+        schema: 'public',
+        table: tableName,
+      };
+      if (filter) {
+        config.filter = filter;
+      }
+      channel.on('postgres_changes', config, (payload: any) => {
+        handlers.onDelete?.({
+          old: payload.old,
+          eventType: 'DELETE',
+          schema: payload.schema,
+          table: payload.table,
+        });
       });
-    });
-  }
-
-  // Subscribe to the channel
-  channel.subscribe((status) => {
-    if (status === 'SUBSCRIBED') {
-      console.log(`[Realtime] Subscribed to ${tableName}${filter ? ` (${filter})` : ''}`);
-    } else if (status === 'CHANNEL_ERROR') {
-      console.error(`[Realtime] Error subscribing to ${tableName}`);
-    } else if (status === 'TIMED_OUT') {
-      console.warn(`[Realtime] Subscription timeout for ${tableName}`);
-    } else if (status === 'CLOSED') {
-      console.log(`[Realtime] Channel closed for ${tableName}`);
     }
-  });
+
+    // Subscribe to the channel with reconnection logic
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        console.log(`[Realtime] Subscribed to ${tableName}${filter ? ` (${filter})` : ''}`);
+        reconnectAttempts = 0; // Reset reconnect attempts on successful connection
+      } else if (status === 'CHANNEL_ERROR') {
+        console.error(`[Realtime] Error subscribing to ${tableName}`);
+        attemptReconnect();
+      } else if (status === 'TIMED_OUT') {
+        console.warn(`[Realtime] Subscription timeout for ${tableName}`);
+        attemptReconnect();
+      } else if (status === 'CLOSED') {
+        console.log(`[Realtime] Channel closed for ${tableName}`);
+        // Don't reconnect on intentional close
+      }
+    });
+  };
+
+  // CRITICAL FIX: Add exponential backoff reconnection logic
+  const attemptReconnect = () => {
+    if (isUnsubscribed) return;
+    
+    if (reconnectAttempts >= maxReconnectAttempts) {
+      console.error(`[Realtime] Max reconnection attempts reached for ${tableName}, giving up`);
+      return;
+    }
+
+    reconnectAttempts++;
+    // Exponential backoff: 2^n seconds (2s, 4s, 8s, 16s, 32s)
+    const delayMs = Math.min(Math.pow(2, reconnectAttempts) * 1000, 32000);
+    
+    console.log(`[Realtime] Attempting to reconnect to ${tableName} in ${delayMs}ms (attempt ${reconnectAttempts}/${maxReconnectAttempts})`);
+    
+    reconnectTimer = setTimeout(() => {
+      if (isUnsubscribed) return;
+      
+      // Remove old channel
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+      
+      // Create new channel and set it up
+      channel = supabase.channel(channelName);
+      setupChannel();
+    }, delayMs);
+  };
+
+  // Initial setup
+  setupChannel();
 
   // Return unsubscribe function
   return () => {
+    isUnsubscribed = true;
+    
+    // Clear reconnection timer
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+    
     console.log(`[Realtime] Unsubscribing from ${tableName}`);
-    supabase.removeChannel(channel);
+    if (channel) {
+      supabase.removeChannel(channel);
+      channel = null;
+    }
   };
 }
 
