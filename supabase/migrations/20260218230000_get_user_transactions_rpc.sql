@@ -1,9 +1,16 @@
--- Create get_user_transactions RPC function
+-- Update get_user_transactions RPC function
 -- This function retrieves all transactions for a user including competition entries and wallet top-ups
 -- It enriches the data with competition details and handles multiple user identifier formats
 -- Note: Returns up to 100 most recent transactions by default to prevent excessive data transfer
 -- For users with more extensive histories, the frontend should implement pagination
+--
+-- IMPORTANT: This function already exists in production (see All Functions by relevant schemas.csv)
+-- This migration explicitly drops and replaces it to ensure the new signature is applied
 
+-- Drop the existing function
+DROP FUNCTION IF EXISTS public.get_user_transactions(TEXT);
+
+-- Create the updated function with new signature and implementation
 CREATE OR REPLACE FUNCTION public.get_user_transactions(user_identifier TEXT)
 RETURNS TABLE (
   id UUID,

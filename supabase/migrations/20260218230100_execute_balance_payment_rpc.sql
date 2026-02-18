@@ -6,7 +6,15 @@
 -- 3. Creates ticket allocations
 -- 4. Creates user_transaction record with balance tracking
 -- 5. Creates joincompetition entry
+--
+-- IMPORTANT: This function already exists in production (see All Functions by relevant schemas.csv)
+-- This migration explicitly drops and replaces it to ensure the new signature is applied
 
+-- Drop the existing function (with all possible signatures)
+DROP FUNCTION IF EXISTS public.execute_balance_payment(numeric, uuid, text, uuid, integer[], integer, text);
+DROP FUNCTION IF EXISTS public.execute_balance_payment(TEXT, TEXT, NUMERIC, INTEGER, INTEGER[], TEXT, UUID);
+
+-- Create the updated function with new signature and implementation
 CREATE OR REPLACE FUNCTION public.execute_balance_payment(
   p_competition_id TEXT,
   p_user_identifier TEXT,
