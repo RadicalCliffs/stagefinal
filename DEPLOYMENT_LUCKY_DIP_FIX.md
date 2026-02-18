@@ -170,15 +170,12 @@ Frontend (IndividualCompetitionHeroSection.tsx)
   ↓ calls
 Edge Function (lucky-dip-reserve)
   ↓ calls
-RPC Function (reserve_lucky_dip OR allocate_lucky_dip_tickets_batch)
+RPC Function (allocate_lucky_dip_tickets_batch)
   ↓ executes
 Database Operations (ticket allocation, reservation)
 ```
 
-**Note:** The edge function code references `reserve_lucky_dip`, but the error indicates `allocate_lucky_dip_tickets_batch` is being called. This suggests either:
-- The edge function hasn't been deployed with the latest code
-- `reserve_lucky_dip` doesn't exist and there's a fallback
-- `reserve_lucky_dip` internally calls `allocate_lucky_dip_tickets_batch`
+**Update (2026-02-18):** The edge function has been updated to correctly call `allocate_lucky_dip_tickets_batch` RPC. The previous code was attempting to call a non-existent `reserve_lucky_dip` RPC, which was causing 500 errors.
 
 ### Post-Deployment
 
