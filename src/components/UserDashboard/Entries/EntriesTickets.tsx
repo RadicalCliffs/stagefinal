@@ -29,6 +29,8 @@ const EntriesTickets = ({
   individualEntries
 }: EntriesTicketsProps) => {
   const [showAllTickets, setShowAllTickets] = useState(false);
+  const [expandedTransactions, setExpandedTransactions] = useState<Set<string>>(new Set());
+  const [showAllTransactionTickets, setShowAllTransactionTickets] = useState(false);
 
   // Parse ticket numbers from comma-separated string and sort numerically
   const tickets = ticketNumbers
@@ -71,6 +73,19 @@ const EntriesTickets = ({
   const MAX_TICKETS_VISIBLE = 20;
   const visibleTickets = showAllTickets ? tickets : tickets.slice(0, MAX_TICKETS_VISIBLE);
   const hasMoreTickets = tickets.length > MAX_TICKETS_VISIBLE;
+  const MAX_TRANSACTION_TICKETS_VISIBLE = 50;
+
+  const toggleTransactionTickets = (transactionId: string) => {
+    setExpandedTransactions(prev => {
+      const next = new Set(prev);
+      if (next.has(transactionId)) {
+        next.delete(transactionId);
+      } else {
+        next.add(transactionId);
+      }
+      return next;
+    });
+  };
 
   // Sort individual entries by purchase date (most recent first) for the breakdown
   const sortedEntries = individualEntries
@@ -139,16 +154,20 @@ const EntriesTickets = ({
         {sortedEntries.length > 0 ? (
           <div className="space-y-3">
             {sortedEntries.map((entry, index) => {
+              const transactionId = entry.id || `transaction-${index}`;
+              const isExpanded = expandedTransactions.has(transactionId);
               const entryTickets = entry.ticket_numbers
                 ? entry.ticket_numbers.split(',').map(t => t.trim()).filter(t => t).sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
                 : [];
+              const visibleEntryTickets = isExpanded ? entryTickets : entryTickets.slice(0, MAX_TRANSACTION_TICKETS_VISIBLE);
+              const hasMoreEntryTickets = entryTickets.length > MAX_TRANSACTION_TICKETS_VISIBLE;
               const amountStr = typeof entry.amount_spent === 'number'
                 ? `$${entry.amount_spent.toFixed(2)}`
                 : entry.amount_spent ? `$${entry.amount_spent}` : null;
 
               return (
                 <div
-                  key={`${entry.id}-${index}`}
+                  key={`${transactionId}-${index}`}
                   className="bg-[#1a1a1a] rounded-lg p-4"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
@@ -167,9 +186,29 @@ const EntriesTickets = ({
                     </span>
                   </div>
                   {entryTickets.length > 0 && (
-                    <p className="text-white sequel-45 text-sm leading-relaxed">
-                      {entryTickets.join(', ')}
-                    </p>
+                    <>
+                      <p className="text-white sequel-45 text-sm leading-relaxed">
+                        {visibleEntryTickets.join(', ')}
+                      </p>
+                      {hasMoreEntryTickets && (
+                        <button
+                          onClick={() => toggleTransactionTickets(transactionId)}
+                          className="mt-3 w-full bg-[#1a1a1a] text-[#DDE404] sequel-45 text-sm py-2 rounded-lg hover:bg-[#252525] transition-colors flex items-center justify-center gap-2 border border-[#2a2a2a]"
+                        >
+                          {isExpanded ? (
+                            <>
+                              <ChevronUp size={16} />
+                              <span>Show less</span>
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown size={16} />
+                              <span>See more</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               );
@@ -194,8 +233,26 @@ const EntriesTickets = ({
               </span>
             </div>
             <p className="text-white sequel-45 text-sm leading-relaxed">
-              {tickets.join(', ')}
+              {(showAllTransactionTickets ? tickets : tickets.slice(0, MAX_TRANSACTION_TICKETS_VISIBLE)).join(', ')}
             </p>
+            {tickets.length > MAX_TRANSACTION_TICKETS_VISIBLE && (
+              <button
+                onClick={() => setShowAllTransactionTickets(!showAllTransactionTickets)}
+                className="mt-3 w-full bg-[#1a1a1a] text-[#DDE404] sequel-45 text-sm py-2 rounded-lg hover:bg-[#252525] transition-colors flex items-center justify-center gap-2 border border-[#2a2a2a]"
+              >
+                {showAllTransactionTickets ? (
+                  <>
+                    <ChevronUp size={16} />
+                    <span>Show less</span>
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown size={16} />
+                    <span>See more</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
         )}
       </div>

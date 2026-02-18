@@ -315,10 +315,10 @@ const EntriesCard = ({
           )}
           {showBackButton && (
             <Link
-              to="/dashboard/entries"
+              to={competitionId ? `/competitions/${competitionId}` : "/competitions"}
               className="uppercase sequel-75 block text-center text-lg bg-[#DDE404] text-[#000000] w-full rounded-lg py-3 mt-8"
             >
-              Back to Live Entries
+              Buy More Entries
             </Link>
           )}
         </div>
