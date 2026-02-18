@@ -49,6 +49,9 @@ const PRESET_AMOUNTS = Object.keys(TOP_UP_CHECKOUT_URLS).map(Number).filter(a =>
 // Coinbase Commerce preset amounts (same as crypto since they use the same checkout URLs)
 const COMMERCE_PRESET_AMOUNTS = PRESET_AMOUNTS;
 
+// Coinbase Commerce charge URL base - used for constructing checkout URLs from charge IDs/codes
+const COINBASE_COMMERCE_CHARGE_URL_BASE = 'https://commerce.coinbase.com/charges/';
+
 /**
  * Get CDP project ID with fallback chain (cached at module level)
  * 
@@ -353,24 +356,41 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
           return;
         }
 
-        // Validate we have the required data
-        if (!result.data?.checkoutUrl) {
-          console.error('[TopUpWalletModal] Missing checkout URL in response:', result);
-          throw new Error('Server did not return a checkout URL - please try again');
-        }
-
+        // Validate transaction ID
         if (!result.data?.transactionId) {
           console.error('[TopUpWalletModal] Missing transaction ID in response:', result);
           throw new Error('Server did not return a transaction ID - please try again');
         }
 
+        // Get checkout URL with fallback construction if missing
+        // Fallback hierarchy:
+        // 1. Use checkoutUrl from backend (if provided)
+        // 2. Construct from chargeCode (semantic identifier, e.g., "ABCD1234") - more human-readable
+        // 3. Construct from chargeId (UUID fallback)
+        const resolvedCheckoutUrl =
+          result.data?.checkoutUrl ||
+          (result.data?.chargeCode ? `${COINBASE_COMMERCE_CHARGE_URL_BASE}${result.data.chargeCode}` : null) ||
+          (result.data?.chargeId ? `${COINBASE_COMMERCE_CHARGE_URL_BASE}${result.data.chargeId}` : null);
+        
+        if (result.data?.chargeCode && !result.data?.checkoutUrl) {
+          console.log('[TopUpWalletModal] Constructed checkout URL from chargeCode:', resolvedCheckoutUrl);
+        } else if (result.data?.chargeId && !result.data?.checkoutUrl && !result.data?.chargeCode) {
+          console.log('[TopUpWalletModal] Constructed checkout URL from chargeId:', resolvedCheckoutUrl);
+        }
+        
+        // Final validation: ensure we have a checkout URL
+        if (!resolvedCheckoutUrl) {
+          console.error('[TopUpWalletModal] Missing checkout URL after all fallbacks:', result);
+          throw new Error('Server did not return a checkout URL - please try again');
+        }
+
         console.log('[TopUpWalletModal] Charge created successfully:', {
           transactionId: result.data.transactionId,
-          checkoutUrl: result.data.checkoutUrl
+          checkoutUrl: resolvedCheckoutUrl
         });
         
         setTransactionId(result.data.transactionId);
-        setCheckoutUrl(result.data.checkoutUrl);
+        setCheckoutUrl(resolvedCheckoutUrl);
         setStep('commerce-checkout');
       } else if (paymentMethod === 'offramp') {
         console.log('[TopUpWalletModal] Processing offramp payment...');
