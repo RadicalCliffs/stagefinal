@@ -237,4 +237,4 @@ If issues persist:
 ---
 
 **Last Updated**: 2026-02-18
-**PR**: #372 Fix
+**Related to**: PR #372 - Lucky Dip Ticket Reservation CORS Fix
