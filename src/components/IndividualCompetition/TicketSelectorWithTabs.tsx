@@ -103,15 +103,13 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
     const [reservationError, setReservationError] = useState<string | null>(null);
     const [reservationSuccess, setReservationSuccess] = useState<string | null>(null);
 
-    // PROACTIVE MONITORING: DISABLED - Cleanup is now handled by RPC atomically
-    // The reserve_lucky_dip RPC handles expiry within the database transaction,
-    // so client-side polling is no longer needed and just creates unnecessary load.
-    // Only PaymentModal needs this enabled during active payment flow.
+    // PROACTIVE MONITORING: Auto-cleanup expired reservations and handle issues
+    // This is the "all powerful and watching eye" that ensures smooth user experience
     useProactiveReservationMonitor({
         competitionId,
-        enableAutoCleanup: false,
-        cleanupInterval: 5000,
-        enabled: false, // Disabled - RPC handles cleanup atomically
+        enableAutoCleanup: true,
+        cleanupInterval: 5000, // Check every 5 seconds
+        enabled: true,
     });
 
     // REAL-TIME UPDATES: Subscribe to broadcast channel for instant ticket updates
