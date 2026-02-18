@@ -49,6 +49,9 @@ const PRESET_AMOUNTS = Object.keys(TOP_UP_CHECKOUT_URLS).map(Number).filter(a =>
 // Coinbase Commerce preset amounts (same as crypto since they use the same checkout URLs)
 const COMMERCE_PRESET_AMOUNTS = PRESET_AMOUNTS;
 
+// Coinbase Commerce charge URL base - used for constructing checkout URLs from charge IDs/codes
+const COINBASE_COMMERCE_CHARGE_URL_BASE = 'https://commerce.coinbase.com/charges/';
+
 /**
  * Get CDP project ID with fallback chain (cached at module level)
  * 
@@ -365,13 +368,13 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
         // FALLBACK 1: If checkoutUrl is missing but we have chargeCode, construct it
         // Coinbase Commerce checkout URL format: https://commerce.coinbase.com/charges/{chargeCode}
         if (!resolvedCheckoutUrl && result.data?.chargeCode) {
-          resolvedCheckoutUrl = `https://commerce.coinbase.com/charges/${result.data.chargeCode}`;
+          resolvedCheckoutUrl = `${COINBASE_COMMERCE_CHARGE_URL_BASE}${result.data.chargeCode}`;
           console.log('[TopUpWalletModal] Constructed checkout URL from chargeCode:', resolvedCheckoutUrl);
         }
         
         // FALLBACK 2: If still no URL but we have chargeId, try that format
         if (!resolvedCheckoutUrl && result.data?.chargeId) {
-          resolvedCheckoutUrl = `https://commerce.coinbase.com/charges/${result.data.chargeId}`;
+          resolvedCheckoutUrl = `${COINBASE_COMMERCE_CHARGE_URL_BASE}${result.data.chargeId}`;
           console.log('[TopUpWalletModal] Constructed checkout URL from chargeId:', resolvedCheckoutUrl);
         }
         
