@@ -361,6 +361,9 @@ Deno.serve(async (req: Request) => {
         
         if (paymentAmount > 0) {
           try {
+            // For pending top-ups, we'll immediately credit the balance, so set wallet_credited based on event type
+            const shouldCreditImmediately = eventType === "charge:pending";
+            
             const { data: newTransaction, error: insertError } = await supabase
               .from("user_transactions")
               .insert({
@@ -376,7 +379,8 @@ Deno.serve(async (req: Request) => {
                 wallet_address: payerWallet,
                 competition_id: null,  // NULL = top-up, NOT a competition entry
                 is_topup: true,
-                wallet_credited: false,  // Will be set to true after balance is credited
+                // For pending top-ups, we credit immediately, so mark as credited to prevent double-crediting
+                wallet_credited: shouldCreditImmediately,
                 created_at: eventData.created_at || new Date().toISOString(),
                 completed_at: eventData.confirmed_at || (eventType === "charge:confirmed" ? new Date().toISOString() : null),
                 metadata: {
@@ -982,12 +986,16 @@ Deno.serve(async (req: Request) => {
               console.log(`[commerce-webhook][${requestId}] ✅ Pending top-up credited: ${topUpAmount}`);
               console.log(`[commerce-webhook][${requestId}] Bonus applied: ${creditResult.bonus_applied}, Amount: ${creditResult.bonus_amount}`);
               
-              // Mark as credited
+              // Mark as credited and update status
+              // NOTE: For top-ups, we use a dual-status pattern:
+              // - status = "completed" means the balance has been credited (user can spend it)
+              // - payment_status = "pending" means blockchain confirmation is still in progress
+              // This allows us to provide instant crediting while tracking actual payment state
               await supabase
                 .from("user_transactions")
                 .update({
-                  status: "completed",  // Treat pending as completed for top-ups
-                  payment_status: "pending",
+                  status: "completed",  // Balance is credited - user can spend immediately
+                  payment_status: "pending",  // Blockchain confirmation still in progress
                   wallet_credited: true,
                   completed_at: new Date().toISOString(),
                   updated_at: new Date().toISOString(),
