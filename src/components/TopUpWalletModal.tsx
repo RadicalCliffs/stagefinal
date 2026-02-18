@@ -353,24 +353,41 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
           return;
         }
 
-        // Validate we have the required data
-        if (!result.data?.checkoutUrl) {
-          console.error('[TopUpWalletModal] Missing checkout URL in response:', result);
-          throw new Error('Server did not return a checkout URL - please try again');
-        }
-
+        // Validate transaction ID
         if (!result.data?.transactionId) {
           console.error('[TopUpWalletModal] Missing transaction ID in response:', result);
           throw new Error('Server did not return a transaction ID - please try again');
         }
 
+        // Get checkout URL with fallback construction if missing
+        let checkoutUrlValue = result.data?.checkoutUrl;
+        
+        // FALLBACK 1: If checkoutUrl is missing but we have chargeCode, construct it
+        // Coinbase Commerce checkout URL format: https://commerce.coinbase.com/charges/{chargeCode}
+        if (!checkoutUrlValue && result.data?.chargeCode) {
+          checkoutUrlValue = `https://commerce.coinbase.com/charges/${result.data.chargeCode}`;
+          console.log('[TopUpWalletModal] Constructed checkout URL from chargeCode:', checkoutUrlValue);
+        }
+        
+        // FALLBACK 2: If still no URL but we have chargeId, try that format
+        if (!checkoutUrlValue && result.data?.chargeId) {
+          checkoutUrlValue = `https://commerce.coinbase.com/charges/${result.data.chargeId}`;
+          console.log('[TopUpWalletModal] Constructed checkout URL from chargeId:', checkoutUrlValue);
+        }
+        
+        // Final validation: ensure we have a checkout URL
+        if (!checkoutUrlValue) {
+          console.error('[TopUpWalletModal] Missing checkout URL after all fallbacks:', result);
+          throw new Error('Server did not return a checkout URL - please try again');
+        }
+
         console.log('[TopUpWalletModal] Charge created successfully:', {
           transactionId: result.data.transactionId,
-          checkoutUrl: result.data.checkoutUrl
+          checkoutUrl: checkoutUrlValue
         });
         
         setTransactionId(result.data.transactionId);
-        setCheckoutUrl(result.data.checkoutUrl);
+        setCheckoutUrl(checkoutUrlValue);
         setStep('commerce-checkout');
       } else if (paymentMethod === 'offramp') {
         console.log('[TopUpWalletModal] Processing offramp payment...');
