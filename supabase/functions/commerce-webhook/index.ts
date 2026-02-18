@@ -339,13 +339,105 @@ Deno.serve(async (req: Request) => {
         }
       }
       
-      return new Response(
-        JSON.stringify({ success: true, message: "Transaction not found" }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+      // CRITICAL FIX: For top-ups (no competition_id), create the transaction record from webhook data
+      // This handles cases where charges are created directly in Coinbase Commerce or via external flows
+      // For top-ups specifically, pending is as good as confirmed - we can safely credit the balance
+      if (!competitionId && userId && (eventType === "charge:confirmed" || eventType === "charge:pending")) {
+        console.log(`[commerce-webhook][${requestId}] 🔧 Creating transaction record for external top-up`);
+        
+        // Extract payment amount and currency
+        const paymentAmount = Number(eventData.pricing?.local?.amount || 
+                                     eventData.pricing?.settlement?.amount || 
+                                     0);
+        const currency = eventData.pricing?.local?.currency || 
+                        eventData.pricing?.settlement?.currency || 
+                        'USD';
+        
+        // Extract payer wallet address from first payment
+        const payments = eventData.payments || [];
+        const firstPayment = payments[0];
+        const payerWallet = firstPayment?.payer_addresses?.[0] || walletAddress || '';
+        const txHash = firstPayment?.transaction_id || firstPayment?.payment_id || '';
+        
+        if (paymentAmount > 0) {
+          try {
+            // For pending top-ups, we'll immediately credit the balance, so set wallet_credited based on event type
+            const shouldCreditImmediately = eventType === "charge:pending";
+            
+            const { data: newTransaction, error: insertError } = await supabase
+              .from("user_transactions")
+              .insert({
+                user_id: userId,
+                canonical_user_id: userId,
+                amount: paymentAmount,
+                currency: currency,
+                status: eventType === "charge:confirmed" ? "completed" : "pending",
+                payment_status: eventType === "charge:confirmed" ? "completed" : "pending",
+                payment_provider: "coinbase_commerce",
+                tx_id: eventData.id,
+                transaction_hash: txHash,
+                wallet_address: payerWallet,
+                competition_id: null,  // NULL = top-up, NOT a competition entry
+                is_topup: true,
+                // For pending top-ups, we credit immediately, so mark as credited to prevent double-crediting
+                wallet_credited: shouldCreditImmediately,
+                created_at: eventData.created_at || new Date().toISOString(),
+                completed_at: eventData.confirmed_at || (eventType === "charge:confirmed" ? new Date().toISOString() : null),
+                metadata: {
+                  charge_id: eventData.id,
+                  charge_code: eventData.code,
+                  charge_name: eventData.name,
+                  hosted_url: eventData.hosted_url,
+                  created_from_webhook: true,
+                  webhook_event_type: eventType
+                }
+              })
+              .select()
+              .single();
+            
+            if (insertError) {
+              console.error(`[commerce-webhook][${requestId}] ❌ Failed to create transaction record:`, insertError);
+              return new Response(
+                JSON.stringify({ success: false, error: "Failed to create transaction record", details: insertError.message }),
+                {
+                  status: 500,
+                  headers: { ...corsHeaders, "Content-Type": "application/json" },
+                }
+              );
+            }
+            
+            transaction = newTransaction;
+            console.log(`[commerce-webhook][${requestId}] ✅ Created transaction record: ${transaction.id} for top-up of ${paymentAmount} ${currency}`);
+          } catch (createError) {
+            console.error(`[commerce-webhook][${requestId}] ❌ Exception creating transaction:`, createError);
+            return new Response(
+              JSON.stringify({ success: false, error: "Exception creating transaction", details: (createError as Error).message }),
+              {
+                status: 500,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              }
+            );
+          }
+        } else {
+          console.error(`[commerce-webhook][${requestId}] ❌ Cannot create transaction: invalid amount ${paymentAmount}`);
+          return new Response(
+            JSON.stringify({ success: false, error: "Invalid payment amount" }),
+            {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+          );
         }
-      );
+      } else {
+        // For competition entries, we can't auto-create the transaction as it requires more context
+        return new Response(
+          JSON.stringify({ success: true, message: "Transaction not found - requires manual reconciliation" }),
+          {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
     }
 
     console.log(`[commerce-webhook][${requestId}] Found transaction: ${transaction.id}, current status: ${transaction.status}`);
@@ -868,6 +960,69 @@ Deno.serve(async (req: Request) => {
     } else if (eventType === "charge:pending" || eventType === "charge:delayed") {
       console.log(`[commerce-webhook][${requestId}] Payment ${eventType.split(':')[1]}`);
 
+      // For TOP-UPS: treat pending as confirmed (user requirement: "pending is as good as confirmed for topups")
+      // This provides instant crediting for wallet top-ups without waiting for full blockchain confirmation
+      if (!transaction.competition_id && eventType === "charge:pending") {
+        console.log(`[commerce-webhook][${requestId}] 🚀 Processing PENDING top-up immediately (pending = confirmed for top-ups)`);
+        
+        const topUpAmount = Number(transaction.amount) || 0;
+        
+        if (topUpAmount > 0 && transaction.user_id && !transaction.wallet_credited) {
+          try {
+            // Credit balance immediately for pending top-ups
+            const { data: creditResult, error: rpcError } = await supabase.rpc(
+              'credit_balance_with_first_deposit_bonus',
+              {
+                p_canonical_user_id: transaction.user_id,
+                p_amount: topUpAmount,
+                p_reason: 'commerce_topup_pending',
+                p_reference_id: eventData.id || transaction.id
+              }
+            );
+            
+            if (rpcError) {
+              console.error(`[commerce-webhook][${requestId}] ❌ Failed to credit pending top-up:`, rpcError);
+            } else if (creditResult?.success) {
+              console.log(`[commerce-webhook][${requestId}] ✅ Pending top-up credited: ${topUpAmount}`);
+              console.log(`[commerce-webhook][${requestId}] Bonus applied: ${creditResult.bonus_applied}, Amount: ${creditResult.bonus_amount}`);
+              
+              // Mark as credited and update status
+              // NOTE: For top-ups, we use a dual-status pattern:
+              // - status = "completed" means the balance has been credited (user can spend it)
+              // - payment_status = "pending" means blockchain confirmation is still in progress
+              // This allows us to provide instant crediting while tracking actual payment state
+              await supabase
+                .from("user_transactions")
+                .update({
+                  status: "completed",  // Balance is credited - user can spend immediately
+                  payment_status: "pending",  // Blockchain confirmation still in progress
+                  wallet_credited: true,
+                  completed_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", transaction.id);
+              
+              return new Response(
+                JSON.stringify({ 
+                  success: true, 
+                  message: "Pending top-up credited immediately",
+                  amount: topUpAmount,
+                  bonus_applied: creditResult.bonus_applied,
+                  total_credited: creditResult.total_credited
+                }),
+                {
+                  status: 200,
+                  headers: { ...corsHeaders, "Content-Type": "application/json" },
+                }
+              );
+            }
+          } catch (creditError) {
+            console.error(`[commerce-webhook][${requestId}] ❌ Exception crediting pending top-up:`, creditError);
+          }
+        }
+      }
+      
+      // For competition entries or if crediting failed, just update status
       await supabase
         .from("user_transactions")
         .update({
