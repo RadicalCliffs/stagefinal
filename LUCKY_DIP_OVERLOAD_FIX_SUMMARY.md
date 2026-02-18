@@ -104,7 +104,7 @@ The migration is ready to deploy. See `DEPLOYMENT_LUCKY_DIP_FIX.md` for:
 
 **Via Supabase CLI:**
 ```bash
-cd /home/runner/work/theprize.io/theprize.io
+cd /path/to/theprize.io
 supabase db push
 ```
 

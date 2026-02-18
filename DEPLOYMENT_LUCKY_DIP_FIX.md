@@ -28,7 +28,7 @@ The following migration MUST be applied first (should already be deployed):
 
 ```bash
 # Navigate to project directory
-cd /home/runner/work/theprize.io/theprize.io
+cd /path/to/theprize.io
 
 # Link to Supabase project (if not already linked)
 supabase link --project-ref YOUR_PROJECT_REF
