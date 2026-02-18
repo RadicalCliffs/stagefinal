@@ -7,7 +7,7 @@ export const TOP_UP_CHECKOUT_URLS: Record<number, string> = {
   3: 'https://commerce.coinbase.com/checkout/b4a897d7-0a83-49e3-b2ea-8dc27b53e3ea',
   5: 'https://commerce.coinbase.com/checkout/6ffa7b7e-6ea6-42c1-ad76-65ad21d28016',
   10: 'https://commerce.coinbase.com/checkout/2cd60336-22a8-4881-80e2-133fbf840d85',
-  25: 'https://commerce.coinbase.com/checkout/bcda0375-739a-4b0c-a5d4-5879c53299a7',
+  20: 'https://commerce.coinbase.com/checkout/bcda0375-739a-4b0c-a5d4-5879c53299a7',
   50: 'https://commerce.coinbase.com/checkout/ba05b195-ce83-49a7-990b-cf76f82e81c1',
   100: 'https://commerce.coinbase.com/checkout/263a89e5-d46b-426b-addf-12699c564034',
   250: 'https://commerce.coinbase.com/checkout/515dafd8-6575-47b5-b66c-dd9a6a2a6e09',
