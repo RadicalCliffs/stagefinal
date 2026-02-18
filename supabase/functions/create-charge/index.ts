@@ -429,12 +429,16 @@ Deno.serve(async (req: Request) => {
       console.error(`[create-charge][${requestId}] ERROR: Coinbase Commerce did not return hosted_url. Charge data:`, JSON.stringify(charge).substring(0, 500));
       
       // Update transaction status to failed
-      await supabase
+      const { error: failedUpdateError } = await supabase
         .from("user_transactions")
         .update({
           payment_status: "failed",
         })
         .eq("id", transactionId);
+      
+      if (failedUpdateError) {
+        console.error(`[create-charge][${requestId}] Error updating transaction to failed status:`, failedUpdateError);
+      }
       
       return new Response(
         JSON.stringify({
@@ -445,7 +449,7 @@ Deno.serve(async (req: Request) => {
             transactionId,
           },
         }),
-        { status: 200, headers: { "Content-Type": "application/json", ...cors } }
+        { status: 500, headers: { "Content-Type": "application/json", ...cors } }
       );
     }
 
