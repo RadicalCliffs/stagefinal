@@ -429,8 +429,8 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
       };
 
       // Start background verification and crediting
-      verifyAndCredit().catch(err => {
-        // Silent error handling
+      verifyAndCredit().catch(() => {
+        // Ignore verification errors - transaction succeeded on-chain
       });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Payment failed';
