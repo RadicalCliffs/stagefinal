@@ -245,8 +245,8 @@ Deno.serve(async (req: Request) => {
 
       // Normalize numeric inputs (defensive against string inputs)
       const normalizedCount = Number(count);
-      if (!Number.isInteger(normalizedCount) || normalizedCount < 1 || normalizedCount > 10000) {
-        return errorResponse("count is required and must be between 1 and 10000", 400, corsHeaders);
+      if (!Number.isInteger(normalizedCount) || normalizedCount < 1 || normalizedCount > 999) {
+        return errorResponse("count is required and must be between 1 and 999", 400, corsHeaders);
       }
 
       // Validate UUID format
