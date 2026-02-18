@@ -436,13 +436,5 @@ describe('Top-Up Wallet Integration Test', () => {
         payment_provider: 'coinbase_commerce'
       })
     );
-
-    console.log('\n✅ Missing Checkout URL Error Test Summary:');
-    console.log('================================');
-    console.log('Scenario:          Coinbase Commerce fails to return checkout URL');
-    console.log('Expected Behavior: Error thrown with user-friendly message');
-    console.log('Error Message:     Payment service error: Unable to generate checkout URL');
-    console.log('Result:            ✅ Error properly handled and surfaced to user');
-    console.log('================================\n');
   });
 });
