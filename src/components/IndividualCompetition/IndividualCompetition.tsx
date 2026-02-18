@@ -7,7 +7,7 @@ import Heading from '../Heading'
 import NeverMissGame from '../NeverMissGame'
 import IndividualCompetitionHeroSection from './IndividualCompetitionHeroSection'
 import IndividualCompetitionInfo, { type CompetitionPageTextOverrides } from './IndividualCompetitionInfo'
-import IndividualFairDraws from './IndividualFairDrawsSteps'
+import FairDrawsV2 from '../FairDrawsV2'
 import TicketSelector from './TicketSelectorWithTabs'
 import type {  CompetitionWrapper } from '../../models/models';
 
@@ -41,7 +41,16 @@ const IndividualCompetition = ({ competition, competitionPageTextOverrides }: In
         </div>
         : ""}
       <div className='fair-draws-bg xl:px-0 px-4 relative'>
-        <IndividualFairDraws />
+        <div className="pt-6 pb-0 relative z-10">
+          <div className="max-w-7xl mx-auto px-4">
+            <h2 className="text-[#DDE404] md:text-[2.1rem] text-2xl sequel-95 text-center uppercase mb-1">
+              HOW IT WORKS
+            </h2>
+          </div>
+          <div className="overflow-visible scale-[0.85]">
+            <FairDrawsV2 />
+          </div>
+        </div>
         <div className='pt-8 pb-16 relative'>
           <IndividualCompetitionInfo textOverrides={competitionPageTextOverrides} />
         </div>

@@ -24,6 +24,35 @@ interface EntriesWithFilterTabsProps {
 const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFilterTabsProps = {}) => {
   const [entries, setEntries] = useState<Array<{ ticketNumber: number; date: string; walletAddress: string; username?: string; transactionHash?: string; vrfHash?: string }>>([]);
   const [loading, setLoading] = useState(true);
+  const [totalTickets, setTotalTickets] = useState<number | null>(null);
+
+  // Fetch competition data to get total_tickets
+  const fetchCompetitionData = useCallback(async () => {
+    const idToUse = competitionId || competitionUid;
+    
+    if (!idToUse || !isValidUuid(idToUse)) {
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('competitions')
+        .select('total_tickets')
+        .eq('id', idToUse)
+        .single();
+
+      if (!error && data) {
+        setTotalTickets((data as any).total_tickets || null);
+      }
+    } catch (error) {
+      console.error('[EntriesWithFilterTabs] Error fetching competition data:', error);
+    }
+  }, [competitionId, competitionUid]);
+
+  // Fetch competition data on mount
+  useEffect(() => {
+    fetchCompetitionData();
+  }, [fetchCompetitionData]);
 
   // Fetch real competition entries
   const fetchEntries = useCallback(async () => {
@@ -661,18 +690,23 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
     }
   ], shouldSubscribe);
 
-  // Dynamically determine filter ranges based on entries
+  // Dynamically determine filter ranges based on entries or competition total_tickets
   const maxTicketNumber = useMemo(() => {
+    // Use total_tickets from competition if available, otherwise fall back to max entry number or 5000
+    if (totalTickets && totalTickets > 0) {
+      return totalTickets;
+    }
     if (entries.length === 0) return 5000;
     return Math.max(...entries.map(e => e.ticketNumber));
-  }, [entries]);
+  }, [entries, totalTickets]);
 
   const filterOptions: Options[] = useMemo(() => {
     const rangeSize = 500;
     const numRanges = Math.ceil(maxTicketNumber / rangeSize);
     const options: Options[] = [];
 
-    for (let i = 0; i < Math.min(numRanges, 10); i++) {
+    // Remove the limit of 10 ranges to support full pagination
+    for (let i = 0; i < numRanges; i++) {
       const start = i * rangeSize + 1;
       const end = (i + 1) * rangeSize;
       options.push({
