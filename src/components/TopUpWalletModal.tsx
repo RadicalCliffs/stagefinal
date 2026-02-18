@@ -264,133 +264,58 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
       } else if (paymentMethod === 'commerce') {
         console.log('[TopUpWalletModal] Processing commerce payment...');
         
-        // Create dynamic charge with proper redirect URLs configured in backend
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        const { data: sessionData } = await supabase.auth.getSession();
+        // Check if we have a pre-configured checkout URL for this amount
+        const checkoutUrl = TOP_UP_CHECKOUT_URLS[amount];
         
-        console.log('[TopUpWalletModal] Got session data:', { 
-          hasSession: !!sessionData.session,
-          hasAccessToken: !!sessionData.session?.access_token 
-        });
-        
-        if (sessionData.session?.access_token) {
-          headers['Authorization'] = `Bearer ${sessionData.session.access_token}`;
-        }
-
-        const requestBody = {
-          userId: toCanonicalUserId(baseUser.id),
-          totalAmount: amount,
-          type: 'topup',
-        };
-        
-        console.log('[TopUpWalletModal] Calling /api/create-charge with:', {
-          url: '/api/create-charge',
-          method: 'POST',
-          hasAuth: !!headers['Authorization'],
-          requestBody
-        });
-
-        // Add timeout to prevent hanging forever
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => {
-          console.error('[TopUpWalletModal] API call timeout after 30 seconds');
-          controller.abort();
-        }, 30000); // 30 second timeout
-
-        let response;
-        try {
-          response = await fetch('/api/create-charge', {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(requestBody),
-            signal: controller.signal,
-          });
-          clearTimeout(timeoutId);
-        } catch (fetchError) {
-          clearTimeout(timeoutId);
-          console.error('[TopUpWalletModal] Fetch error:', {
-            error: fetchError,
-            message: fetchError instanceof Error ? fetchError.message : String(fetchError),
-            isAbortError: fetchError instanceof Error && fetchError.name === 'AbortError'
-          });
-          
-          if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-            throw new Error('Request timeout - please check your internet connection and try again');
-          }
-          throw new Error('Network error - please check your connection and try again');
-        }
-
-        console.log('[TopUpWalletModal] API response status:', response.status, response.statusText);
-        
-        let result;
-        try {
-          result = await response.json();
-        } catch (parseError) {
-          console.error('[TopUpWalletModal] Failed to parse response:', {
-            error: parseError,
-            status: response.status,
-            statusText: response.statusText
-          });
-          throw new Error('Invalid server response - please try again');
-        }
-        
-        console.log('[TopUpWalletModal] API response data:', {
-          ok: response.ok,
-          success: result.success,
-          hasData: !!result.data,
-          hasTransactionId: !!result.data?.transactionId,
-          hasCheckoutUrl: !!result.data?.checkoutUrl,
-          error: result.error,
-          fullResult: result
-        });
-        
-        if (!response.ok || !result.success) {
-          const errorMsg = result.error?.message || result.error || 'Failed to create checkout';
-          console.error('[TopUpWalletModal] Failed to create charge:', {
-            status: response.status,
-            result,
-            errorMsg
-          });
+        if (!checkoutUrl) {
+          const availableAmounts = Object.keys(TOP_UP_CHECKOUT_URLS).map(Number).join(', ');
+          const errorMsg = `Amount $${amount} is not available. Available amounts: $${availableAmounts}`;
+          console.error('[TopUpWalletModal] Invalid amount:', errorMsg);
           setError(errorMsg);
           setStep('error');
           return;
         }
-
-        // Validate transaction ID
-        if (!result.data?.transactionId) {
-          console.error('[TopUpWalletModal] Missing transaction ID in response:', result);
-          throw new Error('Server did not return a transaction ID - please try again');
-        }
-
-        // Get checkout URL with fallback construction if missing
-        // Fallback hierarchy:
-        // 1. Use checkoutUrl from backend (if provided)
-        // 2. Construct from chargeCode (semantic identifier, e.g., "ABCD1234") - more human-readable
-        // 3. Construct from chargeId (UUID fallback)
-        const resolvedCheckoutUrl =
-          result.data?.checkoutUrl ||
-          (result.data?.chargeCode ? `${COINBASE_COMMERCE_CHARGE_URL_BASE}${result.data.chargeCode}` : null) ||
-          (result.data?.chargeId ? `${COINBASE_COMMERCE_CHARGE_URL_BASE}${result.data.chargeId}` : null);
         
-        if (result.data?.chargeCode && !result.data?.checkoutUrl) {
-          console.log('[TopUpWalletModal] Constructed checkout URL from chargeCode:', resolvedCheckoutUrl);
-        } else if (result.data?.chargeId && !result.data?.checkoutUrl && !result.data?.chargeCode) {
-          console.log('[TopUpWalletModal] Constructed checkout URL from chargeId:', resolvedCheckoutUrl);
+        console.log('[TopUpWalletModal] Using pre-configured checkout URL for $' + amount);
+        
+        // Create a transaction record for tracking (without calling create-charge API)
+        // This ensures we have a record of the payment attempt
+        const transactionId = crypto.randomUUID();
+        
+        try {
+          const { error: insertError } = await supabase
+            .from('user_transactions')
+            .insert({
+              id: transactionId,
+              user_id: toCanonicalUserId(baseUser.id),
+              amount: amount,
+              currency: 'USD',
+              payment_status: 'pending',
+              status: 'pending',
+              payment_provider: 'coinbase',
+              type: 'topup',
+              created_at: new Date().toISOString(),
+            });
+          
+          if (insertError) {
+            console.error('[TopUpWalletModal] Failed to create transaction record:', insertError);
+            // Continue anyway - the webhook will create the record if needed
+          } else {
+            console.log('[TopUpWalletModal] Created transaction record:', transactionId);
+          }
+        } catch (dbError) {
+          console.error('[TopUpWalletModal] Database error creating transaction:', dbError);
+          // Continue anyway
         }
         
-        // Final validation: ensure we have a checkout URL
-        if (!resolvedCheckoutUrl) {
-          console.error('[TopUpWalletModal] Missing checkout URL after all fallbacks:', result);
-          throw new Error('Server did not return a checkout URL - please try again');
-        }
-
-        console.log('[TopUpWalletModal] Charge created successfully:', {
-          transactionId: result.data.transactionId,
-          checkoutUrl: resolvedCheckoutUrl
+        console.log('[TopUpWalletModal] Using pre-configured checkout:', {
+          amount,
+          transactionId,
+          checkoutUrl
         });
         
-        setTransactionId(result.data.transactionId);
-        setCheckoutUrl(resolvedCheckoutUrl);
+        setTransactionId(transactionId);
+        setCheckoutUrl(checkoutUrl);
         setStep('commerce-checkout');
       } else if (paymentMethod === 'offramp') {
         console.log('[TopUpWalletModal] Processing offramp payment...');
