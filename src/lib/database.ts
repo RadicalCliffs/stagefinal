@@ -3065,7 +3065,7 @@ export const database = {
             const { data, error } = (await supabase.rpc('allocate_lucky_dip_tickets_batch', {
               p_user_id: canonicalUserId,
               p_competition_id: competitionId.trim(),
-              p_ticket_count: batchSize,
+              p_count: batchSize,
               p_ticket_price: ticketPrice,
               p_hold_minutes: holdMinutes,
               p_session_id: sessionId || null,

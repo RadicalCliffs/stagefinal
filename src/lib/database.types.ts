@@ -2081,9 +2081,13 @@ export interface Database {
       }
       allocate_lucky_dip_tickets_batch: {
         Args: {
-          p_competition_id: string
           p_user_id: string
-          p_ticket_count: number
+          p_competition_id: string
+          p_count: number
+          p_ticket_price?: number
+          p_hold_minutes?: number
+          p_session_id?: string
+          p_excluded_tickets?: number[]
         }
         Returns: Json
       }
