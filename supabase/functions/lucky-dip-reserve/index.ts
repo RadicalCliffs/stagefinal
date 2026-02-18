@@ -232,7 +232,18 @@ Deno.serve(async (req: Request) => {
     }
 
     // The RPC returns JSON with { success, reservation_id, ticket_numbers, ticket_count, error }
-    const result = typeof rpcResult === 'string' ? JSON.parse(rpcResult) : rpcResult;
+    let result;
+    try {
+      result = typeof rpcResult === 'string' ? JSON.parse(rpcResult) : rpcResult;
+    } catch (parseError) {
+      console.error(`[${requestId}] Failed to parse RPC result:`, parseError);
+      return errorResponse(
+        "Invalid response format from reservation system",
+        500,
+        corsHeaders,
+        { retryable: true }
+      );
+    }
 
     if (!result || !result.success) {
       const errorMsg = result?.error || 'Unknown error from allocation RPC';
@@ -242,7 +253,7 @@ Deno.serve(async (req: Request) => {
         "Failed to reserve tickets",
         500,
         corsHeaders,
-        { retryable: result?.retryable || true, errorDetail }
+        { retryable: result?.retryable ?? true, errorDetail }
       );
     }
 
