@@ -58,7 +58,7 @@ function handleCorsOptions(req: Request): Response {
  * This function handles the "Lucky Dip" flow where users request a specific COUNT
  * of tickets rather than specific ticket numbers. 
  *
- * Uses the new reserve_lucky_dip RPC that handles:
+ * Uses the allocate_lucky_dip_tickets_batch RPC that handles:
  * - Atomic transaction with expiry cleanup
  * - Ticket locking with FOR UPDATE SKIP LOCKED
  * - Updates ticket status to 'reserved'
@@ -67,7 +67,7 @@ function handleCorsOptions(req: Request): Response {
  * Flow:
  * 1. User sets Lucky Dip slider (e.g., "I want 5000 random tickets")
  * 2. Frontend calls this function with competition_id and count
- * 3. Function calls reserve_lucky_dip RPC
+ * 3. Function calls allocate_lucky_dip_tickets_batch RPC
  * 4. Returns allocated ticket numbers + reservation ID
  *
  * Error Codes:
@@ -81,8 +81,6 @@ function handleCorsOptions(req: Request): Response {
 // Constants
 // ============================================================================
 
-const PRIZE_PID_PREFIX = 'prize:pid:';
-const ETHEREUM_WALLET_REGEX = /^0x[a-fA-F0-9]{40}$/;
 const MINUTES_TO_MS = 60 * 1000; // Convert minutes to milliseconds
 
 // ============================================================================
@@ -198,37 +196,33 @@ Deno.serve(async (req: Request) => {
     console.log(`[${requestId}] Allocating ${normalizedCount} lucky dip tickets for competition:`, competitionId);
 
     // =========================================================================
-    // Use new reserve_lucky_dip RPC for all requests (replaces allocate_lucky_dip_tickets)
+    // Use allocate_lucky_dip_tickets_batch RPC for ticket allocation
     // This RPC handles expiry atomically and updates ticket status to 'reserved'
     // =========================================================================
     
-    // Extract wallet address from canonical user ID if available
-    const extractedId = canonicalUserId.startsWith(PRIZE_PID_PREFIX) 
-      ? canonicalUserId.substring(PRIZE_PID_PREFIX.length)
-      : canonicalUserId;
-    
-    // Use extracted ID as wallet_address if it's a wallet, otherwise empty string
-    const walletAddress = ETHEREUM_WALLET_REGEX.test(extractedId) ? extractedId : '';
-    
-    console.log(`[${requestId}] Calling reserve_lucky_dip RPC`, {
-      canonical_user_id: canonicalUserId,
-      wallet_address: walletAddress,
-      ticket_count: normalizedCount
+    console.log(`[${requestId}] Calling allocate_lucky_dip_tickets_batch RPC`, {
+      user_id: canonicalUserId,
+      competition_id: competitionId,
+      ticket_count: normalizedCount,
+      ticket_price: validTicketPrice,
+      hold_minutes: holdMins
     });
 
     const { data: rpcResult, error: rpcError } = await supabase.rpc(
-      'reserve_lucky_dip',
+      'allocate_lucky_dip_tickets_batch',
       {
+        p_user_id: canonicalUserId,
         p_competition_id: competitionId,
-        p_canonical_user_id: canonicalUserId,
-        p_wallet_address: walletAddress,
-        p_ticket_count: normalizedCount,
-        p_hold_minutes: holdMins
+        p_count: normalizedCount,
+        p_ticket_price: validTicketPrice,
+        p_hold_minutes: holdMins,
+        p_session_id: sessionId || null,
+        p_excluded_tickets: null
       }
     );
 
     if (rpcError) {
-      console.error(`[${requestId}] reserve_lucky_dip RPC error:`, rpcError);
+      console.error(`[${requestId}] allocate_lucky_dip_tickets_batch RPC error:`, rpcError);
       return errorResponse(
         "Failed to reserve tickets",
         500,
@@ -237,11 +231,23 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // The RPC returns { pending_ticket_id, allocated_numbers }
-    const result = Array.isArray(rpcResult) && rpcResult.length > 0 ? rpcResult[0] : rpcResult;
+    // The RPC returns JSON with { success, reservation_id, ticket_numbers, ticket_count, error }
+    const result = typeof rpcResult === 'string' ? JSON.parse(rpcResult) : rpcResult;
 
-    if (!result || !result.pending_ticket_id || !result.allocated_numbers) {
-      console.error(`[${requestId}] Invalid response from reserve_lucky_dip:`, result);
+    if (!result || !result.success) {
+      const errorMsg = result?.error || 'Unknown error from allocation RPC';
+      const errorDetail = result?.error_detail || result?.error || 'allocation_failed';
+      console.error(`[${requestId}] Allocation RPC failed:`, errorMsg, result);
+      return errorResponse(
+        "Failed to reserve tickets",
+        500,
+        corsHeaders,
+        { retryable: result?.retryable || true, errorDetail }
+      );
+    }
+
+    if (!result.reservation_id || !result.ticket_numbers) {
+      console.error(`[${requestId}] Invalid response from allocate_lucky_dip_tickets_batch:`, result);
       return errorResponse(
         "Invalid response from reservation system",
         500,
@@ -250,17 +256,17 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const allocatedNumbers = Array.isArray(result.allocated_numbers) ? result.allocated_numbers : [];
+    const allocatedNumbers = Array.isArray(result.ticket_numbers) ? result.ticket_numbers : [];
     
     console.log(`[${requestId}] Successfully reserved ${allocatedNumbers.length} tickets`);
 
     return successResponse({
-      reservationId: result.pending_ticket_id,
+      reservationId: result.reservation_id,
       ticketNumbers: allocatedNumbers,
       ticketCount: allocatedNumbers.length,
       totalAmount: allocatedNumbers.length * validTicketPrice,
       expiresAt: new Date(Date.now() + holdMins * MINUTES_TO_MS).toISOString(),
-      algorithm: 'reserve-lucky-dip-atomic',
+      algorithm: 'allocate-lucky-dip-batch',
       message: `Successfully reserved ${allocatedNumbers.length} lucky dip tickets. Complete payment within ${holdMins} minutes.`
     }, corsHeaders);
 
