@@ -3,9 +3,12 @@
 -- 1. sub_account_balances.available_balance is the source of truth for balance
 -- 2. joincompetition is the source of truth for spending (with payment_provider filter)
 -- 3. Spending calculation: if payment_provider != 'base_account', it was paid with balance
+--
+-- IMPORTANT: Some functions in this migration already exist in production (see All Functions by relevant schemas.csv)
+-- This migration explicitly drops and replaces them to ensure new signatures are applied
 
 -- ============================================================================
--- Function: get_user_balance_spending
+-- Function: get_user_balance_spending (NEW FUNCTION)
 -- Returns user's current balance and total spent using balance payments
 -- ============================================================================
 
@@ -113,10 +116,15 @@ Balance source: sub_account_balances.available_balance
 Spending source: joincompetition table (filtered by payment_provider != base_account)';
 
 -- ============================================================================
--- Function: get_user_competition_entries
+-- Function: get_user_competition_entries (EXISTING - DROP AND REPLACE)
 -- Returns detailed competition entries for a user with spending info
+-- IMPORTANT: This function already exists in production with a different signature
 -- ============================================================================
 
+-- Drop the existing function
+DROP FUNCTION IF EXISTS public.get_user_competition_entries(TEXT);
+
+-- Create the updated function with new signature
 CREATE OR REPLACE FUNCTION public.get_user_competition_entries(
   p_user_identifier TEXT
 )
@@ -219,10 +227,15 @@ Source: joincompetition table (source of truth for entries and spending)
 Amount calculation: ticketCount * competition.ticket_price';
 
 -- ============================================================================
--- Function: get_comprehensive_user_dashboard_entries
+-- Function: get_comprehensive_user_dashboard_entries (EXISTING - DROP AND REPLACE)
 -- Returns dashboard entries with competition details
+-- IMPORTANT: This function already exists in production with a different signature
 -- ============================================================================
 
+-- Drop the existing function
+DROP FUNCTION IF EXISTS public.get_comprehensive_user_dashboard_entries(TEXT);
+
+-- Create the updated function with new signature
 CREATE OR REPLACE FUNCTION public.get_comprehensive_user_dashboard_entries(
   p_user_identifier TEXT
 )
