@@ -1,0 +1,414 @@
+-- =========================================
+-- 0) Safety and prerequisites
+-- =========================================
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_min_messages = warning;
+
+-- Extensions used in this project (avoid moving ones already installed)
+CREATE SCHEMA IF NOT EXISTS extensions;
+CREATE SCHEMA IF NOT EXISTS vault;
+CREATE SCHEMA IF NOT EXISTS graphql;
+CREATE SCHEMA IF NOT EXISTS graphql_public;
+
+-- Keep installed versions where reported
+CREATE EXTENSION IF NOT EXISTS "pgcrypto" WITH SCHEMA public;
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
+CREATE EXTENSION IF NOT EXISTS "citext" WITH SCHEMA public;
+CREATE EXTENSION IF NOT EXISTS "pg_graphql" WITH SCHEMA graphql;
+CREATE EXTENSION IF NOT EXISTS "supabase_vault" WITH SCHEMA vault;
+CREATE EXTENSION IF NOT EXISTS "http" WITH SCHEMA extensions;
+CREATE EXTENSION IF NOT EXISTS "pg_net" WITH SCHEMA extensions;
+CREATE EXTENSION IF NOT EXISTS "pg_stat_statements" WITH SCHEMA extensions;
+
+-- =========================================
+-- 1) Schemas (most already exist)
+-- =========================================
+CREATE SCHEMA IF NOT EXISTS public;
+CREATE SCHEMA IF NOT EXISTS auth;
+CREATE SCHEMA IF NOT EXISTS storage;
+CREATE SCHEMA IF NOT EXISTS realtime;
+CREATE SCHEMA IF NOT EXISTS net;
+CREATE SCHEMA IF NOT EXISTS supabase_functions;
+CREATE SCHEMA IF NOT EXISTS supabase_migrations;
+CREATE SCHEMA IF NOT EXISTS cron;
+CREATE SCHEMA IF NOT EXISTS util;
+
+COMMENT ON SCHEMA public IS 'Public schema - Client-facing RPC functions including upsert_canonical_user(BOOLEAN)';
+
+-- =========================================
+-- 2) Tables and structures
+-- NOTE: Most tables already exist. We ensure constraints and indexes below.
+-- For brevity we won’t re-CREATE every table; we’ll enforce indexes, RLS, and FKs.
+-- =========================================
+
+-- =========================================
+-- 3) Indexes (add missing FK covering indexes + advisors)
+-- =========================================
+
+-- admin_sessions.admin_id FK covering index
+CREATE INDEX IF NOT EXISTS idx_admin_sessions_admin_id ON public.admin_sessions(admin_id);
+
+-- instant_win_ticket_outcomes.prize_uid FK covering index
+CREATE INDEX IF NOT EXISTS idx_iwto_prize_uid ON public.instant_win_ticket_outcomes(prize_uid);
+
+-- joincompetition_ticket_claims.join_id FK covering index
+CREATE INDEX IF NOT EXISTS idx_joincompetition_ticket_claims_join_id ON public.joincompetition_ticket_claims(join_id);
+
+-- order_tickets.order_id FK covering index
+CREATE INDEX IF NOT EXISTS idx_order_tickets_order_id ON public.order_tickets(order_id);
+
+-- profiles.user_id FK covering index
+CREATE INDEX IF NOT EXISTS idx_profiles_user_id ON public.profiles(user_id);
+
+-- Common FKs to competitions for performance
+CREATE INDEX IF NOT EXISTS idx_competitions_id ON public.competitions(id);
+CREATE INDEX IF NOT EXISTS idx_tickets_competition_id ON public.tickets(competition_id);
+CREATE INDEX IF NOT EXISTS idx_joincompetition_competition_id ON public.joincompetition(competition_id);
+CREATE INDEX IF NOT EXISTS idx_pending_tickets_competition_id ON public.pending_tickets(competition_id);
+CREATE INDEX IF NOT EXISTS idx_winners_competition_id ON public.winners(competition_id);
+CREATE INDEX IF NOT EXISTS idx_draw_winners_competition_id ON public.draw_winners(competition_id);
+CREATE INDEX IF NOT EXISTS idx_rng_logs_competition_id ON public.rng_logs(competition_id);
+CREATE INDEX IF NOT EXISTS idx_instant_win_grids_competition_id ON public.instant_win_grids(competition_id);
+CREATE INDEX IF NOT EXISTS idx_instant_win_ticket_outcomes_competition_id ON public.instant_win_ticket_outcomes(competition_id);
+CREATE INDEX IF NOT EXISTS idx_competition_entries_competition_id ON public.competition_entries(competition_id);
+CREATE INDEX IF NOT EXISTS idx_orders_competition_id ON public.orders(competition_id);
+
+-- Canonical user lookups used across tables
+CREATE INDEX IF NOT EXISTS idx_tickets_canonical_user_id ON public.tickets(canonical_user_id);
+CREATE INDEX IF NOT EXISTS idx_user_transactions_canonical_user_id ON public.user_transactions(canonical_user_id);
+CREATE INDEX IF NOT EXISTS idx_sub_account_balances_canonical_user_id ON public.sub_account_balances(canonical_user_id);
+CREATE INDEX IF NOT EXISTS idx_joincompetition_canonical_user_id ON public.joincompetition(canonical_user_id);
+CREATE INDEX IF NOT EXISTS idx_pending_tickets_canonical_user_id ON public.pending_tickets(canonical_user_id);
+
+-- Remove duplicate indexes (advisors) - drop safely if both exist
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='idx_balance_ledger_canonical'
+  ) AND EXISTS (
+    SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='idx_balance_ledger_cuid'
+  ) THEN
+    -- keep one
+    EXECUTE 'DROP INDEX IF EXISTS public.idx_balance_ledger_cuid';
+  END IF;
+EXCEPTION WHEN others THEN NULL;
+END$$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='idx_canonical_users_wallet'
+  ) AND EXISTS (
+    SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='idx_cu_wallet'
+  ) THEN
+    EXECUTE 'DROP INDEX IF EXISTS public.idx_cu_wallet';
+  END IF;
+EXCEPTION WHEN others THEN NULL;
+END$$;
+
+-- Repeat similar duplicate cleanup patterns as needed (examples from advisors)
+-- Balance ledger duplicate triplet on reference_id
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='u_balance_ledger_reference_id') AND
+     EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='balance_ledger_reference_id_unique') THEN
+    EXECUTE 'DROP INDEX IF EXISTS public.balance_ledger_reference_id_unique';
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='u_balance_ledger_reference_id') AND
+     EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='balance_ledger_reference_unique') THEN
+    EXECUTE 'DROP INDEX IF EXISTS public.balance_ledger_reference_unique';
+  END IF;
+EXCEPTION WHEN others THEN NULL;
+END$$;
+
+-- =========================================
+-- 4) Row Level Security (RLS)
+-- REMOVED: No RLS enablement performed.
+-- =========================================
+
+-- =========================================
+-- 5) RLS Policies (recreate those detected, fix initplan issue using (SELECT auth.*()))
+-- Note: DROP POLICY IF EXISTS for idempotency.
+-- =========================================
+
+-- Realtime policies
+DO $$
+BEGIN
+  IF to_regclass('realtime.messages') IS NOT NULL THEN
+    DROP POLICY IF EXISTS realtime_read_changes ON realtime.messages;
+    CREATE POLICY realtime_read_changes ON realtime.messages
+      FOR SELECT TO authenticated
+      USING (topic LIKE 'table:%:changes');
+  END IF;
+END$$;
+
+-- Storage avatars/competition-images policies on storage.objects
+DO $$
+BEGIN
+  IF to_regclass('storage.objects') IS NOT NULL THEN
+    DROP POLICY IF EXISTS avatars_insert ON storage.objects;
+    CREATE POLICY avatars_insert ON storage.objects
+      FOR INSERT TO public
+      WITH CHECK (bucket_id = 'avatars');
+
+    DROP POLICY IF EXISTS avatars_select ON storage.objects;
+    CREATE POLICY avatars_select ON storage.objects
+      FOR SELECT TO public
+      USING (bucket_id = 'avatars');
+
+    DROP POLICY IF EXISTS avatars_update ON storage.objects;
+    CREATE POLICY avatars_update ON storage.objects
+      FOR UPDATE TO public
+      USING (bucket_id = 'avatars');
+
+    DROP POLICY IF EXISTS avatars_delete ON storage.objects;
+    CREATE POLICY avatars_delete ON storage.objects
+      FOR DELETE TO public
+      USING (bucket_id = 'avatars');
+
+    DROP POLICY IF EXISTS comp_images_public_read ON storage.objects;
+    CREATE POLICY comp_images_public_read ON storage.objects
+      FOR SELECT TO public
+      USING (bucket_id = 'competition-images');
+
+    DROP POLICY IF EXISTS comp_images_insert_auth ON storage.objects;
+    CREATE POLICY comp_images_insert_auth ON storage.objects
+      FOR INSERT TO public
+      WITH CHECK (bucket_id = 'competition-images');
+
+    DROP POLICY IF EXISTS comp_images_service_full ON storage.objects;
+    CREATE POLICY comp_images_service_full ON storage.objects
+      FOR ALL TO public
+      USING (bucket_id = 'competition-images');
+  END IF;
+END$$;
+
+-- Public.tickets policies
+DO $$
+BEGIN
+  IF to_regclass('public.tickets') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Allow anonymous read access to tickets" ON public.tickets;
+    CREATE POLICY "Allow anonymous read access to tickets" ON public.tickets
+      FOR SELECT TO anon USING (true);
+
+    DROP POLICY IF EXISTS "Allow authenticated read access to tickets" ON public.tickets;
+    CREATE POLICY "Allow authenticated read access to tickets" ON public.tickets
+      FOR SELECT TO authenticated USING (true);
+
+    DROP POLICY IF EXISTS tickets_insert_authenticated ON public.tickets;
+    CREATE POLICY tickets_insert_authenticated ON public.tickets
+      FOR INSERT TO authenticated
+      WITH CHECK (true);
+
+    DROP POLICY IF EXISTS tickets_all_service_role ON public.tickets;
+    CREATE POLICY tickets_all_service_role ON public.tickets
+      FOR ALL TO service_role
+      USING (true)
+      WITH CHECK (true);
+  END IF;
+END$$;
+
+-- Public.user_transactions policies
+DO $$
+BEGIN
+  IF to_regclass('public.user_transactions') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Allow anonymous read access to user_transactions" ON public.user_transactions;
+    CREATE POLICY "Allow anonymous read access to user_transactions" ON public.user_transactions
+      FOR SELECT TO anon USING (true);
+
+    DROP POLICY IF EXISTS "Allow authenticated read access to user_transactions" ON public.user_transactions;
+    CREATE POLICY "Allow authenticated read access to user_transactions" ON public.user_transactions
+      FOR SELECT TO authenticated USING (true);
+
+    DROP POLICY IF EXISTS "Allow service role full access to user_transactions" ON public.user_transactions;
+    CREATE POLICY "Allow service role full access to user_transactions" ON public.user_transactions
+      FOR ALL TO service_role
+      USING (true)
+      WITH CHECK (true);
+
+    -- p_tx_select: match canonical_user_id to JWT claim, with SELECT wrapper for initplan
+    DROP POLICY IF EXISTS p_tx_select ON public.user_transactions;
+    CREATE POLICY p_tx_select ON public.user_transactions
+      FOR SELECT TO authenticated
+      USING (canonical_user_id = ((SELECT auth.jwt() ->> 'canonical_user_id')));
+  END IF;
+END$$;
+
+-- Public.canonical_users policies (owner-row)
+DO $$
+BEGIN
+  IF to_regclass('public.canonical_users') IS NOT NULL THEN
+    DROP POLICY IF EXISTS own_row_select ON public.canonical_users;
+    CREATE POLICY own_row_select ON public.canonical_users
+      FOR SELECT TO authenticated
+      USING ((uid)::uuid = (SELECT auth.uid()));
+
+    DROP POLICY IF EXISTS own_row_update ON public.canonical_users;
+    CREATE POLICY own_row_update ON public.canonical_users
+      FOR UPDATE TO authenticated
+      USING ((uid)::uuid = (SELECT auth.uid()))
+      WITH CHECK ((uid)::uuid = (SELECT auth.uid()));
+  END IF;
+END$$;
+
+-- Public.realtime messages for competition events
+DO $$
+BEGIN
+  IF to_regclass('realtime.messages') IS NOT NULL THEN
+    DROP POLICY IF EXISTS send_competition_events ON realtime.messages;
+    CREATE POLICY send_competition_events ON realtime.messages
+      FOR INSERT TO authenticated
+      WITH CHECK (true);
+
+    DROP POLICY IF EXISTS receive_competition_events ON realtime.messages;
+    CREATE POLICY receive_competition_events ON realtime.messages
+      FOR SELECT TO authenticated
+      USING (
+        private = true AND (
+          (
+            topic LIKE 'competition:%:winners' AND EXISTS (
+              SELECT 1 FROM public.winners w
+              WHERE w.competition_id = split_part(messages.topic, ':', 2)::uuid
+            )
+          ) OR (
+            topic LIKE 'competition:%:tickets' AND EXISTS (
+              SELECT 1 FROM public.tickets t
+              WHERE t.competition_id = split_part(messages.topic, ':', 2)::uuid
+            )
+          )
+        )
+      );
+  END IF;
+END$$;
+
+-- Public.competition_winners policies
+DO $$
+BEGIN
+  IF to_regclass('public.competition_winners') IS NOT NULL THEN
+    -- Clean duplicates from advisors by re-creating concise set
+    DROP POLICY IF EXISTS "Service role can do anything with competition_winners" ON public.competition_winners;
+    DROP POLICY IF EXISTS "Service role full access on competition_winners" ON public.competition_winners;
+    DROP POLICY IF EXISTS "Authenticated users can read competition_winners" ON public.competition_winners;
+    DROP POLICY IF EXISTS "Public can read competition_winners" ON public.competition_winners;
+    DROP POLICY IF EXISTS "Public read on competition_winners" ON public.competition_winners;
+
+    CREATE POLICY "Service role full access on competition_winners" ON public.competition_winners
+      FOR ALL TO public
+      USING ((SELECT auth.role()) = 'service_role');
+
+    CREATE POLICY "Public read on competition_winners" ON public.competition_winners
+      FOR SELECT TO public
+      USING (true);
+  END IF;
+END$$;
+
+-- Public.draw_winners policies (public read + service role full access)
+DO $$
+BEGIN
+  IF to_regclass('public.draw_winners') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Public read on draw_winners" ON public.draw_winners;
+    DROP POLICY IF EXISTS "Service role full access on draw_winners" ON public.draw_winners;
+
+    CREATE POLICY "Public read on draw_winners" ON public.draw_winners
+      FOR SELECT TO public
+      USING (true);
+
+    CREATE POLICY "Service role full access on draw_winners" ON public.draw_winners
+      FOR ALL TO public
+      USING ((SELECT auth.role()) = 'service_role');
+  END IF;
+END$$;
+
+-- Public.rng_logs policies (public read + service role all)
+DO $$
+BEGIN
+  IF to_regclass('public.rng_logs') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Authenticated users can read rng_logs" ON public.rng_logs;
+    DROP POLICY IF EXISTS "Service role can do anything with rng_logs" ON public.rng_logs;
+
+    CREATE POLICY "Authenticated users can read rng_logs" ON public.rng_logs
+      FOR SELECT TO public
+      USING ((SELECT auth.role()) = 'authenticated');
+
+    CREATE POLICY "Service role can do anything with rng_logs" ON public.rng_logs
+      FOR ALL TO public
+      USING ((SELECT auth.role()) = 'service_role')
+      WITH CHECK ((SELECT auth.role()) = 'service_role');
+  END IF;
+END$$;
+
+-- Instant win tables
+DO $$
+BEGIN
+  IF to_regclass('public.instant_win_grids') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Authenticated users can read instant_win_grids" ON public.instant_win_grids;
+    DROP POLICY IF EXISTS "Service role can do anything with instant_win_grids" ON public.instant_win_grids;
+
+    CREATE POLICY "Authenticated users can read instant_win_grids" ON public.instant_win_grids
+      FOR SELECT TO public
+      USING ((SELECT auth.role()) = 'authenticated');
+
+    CREATE POLICY "Service role can do anything with instant_win_grids" ON public.instant_win_grids
+      FOR ALL TO public
+      USING ((SELECT auth.role()) = 'service_role')
+      WITH CHECK ((SELECT auth.role()) = 'service_role');
+  END IF;
+
+  IF to_regclass('public.instant_win_major_prizes') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Admin can manage major prizes" ON public.instant_win_major_prizes;
+    CREATE POLICY "Admin can manage major prizes" ON public.instant_win_major_prizes
+      FOR ALL TO public
+      USING (true);
+  END IF;
+
+  IF to_regclass('public.instant_win_ticket_outcomes') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Admin can manage ticket outcomes" ON public.instant_win_ticket_outcomes;
+    CREATE POLICY "Admin can manage ticket outcomes" ON public.instant_win_ticket_outcomes
+      FOR ALL TO public
+      USING (true);
+  END IF;
+END$$;
+
+-- Joincompetition
+DO $$
+BEGIN
+  IF to_regclass('public.joincompetition') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Service role can do anything with joincompetition" ON public.joincompetition;
+    CREATE POLICY "Service role can do anything with joincompetition" ON public.joincompetition
+      FOR ALL TO public
+      USING ((SELECT auth.role()) = 'service_role')
+      WITH CHECK ((SELECT auth.role()) = 'service_role');
+  END IF;
+END$$;
+
+-- Admin audit log
+DO $$
+BEGIN
+  IF to_regclass('public.admin_audit_log') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Service role full access on admin_audit_log" ON public.admin_audit_log;
+    CREATE POLICY "Service role full access on admin_audit_log" ON public.admin_audit_log
+      FOR ALL TO public
+      USING ((SELECT auth.role()) = 'service_role');
+  END IF;
+END$$;
+
+-- =========================================
+-- 6) Security tightening per advisors
+-- - Avoid SECURITY DEFINER views for API exposure (manual review likely needed).
+-- This migration does not drop/alter views; do that in a dedicated review.
+-- =========================================
+
+-- =========================================
+-- 7) Optional: helper functions for policy performance (auth.* SELECT wrappers already applied)
+-- =========================================
+
+-- =========================================
+-- 8) Comments and housekeeping
+-- =========================================
+COMMENT ON TABLE public.competitions IS 'competitions table';
+COMMENT ON TABLE public.winners IS 'Winners table with VRF metadata';
+COMMENT ON TABLE public.rng_logs IS 'Audit log for all RNG events in the system. Tracks random number generation for competitions, instant wins, and draws.';
+
+-- Done
