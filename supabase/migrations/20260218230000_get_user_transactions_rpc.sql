@@ -1,6 +1,8 @@
 -- Create get_user_transactions RPC function
 -- This function retrieves all transactions for a user including competition entries and wallet top-ups
 -- It enriches the data with competition details and handles multiple user identifier formats
+-- Note: Returns up to 100 most recent transactions by default to prevent excessive data transfer
+-- For users with more extensive histories, the frontend should implement pagination
 
 CREATE OR REPLACE FUNCTION public.get_user_transactions(user_identifier TEXT)
 RETURNS TABLE (
@@ -95,7 +97,7 @@ BEGIN
     OR t.user_id = v_canonical_id
     OR t.canonical_user_id = user_identifier
   ORDER BY t.created_at DESC
-  LIMIT 100;
+  LIMIT 100;  -- Limit to 100 most recent for performance; implement pagination if more needed
 END;
 $$;
 

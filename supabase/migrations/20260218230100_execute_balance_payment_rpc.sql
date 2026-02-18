@@ -135,8 +135,35 @@ BEGIN
   END IF;
 
   -- Create transaction record with balance tracking
-  v_transaction_id := COALESCE(p_idempotency_key::UUID, gen_random_uuid());
+  -- Validate and convert idempotency key to UUID
+  BEGIN
+    IF p_idempotency_key IS NOT NULL THEN
+      v_transaction_id := p_idempotency_key::UUID;
+    ELSE
+      v_transaction_id := gen_random_uuid();
+    END IF;
+  EXCEPTION WHEN invalid_text_representation THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', 'Invalid idempotency_key format: must be a valid UUID',
+      'error_code', 'INVALID_IDEMPOTENCY_KEY'
+    );
+  END;
   
+  -- Check if transaction already exists (idempotency)
+  SELECT id INTO v_transaction_id FROM public.user_transactions WHERE id = v_transaction_id;
+  
+  IF FOUND THEN
+    -- Transaction already exists - return existing data (idempotent response)
+    RETURN jsonb_build_object(
+      'success', true,
+      'transaction_id', v_transaction_id,
+      'message', 'Transaction already processed (idempotent)',
+      'idempotent', true
+    );
+  END IF;
+
+  -- Create new transaction record with balance tracking
   INSERT INTO public.user_transactions (
     id,
     user_id,
@@ -175,29 +202,36 @@ BEGIN
     v_balance_before,
     v_balance_after,
     jsonb_build_object('source', 'execute_balance_payment', 'reservation_id', p_reservation_id)
-  )
-  ON CONFLICT (id) DO NOTHING;  -- Idempotency
+  );
 
-  -- Create joincompetition entry
+  -- Create joincompetition entry (must succeed if transaction was created)
   v_entry_id := gen_random_uuid();
-  INSERT INTO public.joincompetition (
-    uid,
-    userid,
-    competitionid,
-    tickets,
-    ticketCount,
-    transactionhash,
-    created_at
-  ) VALUES (
-    v_entry_id,
-    v_canonical_user_id,
-    p_competition_id,
-    v_allocated_tickets,
-    p_ticket_count,
-    v_transaction_id::TEXT,
-    NOW()
-  )
-  ON CONFLICT DO NOTHING;
+  BEGIN
+    INSERT INTO public.joincompetition (
+      uid,
+      userid,
+      competitionid,
+      tickets,
+      ticketCount,
+      transactionhash,
+      created_at
+    ) VALUES (
+      v_entry_id,
+      v_canonical_user_id,
+      p_competition_id,
+      v_allocated_tickets,
+      p_ticket_count,
+      v_transaction_id::TEXT,
+      NOW()
+    );
+  EXCEPTION WHEN unique_violation THEN
+    -- Entry already exists for this transaction, which is OK for idempotency
+    -- Find the existing entry ID
+    SELECT uid INTO v_entry_id 
+    FROM public.joincompetition 
+    WHERE transactionhash = v_transaction_id::TEXT
+    LIMIT 1;
+  END;
 
   -- Return success
   RETURN jsonb_build_object(
