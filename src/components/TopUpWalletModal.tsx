@@ -363,16 +363,20 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
         }
 
         // Get checkout URL with fallback construction if missing
+        // Using 'let' to allow sequential fallback assignment while keeping the logic linear and easy to follow
         let resolvedCheckoutUrl = result.data?.checkoutUrl;
         
         // FALLBACK 1: If checkoutUrl is missing but we have chargeCode, construct it
-        // Coinbase Commerce checkout URL format: https://commerce.coinbase.com/charges/{chargeCode}
+        // Coinbase Commerce checkout URL format: https://commerce.coinbase.com/charges/{identifier}
+        // We prefer chargeCode over chargeId as it's the semantic identifier (e.g., "ABCD1234")
+        // while chargeId is the internal UUID. Both work, but chargeCode is more human-readable.
         if (!resolvedCheckoutUrl && result.data?.chargeCode) {
           resolvedCheckoutUrl = `${COINBASE_COMMERCE_CHARGE_URL_BASE}${result.data.chargeCode}`;
           console.log('[TopUpWalletModal] Constructed checkout URL from chargeCode:', resolvedCheckoutUrl);
         }
         
         // FALLBACK 2: If still no URL but we have chargeId, try that format
+        // chargeId (UUID) can also be used in the URL as a fallback if chargeCode is unavailable
         if (!resolvedCheckoutUrl && result.data?.chargeId) {
           resolvedCheckoutUrl = `${COINBASE_COMMERCE_CHARGE_URL_BASE}${result.data.chargeId}`;
           console.log('[TopUpWalletModal] Constructed checkout URL from chargeId:', resolvedCheckoutUrl);
