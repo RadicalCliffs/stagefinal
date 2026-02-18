@@ -119,177 +119,203 @@ function successResponse(data: Record<string, unknown>, corsHeaders: Record<stri
 // ============================================================================
 
 Deno.serve(async (req: Request) => {
-  // Handle CORS preflight
-  if (req.method === "OPTIONS") {
-    return handleCorsOptions(req);
-  }
-
-  const corsHeaders = buildCorsHeaders(req.headers.get('origin'));
-  
-  // Attach a short-lived request id to correlate logs and responses
-  const requestId = crypto.randomUUID().slice(0, 8);
-
-  if (req.method !== "POST") {
-    return errorResponse("Method not allowed", 405, corsHeaders);
-  }
-
-  console.log(`[${requestId}] Lucky dip reserve request started`);
-
+  // CRITICAL: Wrap EVERYTHING in try-catch to ensure CORS headers are ALWAYS returned
+  // This prevents CORS errors when the function has runtime errors
   try {
-    // Parse request body
-    let body: Record<string, unknown>;
-    try {
-      body = await req.json();
-    } catch {
-      console.error(`[${requestId}] Failed to parse request body`);
-      return errorResponse("Invalid JSON body", 400, corsHeaders);
+    // Handle CORS preflight
+    if (req.method === "OPTIONS") {
+      return handleCorsOptions(req);
     }
 
-    const {
-      userId,
-      competitionId,
-      count,
-      ticketPrice,
-      sessionId,
-      holdMinutes = 15
-    } = body;
-
-    // Validate required fields
-    if (!userId || typeof userId !== 'string') {
-      return errorResponse("userId is required and must be a string", 400, corsHeaders);
-    }
-
-    // Convert to canonical prize:pid: format
-    const canonicalUserId = toPrizePid(userId);
-    console.log(`[${requestId}] Canonical user ID: ${canonicalUserId}`);
-
-    if (!competitionId || typeof competitionId !== 'string') {
-      return errorResponse("competitionId is required and must be a string", 400, corsHeaders);
-    }
-
-    // Normalize numeric inputs (defensive against string inputs)
-    const normalizedCount = Number(count);
-    if (!Number.isInteger(normalizedCount) || normalizedCount < 1 || normalizedCount > 10000) {
-      return errorResponse("count is required and must be between 1 and 10000", 400, corsHeaders);
-    }
-
-    // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(competitionId)) {
-      return errorResponse("Invalid competition ID format", 400, corsHeaders);
-    }
-
-    // Get Supabase configuration
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-    if (!supabaseUrl || !serviceRoleKey) {
-      return errorResponse("Server configuration error", 500, corsHeaders);
-    }
-
-    // Admin client (service role) for privileged RPCs
-    const supabase = createClient(supabaseUrl, serviceRoleKey);
-    const holdMins = Math.min(Math.max(Number(holdMinutes) || 15, 1), 60);
-    const normalizedPrice = Number(ticketPrice);
-    const validTicketPrice = Number.isFinite(normalizedPrice) && normalizedPrice > 0 ? normalizedPrice : 1;
-
-    console.log(`[${requestId}] Allocating ${normalizedCount} lucky dip tickets for competition:`, competitionId);
-
-    // =========================================================================
-    // Use allocate_lucky_dip_tickets_batch RPC for ticket allocation
-    // This RPC handles expiry atomically and updates ticket status to 'reserved'
-    // =========================================================================
+    const corsHeaders = buildCorsHeaders(req.headers.get('origin'));
     
-    console.log(`[${requestId}] Calling allocate_lucky_dip_tickets_batch RPC`, {
-      user_id: canonicalUserId,
-      competition_id: competitionId,
-      ticket_count: normalizedCount,
-      ticket_price: validTicketPrice,
-      hold_minutes: holdMins
-    });
+    // Attach a short-lived request id to correlate logs and responses
+    const requestId = crypto.randomUUID().slice(0, 8);
 
-    const { data: rpcResult, error: rpcError } = await supabase.rpc(
-      'allocate_lucky_dip_tickets_batch',
-      {
-        p_user_id: canonicalUserId,
-        p_competition_id: competitionId,
-        p_count: normalizedCount,
-        p_ticket_price: validTicketPrice,
-        p_hold_minutes: holdMins,
-        p_session_id: sessionId || null,
-        p_excluded_tickets: null
+    if (req.method !== "POST") {
+      return errorResponse("Method not allowed", 405, corsHeaders);
+    }
+
+    console.log(`[${requestId}] Lucky dip reserve request started`);
+
+    try {
+      // Parse request body
+      let body: Record<string, unknown>;
+      try {
+        body = await req.json();
+      } catch {
+        console.error(`[${requestId}] Failed to parse request body`);
+        return errorResponse("Invalid JSON body", 400, corsHeaders);
       }
-    );
 
-    if (rpcError) {
-      console.error(`[${requestId}] allocate_lucky_dip_tickets_batch RPC error:`, rpcError);
-      return errorResponse(
-        "Failed to reserve tickets",
-        500,
-        corsHeaders,
-        { retryable: true, errorDetail: rpcError.message }
+      const {
+        userId,
+        competitionId,
+        count,
+        ticketPrice,
+        sessionId,
+        holdMinutes = 15
+      } = body;
+
+      // Validate required fields
+      if (!userId || typeof userId !== 'string') {
+        return errorResponse("userId is required and must be a string", 400, corsHeaders);
+      }
+
+      // Convert to canonical prize:pid: format
+      const canonicalUserId = toPrizePid(userId);
+      console.log(`[${requestId}] Canonical user ID: ${canonicalUserId}`);
+
+      if (!competitionId || typeof competitionId !== 'string') {
+        return errorResponse("competitionId is required and must be a string", 400, corsHeaders);
+      }
+
+      // Normalize numeric inputs (defensive against string inputs)
+      const normalizedCount = Number(count);
+      if (!Number.isInteger(normalizedCount) || normalizedCount < 1 || normalizedCount > 10000) {
+        return errorResponse("count is required and must be between 1 and 10000", 400, corsHeaders);
+      }
+
+      // Validate UUID format
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(competitionId)) {
+        return errorResponse("Invalid competition ID format", 400, corsHeaders);
+      }
+
+      // Get Supabase configuration
+      const supabaseUrl = Deno.env.get("SUPABASE_URL");
+      const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+      if (!supabaseUrl || !serviceRoleKey) {
+        return errorResponse("Server configuration error", 500, corsHeaders);
+      }
+
+      // Admin client (service role) for privileged RPCs
+      const supabase = createClient(supabaseUrl, serviceRoleKey);
+      const holdMins = Math.min(Math.max(Number(holdMinutes) || 15, 1), 60);
+      const normalizedPrice = Number(ticketPrice);
+      const validTicketPrice = Number.isFinite(normalizedPrice) && normalizedPrice > 0 ? normalizedPrice : 1;
+
+      console.log(`[${requestId}] Allocating ${normalizedCount} lucky dip tickets for competition:`, competitionId);
+
+      // =========================================================================
+      // Use allocate_lucky_dip_tickets_batch RPC for ticket allocation
+      // This RPC handles expiry atomically and updates ticket status to 'reserved'
+      // =========================================================================
+      
+      console.log(`[${requestId}] Calling allocate_lucky_dip_tickets_batch RPC`, {
+        user_id: canonicalUserId,
+        competition_id: competitionId,
+        ticket_count: normalizedCount,
+        ticket_price: validTicketPrice,
+        hold_minutes: holdMins
+      });
+
+      const { data: rpcResult, error: rpcError } = await supabase.rpc(
+        'allocate_lucky_dip_tickets_batch',
+        {
+          p_user_id: canonicalUserId,
+          p_competition_id: competitionId,
+          p_count: normalizedCount,
+          p_ticket_price: validTicketPrice,
+          p_hold_minutes: holdMins,
+          p_session_id: sessionId || null,
+          p_excluded_tickets: null
+        }
       );
-    }
 
-    // The RPC returns JSON with { success, reservation_id, ticket_numbers, ticket_count, error }
-    let result;
-    try {
-      result = typeof rpcResult === 'string' ? JSON.parse(rpcResult) : rpcResult;
-    } catch (parseError) {
-      console.error(`[${requestId}] Failed to parse RPC result:`, parseError);
+      if (rpcError) {
+        console.error(`[${requestId}] allocate_lucky_dip_tickets_batch RPC error:`, rpcError);
+        return errorResponse(
+          "Failed to reserve tickets",
+          500,
+          corsHeaders,
+          { retryable: true, errorDetail: rpcError.message }
+        );
+      }
+
+      // The RPC returns JSON with { success, reservation_id, ticket_numbers, ticket_count, error }
+      let result;
+      try {
+        result = typeof rpcResult === 'string' ? JSON.parse(rpcResult) : rpcResult;
+      } catch (parseError) {
+        console.error(`[${requestId}] Failed to parse RPC result:`, parseError);
+        return errorResponse(
+          "Invalid response format from reservation system",
+          500,
+          corsHeaders,
+          { retryable: true }
+        );
+      }
+
+      if (!result || !result.success) {
+        const errorMsg = result?.error || 'Unknown error from allocation RPC';
+        const errorDetail = result?.error_detail || result?.error || 'allocation_failed';
+        console.error(`[${requestId}] Allocation RPC failed:`, errorMsg, result);
+        return errorResponse(
+          "Failed to reserve tickets",
+          500,
+          corsHeaders,
+          { retryable: result?.retryable ?? true, errorDetail }
+        );
+      }
+
+      if (!result.reservation_id || !result.ticket_numbers) {
+        console.error(`[${requestId}] Invalid response from allocate_lucky_dip_tickets_batch:`, result);
+        return errorResponse(
+          "Invalid response from reservation system",
+          500,
+          corsHeaders,
+          { retryable: true }
+        );
+      }
+
+      const allocatedNumbers = Array.isArray(result.ticket_numbers) ? result.ticket_numbers : [];
+      
+      console.log(`[${requestId}] Successfully reserved ${allocatedNumbers.length} tickets`);
+
+      return successResponse({
+        reservationId: result.reservation_id,
+        ticketNumbers: allocatedNumbers,
+        ticketCount: allocatedNumbers.length,
+        totalAmount: allocatedNumbers.length * validTicketPrice,
+        expiresAt: new Date(Date.now() + holdMins * MINUTES_TO_MS).toISOString(),
+        algorithm: 'allocate-lucky-dip-batch',
+        message: `Successfully reserved ${allocatedNumbers.length} lucky dip tickets. Complete payment within ${holdMins} minutes.`
+      }, corsHeaders);
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error(`[${requestId}] Unexpected error:`, errorMessage);
+
       return errorResponse(
-        "Invalid response format from reservation system",
+        "An unexpected error occurred. Please try again.",
         500,
         corsHeaders,
         { retryable: true }
       );
     }
-
-    if (!result || !result.success) {
-      const errorMsg = result?.error || 'Unknown error from allocation RPC';
-      const errorDetail = result?.error_detail || result?.error || 'allocation_failed';
-      console.error(`[${requestId}] Allocation RPC failed:`, errorMsg, result);
-      return errorResponse(
-        "Failed to reserve tickets",
-        500,
-        corsHeaders,
-        { retryable: result?.retryable ?? true, errorDetail }
-      );
-    }
-
-    if (!result.reservation_id || !result.ticket_numbers) {
-      console.error(`[${requestId}] Invalid response from allocate_lucky_dip_tickets_batch:`, result);
-      return errorResponse(
-        "Invalid response from reservation system",
-        500,
-        corsHeaders,
-        { retryable: true }
-      );
-    }
-
-    const allocatedNumbers = Array.isArray(result.ticket_numbers) ? result.ticket_numbers : [];
+  } catch (topLevelError) {
+    // CRITICAL: Last resort error handler that ALWAYS returns CORS headers
+    // This catches errors that occur before corsHeaders can be built
+    console.error('[FATAL] Top-level error in lucky-dip-reserve:', topLevelError);
     
-    console.log(`[${requestId}] Successfully reserved ${allocatedNumbers.length} tickets`);
-
-    return successResponse({
-      reservationId: result.reservation_id,
-      ticketNumbers: allocatedNumbers,
-      ticketCount: allocatedNumbers.length,
-      totalAmount: allocatedNumbers.length * validTicketPrice,
-      expiresAt: new Date(Date.now() + holdMins * MINUTES_TO_MS).toISOString(),
-      algorithm: 'allocate-lucky-dip-batch',
-      message: `Successfully reserved ${allocatedNumbers.length} lucky dip tickets. Complete payment within ${holdMins} minutes.`
-    }, corsHeaders);
-
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error(`[${requestId}] Unexpected error:`, errorMessage);
-
-    return errorResponse(
-      "An unexpected error occurred. Please try again.",
-      500,
-      corsHeaders,
-      { retryable: true }
+    // Build CORS headers safely, even if request is malformed
+    const origin = req.headers.get('origin');
+    const safeCorsHeaders = buildCorsHeaders(origin);
+    
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: "Internal server error. Please try again.",
+        errorCode: 500,
+        retryable: true,
+        errorDetail: topLevelError instanceof Error ? topLevelError.message : 'Unknown error'
+      }),
+      {
+        status: 500,
+        headers: { ...safeCorsHeaders, "Content-Type": "application/json" }
+      }
     );
   }
 });
