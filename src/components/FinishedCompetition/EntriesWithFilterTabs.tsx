@@ -719,6 +719,17 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
     return options;
   }, [maxTicketNumber]);
 
+  // --- Pagination for filter tabs ---
+  const MAX_TABS_PER_PAGE = 10; // Show 10 ranges (5000 tickets) per page
+  const [tabPage, setTabPage] = useState(0);
+  
+  const totalTabPages = Math.ceil(filterOptions.length / MAX_TABS_PER_PAGE);
+  const paginatedFilterOptions = useMemo(() => {
+    const startIdx = tabPage * MAX_TABS_PER_PAGE;
+    const endIdx = startIdx + MAX_TABS_PER_PAGE;
+    return filterOptions.slice(startIdx, endIdx);
+  }, [filterOptions, tabPage]);
+
   // --- Tabs setup ---
   const [activeFilter, setActiveFilter] = useState<Options>(filterOptions[0]);
 
@@ -728,6 +739,13 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
       setActiveFilter(filterOptions[0]);
     }
   }, [filterOptions, activeFilter?.key]);
+  
+  // Reset to first page when filter options change significantly
+  useEffect(() => {
+    if (tabPage >= totalTabPages && totalTabPages > 0) {
+      setTabPage(0);
+    }
+  }, [totalTabPages, tabPage]);
 
   // --- Filtered list based on selected tab ---
   const filteredEntries = useMemo(() => {
@@ -761,9 +779,37 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
         </div>
       ) : (
         <>
+          {/* Pagination info and controls for large competitions */}
+          {totalTabPages > 1 && (
+            <div className="flex items-center justify-between bg-[#1a1a1a] border border-[#DDE404] rounded-lg p-4 mb-4">
+              <div className="text-white sequel-45 text-sm">
+                Showing ticket ranges {(tabPage * MAX_TABS_PER_PAGE * 500) + 1} - {Math.min((tabPage + 1) * MAX_TABS_PER_PAGE * 500, maxTicketNumber)}
+                <span className="text-white/50 ml-2">
+                  (Page {tabPage + 1} of {totalTabPages})
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setTabPage(p => Math.max(0, p - 1))}
+                  disabled={tabPage === 0}
+                  className="px-4 py-2 bg-[#DDE404] text-black sequel-45 text-sm rounded hover:bg-[#DDE404]/90 disabled:bg-[#2a2a2a] disabled:text-white/30 disabled:cursor-not-allowed transition-colors"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setTabPage(p => Math.min(totalTabPages - 1, p + 1))}
+                  disabled={tabPage >= totalTabPages - 1}
+                  className="px-4 py-2 bg-[#DDE404] text-black sequel-45 text-sm rounded hover:bg-[#DDE404]/90 disabled:bg-[#2a2a2a] disabled:text-white/30 disabled:cursor-not-allowed transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+          
           <div className="my-10">
             <FilterTabs
-              options={filterOptions}
+              options={paginatedFilterOptions}
               active={activeFilter}
               onChange={setActiveFilter}
               containerClasses="grid xl:grid-cols-5 lg:grid-cols-4 md:grid-cols-3 grid-cols-2 gap-3"
