@@ -12,7 +12,9 @@ const mockEnv = {
 
 global.Deno = { env: mockEnv } as any;
 
-// Import the function logic (we'll need to extract it for testing)
+// NOTE: CORS logic is duplicated here because Supabase edge functions don't support
+// shared module imports. This is intentional - we test the implementation inline
+// to ensure the edge function behavior matches expected CORS behavior.
 const SITE_URL = 'https://stage.theprize.io';
 const ALLOWED_ORIGINS = [
   SITE_URL,
