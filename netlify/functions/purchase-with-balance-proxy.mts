@@ -290,9 +290,9 @@ async function directDatabaseFallback(
           userid: canonicalUserId,
           canonical_user_id: canonicalUserId,
           competitionid: competitionId,
-          ticketnumbers: ticketNumbersStr,
+          ticket_numbers: ticketNumbersStr,
           numberoftickets: ticketNumbers.length,
-          amountspent: totalCost,
+          amount_spent: totalCost,
           transactionhash: idempotencyKey,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -306,7 +306,7 @@ async function directDatabaseFallback(
           );
           const { data: raceEntry } = await supabase
             .from("joincompetition")
-            .select("uid, ticketnumbers, amountspent, numberoftickets")
+            .select("uid, ticketnumbers, amount_spent, numberoftickets")
             .eq("canonical_user_id", canonicalUserId)
             .eq("competitionid", competitionId)
             .limit(1)
@@ -324,9 +324,9 @@ async function directDatabaseFallback(
             const { error: raceUpdateErr } = await supabase
               .from("joincompetition")
               .update({
-                ticketnumbers: raceMerged,
+                ticket_numbers: raceMerged,
                 numberoftickets: raceMergedSet.size,
-                amountspent: Number(raceEntry.amountspent || 0) + totalCost,
+                amount_spent: Number(raceEntry.amountspent || 0) + totalCost,
                 updated_at: new Date().toISOString(),
               })
               .eq("canonical_user_id", canonicalUserId)
