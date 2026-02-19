@@ -47,7 +47,7 @@ export default async (req: Request, context: Context) => {
       Netlify.env.get("VITE_SUPABASE_URL") ||
       Netlify.env.get("SUPABASE_URL") ||
       "";
-    const serviceRoleKey = Netlify.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    const serviceRoleKey = Netlify.env.get("VITE_SUPABASE_SERVICE_ROLE_KEY") || "";
 
     if (!supabaseUrl || !serviceRoleKey) {
       return jsonResponse(
