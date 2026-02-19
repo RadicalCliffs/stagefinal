@@ -91,7 +91,7 @@ export async function createNewUser(walletAddress: string, privyUserId?: string)
 
 // VRF Verification Constants and Utilities
 // VRFWinnerSelector contract with 2 gwei + native ETH support
-export const VRF_CONTRACT_ADDRESS = "0xc5Dfc3f6a227B30161f53F0BC167495158854854";
+export const VRF_CONTRACT_ADDRESS = "0xc5DfC3f6A227b30161F53f0bC167495158854854";
 export const BASE_EXPLORER_URL = "https://basescan.org";
 
 /**
