@@ -45,6 +45,7 @@ async function callRpcWithRetry(
     ticketCount: number | null;
     ticketNumbers: number[] | null;
     idempotencyKey: string | null;
+    reservationId: string | null;
   },
   requestId: string,
   maxRetries: number = 2
@@ -70,6 +71,7 @@ async function callRpcWithRetry(
           p_ticket_count: params.ticketCount,
           p_ticket_numbers: params.ticketNumbers,
           p_idempotency_key: params.idempotencyKey,
+          p_reservation_id: params.reservationId,
         }
       );
 
@@ -134,10 +136,11 @@ async function directDatabaseFallback(
     ticketPrice: number;
     ticketNumbers: number[];
     idempotencyKey: string;
+    reservationId: string | null;
   },
   requestId: string
 ): Promise<{ success: boolean; data?: any; error?: string }> {
-  const { canonicalUserId, competitionId, ticketNumbers, ticketPrice, idempotencyKey } = params;
+  const { canonicalUserId, competitionId, ticketNumbers, ticketPrice, idempotencyKey, reservationId } = params;
 
   console.log(
     `[purchase-with-balance-proxy][${requestId}] FALLBACK: Direct DB operations for ${ticketNumbers.length} tickets`
@@ -592,6 +595,7 @@ export default async (req: Request, context: Context) => {
         ticketCount,
         ticketNumbers,
         idempotencyKey,
+        reservationId,
       },
       requestId
     );
@@ -626,6 +630,7 @@ export default async (req: Request, context: Context) => {
           ticketPrice,
           ticketNumbers: fallbackTicketNumbers,
           idempotencyKey,
+          reservationId,
         },
         requestId
       );
@@ -710,7 +715,13 @@ export default async (req: Request, context: Context) => {
       total_cost: finalResult.total_cost,
       new_balance: finalResult.available_balance,
       available_balance: finalResult.available_balance,
+      previous_balance: finalResult.previous_balance,
       idempotent: finalResult.idempotent || false,
+      // Reservation-related fields from the new RPC signature
+      used_reservation_id: finalResult.used_reservation_id,
+      used_reserved_count: finalResult.used_reserved_count,
+      topped_up_count: finalResult.topped_up_count,
+      note: finalResult.note,
       message: `Successfully purchased ${ticketNumbersResult.length} tickets`,
     };
 

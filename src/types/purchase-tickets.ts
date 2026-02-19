@@ -72,8 +72,23 @@ export interface PurchaseTicketsSuccessResponse {
   /** User's new balance after purchase in USD */
   new_balance: number;
   
+  /** User's previous balance before purchase in USD */
+  previous_balance?: number;
+  
   /** Whether this was an idempotent request */
   idempotent: boolean;
+  
+  /** Reservation ID that was used for this purchase (if any) */
+  used_reservation_id?: string;
+  
+  /** Number of tickets upgraded from reservation */
+  used_reserved_count?: number;
+  
+  /** Number of tickets topped up from available pool */
+  topped_up_count?: number;
+  
+  /** Note describing the purchase source: reserved_upgraded | topped_up_from_available | reserved_upgraded_and_topped_up | lucky_dip_only */
+  note?: string;
 }
 
 /**

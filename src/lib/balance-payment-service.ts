@@ -477,6 +477,7 @@ export class BalancePaymentService {
               p_ticket_count: null,
               p_ticket_numbers: ticketNumbers,
               p_idempotency_key: idempotencyKey,
+              p_reservation_id: reservationId || null,
             }
           );
 
