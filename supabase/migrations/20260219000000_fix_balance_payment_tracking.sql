@@ -25,6 +25,8 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  v_competition_name TEXT;
 BEGIN
   -- Only create user_transaction if one doesn't already exist for this reference_id
   -- This prevents duplicates when multiple triggers fire
@@ -33,6 +35,13 @@ BEGIN
     WHERE tx_id = NEW.reference_id::TEXT 
     OR order_id = NEW.reference_id::TEXT
   ) THEN
+    -- Fetch competition name if competition_id exists
+    IF NEW.competition_id IS NOT NULL THEN
+      SELECT title INTO v_competition_name
+      FROM public.competitions
+      WHERE id = NEW.competition_id;
+    END IF;
+    
     INSERT INTO public.user_transactions (
       id,
       user_id,
@@ -44,6 +53,7 @@ BEGIN
       status,
       payment_status,
       competition_id,
+      competition_name,
       created_at,
       completed_at,
       balance_before,
@@ -65,6 +75,11 @@ BEGIN
       'completed',
       'completed',
       NEW.competition_id,
+      CASE 
+        WHEN NEW.type = 'topup' THEN 'Wallet Top-Up'
+        WHEN NEW.type = 'bonus_credit' THEN COALESCE(NEW.description, 'Bonus Credit')
+        ELSE COALESCE(v_competition_name, 'Unknown Competition')
+      END,
       NEW.created_at,
       NOW(),
       NEW.balance_before,
@@ -112,7 +127,7 @@ BEGIN
     RETURN NEW;
   END IF;
   
-  -- Get competition details for amount calculation
+  -- Get competition details for amount calculation and name
   SELECT ticket_price, title INTO v_competition
   FROM public.competitions
   WHERE id = NEW.competitionid;
@@ -132,6 +147,7 @@ BEGIN
       canonical_user_id,
       wallet_address,
       competition_id,
+      competition_name,
       type,
       amount,
       currency,
@@ -152,6 +168,7 @@ BEGIN
       NEW.canonical_user_id,
       NEW.wallet_address,
       NEW.competitionid,
+      COALESCE(v_competition.title, 'Unknown Competition'),
       'purchase',
       v_amount,
       'USD',
@@ -187,6 +204,8 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  v_competition_name TEXT;
 BEGIN
   -- Only create if transaction doesn't exist
   IF NOT EXISTS (
@@ -194,12 +213,20 @@ BEGIN
     WHERE order_id = NEW.id::TEXT
     OR tx_id = NEW.id::TEXT
   ) THEN
+    -- Fetch competition name if competition_id exists
+    IF NEW.competition_id IS NOT NULL THEN
+      SELECT title INTO v_competition_name
+      FROM public.competitions
+      WHERE id = NEW.competition_id;
+    END IF;
+    
     INSERT INTO public.user_transactions (
       id,
       user_id,
       canonical_user_id,
       wallet_address,
       competition_id,
+      competition_name,
       type,
       amount,
       currency,
@@ -220,6 +247,10 @@ BEGIN
       NEW.canonical_user_id,
       NEW.wallet_address,
       NEW.competition_id,
+      CASE 
+        WHEN NEW.type = 'topup' THEN 'Wallet Top-Up'
+        ELSE COALESCE(v_competition_name, 'Unknown Competition')
+      END,
       COALESCE(NEW.type, 'purchase'),
       NEW.amount,
       COALESCE(NEW.currency, 'USD'),

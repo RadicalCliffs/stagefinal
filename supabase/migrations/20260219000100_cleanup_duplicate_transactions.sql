@@ -7,6 +7,7 @@
 -- 2. Keep the FIRST created entry (lowest id)
 -- 3. Delete the duplicates
 -- 4. Update remaining entries to have correct payment_provider
+-- 5. Update remaining entries to have correct competition_name
 
 -- ============================================================================
 -- Step 1: Delete duplicate user_transactions
@@ -55,7 +56,40 @@ WHERE ut.order_id = jc.uid::TEXT
   AND ut.type = 'purchase';
 
 -- ============================================================================
--- Step 3: Add index to prevent future duplicate lookups
+-- Step 3: Fix missing competition_name values
+-- Update entries that show "Unknown Competition" with actual competition names
+-- ============================================================================
+
+-- Update competition_name from competitions table where it's missing
+UPDATE public.user_transactions ut
+SET competition_name = c.title
+FROM public.competitions c
+WHERE ut.competition_id = c.id
+  AND ut.type IN ('purchase', 'entry')
+  AND (ut.competition_name IS NULL 
+       OR ut.competition_name = 'Unknown Competition'
+       OR ut.competition_name = '');
+
+-- Set proper names for special transaction types
+UPDATE public.user_transactions
+SET competition_name = 'Wallet Top-Up'
+WHERE type = 'topup'
+  AND (competition_name IS NULL 
+       OR competition_name = 'Unknown Competition'
+       OR competition_name = '');
+
+UPDATE public.user_transactions
+SET competition_name = COALESCE(
+  metadata->>'description',
+  'Bonus Credit'
+)
+WHERE type = 'bonus_credit'
+  AND (competition_name IS NULL 
+       OR competition_name = 'Unknown Competition'
+       OR competition_name = '');
+
+-- ============================================================================
+-- Step 4: Add index to prevent future duplicate lookups
 -- This helps the trigger idempotency checks run faster
 -- ============================================================================
 
