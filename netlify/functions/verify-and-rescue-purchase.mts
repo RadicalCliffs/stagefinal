@@ -105,7 +105,7 @@ export default async (req: Request, context: Context) => {
     if (idempotencyKey) {
       const { data: idempotentEntry } = await supabase
         .from("joincompetition")
-        .select("uid, ticketnumbers, numberoftickets, amountspent, created_at")
+        .select("uid, ticket_numbers, numberoftickets, amount_spent, created_at")
         .eq("competitionid", competitionId)
         .eq("transactionhash", idempotencyKey)
         .limit(1)
@@ -121,7 +121,7 @@ export default async (req: Request, context: Context) => {
       const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
       const { data: recentEntry } = await supabase
         .from("joincompetition")
-        .select("uid, ticketnumbers, numberoftickets, amountspent, created_at")
+        .select("uid, ticket_numbers, numberoftickets, amount_spent, created_at")
         .eq("competitionid", competitionId)
         .eq("userid", canonicalUserId)
         .gte("created_at", thirtySecondsAgo)
@@ -160,7 +160,7 @@ export default async (req: Request, context: Context) => {
         entry_id: existingEntry.uid,
         ticket_numbers: existingTicketNumbers,
         ticket_count: existingTicketNumbers.length,
-        total_cost: existingEntry.amountspent,
+        total_cost: existingEntry.amount_spent,
         available_balance: balRow?.available_balance ?? 0,
         competition_id: competitionId,
         message: `Purchase was already completed. ${existingTicketNumbers.length} tickets confirmed.`,
@@ -314,9 +314,9 @@ const payload = {
   userid: canonicalUserId, // legacy alias; safe to remove later
   canonical_user_id: canonicalUserId,
   competitionid: competitionId,
-  ticketnumbers: ticketNumbersStr,
+  ticket_numbers: ticketNumbersStr,
   numberoftickets: ticketNumbers.length,
-  amountspent: totalCost,
+  amount_spent: totalCost,
   transactionhash: rescueIdempotencyKey,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
@@ -327,7 +327,7 @@ const payload = {
 const { data: upsertRow, error: upsertErr } = await supabase
   .from("joined_competitions")
   .upsert([payload], { onConflict: "canonical_user_id,competitionid", ignoreDuplicates: false })
-  .select("uid, ticketnumbers, amountspent, numberoftickets")
+  .select("uid, ticket_numbers, amount_spent, numberoftickets")
   .maybeSingle();
 
 let finalEntryId = upsertRow?.uid ?? entryId;
@@ -337,7 +337,7 @@ if (upsertErr) {
   if (upsertErr.message?.includes("unique") || upsertErr.message?.includes("duplicate")) {
     const { data: existingUserComp } = await supabase
       .from("joined_competitions")
-      .select("uid, ticketnumbers, amountspent, numberoftickets")
+      .select("uid, ticket_numbers, amount_spent, numberoftickets")
       .eq("canonical_user_id", canonicalUserId)
       .eq("competitionid", competitionId)
       .limit(1)
@@ -354,9 +354,9 @@ if (upsertErr) {
       const { error: rescueUpdateErr } = await supabase
         .from("joined_competitions")
         .update({
-          ticketnumbers: mergedTickets,
+          ticket_numbers: mergedTickets,
           numberoftickets: mergedSet.size,
-          amountspent: Number(existingUserComp.amountspent || 0) + totalCost,
+          amount_spent: Number(existingUserComp.amountspent || 0) + totalCost,
           updated_at: new Date().toISOString(),
         })
         .eq("canonical_user_id", canonicalUserId)
@@ -421,7 +421,7 @@ if (upsertErr) {
 try {
   const ticketRows = ticketNumbers.map((num) => ({
     competition_id: competitionId,
-    ticket_number: num,
+    ticket_numbers: num,
     canonical_user_id: canonicalUserId, // prefer canonical_user_id
     status: "sold",
     tx_id: rescueIdempotencyKey,
