@@ -30,29 +30,30 @@ CREATE TABLE user_transactions (
   wallet_address TEXT,                      -- Normalized: 0x... (lowercase)
   
   -- Transaction details
-  competition_id UUID,                      -- NULL for top-ups
+  competition_id UUID,                      -- Competition reference (NULL for top-ups)
   amount NUMERIC NOT NULL,
   currency TEXT NOT NULL DEFAULT 'USD',
   ticket_count INTEGER DEFAULT 0,
   
   -- Payment provider info
-  payment_provider TEXT NOT NULL,           -- 'coinbase', 'privy_base_wallet', 'balance', etc.
-  payment_method TEXT,                      -- Additional payment method details
+  payment_provider TEXT,                    -- 'coinbase', 'privy_base_wallet', 'balance', etc.
+  payment_status TEXT,                      -- Provider-specific status
+  method TEXT,                              -- Payment method details
   network TEXT,                             -- 'base', 'ethereum', etc.
   
   -- Transaction status
   status TEXT NOT NULL DEFAULT 'pending',   -- 'pending', 'processing', 'completed', 'failed', 'needs_reconciliation'
-  payment_status TEXT,                      -- Provider-specific status
   
   -- External references
   tx_id TEXT,                               -- Blockchain tx hash OR Coinbase charge ID
-  session_id TEXT,                          -- Payment session/charge code
-  order_id TEXT,                            -- Order/reservation ID
+  order_id UUID,                            -- Order/reservation ID (UUID type)
   webhook_ref TEXT,                         -- Webhook correlation ID
+  charge_id TEXT,                           -- Charge ID
+  charge_code TEXT,                         -- Charge code
   
-  -- Balance tracking (for top-ups)
-  wallet_credited BOOLEAN DEFAULT false,
-  credit_synced BOOLEAN DEFAULT false,
+  -- Balance tracking
+  balance_before NUMERIC,
+  balance_after NUMERIC,
   
   -- Timestamps
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -60,11 +61,12 @@ CREATE TABLE user_transactions (
   completed_at TIMESTAMP WITH TIME ZONE,
   
   -- Additional data
+  description TEXT,
   notes TEXT,
   metadata JSONB,
   
-  CONSTRAINT fk_competition FOREIGN KEY (competition_id) 
-    REFERENCES competitions(id) ON DELETE SET NULL
+  CONSTRAINT user_transactions_competition_id_fkey 
+    FOREIGN KEY (competition_id) REFERENCES competitions(id)
 );
 
 -- Indexes
@@ -169,31 +171,42 @@ Entry records summarizing ticket purchases.
 
 ```sql
 CREATE TABLE joincompetition (
-  uid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  uid TEXT,                                 -- Legacy UID (TEXT type, not UUID)
   
   -- Competition and user
-  competitionid TEXT NOT NULL,              -- Competition ID (stored as TEXT)
-  userid TEXT NOT NULL,                     -- Canonical: prize:pid:0x...
-  canonical_user_id TEXT,                   -- Canonical user ID
+  competition_id UUID,                      -- Competition reference
+  competitionid UUID,                       -- Alias for competition_id
+  user_id TEXT,                             -- User identifier
+  userid TEXT,                              -- Alias (deprecated)
+  canonical_user_id TEXT,                   -- Canonical user ID: prize:pid:0x...
+  wallet_address TEXT,
   
   -- Entry details
-  numberoftickets INTEGER NOT NULL,
-  ticketnumbers TEXT NOT NULL,              -- Comma-separated: "1,5,10,42"
-  amountspent NUMERIC NOT NULL,
-  ticketCount INTEGER,                      -- Ticket count field
-  tickets INTEGER[],                        -- Array of ticket numbers
+  ticket_count INTEGER,
+  numberoftickets INTEGER,                  -- Alias for ticket_count
+  ticket_numbers TEXT,                      -- Comma-separated: "1,5,10,42"
+  ticketnumbers TEXT,                       -- Alias for ticket_numbers
+  amount_spent NUMERIC,
   
   -- Payment tracking
-  walletaddress TEXT,
   payment_provider TEXT,                    -- 'balance_payment', 'base_account', etc.
-  chain TEXT,                               -- Payment method: 'USDC', 'coinbase', 'balance'
-  transactionhash TEXT NOT NULL,            -- Blockchain tx OR reservation ID
+  chain TEXT,                               -- Payment chain/method
+  transaction_hash TEXT,
+  transactionhash TEXT,                     -- Alias for transaction_hash
   
   -- Timestamps
-  purchasedate TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  purchase_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   
-  -- Metadata
-  metadata JSONB
+  -- Status and metadata
+  status TEXT DEFAULT 'active',
+  
+  CONSTRAINT joincompetition_competition_id_fkey 
+    FOREIGN KEY (competition_id) REFERENCES competitions(id),
+  CONSTRAINT joincompetition_canonical_user_id_fkey 
+    FOREIGN KEY (canonical_user_id) REFERENCES canonical_users(canonical_user_id)
 );
 
 -- Indexes

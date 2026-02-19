@@ -138,8 +138,8 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM public.user_transactions 
     WHERE tx_id = NEW.transactionhash 
-    OR tx_id = NEW.uid::TEXT
-    OR order_id = NEW.uid::TEXT
+    OR tx_id = NEW.uid
+    OR order_id::TEXT = NEW.uid
   ) THEN
     INSERT INTO public.user_transactions (
       id,
@@ -180,8 +180,8 @@ BEGIN
       NOW(),
       -- Payment provider: NULL or 'balance_payment' for balance payments
       COALESCE(NEW.payment_provider, 'balance_payment'),
-      COALESCE(NEW.transactionhash, NEW.uid::TEXT),
-      NEW.uid::TEXT,
+      COALESCE(NEW.transactionhash, NEW.uid),
+      NEW.uid::UUID,
       jsonb_build_object(
         'source', 'joincompetition',
         'entry_id', NEW.uid
