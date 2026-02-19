@@ -1,10 +1,10 @@
 /**
  * Balance Payment Service
  * 
- * Simplified balance payment system that uses the Netlify proxy + RPC flow:
+ * Simplified balance payment system that uses the Edge Function + RPC flow:
  * 1. Optional: Reserve tickets via Supabase edge function (for frontend UX)
- * 2. Purchase with balance via POST /api/purchase-with-balance (Netlify proxy)
- *    - The proxy calls purchase_tickets_with_balance RPC which:
+ * 2. Purchase with balance via POST /purchase-handler/purchase-with-balance (Edge Function)
+ *    - The Edge Function calls purchase_tickets_with_balance RPC which:
  *      - Checks sub_account_balances for available_balance
  *      - Matches by canonical_user_id or wallet_address
  *      - Deducts balance atomically
@@ -62,7 +62,55 @@ export interface PurchaseRequest {
 }
 
 /**
- * Purchase request body for /api/purchase-with-balance (Netlify proxy)
+ * Purchase request body for /purchase-handler/purchase-with-balance (Edge Function)
+ * Matches the RPC function parameters directly
+ */
+export interface RPCPurchaseRequest {
+  /** Canonical user identifier (e.g., prize:pid:0x123...) */
+  p_user_identifier: string;
+  
+  /** Competition UUID */
+  p_competition_id: string;
+  
+  /** Ticket price in USD */
+  p_ticket_price: number;
+  
+  /** Number of tickets to purchase */
+  p_ticket_count: number;
+  
+  /** Array of ticket numbers */
+  p_ticket_numbers: number[];
+  
+  /** Idempotency key for deduplication */
+  p_idempotency_key: string;
+  
+  /** Optional: reservation ID for reserved purchases (7-arg variant) */
+  p_reservation_id?: string;
+}
+
+/**
+ * Verify and rescue request body for /purchase-handler/verify-and-rescue-purchase (Edge Function)
+ */
+export interface RPCVerifyAndRescueRequest {
+  /** Canonical user identifier */
+  p_user_identifier: string;
+  
+  /** Competition UUID */
+  p_competition_id: string;
+  
+  /** Array of ticket numbers to rescue */
+  p_ticket_numbers: number[];
+  
+  /** Ticket price in USD */
+  p_ticket_price: number;
+  
+  /** Idempotency key */
+  p_idempotency_key: string;
+}
+
+/**
+ * @deprecated Legacy request interface - use RPCPurchaseRequest instead
+ * Purchase request body for old Netlify proxy endpoint
  */
 export interface EdgeFunctionPurchaseRequest {
   userId: string;
@@ -72,9 +120,9 @@ export interface EdgeFunctionPurchaseRequest {
   tickets: Array<{ ticket_number: number }>;
   idempotent: boolean;
   reservation_id?: string;
-  idempotency_key?: string;  // Explicit idempotency key for proper tracking
-  payment_provider?: string;  // For balance_ledger tracking
-  type?: string;              // For balance_ledger: 'purchase', 'entry', etc.
+  idempotency_key?: string;
+  payment_provider?: string;
+  type?: string;
 }
 
 export interface PurchaseResponse {
@@ -283,7 +331,7 @@ export class BalancePaymentService {
   /**
    * Step 2: Purchase with balance (SIMPLIFIED SYSTEM)
    * 
-   * Uses the Netlify proxy at /api/purchase-with-balance which calls
+   * Uses the Edge Function at /purchase-handler/purchase-with-balance which calls
    * the purchase_tickets_with_balance RPC that:
    * - Checks sub_account_balances for available_balance
    * - Matches user by canonical_user_id or wallet_address
@@ -351,33 +399,28 @@ export class BalancePaymentService {
       const idempotencyKeyBase = reservationId || `purchase-${competitionId}-${Date.now()}`;
       const idempotencyKey = idempotencyKeyManager.getOrCreateKey(idempotencyKeyBase);
 
-      // Build request body with all required parameters
-      const requestBody: EdgeFunctionPurchaseRequest = {
-        userId: canonicalUserId,
-        competition_id: competitionId,
-        numberOfTickets: ticketNumbers.length,
-        ticketPrice: ticketPrice,
-        tickets: ticketNumbers.map(num => ({ ticket_number: num })),
-        idempotent: true,
-        idempotency_key: idempotencyKey,
-        payment_provider: 'base_account',
-        type: 'purchase'
+      // Build request body with RPC function parameters
+      const requestBody: RPCPurchaseRequest = {
+        p_user_identifier: canonicalUserId,
+        p_competition_id: competitionId,
+        p_ticket_price: ticketPrice,
+        p_ticket_count: ticketNumbers.length,
+        p_ticket_numbers: ticketNumbers,
+        p_idempotency_key: idempotencyKey
       };
 
       if (reservationId) {
-        requestBody.reservation_id = reservationId;
+        requestBody.p_reservation_id = reservationId;
       }
 
-      console.log('[BalancePayment] Purchasing with balance (via proxy):', {
+      console.log('[BalancePayment] Purchasing with balance (via Edge Function):', {
         userId: canonicalUserId.length > 20 ? canonicalUserId.substring(0, 20) + '...' : canonicalUserId,
         competitionId: competitionId.substring(0, 10) + '...',
         ticketCount: ticketNumbers.length,
         ticketPrice: ticketPrice,
         tickets: ticketNumbers,
         reservationId: reservationId || 'none',
-        idempotencyKey: idempotencyKey,
-        paymentProvider: requestBody.payment_provider,
-        type: requestBody.type
+        idempotencyKey: idempotencyKey
       });
 
       let authHeader = '';
@@ -392,7 +435,7 @@ export class BalancePaymentService {
 
       // =====================================================
       // SAFEGUARD 3: Client-side retry with exponential backoff
-      // Try the proxy up to 3 times before giving up
+      // Try the Edge Function up to 3 times before giving up
       // =====================================================
       const MAX_CLIENT_RETRIES = 3;
       let lastProxyError: any = null;
@@ -401,12 +444,12 @@ export class BalancePaymentService {
       for (let attempt = 0; attempt < MAX_CLIENT_RETRIES; attempt++) {
         if (attempt > 0) {
           const delay = Math.min(1000 * Math.pow(2, attempt - 1), 4000);
-          console.log(`[BalancePayment] Proxy retry ${attempt}/${MAX_CLIENT_RETRIES - 1} after ${delay}ms`);
+          console.log(`[BalancePayment] Edge Function retry ${attempt}/${MAX_CLIENT_RETRIES - 1} after ${delay}ms`);
           await new Promise(r => setTimeout(r, delay));
         }
 
         try {
-          const proxyResponse = await fetch('/api/purchase-with-balance', {
+          const proxyResponse = await fetch('/purchase-handler/purchase-with-balance', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

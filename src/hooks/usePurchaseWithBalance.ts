@@ -45,6 +45,7 @@ import type {
   PurchaseWithBalanceOptions,
   PurchaseTicketsSuccessResponse 
 } from '@/types/purchase-tickets';
+import type { RPCPurchaseRequest } from '@/lib/balance-payment-service';
 
 interface UsePurchaseWithBalanceResult {
   /** Function to initiate purchase */
@@ -131,19 +132,19 @@ export function usePurchaseWithBalance(): UsePurchaseWithBalanceResult {
         hasReservation: !!reservationId
       });
       
-      // Build request body
-      const requestBody = {
-        userId: canonicalUserId,
-        competition_id: competitionId,
-        numberOfTickets: ticketNumbers.length,
-        ticketPrice: ticketPrice,
-        tickets: ticketNumbers.map(num => ({ ticket_number: num })),
-        idempotent: true
-      } as any;
+      // Build request body - must match RPC function parameters
+      const requestBody: RPCPurchaseRequest = {
+        p_user_identifier: canonicalUserId,
+        p_competition_id: competitionId,
+        p_ticket_price: ticketPrice,
+        p_ticket_count: ticketNumbers.length,
+        p_ticket_numbers: ticketNumbers,
+        p_idempotency_key: idempotencyKey
+      };
       
-      // Include reservation_id if provided
+      // Include p_reservation_id if provided (for 7-arg reserved variant)
       if (reservationId) {
-        requestBody.reservation_id = reservationId;
+        requestBody.p_reservation_id = reservationId;
       }
       
       // Get authentication token
@@ -157,12 +158,12 @@ export function usePurchaseWithBalance(): UsePurchaseWithBalanceResult {
         console.warn('[usePurchaseWithBalance] Could not get auth session:', e);
       }
 
-      // Call via Netlify proxy to avoid CORS issues with direct Supabase Edge Function calls
+      // Call the new Edge Function endpoint
       let data: any = null;
       let invokeError: { message: string } | null = null;
 
       try {
-        const proxyResponse = await fetch('/api/purchase-with-balance', {
+        const proxyResponse = await fetch('/purchase-handler/purchase-with-balance', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

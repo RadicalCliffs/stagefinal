@@ -10,7 +10,7 @@ import type { UserInfo } from "./UserInfoModal";
 import { BasePaymentService } from "../lib/base-payment";
 import { BaseAccountPaymentService } from "../lib/base-account-payment";
 import { purchaseTicketsWithBalance, getUserBalance } from "../lib/ticketPurchaseService";
-import { BalancePaymentService } from "../lib/balance-payment-service";
+import { BalancePaymentService, type RPCVerifyAndRescueRequest } from "../lib/balance-payment-service";
 import { toCanonicalUserId } from "../lib/canonicalUserId";
 import { isSuccessStatus, isFailureStatus } from "../lib/payment-status";
 import { getPaymentErrorInfo, type PaymentErrorInfo } from "../lib/error-handler";
@@ -760,16 +760,18 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
       if (!isNonRescuableError && ticketNumbersToPurchase.length > 0) {
         try {
-          const rescueResponse = await fetch('/api/verify-and-rescue-purchase', {
+          const rescueRequestBody: RPCVerifyAndRescueRequest = {
+            p_user_identifier: canonicalUserId,
+            p_competition_id: competitionId,
+            p_ticket_numbers: ticketNumbersToPurchase,
+            p_ticket_price: ticketPrice,
+            p_idempotency_key: currentReservationId || '',
+          };
+
+          const rescueResponse = await fetch('/purchase-handler/verify-and-rescue-purchase', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userId: canonicalUserId,
-              competitionId,
-              ticketNumbers: ticketNumbersToPurchase,
-              ticketPrice,
-              idempotencyKey: currentReservationId || '',
-            }),
+            body: JSON.stringify(rescueRequestBody),
           });
 
           let rescueData: any = null;
