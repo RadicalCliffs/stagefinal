@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronDown, ChevronUp } from 'lucide-react';
 import { Link } from 'react-router';
 import { useState } from 'react';
+import type { PurchaseGroup } from '../../../lib/purchase-dashboard';
 
 interface EntryData {
   id: string;
@@ -11,6 +12,14 @@ interface EntryData {
   transaction_hash?: string | null;
 }
 
+interface PurchaseGroupEvent {
+  source_table: 'tickets' | 'joincompetition';
+  source_row_id: string;
+  amount: number;
+  occurred_at: string;
+  purchase_key: string | null;
+}
+
 interface EntriesTicketsProps {
   ticketNumbers?: string;
   numberOfTickets?: number;
@@ -18,6 +27,7 @@ interface EntriesTicketsProps {
   purchaseDate?: string;
   transactionHash?: string;
   individualEntries?: EntryData[];
+  purchaseGroups?: Array<PurchaseGroup & { competition_title: string | null }>;
 }
 
 const EntriesTickets = ({
@@ -26,7 +36,8 @@ const EntriesTickets = ({
   amountSpent,
   purchaseDate,
   transactionHash,
-  individualEntries
+  individualEntries,
+  purchaseGroups
 }: EntriesTicketsProps) => {
   const [showAllTickets, setShowAllTickets] = useState(false);
   const [expandedTransactions, setExpandedTransactions] = useState<Set<string>>(new Set());
@@ -96,6 +107,24 @@ const EntriesTickets = ({
       )
     : [];
 
+  // Use purchase groups if available, otherwise fall back to individual entries
+  const displayGroups = purchaseGroups && purchaseGroups.length > 0
+    ? purchaseGroups
+    : null;
+
+  // Format date and time for purchase groups
+  const formatDateTime = (dateStr: string | null | undefined): string => {
+    if (!dateStr) return 'Unknown';
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-US', {
+      month: 'numeric',
+      day: 'numeric',
+      year: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   return (
     <div>
       {/* All Ticket Numbers Grid */}
@@ -139,19 +168,99 @@ const EntriesTickets = ({
         )}
       </div>
 
-      {/* Purchase Breakdown Section - shows date: tickets for each purchase */}
+      {/* Purchase Breakdown Section - shows grouped purchases or individual entries */}
       <div className="bg-[#DDE404] h-0.5 w-full mt-8"></div>
       <div className="mt-7">
         <div className="flex items-center justify-between mb-5">
           <p className="sequel-45 text-white/60">Purchase Breakdown</p>
-          {sortedEntries.length > 0 && (
+          {displayGroups ? (
+            <span className="sequel-45 text-[#DDE404] text-sm">
+              {displayGroups.length} {displayGroups.length === 1 ? 'session' : 'sessions'}
+            </span>
+          ) : sortedEntries.length > 0 ? (
             <span className="sequel-45 text-[#DDE404] text-sm">
               {sortedEntries.length} {sortedEntries.length === 1 ? 'purchase' : 'purchases'}
             </span>
-          )}
+          ) : null}
         </div>
 
-        {sortedEntries.length > 0 ? (
+        {displayGroups ? (
+          /* Show purchase groups - each group represents a purchase session (5-min window) */
+          <div className="space-y-4">
+            {displayGroups.map((group, groupIndex) => {
+              const groupId = `group-${group.purchase_group_number}`;
+              const isExpanded = expandedTransactions.has(groupId);
+
+              return (
+                <div
+                  key={groupId}
+                  className="bg-[#1a1a1a] rounded-lg p-4 border border-[#2a2a2a]"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[#DDE404] sequel-45 text-sm">
+                        {formatDateTime(group.group_start_at)}
+                        {group.group_start_at !== group.group_end_at && (
+                          <> — {formatDateTime(group.group_end_at)}</>
+                        )}
+                      </span>
+                      <span className="text-white/50 sequel-45 text-xs">
+                        Session #{group.purchase_group_number}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[#DDE404] sequel-45 text-sm">
+                        ${group.total_amount.toFixed(2)}
+                      </div>
+                      <span className="text-white/50 sequel-45 text-xs">
+                        {group.events_in_group} {group.events_in_group === 1 ? 'transaction' : 'transactions'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Show individual events in this group */}
+                  {group.events && group.events.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-[#2a2a2a]">
+                      <button
+                        onClick={() => toggleTransactionTickets(groupId)}
+                        className="w-full text-left flex items-center justify-between text-white/70 sequel-45 text-xs hover:text-[#DDE404] transition-colors"
+                      >
+                        <span>
+                          {isExpanded ? 'Hide' : 'Show'} transaction details
+                        </span>
+                        {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </button>
+                      
+                      {isExpanded && (
+                        <div className="mt-3 space-y-2">
+                          {group.events.map((event: PurchaseGroupEvent, eventIndex: number) => (
+                            <div
+                              key={`${groupId}-event-${eventIndex}`}
+                              className="bg-[#252525] rounded p-3 text-xs"
+                            >
+                              <div className="flex justify-between items-center">
+                                <span className="text-white/70 sequel-45">
+                                  {event.source_table === 'tickets' ? '🎟️ Ticket' : '🎫 Entry'}
+                                </span>
+                                <span className="text-[#DDE404] sequel-45">
+                                  ${event.amount.toFixed(2)}
+                                </span>
+                              </div>
+                              <div className="text-white/50 sequel-45 mt-1">
+                                {formatDateTime(event.occurred_at)}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : sortedEntries.length > 0 ? (
+          /* Fallback to individual entries when purchase groups not available */
           <div className="space-y-3">
             {sortedEntries.map((entry, index) => {
               const transactionId = entry.id || `transaction-${index}`;

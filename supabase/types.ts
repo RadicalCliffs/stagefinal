@@ -2348,7 +2348,30 @@ export interface Database {
       }
     }
     Views: {
-      [_ : string]: never
+      purchase_events: {
+        Row: {
+          source_row_id: string
+          source_table: 'tickets' | 'joincompetition'
+          user_id: string
+          competition_id: string
+          amount: number
+          occurred_at: string
+          purchase_key: string | null
+        }
+      }
+      purchase_groups: {
+        Row: {
+          user_id: string
+          competition_id: string
+          purchase_group_number: number
+          group_start_at: string
+          group_end_at: string
+          events_in_group: number
+          total_amount: number
+          any_purchase_key: string | null
+          events: Json
+        }
+      }
     }
     Functions: {
       add_pending_balance: {
