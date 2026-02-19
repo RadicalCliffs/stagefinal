@@ -2,6 +2,7 @@
 // Changed VRF_ADMIN_PRIVATE_KEY to ADMIN_WALLET_PRIVATE_KEY
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { VRF_CONTRACT_ADDRESS } from "../_shared/vrf-config.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -55,15 +56,63 @@ serve(async (req) => {
       })
     }
 
-    // Select random winners using VRF
-    const shuffled = [...participants].sort(() => 0.5 - Math.random())
-    const winners = shuffled.slice(0, numWinners)
+    // SECURITY: Use VRF contract for provably fair winner selection
+    // Forward to vrf-draw-winner which uses pregenerated VRF seed
+    // NOTE: This function is currently not in use. For multi-winner competitions,
+    // consider implementing a batch winner selection to avoid duplicate winners.
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return new Response(JSON.stringify({
+        ok: false,
+        error: 'Supabase configuration missing'
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+    
+    // WARNING: Calling vrf-draw-winner multiple times may select duplicate winners
+    // because each call uses the same VRF seed. For production use, implement
+    // batch winner selection or track excluded tickets between calls.
+    const winners = []
+    for (let i = 0; i < numWinners; i++) {
+      const vrfResponse = await fetch(
+        `${supabaseUrl}/functions/v1/vrf-draw-winner`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseServiceKey}`
+          },
+          body: JSON.stringify({ competition_id })
+        }
+      )
+      
+      if (!vrfResponse.ok) {
+        const errorText = await vrfResponse.text()
+        throw new Error(`VRF HTTP ${vrfResponse.status}: ${errorText}`)
+      }
+      
+      const vrfResult = await vrfResponse.json()
+      if (!vrfResult.ok) {
+        throw new Error(vrfResult.error || 'VRF draw failed')
+      }
+      
+      winners.push({
+        address: vrfResult.winner_address,
+        user_id: vrfResult.winner_user_id,
+        ticket_number: vrfResult.winning_ticket_number
+      })
+    }
 
     const result = {
       competition_id,
       winners,
       winners_count: numWinners,
-      draw_method: 'vrf_random',
+      draw_method: 'vrf_contract',
+      vrf_contract: VRF_CONTRACT_ADDRESS,
       timestamp: new Date().toISOString(),
       total_participants: participants.length
     }

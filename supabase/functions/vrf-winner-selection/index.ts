@@ -2,6 +2,7 @@
 // Changed VRF_ADMIN_PRIVATE_KEY to ADMIN_WALLET_PRIVATE_KEY
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { VRF_CONTRACT_ADDRESS } from "../_shared/vrf-config.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -45,14 +46,55 @@ serve(async (req) => {
       })
     }
 
-    // Generate random winner using VRF logic
-    const randomIndex = Math.floor(Math.random() * participants.length)
-    const winner = participants[randomIndex]
+    // SECURITY: Use VRF contract for provably fair winner selection
+    // Forward to vrf-draw-winner which uses pregenerated VRF seed
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return new Response(JSON.stringify({
+        ok: false,
+        error: 'Supabase configuration missing'
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+    
+    // Call vrf-draw-winner to select winner using VRF
+    const vrfResponse = await fetch(
+      `${supabaseUrl}/functions/v1/vrf-draw-winner`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseServiceKey}`
+        },
+        body: JSON.stringify({ competition_id })
+      }
+    )
+    
+    if (!vrfResponse.ok) {
+      const errorText = await vrfResponse.text()
+      throw new Error(`VRF HTTP ${vrfResponse.status}: ${errorText}`)
+    }
+    
+    const vrfResult = await vrfResponse.json()
+    if (!vrfResult.ok) {
+      throw new Error(vrfResult.error || 'VRF draw failed')
+    }
+    
+    const winner = {
+      address: vrfResult.winner_address,
+      user_id: vrfResult.winner_user_id,
+      ticket_number: vrfResult.winning_ticket_number
+    }
 
     const result = {
       competition_id,
       winner,
-      selection_method: 'vrf_random',
+      selection_method: 'vrf_contract',
+      vrf_contract: VRF_CONTRACT_ADDRESS,
       timestamp: new Date().toISOString(),
       participants_count: participants.length
     }
