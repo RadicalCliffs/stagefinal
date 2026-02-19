@@ -74,6 +74,8 @@ interface GroupedCompetitionEntry {
   expires_at?: string;
   // For instant win entries
   is_instant_win: boolean;
+  // VRF transaction hash for verifiable fairness
+  vrf_tx_hash?: string | null;
 }
 
 export default function EntriesList() {
@@ -664,7 +666,8 @@ export default function EntriesList() {
           entry_ids: [entry.id],
           is_pending: entry.entry_type === 'pending' || entry.status === 'pending',
           expires_at: entry.expires_at,
-          is_instant_win: entry.is_instant_win || false
+          is_instant_win: entry.is_instant_win || false,
+          vrf_tx_hash: entry.vrf_tx_hash || null
         });
       } else {
         // Aggregate with existing group
@@ -707,6 +710,11 @@ export default function EntriesList() {
         // Track earliest expiration for pending
         if (entry.expires_at && (!existing.expires_at || new Date(entry.expires_at) < new Date(existing.expires_at))) {
           existing.expires_at = entry.expires_at;
+        }
+        
+        // Use the vrf_tx_hash if it exists on any entry (they should all be the same for a given competition)
+        if (entry.vrf_tx_hash && !existing.vrf_tx_hash) {
+          existing.vrf_tx_hash = entry.vrf_tx_hash;
         }
       }
     });
@@ -845,6 +853,7 @@ export default function EntriesList() {
                     isPending={entry.is_pending}
                     expiresAt={entry.expires_at}
                     isInstantWin={entry.is_instant_win}
+                    vrfTxHash={entry.vrf_tx_hash}
                   />
                 </Link>
               );
@@ -872,6 +881,7 @@ export default function EntriesList() {
                   isPending={entry.is_pending}
                   expiresAt={entry.expires_at}
                   isInstantWin={entry.is_instant_win}
+                  vrfTxHash={entry.vrf_tx_hash}
                 />
               </div>
             );
