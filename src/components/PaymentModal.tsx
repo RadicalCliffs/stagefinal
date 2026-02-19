@@ -768,7 +768,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
             p_idempotency_key: currentReservationId || '',
           };
 
-          const rescueResponse = await fetch('/purchase-handler/verify-and-rescue-purchase', {
+          const rescueResponse = await fetch('https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1/purchase-handler/verify-and-rescue-purchase', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(rescueRequestBody),

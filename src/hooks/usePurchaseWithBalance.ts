@@ -163,7 +163,7 @@ export function usePurchaseWithBalance(): UsePurchaseWithBalanceResult {
       let invokeError: { message: string } | null = null;
 
       try {
-        const proxyResponse = await fetch('/purchase-handler/purchase-with-balance', {
+        const proxyResponse = await fetch('https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1/purchase-handler/purchase-with-balance', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
