@@ -50,7 +50,7 @@ WHERE payment_provider IS NULL
 UPDATE public.user_transactions ut
 SET payment_provider = 'balance_payment'
 FROM public.joincompetition jc
-WHERE ut.order_id = jc.uid::TEXT
+WHERE ut.order_id::TEXT = jc.uid
   AND (jc.payment_provider IS NULL OR jc.payment_provider != 'base_account')
   AND (ut.payment_provider IS NULL OR ut.payment_provider = 'unknown')
   AND ut.type = 'purchase';
