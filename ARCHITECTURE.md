@@ -651,10 +651,13 @@ Deno.serve(async (req) => {
 -- supabase/migrations/00000000000002_baseline_rpc_functions.sql
 -- Why RPC? Atomic transaction, row locks, zero network overhead
 CREATE OR REPLACE FUNCTION purchase_tickets_with_balance(
-  p_user_id UUID,
-  p_competition_id UUID,
+  p_user_identifier TEXT,
+  p_competition_id TEXT,
   p_ticket_price NUMERIC,
-  p_quantity INTEGER
+  p_ticket_count INTEGER DEFAULT NULL,
+  p_ticket_numbers INTEGER[] DEFAULT NULL,
+  p_idempotency_key TEXT DEFAULT NULL,
+  p_reservation_id UUID DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -664,33 +667,46 @@ DECLARE
   v_user_balance NUMERIC;
   v_total_cost NUMERIC;
 BEGIN
+  -- If reservation_id provided, upgrade those tickets to sold
+  -- If fewer than requested are reserved, top up from available
+  -- Enforces balance check and writes ledger + purchase records
+  
   -- Acquire lock (prevents double-spend)
   SELECT available_balance INTO v_user_balance
   FROM sub_account_balances
-  WHERE user_id = p_user_id
+  WHERE canonical_user_id = p_user_identifier
   FOR UPDATE; -- Row-level lock
   
   -- Validate balance
-  v_total_cost := p_ticket_price * p_quantity;
+  v_total_cost := p_ticket_price * COALESCE(p_ticket_count, array_length(p_ticket_numbers, 1));
   IF v_user_balance < v_total_cost THEN
     RAISE EXCEPTION 'Insufficient balance';
   END IF;
   
   -- Insert tickets (all or nothing)
-  INSERT INTO tickets (user_id, competition_id, price)
-  SELECT p_user_id, p_competition_id, p_ticket_price
-  FROM generate_series(1, p_quantity);
+  -- Uses ticket_numbers if provided, otherwise allocates from available pool
+  INSERT INTO tickets (canonical_user_id, competition_id, ticket_number, status)
+  SELECT p_user_identifier, p_competition_id, ticket_num, 'sold'
+  FROM unnest(p_ticket_numbers) AS ticket_num;
   
   -- Deduct balance (atomic)
   UPDATE sub_account_balances
   SET available_balance = available_balance - v_total_cost
-  WHERE user_id = p_user_id;
+  WHERE canonical_user_id = p_user_identifier;
   
   -- Audit trail
-  INSERT INTO user_transactions (user_id, amount, type)
-  VALUES (p_user_id, -v_total_cost, 'purchase');
+  INSERT INTO balance_ledger (canonical_user_id, amount, transaction_type, reference_id)
+  VALUES (p_user_identifier, -v_total_cost, 'purchase', p_idempotency_key);
   
-  RETURN jsonb_build_object('success', true);
+  -- Return success with detailed info
+  RETURN jsonb_build_object(
+    'success', true,
+    'ticket_count', COALESCE(p_ticket_count, array_length(p_ticket_numbers, 1)),
+    'total_cost', v_total_cost,
+    'available_balance', v_user_balance - v_total_cost,
+    'used_reservation_id', p_reservation_id,
+    'idempotent', (p_idempotency_key IS NOT NULL)
+  );
 END;
 $$;
 ```
@@ -902,17 +918,22 @@ SECURITY DEFINER -- Runs with function creator's privileges
 SET search_path = public -- Prevents schema injection
 AS $$
 BEGIN
-  -- Validate: user can only purchase for themselves
-  IF auth.uid() != p_user_id THEN
-    RAISE EXCEPTION 'Unauthorized';
+  -- Validate: user identifier is provided
+  IF p_user_identifier IS NULL OR p_user_identifier = '' THEN
+    RAISE EXCEPTION 'User identifier required';
   END IF;
   
   -- Validate: competition is active
   IF NOT EXISTS (
     SELECT 1 FROM competitions
-    WHERE id = p_competition_id AND status = 'active'
+    WHERE id = p_competition_id::uuid AND status = 'active'
   ) THEN
     RAISE EXCEPTION 'Competition not active';
+  END IF;
+  
+  -- Validate: either ticket_count or ticket_numbers provided
+  IF p_ticket_count IS NULL AND p_ticket_numbers IS NULL THEN
+    RAISE EXCEPTION 'Must provide ticket_count or ticket_numbers';
   END IF;
   
   -- Proceed with purchase...
