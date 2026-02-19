@@ -12,7 +12,7 @@
  */
 
 /**
- * Request body for https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1/purchase-handler/purchase-with-balance (Edge Function)
+ * Request body for /functions/v1/purchase-with-balance (Edge Function)
  */
 export interface PurchaseTicketsRequest {
   /** Canonical user ID (required) - use toCanonicalUserId() to convert */
@@ -49,7 +49,7 @@ export interface PurchaseTicketsRequest {
 }
 
 /**
- * Success response from /purchase-handler/purchase-with-balance (Edge Function)
+ * Success response from /functions/v1/purchase-with-balance (Edge Function)
  */
 export interface PurchaseTicketsSuccessResponse {
   /** Status indicator - 'ok' for success */
@@ -92,7 +92,7 @@ export interface PurchaseTicketsSuccessResponse {
 }
 
 /**
- * Error response from /purchase-handler/purchase-with-balance (Edge Function)
+ * Error response from /functions/v1/purchase-with-balance (Edge Function)
  */
 export interface PurchaseTicketsErrorResponse {
   /** Status indicator - 'error' for failures */

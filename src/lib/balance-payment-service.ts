@@ -3,7 +3,7 @@
  * 
  * Simplified balance payment system that uses the Edge Function + RPC flow:
  * 1. Optional: Reserve tickets via Supabase edge function (for frontend UX)
- * 2. Purchase with balance via POST https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1/purchase-handler/purchase-with-balance (Edge Function)
+ * 2. Purchase with balance via POST /functions/v1/purchase-with-balance (Edge Function)
  *    - The Edge Function calls purchase_tickets_with_balance RPC which:
  *      - Checks sub_account_balances for available_balance
  *      - Matches by canonical_user_id or wallet_address
@@ -62,8 +62,8 @@ export interface PurchaseRequest {
 }
 
 /**
- * Purchase request body for https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1/purchase-handler/purchase-with-balance (Edge Function)
- * Matches the RPC function parameters directly
+ * Purchase request body for /functions/v1/purchase-with-balance (Edge Function)
+ * Matches the RPC function parameters directly (6 parameters only)
  */
 export interface RPCPurchaseRequest {
   /** Canonical user identifier (e.g., prize:pid:0x123...) */
@@ -83,9 +83,6 @@ export interface RPCPurchaseRequest {
   
   /** Idempotency key for deduplication */
   p_idempotency_key: string;
-  
-  /** Optional: reservation ID for reserved purchases (7-arg variant) */
-  p_reservation_id?: string;
 }
 
 /**
@@ -331,7 +328,7 @@ export class BalancePaymentService {
   /**
    * Step 2: Purchase with balance (SIMPLIFIED SYSTEM)
    * 
-   * Uses the Edge Function at https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1/purchase-handler/purchase-with-balance which calls
+   * Uses the Edge Function at /functions/v1/purchase-with-balance which calls
    * the purchase_tickets_with_balance RPC that:
    * - Checks sub_account_balances for available_balance
    * - Matches user by canonical_user_id or wallet_address
@@ -399,7 +396,7 @@ export class BalancePaymentService {
       const idempotencyKeyBase = reservationId || `purchase-${competitionId}-${Date.now()}`;
       const idempotencyKey = idempotencyKeyManager.getOrCreateKey(idempotencyKeyBase);
 
-      // Build request body with RPC function parameters
+      // Build request body with RPC function parameters (6 params only)
       const requestBody: RPCPurchaseRequest = {
         p_user_identifier: canonicalUserId,
         p_competition_id: competitionId,
@@ -409,9 +406,8 @@ export class BalancePaymentService {
         p_idempotency_key: idempotencyKey
       };
 
-      if (reservationId) {
-        requestBody.p_reservation_id = reservationId;
-      }
+      // NOTE: p_reservation_id is NOT included - the RPC function only accepts 6 params
+      // The reservationId is used for idempotency key generation only
 
       console.log('[BalancePayment] Purchasing with balance (via Edge Function):', {
         userId: canonicalUserId.length > 20 ? canonicalUserId.substring(0, 20) + '...' : canonicalUserId,
@@ -423,14 +419,19 @@ export class BalancePaymentService {
         idempotencyKey: idempotencyKey
       });
 
+      // Get authentication token - ALWAYS include Authorization header
       let authHeader = '';
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.access_token) {
           authHeader = `Bearer ${session.access_token}`;
+        } else {
+          // Fallback to anon key if no session
+          authHeader = `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`;
         }
       } catch (e) {
-        console.warn('[BalancePayment] Could not get auth session:', e);
+        console.warn('[BalancePayment] Could not get auth session, using anon key:', e);
+        authHeader = `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`;
       }
 
       // =====================================================
@@ -449,11 +450,12 @@ export class BalancePaymentService {
         }
 
         try {
-          const proxyResponse = await fetch('https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1/purchase-handler/purchase-with-balance', {
+          const edgeUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/purchase-with-balance`;
+          const proxyResponse = await fetch(edgeUrl, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              ...(authHeader ? { 'Authorization': authHeader } : {}),
+              'Authorization': authHeader, // REQUIRED - always include
             },
             body: JSON.stringify(requestBody),
           });

@@ -132,7 +132,7 @@ export function usePurchaseWithBalance(): UsePurchaseWithBalanceResult {
         hasReservation: !!reservationId
       });
       
-      // Build request body - must match RPC function parameters
+      // Build request body - must match RPC function parameters (6 params only)
       const requestBody: RPCPurchaseRequest = {
         p_user_identifier: canonicalUserId,
         p_competition_id: competitionId,
@@ -142,32 +142,35 @@ export function usePurchaseWithBalance(): UsePurchaseWithBalanceResult {
         p_idempotency_key: idempotencyKey
       };
       
-      // Include p_reservation_id if provided (for 7-arg reserved variant)
-      if (reservationId) {
-        requestBody.p_reservation_id = reservationId;
-      }
+      // NOTE: p_reservation_id is NOT included - the RPC function only accepts 6 params
+      // The reservationId is used for idempotency key generation only
       
-      // Get authentication token
+      // Get authentication token - ALWAYS include Authorization header
       let authHeader = '';
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.access_token) {
           authHeader = `Bearer ${session.access_token}`;
+        } else {
+          // Fallback to anon key if no session
+          authHeader = `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`;
         }
       } catch (e) {
-        console.warn('[usePurchaseWithBalance] Could not get auth session:', e);
+        console.warn('[usePurchaseWithBalance] Could not get auth session, using anon key:', e);
+        authHeader = `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`;
       }
 
-      // Call the new Edge Function endpoint
+      // Call the Edge Function endpoint - use correct path without purchase-handler subdirectory
+      const edgeUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/purchase-with-balance`;
       let data: any = null;
       let invokeError: { message: string } | null = null;
 
       try {
-        const proxyResponse = await fetch('https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1/purchase-handler/purchase-with-balance', {
+        const proxyResponse = await fetch(edgeUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...(authHeader ? { Authorization: authHeader } : {}),
+            'Authorization': authHeader, // REQUIRED - always include
           },
           body: JSON.stringify(requestBody),
         });

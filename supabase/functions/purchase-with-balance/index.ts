@@ -5,6 +5,15 @@ Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') {
     return new Response('Method Not Allowed', { status: 405 })
   }
+
+  // Require an Authorization header with either a user token or anon key
+  const auth = req.headers.get('Authorization') || '';
+  if (!auth.startsWith('Bearer ')) {
+    return new Response(JSON.stringify({ code: 401, message: 'Missing authorization header' }), {
+      status: 401, headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
   try {
     const {
       p_user_identifier,
