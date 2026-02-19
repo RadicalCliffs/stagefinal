@@ -182,13 +182,6 @@ const EntriesTickets = ({
             {displayGroups.map((group, groupIndex) => {
               const groupId = `group-${group.purchase_group_number}`;
               const isExpanded = expandedTransactions.has(groupId);
-              
-              // Extract all ticket numbers from events in this group
-              const groupTickets: string[] = [];
-              group.events.forEach((event: any) => {
-                // Note: ticket numbers are not in the events from purchase_groups view
-                // We'll need to show event details instead
-              });
 
               return (
                 <div
