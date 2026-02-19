@@ -32,9 +32,9 @@ const EntriesTickets = ({
   const [expandedTransactions, setExpandedTransactions] = useState<Set<string>>(new Set());
   const [showAllTransactionTickets, setShowAllTransactionTickets] = useState(false);
 
-  // Parse ticket numbers from comma-separated string and sort numerically
+  // Parse ticket numbers from comma-separated string
   const tickets = ticketNumbers
-    ? ticketNumbers.split(',').map(t => t.trim()).filter(t => t).sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
+    ? ticketNumbers.split(',').map(t => t.trim()).filter(t => t)
     : [];
 
   // Format a date as M/D/YY
@@ -157,7 +157,7 @@ const EntriesTickets = ({
               const transactionId = entry.id || `transaction-${index}`;
               const isExpanded = expandedTransactions.has(transactionId);
               const entryTickets = entry.ticket_numbers
-                ? entry.ticket_numbers.split(',').map(t => t.trim()).filter(t => t).sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
+                ? entry.ticket_numbers.split(',').map(t => t.trim()).filter(t => t)
                 : [];
               const visibleEntryTickets = isExpanded ? entryTickets : entryTickets.slice(0, MAX_TRANSACTION_TICKETS_VISIBLE);
               const hasMoreEntryTickets = entryTickets.length > MAX_TRANSACTION_TICKETS_VISIBLE;
