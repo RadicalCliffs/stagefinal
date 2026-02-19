@@ -114,6 +114,7 @@ export async function getTotalWinnersCount(): Promise<number> {
 
 /**
  * Get winners by competition with aggregated stats
+ * Uses optimized query to avoid N+1 problem
  * @returns Array of competitions with winner counts and latest win times
  */
 export async function getWinnersByCompetition(): Promise<Array<{
@@ -124,53 +125,52 @@ export async function getWinnersByCompetition(): Promise<Array<{
   latest_win: string | null;
 }>> {
   try {
-    // This would ideally be a database view or RPC function
-    // For now, we'll fetch and aggregate in JavaScript
-    const { data: competitions, error: compError } = await supabase
-      .from('competitions')
-      .select('id, title, vrf_tx_hash')
-      .eq('status', 'drawn');
+    // Fetch all winners and competitions in one query using a join
+    const { data: winners, error: winnersError } = await supabase
+      .from('winners')
+      .select('competition_id, won_at, competitions(id, title, vrf_tx_hash)')
+      .eq('is_winner', true);
 
-    if (compError) throw compError;
+    if (winnersError) throw winnersError;
 
-    const results = await Promise.all(
-      (competitions || []).map(async (comp) => {
-        const { data: winners, error: winError } = await supabase
-          .from('winners')
-          .select('won_at')
-          .eq('competition_id', comp.id)
-          .eq('is_winner', true);
+    // Group winners by competition
+    const competitionMap = new Map<string, {
+      title: string | null;
+      vrf_tx_hash: string | null;
+      winners: Array<{ won_at: string | null }>;
+    }>();
 
-        if (winError) {
-          console.error(`Error fetching winners for ${comp.id}:`, winError);
-          return {
-            competition_id: comp.id,
-            competition_title: comp.title,
-            vrf_tx_hash: comp.vrf_tx_hash,
-            winner_count: 0,
-            latest_win: null,
-          };
+    for (const winner of winners || []) {
+      const compId = winner.competition_id;
+      if (!competitionMap.has(compId)) {
+        competitionMap.set(compId, {
+          title: (winner.competitions as any)?.title || null,
+          vrf_tx_hash: (winner.competitions as any)?.vrf_tx_hash || null,
+          winners: [],
+        });
+      }
+      competitionMap.get(compId)!.winners.push({ won_at: winner.won_at });
+    }
+
+    // Convert to result format
+    const results = Array.from(competitionMap.entries()).map(([compId, data]) => {
+      const latestWin = data.winners.reduce((latest, w) => {
+        if (!latest || (w.won_at && w.won_at > latest)) {
+          return w.won_at;
         }
+        return latest;
+      }, null as string | null);
 
-        const latestWin = winners && winners.length > 0
-          ? winners.reduce((latest, w) => {
-              if (!latest || (w.won_at && w.won_at > latest)) {
-                return w.won_at;
-              }
-              return latest;
-            }, null as string | null)
-          : null;
+      return {
+        competition_id: compId,
+        competition_title: data.title,
+        vrf_tx_hash: data.vrf_tx_hash,
+        winner_count: data.winners.length,
+        latest_win: latestWin,
+      };
+    });
 
-        return {
-          competition_id: comp.id,
-          competition_title: comp.title,
-          vrf_tx_hash: comp.vrf_tx_hash,
-          winner_count: winners?.length || 0,
-          latest_win: latestWin,
-        };
-      })
-    );
-
+    // Sort by latest win (most recent first)
     return results.sort((a, b) => {
       if (!a.latest_win) return 1;
       if (!b.latest_win) return -1;

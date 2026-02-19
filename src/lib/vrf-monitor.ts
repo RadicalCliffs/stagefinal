@@ -275,18 +275,9 @@ export async function triggerVRF(competitionId: string): Promise<{
     const result = await triggerDraw(competition.onchain_competition_id);
 
     if (result.success) {
-      // Optionally sync results immediately
-      if (result.txHash) {
-        // Wait a bit for the transaction to be confirmed
-        setTimeout(async () => {
-          try {
-            await syncResults(competition.onchain_competition_id!);
-          } catch (syncError) {
-            console.error('[VRF Monitor] Error syncing results:', syncError);
-          }
-        }, 60000); // Wait 60 seconds before syncing
-      }
-
+      // Note: Sync will be handled by backend scheduler after VRF callback
+      // Manual sync can be triggered later via the sync script if needed
+      
       return {
         success: true,
         txHash: result.txHash,
