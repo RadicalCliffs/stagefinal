@@ -2,6 +2,7 @@
 // Changed VRF_ADMIN_PRIVATE_KEY to ADMIN_WALLET_PRIVATE_KEY
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { VRF_CONTRACT_ADDRESS } from "../_shared/vrf-config.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -93,7 +94,7 @@ serve(async (req) => {
       competition_id,
       winner,
       selection_method: 'vrf_contract',
-      vrf_contract: '0xc5DfC3f6A227b30161F53f0bC167495158854854',
+      vrf_contract: VRF_CONTRACT_ADDRESS,
       timestamp: new Date().toISOString(),
       participants_count: participants.length
     }

@@ -85,9 +85,10 @@ BEGIN
   FOR i IN 1..p_count LOOP
     -- Generate pseudo-random number using xorshift64
     -- This is a simple but high-quality PRNG
-    v_random_state := v_random_state # (v_random_state << 13);
-    v_random_state := v_random_state # (v_random_state >> 7);
-    v_random_state := v_random_state # (v_random_state << 17);
+    -- PostgreSQL uses ^ for bitwise XOR on BIGINT types
+    v_random_state := v_random_state ^ (v_random_state << 13);
+    v_random_state := v_random_state ^ (v_random_state >> 7);
+    v_random_state := v_random_state ^ (v_random_state << 17);
     
     -- Map to range [i, array_length]
     v_random_value := abs(v_random_state) % (array_length(v_available, 1) - i + 1);
@@ -241,10 +242,10 @@ BEGIN
     );
   END IF;
 
-  -- Use VRF seed if available, otherwise generate a deterministic seed
+  -- Use VRF seed if available, otherwise generate a unique seed per request
   IF v_vrf_seed IS NULL OR v_vrf_seed = '' THEN
-    -- Generate deterministic seed from competition ID, user ID, and timestamp
-    -- This ensures different users get different tickets for the same competition
+    -- Generate unique seed from competition ID, user ID, and timestamp
+    -- This ensures each request gets different tickets (non-deterministic by design)
     v_vrf_seed := encode(
       digest(
         p_competition_id::TEXT || p_user_id || EXTRACT(EPOCH FROM NOW())::TEXT,
