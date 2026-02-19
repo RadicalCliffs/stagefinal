@@ -25,7 +25,8 @@ CREATE TABLE user_transactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   
   -- User identification
-  user_id TEXT NOT NULL,                    -- Canonical: prize:pid:0x...
+  user_id TEXT,                             -- User identifier (may be wallet or canonical)
+  canonical_user_id TEXT,                   -- Canonical user ID: prize:pid:0x...
   wallet_address TEXT,                      -- Normalized: 0x... (lowercase)
   
   -- Transaction details
@@ -171,16 +172,20 @@ CREATE TABLE joincompetition (
   uid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   
   -- Competition and user
-  competitionid UUID NOT NULL,              -- Can be UUID or legacy UID
+  competitionid TEXT NOT NULL,              -- Competition ID (stored as TEXT)
   userid TEXT NOT NULL,                     -- Canonical: prize:pid:0x...
+  canonical_user_id TEXT,                   -- Canonical user ID
   
   -- Entry details
   numberoftickets INTEGER NOT NULL,
   ticketnumbers TEXT NOT NULL,              -- Comma-separated: "1,5,10,42"
   amountspent NUMERIC NOT NULL,
+  ticketCount INTEGER,                      -- Ticket count field
+  tickets INTEGER[],                        -- Array of ticket numbers
   
   -- Payment tracking
   walletaddress TEXT,
+  payment_provider TEXT,                    -- 'balance_payment', 'base_account', etc.
   chain TEXT,                               -- Payment method: 'USDC', 'coinbase', 'balance'
   transactionhash TEXT NOT NULL,            -- Blockchain tx OR reservation ID
   
