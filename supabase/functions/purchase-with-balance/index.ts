@@ -1,16 +1,30 @@
 // functions/purchase-with-balance/index.ts
 // Server-side proxy using SUPABASE_SERVICE_ROLE_KEY (safe on server, NEVER in browser)
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, cache-control, pragma, expires',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+
 Deno.serve(async (req: Request) => {
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { status: 200, headers: corsHeaders })
+  }
+
   if (req.method !== 'POST') {
-    return new Response('Method Not Allowed', { status: 405 })
+    return new Response('Method Not Allowed', { 
+      status: 405,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
   }
 
   // Require an Authorization header with either a user token or anon key
   const auth = req.headers.get('Authorization') || '';
   if (!auth.startsWith('Bearer ')) {
     return new Response(JSON.stringify({ code: 401, message: 'Missing authorization header' }), {
-      status: 401, headers: { 'Content-Type': 'application/json' },
+      status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   }
 
@@ -25,14 +39,14 @@ Deno.serve(async (req: Request) => {
     } = await req.json()
     if (!p_user_identifier || !p_competition_id || typeof p_ticket_price !== 'number') {
       return new Response(JSON.stringify({ error: 'Missing required params' }), {
-        status: 400, headers: { 'Content-Type': 'application/json' }
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
     const baseUrl = Deno.env.get('SUPABASE_URL')
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     if (!baseUrl || !serviceRoleKey) {
       return new Response(JSON.stringify({ error: 'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY' }), {
-        status: 500, headers: { 'Content-Type': 'application/json' }
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
     const res = await fetch(`${baseUrl}/rest/v1/rpc/purchase_tickets_with_balance`, {
@@ -56,17 +70,17 @@ Deno.serve(async (req: Request) => {
     if (!res.ok) {
       return new Response(text || JSON.stringify({ error: 'RPC error' }), {
         status: res.status,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
     // Pass-through JSON from RPC
     return new Response(text, {
       status: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (e) {
     return new Response(JSON.stringify({ error: e?.message ?? 'Unhandled error' }), {
-      status: 500, headers: { 'Content-Type': 'application/json' }
+      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   }
 })
