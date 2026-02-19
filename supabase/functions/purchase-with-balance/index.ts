@@ -495,7 +495,7 @@ Deno.serve(async (req: Request) => {
       topped_up_count: finalResult.topped_up_count,
       note: finalResult.note,
       fallback: finalResult.fallback || false,
-      message: `Successfully purchased ${ticketNumbersResult.length} tickets`,
+      message: `Successfully purchased ${ticketNumbersResult.length} ticket${ticketNumbersResult.length === 1 ? '' : 's'}`,
     };
 
     console.log(
