@@ -3,7 +3,10 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-const EDGE_URL = 'https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1/purchase-with-balance';
+// Get Edge Function URL from environment variable, with fallback to hardcoded URL
+const EDGE_URL = import.meta.env.VITE_SUPABASE_URL 
+  ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/purchase-with-balance`
+  : 'https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1/purchase-with-balance';
 
 interface PurchaseWithBalanceParams {
   p_user_identifier: string;
@@ -25,7 +28,8 @@ export async function purchaseWithBalanceViaEdge({
   supabaseClient,
 }: PurchaseWithBalanceParams) {
   const { data: { session } } = await supabaseClient.auth.getSession();
-  const accessToken = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
+  // Use session token if available, otherwise fall back to the client's anon key
+  const accessToken = session?.access_token ?? (supabaseClient as any).supabaseKey;
   const res = await fetch(EDGE_URL, {
     method: 'POST',
     headers: {

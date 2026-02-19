@@ -8,7 +8,16 @@
 // - p_ticket_numbers: integer[] | null
 // - p_idempotency_key: text | null
 
-const PROJECT_URL = 'https://mthwfldcjvpxjtmrqkqm.supabase.co';
+// Get project URL from environment variable
+const PROJECT_URL = typeof process !== 'undefined'
+  ? process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
+  : typeof Deno !== 'undefined'
+    ? Deno.env.get('SUPABASE_URL') || Deno.env.get('VITE_SUPABASE_URL')
+    : undefined;
+
+if (!PROJECT_URL) {
+  console.warn('SUPABASE_URL not found in environment. serverPurchaseDirect will fail.');
+}
 
 // IMPORTANT: ONLY access SERVICE_ROLE_KEY in server environment, NEVER in browser
 // Use process.env in Node.js or Deno.env in Deno
@@ -28,6 +37,10 @@ interface ServerPurchaseParams {
 }
 
 export async function serverPurchaseDirect(params: ServerPurchaseParams) {
+  if (!PROJECT_URL) {
+    throw new Error('SUPABASE_URL is not set in environment. Cannot make direct purchase.');
+  }
+  
   if (!SERVICE_ROLE_KEY) {
     throw new Error('SUPABASE_SERVICE_ROLE_KEY is not available. This function must only be called in a server environment.');
   }
