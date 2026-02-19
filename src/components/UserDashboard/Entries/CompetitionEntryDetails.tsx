@@ -6,6 +6,7 @@ import EntriesCard from "./EntriesCard";
 import EntriesTickets from "./EntriesTickets";
 import EntriesWinnerSection from "./EntriesWinnerSection";
 import { database } from "../../../lib/database";
+import { fetchCompetitionPurchaseSessions, type PurchaseGroup } from "../../../lib/purchase-dashboard";
 import Loader from "../../Loader";
 
 interface EntryData {
@@ -61,6 +62,7 @@ const CompetitionEntryDetails = () => {
   const { competitionId } = useParams<{ competitionId: string }>();
   const { baseUser, canonicalUserId } = useAuthUser();
   const [entries, setEntries] = useState<EntryData[]>([]);
+  const [purchaseGroups, setPurchaseGroups] = useState<Array<PurchaseGroup & { competition_title: string | null }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -94,6 +96,18 @@ const CompetitionEntryDetails = () => {
           setEntries(competitionEntries);
         } else {
           setError("No entries found for this competition");
+        }
+
+        // Fetch purchase groups for this competition
+        try {
+          const groups = await fetchCompetitionPurchaseSessions({
+            userId: canonicalUserId,
+            competitionId: competitionId,
+          });
+          setPurchaseGroups(groups);
+        } catch (groupErr) {
+          console.warn("Failed to fetch purchase groups, falling back to individual entries:", groupErr);
+          // Don't set error here - we can still show the page with individual entries
         }
       } catch (err) {
         console.error("Error fetching entries:", err);
@@ -383,6 +397,7 @@ const CompetitionEntryDetails = () => {
             : undefined
         }
         individualEntries={aggregatedEntry.individual_entries}
+        purchaseGroups={purchaseGroups}
       />
 
       <EntriesWinnerSection
