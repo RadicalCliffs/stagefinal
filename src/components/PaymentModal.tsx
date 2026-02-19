@@ -1811,7 +1811,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                 <div className="bg-[#2A2A2A] rounded-lg p-4 mb-6 max-w-md mx-auto">
                   <p className="text-white/60 sequel-45 text-sm mb-2">Your Ticket Numbers:</p>
                   <div className="flex flex-wrap gap-2 justify-center max-h-32 overflow-y-auto">
-                    {[...purchasedTickets].sort((a, b) => a - b).map((ticket) => (
+                    {purchasedTickets.map((ticket) => (
                       <span
                         key={ticket}
                         className="bg-[#DDE404] text-[#1A1A1A] sequel-75 text-sm px-3 py-1 rounded-md"
