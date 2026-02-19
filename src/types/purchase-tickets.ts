@@ -12,7 +12,7 @@
  */
 
 /**
- * Request body for /purchase-handler/purchase-with-balance (Edge Function)
+ * Request body for https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1/purchase-handler/purchase-with-balance (Edge Function)
  */
 export interface PurchaseTicketsRequest {
   /** Canonical user ID (required) - use toCanonicalUserId() to convert */
