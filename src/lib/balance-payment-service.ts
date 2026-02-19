@@ -63,7 +63,54 @@ export interface PurchaseRequest {
 
 /**
  * Purchase request body for /purchase-handler/purchase-with-balance (Edge Function)
- * Note: This interface is now deprecated as the Edge Function expects RPC parameters directly
+ * Matches the RPC function parameters directly
+ */
+export interface RPCPurchaseRequest {
+  /** Canonical user identifier (e.g., prize:pid:0x123...) */
+  p_user_identifier: string;
+  
+  /** Competition UUID */
+  p_competition_id: string;
+  
+  /** Ticket price in USD */
+  p_ticket_price: number;
+  
+  /** Number of tickets to purchase */
+  p_ticket_count: number;
+  
+  /** Array of ticket numbers */
+  p_ticket_numbers: number[];
+  
+  /** Idempotency key for deduplication */
+  p_idempotency_key: string;
+  
+  /** Optional: reservation ID for reserved purchases (7-arg variant) */
+  p_reservation_id?: string;
+}
+
+/**
+ * Verify and rescue request body for /purchase-handler/verify-and-rescue-purchase (Edge Function)
+ */
+export interface RPCVerifyAndRescueRequest {
+  /** Canonical user identifier */
+  p_user_identifier: string;
+  
+  /** Competition UUID */
+  p_competition_id: string;
+  
+  /** Array of ticket numbers to rescue */
+  p_ticket_numbers: number[];
+  
+  /** Ticket price in USD */
+  p_ticket_price: number;
+  
+  /** Idempotency key */
+  p_idempotency_key: string;
+}
+
+/**
+ * @deprecated Legacy request interface - use RPCPurchaseRequest instead
+ * Purchase request body for old Netlify proxy endpoint
  */
 export interface EdgeFunctionPurchaseRequest {
   userId: string;
@@ -73,9 +120,9 @@ export interface EdgeFunctionPurchaseRequest {
   tickets: Array<{ ticket_number: number }>;
   idempotent: boolean;
   reservation_id?: string;
-  idempotency_key?: string;  // Explicit idempotency key for proper tracking
-  payment_provider?: string;  // For balance_ledger tracking
-  type?: string;              // For balance_ledger: 'purchase', 'entry', etc.
+  idempotency_key?: string;
+  payment_provider?: string;
+  type?: string;
 }
 
 export interface PurchaseResponse {
@@ -353,7 +400,7 @@ export class BalancePaymentService {
       const idempotencyKey = idempotencyKeyManager.getOrCreateKey(idempotencyKeyBase);
 
       // Build request body with RPC function parameters
-      const requestBody: any = {
+      const requestBody: RPCPurchaseRequest = {
         p_user_identifier: canonicalUserId,
         p_competition_id: competitionId,
         p_ticket_price: ticketPrice,

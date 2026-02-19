@@ -45,6 +45,7 @@ import type {
   PurchaseWithBalanceOptions,
   PurchaseTicketsSuccessResponse 
 } from '@/types/purchase-tickets';
+import type { RPCPurchaseRequest } from '@/lib/balance-payment-service';
 
 interface UsePurchaseWithBalanceResult {
   /** Function to initiate purchase */
@@ -132,14 +133,14 @@ export function usePurchaseWithBalance(): UsePurchaseWithBalanceResult {
       });
       
       // Build request body - must match RPC function parameters
-      const requestBody = {
+      const requestBody: RPCPurchaseRequest = {
         p_user_identifier: canonicalUserId,
         p_competition_id: competitionId,
         p_ticket_price: ticketPrice,
         p_ticket_count: ticketNumbers.length,
         p_ticket_numbers: ticketNumbers,
         p_idempotency_key: idempotencyKey
-      } as any;
+      };
       
       // Include p_reservation_id if provided (for 7-arg reserved variant)
       if (reservationId) {
