@@ -700,8 +700,12 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
     return Math.max(...entries.map(e => e.ticketNumber));
   }, [entries, totalTickets]);
 
+  // Constants for pagination
+  const TICKETS_PER_RANGE = 500;
+  const MAX_TABS_PER_PAGE = 10; // Show 10 ranges (5000 tickets) per page
+
   const filterOptions: Options[] = useMemo(() => {
-    const rangeSize = 500;
+    const rangeSize = TICKETS_PER_RANGE;
     const numRanges = Math.ceil(maxTicketNumber / rangeSize);
     const options: Options[] = [];
 
@@ -720,7 +724,6 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
   }, [maxTicketNumber]);
 
   // --- Pagination for filter tabs ---
-  const MAX_TABS_PER_PAGE = 10; // Show 10 ranges (5000 tickets) per page
   const [tabPage, setTabPage] = useState(0);
   
   const totalTabPages = Math.ceil(filterOptions.length / MAX_TABS_PER_PAGE);
@@ -783,7 +786,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
           {totalTabPages > 1 && (
             <div className="flex items-center justify-between bg-[#1a1a1a] border border-[#DDE404] rounded-lg p-4 mb-4">
               <div className="text-white sequel-45 text-sm">
-                Showing ticket ranges {(tabPage * MAX_TABS_PER_PAGE * 500) + 1} - {Math.min((tabPage + 1) * MAX_TABS_PER_PAGE * 500, maxTicketNumber)}
+                Showing ticket ranges {(tabPage * MAX_TABS_PER_PAGE * TICKETS_PER_RANGE) + 1} - {Math.min((tabPage + 1) * MAX_TABS_PER_PAGE * TICKETS_PER_RANGE, maxTicketNumber)}
                 <span className="text-white/50 ml-2">
                   (Page {tabPage + 1} of {totalTabPages})
                 </span>

@@ -793,7 +793,7 @@ export class BalancePaymentService {
             currency: 'USD',
             new_balance: String(result.available_balance || 0),
             competition_id: competitionId,
-            tickets: (result.ticket_numbers || ticketNumbers).map((num: number, index: number) => ({
+            tickets: (result.ticket_numbers ?? ticketNumbers).map((num: number, index: number) => ({
               id: `${result.entry_id || 'recovered'}-${index}`,
               ticket_number: num
             }))
@@ -885,7 +885,7 @@ export class BalancePaymentService {
             currency: 'USD',
             new_balance: String(rescueData.available_balance || 0),
             competition_id: competitionId,
-            tickets: (rescueData.ticket_numbers || ticketNumbers).map((num: number, index: number) => ({
+            tickets: (rescueData.ticket_numbers ?? ticketNumbers).map((num: number, index: number) => ({
               id: `${rescueData.entry_id || 'rescued'}-${index}`,
               ticket_number: num
             }))
