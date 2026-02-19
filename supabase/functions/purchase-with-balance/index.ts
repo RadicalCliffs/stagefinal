@@ -1,20 +1,19 @@
 // functions/purchase-with-balance/index.ts
 // Server-side proxy using SUPABASE_SERVICE_ROLE_KEY (safe on server, NEVER in browser)
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, cache-control, pragma, expires',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-}
+import { buildCorsHeaders, handleCorsOptions } from "../_shared/cors.ts";
 
 Deno.serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 200, headers: corsHeaders })
+    return handleCorsOptions(req);
   }
 
+  // Build CORS headers based on request origin
+  const corsHeaders = buildCorsHeaders(req.headers.get('origin'));
+
   if (req.method !== 'POST') {
-    return new Response('Method Not Allowed', { 
+    return new Response(JSON.stringify({ error: 'Method Not Allowed' }), { 
       status: 405,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
