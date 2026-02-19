@@ -72,8 +72,23 @@ export interface PurchaseTicketsSuccessResponse {
   /** User's new balance after purchase in USD */
   new_balance: number;
   
+  /** User's previous balance before purchase in USD */
+  previous_balance?: number;
+  
   /** Whether this was an idempotent request */
   idempotent: boolean;
+  
+  /** Reservation ID that was used for this purchase (if any) */
+  used_reservation_id?: string;
+  
+  /** Number of tickets upgraded from reservation */
+  used_reserved_count?: number;
+  
+  /** Number of tickets topped up from available pool */
+  topped_up_count?: number;
+  
+  /** Note describing the purchase source: reserved_upgraded | topped_up_from_available | reserved_upgraded_and_topped_up | lucky_dip_only */
+  note?: string;
 }
 
 /**
@@ -180,6 +195,81 @@ export interface ReservationResponse {
   ticket_price: string;
   total_amount: string;
   expires_at: string;
+}
+
+/**
+ * Response from get_purchase_status_by_key RPC
+ */
+export interface PurchaseStatusByKeyResponse {
+  /** Whether a purchase result was found for this idempotency key */
+  found: boolean;
+  
+  /** The stored purchase result (if found) */
+  result?: any;
+  
+  /** When the purchase was created */
+  created_at?: string;
+  
+  /** Reservation ID associated with the purchase */
+  reservation_id?: string;
+  
+  /** Canonical user ID who made the purchase */
+  canonical_user_id?: string;
+  
+  /** Competition ID for the purchase */
+  competition_id?: string;
+}
+
+/**
+ * Response from verify_competition_purchase RPC
+ */
+export interface VerifyCompetitionPurchaseResponse {
+  /** Whether verification succeeded */
+  success: boolean;
+  
+  /** Source of verification: "idempotency" or "tickets" */
+  source: 'idempotency' | 'tickets';
+  
+  /** Purchase data if verified from idempotency table */
+  data?: any;
+  
+  /** Ticket numbers if verified from tickets table */
+  ticket_numbers?: number[];
+  
+  /** Number of tickets found */
+  ticket_count: number;
+  
+  /** Whether the found count meets the expected count */
+  meets_expected?: boolean | null;
+}
+
+/**
+ * Response from rescue_purchase_attempt RPC
+ */
+export interface RescuePurchaseAttemptResponse {
+  /** Whether the rescue attempt succeeded */
+  success: boolean;
+  
+  /** Error code if rescue failed */
+  error_code?: string;
+  
+  /** Error message if rescue failed */
+  error?: string;
+  
+  /** Entry ID if successful */
+  entry_id?: string;
+  
+  /** Ticket numbers allocated */
+  ticket_numbers?: number[];
+  
+  /** Number of tickets */
+  ticket_count?: number;
+  
+  /** Total cost of purchase */
+  total_cost?: number;
+  
+  /** User's balance after purchase */
+  available_balance?: number;
 }
 
 /**

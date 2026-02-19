@@ -45,6 +45,7 @@ async function callRpcWithRetry(
     ticketCount: number | null;
     ticketNumbers: number[] | null;
     idempotencyKey: string | null;
+    reservationId: string | null;
   },
   requestId: string,
   maxRetries: number = 2
@@ -70,6 +71,7 @@ async function callRpcWithRetry(
           p_ticket_count: params.ticketCount,
           p_ticket_numbers: params.ticketNumbers,
           p_idempotency_key: params.idempotencyKey,
+          p_reservation_id: params.reservationId,
         }
       );
 
@@ -134,14 +136,20 @@ async function directDatabaseFallback(
     ticketPrice: number;
     ticketNumbers: number[];
     idempotencyKey: string;
+    reservationId: string | null;
   },
   requestId: string
 ): Promise<{ success: boolean; data?: any; error?: string }> {
-  const { canonicalUserId, competitionId, ticketNumbers, ticketPrice, idempotencyKey } = params;
+  const { canonicalUserId, competitionId, ticketNumbers, ticketPrice, idempotencyKey, reservationId } = params;
 
   console.log(
     `[purchase-with-balance-proxy][${requestId}] FALLBACK: Direct DB operations for ${ticketNumbers.length} tickets`
   );
+
+  // NOTE: reservationId is accepted but not used in fallback path
+  // The RPC handles reservation upgrades automatically; fallback only handles
+  // direct ticket purchases. If you reached the fallback, reservation logic
+  // already failed and we're doing a simple purchase instead.
 
   try {
     // Step 1: Check for idempotent duplicate first
@@ -592,6 +600,7 @@ export default async (req: Request, context: Context) => {
         ticketCount,
         ticketNumbers,
         idempotencyKey,
+        reservationId,
       },
       requestId
     );
@@ -626,6 +635,7 @@ export default async (req: Request, context: Context) => {
           ticketPrice,
           ticketNumbers: fallbackTicketNumbers,
           idempotencyKey,
+          reservationId,
         },
         requestId
       );
@@ -668,10 +678,24 @@ export default async (req: Request, context: Context) => {
       const errorCode = finalResult.error_code || "PURCHASE_FAILED";
       const errorMessage = finalResult.error || "Purchase failed";
 
-      // Map specific error codes to HTTP status codes
-      let httpStatus = 400;
+      // Map specific error codes to HTTP status codes per API specification
+      let httpStatus = 400; // Default for validation errors
+      
+      // Payment/Balance errors
       if (errorCode === "INSUFFICIENT_BALANCE") httpStatus = 402;
       if (errorCode === "NO_BALANCE_RECORD") httpStatus = 404;
+      
+      // Resource availability errors
+      if (errorCode === "NOT_ENOUGH_TICKETS") httpStatus = 409;
+      
+      // Validation errors
+      if (errorCode === "INVALID_COMPETITION_ID") httpStatus = 400;
+      if (errorCode === "UNKNOWN_USER") httpStatus = 400;
+      if (errorCode === "INVALID_REQUEST") httpStatus = 400;
+      if (errorCode === "VALIDATION_ERROR") httpStatus = 400;
+      
+      // Internal/Retry errors
+      if (errorCode === "INTERNAL_ERROR") httpStatus = 500;
 
       return errorResponse(errorCode, errorMessage, httpStatus);
     }
@@ -710,7 +734,13 @@ export default async (req: Request, context: Context) => {
       total_cost: finalResult.total_cost,
       new_balance: finalResult.available_balance,
       available_balance: finalResult.available_balance,
+      previous_balance: finalResult.previous_balance,
       idempotent: finalResult.idempotent || false,
+      // Reservation-related fields from the new RPC signature
+      used_reservation_id: finalResult.used_reservation_id,
+      used_reserved_count: finalResult.used_reserved_count,
+      topped_up_count: finalResult.topped_up_count,
+      note: finalResult.note,
       message: `Successfully purchased ${ticketNumbersResult.length} tickets`,
     };
 
