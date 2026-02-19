@@ -269,6 +269,174 @@ export const executeBalancePayment = (
   });
 };
 
+/**
+ * Get purchase status by idempotency key
+ * 
+ * SQL Function: public.get_purchase_status_by_key(p_idempotency_key text) RETURNS jsonb
+ * 
+ * Quick lookup of a previously stored purchase result using the idempotency key.
+ * Use this to check if a purchase already succeeded before retrying.
+ * 
+ * @param supabaseClient - Supabase client instance
+ * @param idempotencyKey - The idempotency key to look up
+ * @returns Promise with purchase status details
+ * 
+ * @example
+ * const { data, error } = await getPurchaseStatusByKey(supabase, 'uuid-idempotency-key');
+ * if (data?.found && data?.result?.success) {
+ *   // Purchase already succeeded
+ * }
+ */
+export const getPurchaseStatusByKey = (
+  supabaseClient: SupabaseClient,
+  idempotencyKey: string
+) => {
+  if (!idempotencyKey || typeof idempotencyKey !== 'string' || idempotencyKey.trim() === '') {
+    throw new Error('idempotencyKey is required for getPurchaseStatusByKey');
+  }
+
+  return supabaseClient.rpc('get_purchase_status_by_key', {
+    p_idempotency_key: idempotencyKey
+  });
+};
+
+/**
+ * Verify competition purchase
+ * 
+ * SQL Function: public.verify_competition_purchase(
+ *   p_canonical_user_id text,
+ *   p_competition_id text,
+ *   p_expected_count int,
+ *   p_idempotency_key text DEFAULT NULL,
+ *   p_reservation_id uuid DEFAULT NULL
+ * ) RETURNS jsonb
+ * 
+ * Verify if a purchase completed by reading either idempotency table or tickets 
+ * ownership as source of truth. Use this to check if tickets were allocated
+ * even if the initial purchase response was lost.
+ * 
+ * @param supabaseClient - Supabase client instance
+ * @param params - Verification parameters
+ * @returns Promise with verification result
+ * 
+ * @example
+ * const { data, error } = await verifyCompetitionPurchase(supabase, {
+ *   canonicalUserId: 'prize:pid:0x...',
+ *   competitionId: 'uuid',
+ *   expectedCount: 3,
+ *   idempotencyKey: 'uuid-key',
+ *   reservationId: 'uuid-reservation'
+ * });
+ * if (data?.meets_expected) {
+ *   // Purchase verified!
+ * }
+ */
+export const verifyCompetitionPurchase = (
+  supabaseClient: SupabaseClient,
+  params: {
+    canonicalUserId: string;
+    competitionId: string;
+    expectedCount: number;
+    idempotencyKey?: string;
+    reservationId?: string;
+  }
+) => {
+  const { canonicalUserId, competitionId, expectedCount, idempotencyKey, reservationId } = params;
+
+  if (!canonicalUserId || typeof canonicalUserId !== 'string' || canonicalUserId.trim() === '') {
+    throw new Error('canonicalUserId is required for verifyCompetitionPurchase');
+  }
+  if (!competitionId || typeof competitionId !== 'string' || competitionId.trim() === '') {
+    throw new Error('competitionId is required for verifyCompetitionPurchase');
+  }
+  if (typeof expectedCount !== 'number' || expectedCount <= 0) {
+    throw new Error('expectedCount must be a positive number for verifyCompetitionPurchase');
+  }
+
+  return supabaseClient.rpc('verify_competition_purchase', {
+    p_canonical_user_id: canonicalUserId,
+    p_competition_id: competitionId,
+    p_expected_count: expectedCount,
+    p_idempotency_key: idempotencyKey ?? null,
+    p_reservation_id: reservationId ?? null
+  });
+};
+
+/**
+ * Rescue purchase attempt
+ * 
+ * SQL Function: public.rescue_purchase_attempt(
+ *   p_user_identifier text,
+ *   p_competition_id text,
+ *   p_ticket_price numeric,
+ *   p_expected_count int,
+ *   p_idempotency_key text,
+ *   p_reservation_id uuid
+ * ) RETURNS jsonb
+ * 
+ * Safely re-invoke the main purchase RPC using the same idempotency_key and 
+ * reservation_id. Use this if verification shows tickets aren't sold yet.
+ * This is the final rescue attempt in the retry flow.
+ * 
+ * @param supabaseClient - Supabase client instance
+ * @param params - Rescue parameters
+ * @returns Promise with rescue attempt result
+ * 
+ * @example
+ * const { data, error } = await rescuePurchaseAttempt(supabase, {
+ *   userIdentifier: 'prize:pid:0x...',
+ *   competitionId: 'uuid',
+ *   ticketPrice: 1.50,
+ *   expectedCount: 3,
+ *   idempotencyKey: 'uuid-key',
+ *   reservationId: 'uuid-reservation'
+ * });
+ * if (data?.success) {
+ *   // Rescue successful!
+ * }
+ */
+export const rescuePurchaseAttempt = (
+  supabaseClient: SupabaseClient,
+  params: {
+    userIdentifier: string;
+    competitionId: string;
+    ticketPrice: number;
+    expectedCount: number;
+    idempotencyKey: string;
+    reservationId: string;
+  }
+) => {
+  const { userIdentifier, competitionId, ticketPrice, expectedCount, idempotencyKey, reservationId } = params;
+
+  if (!userIdentifier || typeof userIdentifier !== 'string' || userIdentifier.trim() === '') {
+    throw new Error('userIdentifier is required for rescuePurchaseAttempt');
+  }
+  if (!competitionId || typeof competitionId !== 'string' || competitionId.trim() === '') {
+    throw new Error('competitionId is required for rescuePurchaseAttempt');
+  }
+  if (typeof ticketPrice !== 'number' || ticketPrice <= 0) {
+    throw new Error('ticketPrice must be a positive number for rescuePurchaseAttempt');
+  }
+  if (typeof expectedCount !== 'number' || expectedCount <= 0) {
+    throw new Error('expectedCount must be a positive number for rescuePurchaseAttempt');
+  }
+  if (!idempotencyKey || typeof idempotencyKey !== 'string' || idempotencyKey.trim() === '') {
+    throw new Error('idempotencyKey is required for rescuePurchaseAttempt');
+  }
+  if (!reservationId || typeof reservationId !== 'string' || reservationId.trim() === '') {
+    throw new Error('reservationId is required for rescuePurchaseAttempt');
+  }
+
+  return supabaseClient.rpc('rescue_purchase_attempt', {
+    p_user_identifier: userIdentifier,
+    p_competition_id: competitionId,
+    p_ticket_price: ticketPrice,
+    p_expected_count: expectedCount,
+    p_idempotency_key: idempotencyKey,
+    p_reservation_id: reservationId
+  });
+};
+
 // Export a default object with all helpers for convenience
 export default {
   getDashboardEntries,
@@ -277,5 +445,8 @@ export default {
   getUnavailableTickets,
   getUserCompetitionEntries,
   executeBalancePayment,
-  finalizePurchase
+  finalizePurchase,
+  getPurchaseStatusByKey,
+  verifyCompetitionPurchase,
+  rescuePurchaseAttempt
 };

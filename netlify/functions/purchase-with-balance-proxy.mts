@@ -678,10 +678,24 @@ export default async (req: Request, context: Context) => {
       const errorCode = finalResult.error_code || "PURCHASE_FAILED";
       const errorMessage = finalResult.error || "Purchase failed";
 
-      // Map specific error codes to HTTP status codes
-      let httpStatus = 400;
+      // Map specific error codes to HTTP status codes per API specification
+      let httpStatus = 400; // Default for validation errors
+      
+      // Payment/Balance errors
       if (errorCode === "INSUFFICIENT_BALANCE") httpStatus = 402;
       if (errorCode === "NO_BALANCE_RECORD") httpStatus = 404;
+      
+      // Resource availability errors
+      if (errorCode === "NOT_ENOUGH_TICKETS") httpStatus = 409;
+      
+      // Validation errors
+      if (errorCode === "INVALID_COMPETITION_ID") httpStatus = 400;
+      if (errorCode === "UNKNOWN_USER") httpStatus = 400;
+      if (errorCode === "INVALID_REQUEST") httpStatus = 400;
+      if (errorCode === "VALIDATION_ERROR") httpStatus = 400;
+      
+      // Internal/Retry errors
+      if (errorCode === "INTERNAL_ERROR") httpStatus = 500;
 
       return errorResponse(errorCode, errorMessage, httpStatus);
     }
