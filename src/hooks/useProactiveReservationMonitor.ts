@@ -36,8 +36,8 @@ export interface ProactiveMonitorOptions {
 export function useProactiveReservationMonitor(options: ProactiveMonitorOptions = {}) {
   const {
     competitionId,
-    enableAutoCleanup = true,
-    cleanupInterval = 5000,
+    enableAutoCleanup = false, // Changed default to false - cleanup is handled by RPC, no need for client polling
+    cleanupInterval = 30000, // Increased from 5000ms to 30000ms if ever re-enabled
     enabled = true,
   } = options;
 

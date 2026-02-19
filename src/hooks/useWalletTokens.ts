@@ -334,19 +334,14 @@ export function useWalletTokens(walletAddress?: string): UseWalletTokensResult {
         walletTokensLogger.error('Failed to fetch ETH balance', e);
       }
 
-      // Increased to 10 tokens to show more of user's portfolio while managing rate limits
+      // REDUCED: Only check critical payment tokens to avoid rate limiting
+      // Focus on tokens actually used for payments (USDC, USDbC, WETH)
+      // Other tokens (DEGEN, AERO, BRETT, TOSHI, VIRTUAL, DAI, cbETH) removed to reduce RPC calls
       const tokensToCheck = isMainnet
         ? [
             '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', // USDC (primary payment token)
             '0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca', // USDbC (bridged USDC)
-            '0x4200000000000000000000000000000000000006', // WETH
-            '0x50c5725949a6f0c72e6c4a641f24049a917db0cb', // DAI
-            '0x2ae3f1ec7f1f5012cfeab0185bfc7aa3cf0dec22', // cbETH
-            '0x4ed4e862860bed51a9570b96d89af5e1b0efefed', // DEGEN
-            '0x940181a94a35a4569e4529a3cdfb74e38fd98631', // AERO
-            '0x532f27101965dd16442e59d40670faf5ebb142e4', // BRETT
-            '0xac1bd2486aaf3b5c0fc3fd868558b082a531b2b4', // TOSHI
-            '0x0b3e328455c4059eeb9e3f84b5543f74e24e7e1b', // Virtual Protocol
+            '0x4200000000000000000000000000000000000006', // WETH (wrapped ETH)
           ]
         : [
             '0x036cbd53842c5426634e7929541ec2318f3dcf7e', // USDC on Base Sepolia
@@ -562,13 +557,15 @@ export function useWalletTokens(walletAddress?: string): UseWalletTokensResult {
     fetchTokens();
   }, [fetchTokens]);
 
-  // Refresh periodically (every 60 seconds to reduce rate limit issues)
-  useEffect(() => {
-    if (!address) return;
-
-    const interval = setInterval(() => fetchTokens(), 60000);
-    return () => clearInterval(interval);
-  }, [address, fetchTokens]);
+  // DISABLED: Automatic refresh removed to eliminate unnecessary polling
+  // Token balances are fetched on mount and can be manually refreshed via refresh() function
+  // This prevents rate limiting and reduces load on RPC endpoints
+  // If needed, components can call refresh() explicitly when user initiates an action
+  // useEffect(() => {
+  //   if (!address) return;
+  //   const interval = setInterval(() => fetchTokens(), 60000);
+  //   return () => clearInterval(interval);
+  // }, [address, fetchTokens]);
 
   return {
     tokens,

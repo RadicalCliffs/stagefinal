@@ -367,12 +367,13 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
             )
             .subscribe();
 
-        // FALLBACK POLLING: 5-second interval to ensure grid stays current
-        // even when realtime events are missed
+        // REDUCED: Fallback polling interval increased to 30 seconds to reduce load
+        // Realtime subscriptions handle most updates, this is just a safety net
         const pollingInterval = setInterval(() => {
             console.log('[TicketSelector] Fallback polling refresh');
             debouncedRefresh();
-        }, 5000);
+            fetchOwnedTickets(); // Also refresh owned tickets
+        }, 30000); // Changed from 5000ms (5s) to 30000ms (30s)
 
         return () => {
             supabase.removeChannel(channel);
@@ -380,16 +381,15 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
         };
     }, [competitionId, debouncedRefresh, fetchOwnedTickets]);
 
-    // Periodic polling as fallback for when realtime subscriptions miss events
-    // Polls every 5 seconds for near real-time accuracy
-    useEffect(() => {
-        const pollInterval = setInterval(() => {
-            fetchAvailableTickets(false);
-            fetchOwnedTickets();
-        }, 5000);
-
-        return () => clearInterval(pollInterval);
-    }, [fetchAvailableTickets, fetchOwnedTickets]);
+    // REMOVED: Duplicate periodic polling that was redundant with the fallback polling above
+    // The realtime subscriptions + single 30-second fallback polling is sufficient
+    // useEffect(() => {
+    //     const pollInterval = setInterval(() => {
+    //         fetchAvailableTickets(false);
+    //         fetchOwnedTickets();
+    //     }, 5000);
+    //     return () => clearInterval(pollInterval);
+    // }, [fetchAvailableTickets, fetchOwnedTickets]);
 
     const [start, end] = activeFilter.key.split("-").map(Number);
 
