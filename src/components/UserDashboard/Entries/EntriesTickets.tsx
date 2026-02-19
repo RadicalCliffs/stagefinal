@@ -12,6 +12,14 @@ interface EntryData {
   transaction_hash?: string | null;
 }
 
+interface PurchaseGroupEvent {
+  source_table: 'tickets' | 'joincompetition';
+  source_row_id: string;
+  amount: number;
+  occurred_at: string;
+  purchase_key: string | null;
+}
+
 interface EntriesTicketsProps {
   ticketNumbers?: string;
   numberOfTickets?: number;
@@ -225,7 +233,7 @@ const EntriesTickets = ({
                       
                       {isExpanded && (
                         <div className="mt-3 space-y-2">
-                          {group.events.map((event: any, eventIndex: number) => (
+                          {group.events.map((event: PurchaseGroupEvent, eventIndex: number) => (
                             <div
                               key={`${groupId}-event-${eventIndex}`}
                               className="bg-[#252525] rounded p-3 text-xs"
@@ -235,7 +243,7 @@ const EntriesTickets = ({
                                   {event.source_table === 'tickets' ? '🎟️ Ticket' : '🎫 Entry'}
                                 </span>
                                 <span className="text-[#DDE404] sequel-45">
-                                  ${event.amount?.toFixed(2) || '0.00'}
+                                  ${event.amount.toFixed(2)}
                                 </span>
                               </div>
                               <div className="text-white/50 sequel-45 mt-1">
