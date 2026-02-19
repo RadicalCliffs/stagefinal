@@ -3705,8 +3705,8 @@ export const database = {
               expires_at: null,
               // isWinner: is_winner from RPC
               is_winner: entry.is_winner || false,
-              // ticketNumbers: ticket_numbers from RPC (prioritized as per spec)
-              ticket_numbers: entry.ticket_numbers || purchase.ticket_numbers || '',
+              // ticketNumbers: use purchase-specific tickets, not aggregated entry tickets
+              ticket_numbers: purchase.ticket_numbers || '',
               // numberOfTickets: from individual purchase
               number_of_tickets: purchase.tickets_count || 0,
               // amountSpent: formatted amount_spent from individual purchase
