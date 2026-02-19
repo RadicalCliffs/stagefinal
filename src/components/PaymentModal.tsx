@@ -760,15 +760,15 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
       if (!isNonRescuableError && ticketNumbersToPurchase.length > 0) {
         try {
-          const rescueResponse = await fetch('/api/verify-and-rescue-purchase', {
+          const rescueResponse = await fetch('/purchase-handler/verify-and-rescue-purchase', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              userId: canonicalUserId,
-              competitionId,
-              ticketNumbers: ticketNumbersToPurchase,
-              ticketPrice,
-              idempotencyKey: currentReservationId || '',
+              p_user_identifier: canonicalUserId,
+              p_competition_id: competitionId,
+              p_ticket_numbers: ticketNumbersToPurchase,
+              p_ticket_price: ticketPrice,
+              p_idempotency_key: currentReservationId || '',
             }),
           });
 
