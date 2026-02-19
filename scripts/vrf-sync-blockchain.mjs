@@ -67,6 +67,22 @@ function parseArgs() {
   return options;
 }
 
+// ============================================================================
+// Main Entry Point - Parse args first
+// ============================================================================
+
+const options = parseArgs();
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+function log(message, verbose = false) {
+  if (!verbose || options.verbose) {
+    console.log(message);
+  }
+}
+
 function printHelp() {
   console.log(`
 VRF Blockchain Sync Script
@@ -86,12 +102,6 @@ Examples:
   npm run vrf:sync-blockchain -- --competition-id=abc-123
   npm run vrf:sync-blockchain -- --dry-run --verbose
 `);
-}
-
-function log(message, verbose = false) {
-  if (!verbose || options.verbose) {
-    console.log(message);
-  }
 }
 
 // ============================================================================
@@ -207,8 +217,6 @@ async function syncAllCompetitions() {
 // ============================================================================
 // Main Entry Point
 // ============================================================================
-
-const options = parseArgs();
 
 async function main() {
   console.log('═════════════════════════════════════════════════════════');

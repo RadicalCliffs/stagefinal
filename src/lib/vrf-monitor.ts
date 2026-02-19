@@ -116,15 +116,20 @@ export async function getVRFStatus(competitionId: string): Promise<VRFStatus> {
     }
 
     // Determine status based on vrf_status and competition status
+    // Priority: vrf_status > competition status
     let status: VRFStatus['status'] = 'pending';
     
     if (data.vrf_status === 'completed' || data.vrf_draw_completed_at) {
+      // VRF draw is complete and verified
       status = 'completed';
     } else if (data.vrf_status === 'processing' || data.vrf_status === 'requested') {
+      // VRF transaction submitted or requested
       status = 'processing';
     } else if (data.vrf_status === 'failed') {
+      // VRF processing failed
       status = 'failed';
     } else if (data.status === 'drawn') {
+      // Competition drawn status as fallback (legacy support)
       status = 'completed';
     }
 

@@ -12,7 +12,12 @@ import vrfMonitor from '../lib/vrf-monitor';
 // Date formatting constants
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-// Simple date formatter
+/**
+ * Simple date formatter
+ * Note: Displays dates in the user's local timezone
+ * @param dateString - ISO date string
+ * @returns Formatted date string (e.g., "Jan 15, 2024 14:30")
+ */
 function formatDate(dateString: string): string {
   const date = new Date(dateString);
   const month = MONTHS[date.getMonth()];
