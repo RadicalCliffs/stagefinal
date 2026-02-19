@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-02-19
 
-This repository has been cleaned up from **388 markdown files to 124 files** (68% reduction).
+This repository has been cleaned up from **388 markdown files to 54 files** (86% reduction).
 All contradictions in schema documentation have been resolved.
 
 ## Essential Documentation
@@ -23,9 +23,10 @@ All contradictions in schema documentation have been resolved.
 - **debug/PAYMENT_DATABASE_SCHEMA.md** - PRIMARY schema reference
   - Contains accurate `user_transactions` schema
   - Contains accurate `joincompetition` schema
-  - All column types verified against actual migrations
+  - All column types verified against actual production database
   - Includes `canonical_user_id` fields
-  - Correctly shows `order_id` as TEXT type
+  - Correctly shows `order_id` as **UUID** type
+  - Correctly shows `joincompetition.uid` as **TEXT** type
 
 ### Debug Directory (55 files)
 Contains active debugging documentation, investigation notes, and technical details.
@@ -43,16 +44,17 @@ Contains additional guides and references organized by topic.
 
 ## Removed Contradictions
 
-### Schema Fixes
-1. ✅ `user_transactions.order_id` - Corrected from UUID to TEXT across all docs
-2. ✅ `user_transactions.canonical_user_id` - Added to all schema docs
-3. ✅ `joincompetition.competitionid` - Corrected from UUID to TEXT
+### Schema Fixes (Based on Actual Production Database)
+1. ✅ `user_transactions.order_id` - Corrected to **UUID** (not TEXT)
+2. ✅ `joincompetition.uid` - Corrected to **TEXT** (not UUID)
+3. ✅ `user_transactions.canonical_user_id` - Added to all schema docs
 4. ✅ `joincompetition.payment_provider` - Added to schema docs
 
-### Deleted Files (264 total)
+### Deleted Files (334 total)
 - 78 files in Phase 1 (schema contradictions, root summaries)
 - 119 files in Phase 2 (debug redundancies)
 - 67 files in Phase 3 (archive cleanup)
+- 70 files in Phase 4 (final schema cleanup)
 
 ## Migration History
 
