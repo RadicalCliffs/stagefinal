@@ -57,6 +57,8 @@ serve(async (req) => {
 
     // SECURITY: Use VRF contract for provably fair winner selection
     // Forward to vrf-draw-winner which uses pregenerated VRF seed
+    // NOTE: This function is currently not in use. For multi-winner competitions,
+    // consider implementing a batch winner selection to avoid duplicate winners.
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     
@@ -70,7 +72,9 @@ serve(async (req) => {
       })
     }
     
-    // Call vrf-draw-winner for each winner needed
+    // WARNING: Calling vrf-draw-winner multiple times may select duplicate winners
+    // because each call uses the same VRF seed. For production use, implement
+    // batch winner selection or track excluded tickets between calls.
     const winners = []
     for (let i = 0; i < numWinners; i++) {
       const vrfResponse = await fetch(
