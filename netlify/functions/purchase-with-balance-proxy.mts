@@ -146,6 +146,11 @@ async function directDatabaseFallback(
     `[purchase-with-balance-proxy][${requestId}] FALLBACK: Direct DB operations for ${ticketNumbers.length} tickets`
   );
 
+  // NOTE: reservationId is accepted but not used in fallback path
+  // The RPC handles reservation upgrades automatically; fallback only handles
+  // direct ticket purchases. If you reached the fallback, reservation logic
+  // already failed and we're doing a simple purchase instead.
+
   try {
     // Step 1: Check for idempotent duplicate first
     const { data: existingEntry } = await supabase
