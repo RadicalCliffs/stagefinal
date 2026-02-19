@@ -312,7 +312,7 @@ CREATE TABLE user_transactions (
   ticket_numbers TEXT[],           -- Array of ticket numbers
   tx_id TEXT,                      -- Blockchain transaction hash
   transaction_hash TEXT,           -- Alternative tx hash field
-  order_id UUID,                   -- Order reference
+  order_id TEXT,                   -- Order reference (stored as TEXT, not UUID)
   webhook_ref TEXT,                -- Webhook reference
   payment_provider TEXT,           -- Payment provider name
   method TEXT,                     -- Payment method
