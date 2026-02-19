@@ -30,6 +30,8 @@ interface EntriesCardProps {
   isInstantWin?: boolean;
   // Back button for detailed view
   showBackButton?: boolean;
+  // VRF transaction hash for verifiable fairness
+  vrfTxHash?: string | null;
 }
 
 const EntriesCard = ({
@@ -58,19 +60,24 @@ const EntriesCard = ({
   // Instant win props
   isInstantWin = false,
   // Back button for detailed view
-  showBackButton = false
+  showBackButton = false,
+  // VRF transaction hash
+  vrfTxHash
 }: EntriesCardProps) => {
   const isDetailed = variant === "detailed";
   // 'completed' and 'drawn' both indicate finished competitions
   const isFinished = activeTab === "finished" || status === "drawn" || status === "completed";
 
   // Colors: pending = amber, finished winner = yellow, finished loss = pink, live = yellow
+  // If finished but no vrfTxHash, show as pending (amber) instead of loss (pink)
   const borderColor = isPending
     ? "border-amber-500"
     : isFinished
       ? isWinner
         ? "border-[#DDE404]"
-        : "border-[#EF008F]"
+        : vrfTxHash
+          ? "border-[#EF008F]"  // Loss (pink) only if VRF hash exists
+          : "border-amber-500"  // Pending (amber) if no VRF hash
       : "border-[#DDE404]";
 
   const background = isPending
@@ -78,7 +85,9 @@ const EntriesCard = ({
     : isFinished
       ? isWinner
         ? "bg-[#DDE404]"
-        : "bg-[#EF008F]"
+        : vrfTxHash
+          ? "bg-[#EF008F]"  // Loss (pink) only if VRF hash exists
+          : "bg-amber-500"  // Pending (amber) if no VRF hash
       : "bg-[#DDE404]";
 
   const showBanner = (isFinished || isPending) && variant === "compact";
@@ -116,7 +125,7 @@ const EntriesCard = ({
           <span
             className={`${background} absolute left-0 top-0 w-fit text-center uppercase text-black rounded-br-sm text-[10px] sm:text-xs sequel-95 py-1.5 sm:py-2 px-2 sm:px-3`}
           >
-            {isPending ? "Pending" : isWinner ? "Winner!" : "Loss"}
+            {isPending ? "Pending" : isWinner ? "Winner!" : vrfTxHash ? "Loss" : "Pending"}
           </span>
         )}
 

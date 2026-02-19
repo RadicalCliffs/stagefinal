@@ -368,6 +368,7 @@ const CompetitionEntryDetails = () => {
         isPending={aggregatedEntry.is_pending}
         expiresAt={aggregatedEntry.expires_at}
         isInstantWin={aggregatedEntry.is_instant_win}
+        vrfTxHash={aggregatedEntry.vrf_tx_hash}
       />
 
       {/* Show all tickets grid + purchase breakdown with dates and ticket numbers */}

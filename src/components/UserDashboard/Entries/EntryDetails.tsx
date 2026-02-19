@@ -26,6 +26,7 @@ interface EntryData {
   prize_value?: string | null;
   competition_status: string;
   end_date?: string | null;
+  vrf_tx_hash?: string | null;
 }
 
 const EntryDetail = () => {
@@ -153,6 +154,7 @@ const EntryDetail = () => {
         prizeValue={entry.prize_value || undefined}
         numberOfTickets={entry.number_of_tickets || undefined}
         isInstantWin={entry.is_instant_win}
+        vrfTxHash={entry.vrf_tx_hash}
       />
       <EntriesTickets
         ticketNumbers={entry.ticket_numbers ?? undefined}
