@@ -16,7 +16,9 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:debug": "playwright test --debug",
-    "test:install": "playwright install chromium"
+    "test:install": "playwright install chromium",
+    "vrf:sync-blockchain": "node scripts/vrf-sync-blockchain.mjs",
+    "vrf:sync": "node scripts/vrf-sync-blockchain.mjs"
   },
   "dependencies": {
     "@base-org/account": "^2.5.1",
