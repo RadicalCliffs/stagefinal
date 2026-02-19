@@ -3,7 +3,7 @@
  * 
  * Simplified balance payment system that uses the Edge Function + RPC flow:
  * 1. Optional: Reserve tickets via Supabase edge function (for frontend UX)
- * 2. Purchase with balance via POST /purchase-handler/purchase-with-balance (Edge Function)
+ * 2. Purchase with balance via POST https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1/purchase-handler/purchase-with-balance (Edge Function)
  *    - The Edge Function calls purchase_tickets_with_balance RPC which:
  *      - Checks sub_account_balances for available_balance
  *      - Matches by canonical_user_id or wallet_address
@@ -62,7 +62,7 @@ export interface PurchaseRequest {
 }
 
 /**
- * Purchase request body for /purchase-handler/purchase-with-balance (Edge Function)
+ * Purchase request body for https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1/purchase-handler/purchase-with-balance (Edge Function)
  * Matches the RPC function parameters directly
  */
 export interface RPCPurchaseRequest {
@@ -89,7 +89,7 @@ export interface RPCPurchaseRequest {
 }
 
 /**
- * Verify and rescue request body for /purchase-handler/verify-and-rescue-purchase (Edge Function)
+ * Verify and rescue request body for https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1/purchase-handler/verify-and-rescue-purchase (Edge Function)
  */
 export interface RPCVerifyAndRescueRequest {
   /** Canonical user identifier */
@@ -331,7 +331,7 @@ export class BalancePaymentService {
   /**
    * Step 2: Purchase with balance (SIMPLIFIED SYSTEM)
    * 
-   * Uses the Edge Function at /purchase-handler/purchase-with-balance which calls
+   * Uses the Edge Function at https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1/purchase-handler/purchase-with-balance which calls
    * the purchase_tickets_with_balance RPC that:
    * - Checks sub_account_balances for available_balance
    * - Matches user by canonical_user_id or wallet_address
