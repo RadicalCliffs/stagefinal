@@ -55,15 +55,59 @@ serve(async (req) => {
       })
     }
 
-    // Select random winners using VRF
-    const shuffled = [...participants].sort(() => 0.5 - Math.random())
-    const winners = shuffled.slice(0, numWinners)
+    // SECURITY: Use VRF contract for provably fair winner selection
+    // Forward to vrf-draw-winner which uses pregenerated VRF seed
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return new Response(JSON.stringify({
+        ok: false,
+        error: 'Supabase configuration missing'
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+    
+    // Call vrf-draw-winner for each winner needed
+    const winners = []
+    for (let i = 0; i < numWinners; i++) {
+      const vrfResponse = await fetch(
+        `${supabaseUrl}/functions/v1/vrf-draw-winner`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseServiceKey}`
+          },
+          body: JSON.stringify({ competition_id })
+        }
+      )
+      
+      if (!vrfResponse.ok) {
+        const errorText = await vrfResponse.text()
+        throw new Error(`VRF HTTP ${vrfResponse.status}: ${errorText}`)
+      }
+      
+      const vrfResult = await vrfResponse.json()
+      if (!vrfResult.ok) {
+        throw new Error(vrfResult.error || 'VRF draw failed')
+      }
+      
+      winners.push({
+        address: vrfResult.winner_address,
+        user_id: vrfResult.winner_user_id,
+        ticket_number: vrfResult.winning_ticket_number
+      })
+    }
 
     const result = {
       competition_id,
       winners,
       winners_count: numWinners,
-      draw_method: 'vrf_random',
+      draw_method: 'vrf_contract',
+      vrf_contract: '0xc5DfC3f6A227b30161F53f0bC167495158854854',
       timestamp: new Date().toISOString(),
       total_participants: participants.length
     }

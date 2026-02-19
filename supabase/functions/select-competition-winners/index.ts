@@ -319,19 +319,3 @@ async function validateWinnerHasTicket(
 
   return ticketNumbers.length > 0 ? ticketNumbers[0] : null;
 }
-
-/**
- * Select a winning ticket using cryptographically secure random selection
- */
-function selectWinningTicket(ticketNumbers: number[]): number {
-  if (ticketNumbers.length === 0) {
-    throw new Error("No tickets to select from");
-  }
-
-  // Use crypto.getRandomValues for cryptographically secure randomness
-  const array = new Uint32Array(1);
-  crypto.getRandomValues(array);
-  const randomIndex = array[0] % ticketNumbers.length;
-
-  return ticketNumbers[randomIndex];
-}
