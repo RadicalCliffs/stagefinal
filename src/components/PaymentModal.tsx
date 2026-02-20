@@ -236,6 +236,27 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   // Ensure ticketPrice is a valid positive number (handles string coercion from database)
   const ticketPrice = Number(rawTicketPrice) || 1;
 
+  // SCORCHED EARTH: Fatal error if competitionId is missing or invalid
+  const isCompetitionIdInvalid = !competitionId || typeof competitionId !== 'string' || !/^([0-9a-fA-F-]{36})$/.test(competitionId);
+  if (isCompetitionIdInvalid) {
+    return (
+      <div className="fixed inset-0 bg-black/80 flex flex-col items-center justify-center z-50">
+        <div className="bg-red-900 border-2 border-red-500 rounded-xl p-8 shadow-2xl max-w-lg w-full text-center">
+          <h2 className="text-3xl text-red-300 font-bold mb-4">FATAL ERROR</h2>
+          <p className="text-red-200 text-lg mb-2">Competition ID is missing or invalid.</p>
+          <p className="text-red-400 font-mono break-all mb-4">{String(competitionId)}</p>
+          <p className="text-red-100 text-sm mb-6">This is a critical bug. Please refresh the page, and if the problem persists, contact support with this error message.</p>
+          <button
+            className="py-3 px-8 bg-gradient-to-r from-red-500 to-red-700 text-white rounded-xl font-bold text-lg hover:from-red-700 hover:to-red-500 transition-all duration-300"
+            onClick={() => window.location.reload()}
+          >
+            Reload Page
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Hard cap ticket count to available inventory to prevent overpayment
   const maxTickets = maxAvailableTickets !== undefined ? maxAvailableTickets : Infinity;
   const ticketCount = Math.min(rawTicketCount, maxTickets);
@@ -690,7 +711,15 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       }
 
       // Step 2: Purchase with balance (has internal retries + RPC fallback in the service)
-      console.log('[PaymentModal] Purchasing with balance, reservation:', currentReservationId);
+
+      if (!competitionId || typeof competitionId !== 'string' || competitionId.length < 10) {
+        console.error('[PaymentModal] ERROR: competitionId is missing or invalid:', competitionId);
+        setError('Internal error: Competition ID is missing. Please refresh and try again.');
+        setLoading(false);
+        return;
+      }
+
+      console.log('[PaymentModal] Purchasing with balance, reservation:', currentReservationId, 'competitionId:', competitionId);
       const purchaseResult = await BalancePaymentService.purchaseWithBalance({
         reservationId: currentReservationId,
         competitionId: competitionId,
