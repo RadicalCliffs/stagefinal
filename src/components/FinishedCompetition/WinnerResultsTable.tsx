@@ -52,7 +52,7 @@ const WinnerResultsTable = ({ competitionId }: WinnerResultsTableProps) => {
         }
 
         // Fetch usernames for winner wallet addresses
-        let usernameMap = new Map<string, string>();
+        const usernameMap = new Map<string, string>();
         if (winnersData && winnersData.length > 0) {
           const walletAddresses = winnersData.map(w => w.wallet_address).filter(Boolean);
           if (walletAddresses.length > 0) {
