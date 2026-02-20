@@ -72,6 +72,17 @@ vi.mock('../../lib/reservation-storage', () => ({
   },
 }));
 
+// Mock localStorage
+const localStorageMock = {
+  getItem: vi.fn().mockReturnValue(null),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn(),
+  length: 0,
+  key: vi.fn(),
+};
+Object.defineProperty(global, 'localStorage', { value: localStorageMock });
+
 // Mock the image imports
 vi.mock('../../assets/images', () => ({
   footerLogo: 'mocked-footer-logo.png',
