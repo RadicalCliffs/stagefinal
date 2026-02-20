@@ -167,7 +167,7 @@ async function resolveUser(supabase: any, opts: {
   return { auth_user_id: null, canonical_user_id: null, wallet_address: null, found };
 }
 
-async function performPurchase(supabase: any, args: {
+async function performPurchase(supabaseUrl: string, serviceKey: string, args: {
   competition_id: string,
   canonical_user_id: string | null,
   wallet_address: string | null,
@@ -183,21 +183,50 @@ async function performPurchase(supabase: any, args: {
     return { data: null, error: { message: 'No user identifier available' } };
   }
 
-  // The RPC function is purchase_tickets_with_balance with p_ prefixed params
+  // Use direct REST API call to match the exact function signature
+  // Function: purchase_tickets_with_balance(p_user_identifier text, p_competition_id text, p_ticket_price numeric, p_ticket_count integer, p_ticket_numbers integer[], p_idempotency_key text)
   const payload = {
     p_user_identifier: userIdentifier,
-    p_competition_id: args.competition_id,
-    p_ticket_price: args.ticket_price ?? 0.25, // Default ticket price if not provided
+    p_competition_id: String(args.competition_id), // Ensure it's text, not uuid
+    p_ticket_price: args.ticket_price ?? 0.25,
     p_ticket_count: args.ticket_count ?? (args.ticket_numbers?.length || null),
     p_ticket_numbers: args.ticket_numbers ?? null,
     p_idempotency_key: args.idempotency_key ?? null,
   };
-  return await supabase.rpc("purchase_tickets_with_balance", payload);
+  
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/rpc/purchase_tickets_with_balance`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': serviceKey,
+        'Authorization': `Bearer ${serviceKey}`,
+        'Prefer': 'return=representation',
+      },
+      body: JSON.stringify(payload),
+    });
+    
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      return { data: null, error: { message: `Invalid response: ${text.substring(0, 200)}` } };
+    }
+    
+    if (!res.ok) {
+      return { data: null, error: { message: data?.message || data?.error || text, code: data?.code } };
+    }
+    
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: { message: e?.message || 'Network error' } };
+  }
 }
 
 // Note: verify_and_rescue_purchase doesn't exist in DB - rescue is handled by idempotency in purchase_tickets_with_balance
 // Keeping performRescue as a retry of the main purchase for resilience
-async function performRescue(supabase: any, args: {
+async function performRescue(supabaseUrl: string, serviceKey: string, args: {
   competition_id: string,
   canonical_user_id: string | null,
   wallet_address: string | null,
@@ -206,21 +235,15 @@ async function performRescue(supabase: any, args: {
   idempotency_key?: string | null,
 }) {
   // Rescue = retry the same purchase with same idempotency key (will return existing result if already succeeded)
-  const userIdentifier = args.canonical_user_id || (args.wallet_address ? `prize:pid:${args.wallet_address}` : null);
-  
-  if (!userIdentifier) {
-    return { data: null, error: { message: 'No user identifier for rescue' } };
-  }
-
-  const payload = {
-    p_user_identifier: userIdentifier,
-    p_competition_id: args.competition_id,
-    p_ticket_price: args.ticket_price ?? 0.25,
-    p_ticket_count: args.ticket_numbers?.length || null,
-    p_ticket_numbers: args.ticket_numbers ?? null,
-    p_idempotency_key: args.idempotency_key ?? null,
-  };
-  return await supabase.rpc("purchase_tickets_with_balance", payload);
+  return performPurchase(supabaseUrl, serviceKey, {
+    competition_id: args.competition_id,
+    canonical_user_id: args.canonical_user_id,
+    wallet_address: args.wallet_address,
+    ticket_numbers: args.ticket_numbers,
+    ticket_price: args.ticket_price,
+    ticket_count: args.ticket_numbers?.length || null,
+    idempotency_key: args.idempotency_key,
+  });
 }
 
 Deno.serve(async (req: Request) => {
@@ -287,7 +310,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const primary = await performPurchase(supabaseAdmin, {
+    const primary = await performPurchase(supabaseUrl, serviceKey, {
       competition_id: comp.id,
       canonical_user_id: userRes.canonical_user_id,
       wallet_address: userRes.wallet_address,
@@ -309,7 +332,7 @@ Deno.serve(async (req: Request) => {
       return json(400, { ok: false, phase: "primary", error: primary.error.code || primary.error.message || "purchase_failed", details: primary.error.details ?? null, hint: primary.error.hint ?? null });
     }
 
-    const rescue = await performRescue(supabaseAdmin, {
+    const rescue = await performRescue(supabaseUrl, serviceKey, {
       competition_id: comp.id,
       canonical_user_id: userRes.canonical_user_id,
       wallet_address: userRes.wallet_address,
