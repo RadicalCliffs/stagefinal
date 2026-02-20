@@ -77,6 +77,9 @@ export interface RPCPurchaseRequest {
   
   /** Optional reservation ID */
   reservation_id?: string | null;
+  
+  /** Original wallet address (e.g., 0x123...) - fallback identifier */
+  wallet_address?: string | null;
 }
 
 /**
@@ -391,12 +394,14 @@ export class BalancePaymentService {
       const idempotencyKey = idempotencyKeyManager.getOrCreateKey(idempotencyKeyBase);
 
       // Build request body with field names matching the Edge Function's expected format
-      // Edge Function accepts: competition_id, canonical_user_id, ticket_numbers, reservation_id
+      // Edge Function accepts: competition_id, canonical_user_id, wallet_address, ticket_numbers, reservation_id
+      // Send BOTH canonical_user_id AND wallet_address to give Edge Function multiple ways to identify user
       const requestBody: RPCPurchaseRequest = {
         canonical_user_id: canonicalUserId,
         competition_id: competitionId,
         ticket_numbers: ticketNumbers,
-        reservation_id: reservationId || null
+        reservation_id: reservationId || null,
+        wallet_address: userId // Original wallet address before canonical conversion
       };
 
       console.log('[BalancePayment] Purchasing with balance (via Edge Function):', {
