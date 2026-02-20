@@ -8,6 +8,7 @@ import { toCanonicalUserId } from './canonicalUserId';
 import { notificationService } from './notification-service';
 import { BalancePaymentService } from './balance-payment-service';
 import { parseBalanceResponse } from '../utils/balanceParser';
+import type { Row } from './supabase-helpers';
 
 // Re-export supabase for backwards compatibility
 export { supabase };
@@ -366,13 +367,16 @@ export async function getUserBalance(userId: string) {
       .or(`canonical_user_id.eq.${canonicalUserId},user_id.eq.${normalizedUserId},privy_user_id.eq.${normalizedUserId}`)
       .limit(1);
 
-    if (subAccountData && subAccountData.length > 0 && !subAccountError && Number((subAccountData[0] as any).available_balance) > 0) {
-      return {
-        success: true,
-        data: {
-          usdc_balance: Number((subAccountData[0] as any).available_balance) || 0
-        }
-      };
+    if (subAccountData && subAccountData.length > 0 && !subAccountError) {
+      const record: Row<'sub_account_balances'> = subAccountData[0];
+      if (Number(record.available_balance) > 0) {
+        return {
+          success: true,
+          data: {
+            usdc_balance: Number(record.available_balance) || 0
+          }
+        };
+      }
     }
 
     // If no balance found in sub_account_balances, the user has no balance yet
