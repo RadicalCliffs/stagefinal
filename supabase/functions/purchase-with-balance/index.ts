@@ -1,515 +1,304 @@
-// functions/purchase-with-balance/index.ts
-// Comprehensive purchase-with-balance Edge Function
-// Features: CORS, retry logic, fallback mechanisms, comprehensive error handling
+﻿// purchase-with-balance Edge Function (with built-in rescue flow)
+// Hotfix: ensure competitionId from body passes through even when body is FormData or text
+// Fixed: Query canonical_users instead of user_profiles
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { createClient } from "npm:@supabase/supabase-js@2.45.6";
 
-// ============================================================================
-// CORS Configuration
-// ============================================================================
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Content-Type": "application/json",
+};
 
-const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://stage.theprize.io';
-const ALLOWED_ORIGINS = [
-  SITE_URL,
-  'https://stage.theprize.io',
-  'https://theprize.io',
-  'https://theprizeio.netlify.app',
-  'https://www.theprize.io',
-  'https://vocal-cascaron-bcef9b.netlify.app',
-  'http://localhost:3000',
-  'http://localhost:5173',
-  'http://localhost:8888',
-];
-
-function getCorsOrigin(requestOrigin: string | null): string {
-  if (requestOrigin && ALLOWED_ORIGINS.includes(requestOrigin)) {
-    return requestOrigin;
-  }
-  return SITE_URL;
+function json(status: number, body: unknown) {
+  return new Response(JSON.stringify(body), { status, headers: corsHeaders });
 }
 
-function buildCorsHeaders(requestOrigin: string | null): Record<string, string> {
-  const origin = getCorsOrigin(requestOrigin);
-  return {
-    'Access-Control-Allow-Origin': origin,
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, cache-control, pragma, expires',
-    'Access-Control-Allow-Credentials': 'true',
-    'Access-Control-Max-Age': '86400',
-    'Vary': 'Origin',
-  };
+function parseAuthHeader(authHeader?: string | null) {
+  if (!authHeader) return null;
+  const parts = authHeader.split(" ");
+  if (parts.length !== 2 || parts[0].toLowerCase() !== "bearer") return null;
+  return parts[1];
 }
 
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-function jsonResponse(data: object, status: number, corsHeaders: Record<string, string>): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      'Content-Type': 'application/json',
-      ...corsHeaders,
-    },
-  });
+function normalizeCanonicalId(id?: string | null) {
+  if (!id) return null;
+  const trimmed = id.trim();
+  if (!trimmed) return null;
+  return trimmed.startsWith("prize:pid:") ? trimmed.toLowerCase() : `prize:pid:${trimmed.toLowerCase()}`;
 }
 
-function errorResponse(code: string, message: string, status: number, corsHeaders: Record<string, string>): Response {
-  return jsonResponse({ success: false, error: { code, message } }, status, corsHeaders);
+function normalizeWallet(addr?: string | null) {
+  if (!addr) return null;
+  return addr.trim().toLowerCase();
 }
 
-// ============================================================================
-// RPC Retry Logic (SAFEGUARD 1)
-// ============================================================================
-
-async function callRpcWithRetry(
-  baseUrl: string,
-  serviceRoleKey: string,
-  params: {
-    p_user_identifier: string;
-    p_competition_id: string;
-    p_ticket_price: number;
-    p_ticket_count: number | null;
-    p_ticket_numbers: number[] | null;
-    p_idempotency_key: string;
-    p_reservation_id?: string | null;
-  },
-  requestId: string,
-  maxRetries: number = 2
-): Promise<{ data: any; error: any }> {
-  let lastError: any = null;
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    if (attempt > 0) {
-      const delay = Math.min(500 * Math.pow(2, attempt - 1), 2000);
-      console.log(
-        `[purchase-with-balance][${requestId}] RPC retry ${attempt}/${maxRetries} after ${delay}ms`
-      );
-      await new Promise((r) => setTimeout(r, delay));
-    }
-
-    try {
-      const res = await fetch(`${baseUrl}/rest/v1/rpc/purchase_tickets_with_balance`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': serviceRoleKey,
-          'Authorization': `Bearer ${serviceRoleKey}`,
-          'Prefer': 'return=representation',
-        },
-        body: JSON.stringify(params),
-      });
-
-      const text = await res.text();
-      let rpcResult;
-      
-      try {
-        rpcResult = JSON.parse(text);
-      } catch {
-        lastError = { message: 'Invalid JSON response from RPC' };
-        console.warn(
-          `[purchase-with-balance][${requestId}] RPC attempt ${attempt + 1} returned invalid JSON`
-        );
-        continue;
-      }
-
-      if (res.ok && rpcResult) {
-        // If the RPC returned a result, check if it was a success
-        if (rpcResult.success) {
-          return { data: rpcResult, error: null };
-        }
-
-        // RPC returned {success: false} - check the error code
-        const code = rpcResult.error_code || '';
-
-        // Validation errors should be returned immediately (no retry)
-        if (
-          code === 'INSUFFICIENT_BALANCE' ||
-          code === 'NO_BALANCE_RECORD' ||
-          code === 'VALIDATION_ERROR'
-        ) {
-          return { data: rpcResult, error: null };
-        }
-
-        // INTERNAL_ERROR means a trigger or constraint failed inside the RPC.
-        // Retry and eventually fall through to direct DB fallback.
-        lastError = {
-          message: rpcResult.error || 'RPC internal error',
-          code: rpcResult.error_code,
-        };
-        console.warn(
-          `[purchase-with-balance][${requestId}] RPC attempt ${attempt + 1} returned internal error:`,
-          rpcResult.error
-        );
-        continue;
-      }
-
-      lastError = { message: text || 'RPC failed', code: 'RPC_ERROR' };
-      console.warn(
-        `[purchase-with-balance][${requestId}] RPC attempt ${attempt + 1} failed with status ${res.status}`
-      );
-    } catch (err) {
-      lastError = err;
-      console.warn(
-        `[purchase-with-balance][${requestId}] RPC attempt ${attempt + 1} exception:`,
-        err instanceof Error ? err.message : err
-      );
-    }
-  }
-
-  return { data: null, error: lastError };
-}
-
-// ============================================================================
-// Direct Database Fallback (SAFEGUARD 2)
-// ============================================================================
-
-async function directDatabaseFallback(
-  supabase: any,
-  params: {
-    canonicalUserId: string;
-    competitionId: string;
-    ticketPrice: number;
-    ticketNumbers: number[];
-    idempotencyKey: string;
-    reservationId: string | null;
-  },
-  requestId: string
-): Promise<{ success: boolean; data?: any; error?: string }> {
-  const { canonicalUserId, competitionId, ticketNumbers, ticketPrice, idempotencyKey } = params;
-
-  console.log(
-    `[purchase-with-balance][${requestId}] FALLBACK: Direct DB operations for ${ticketNumbers.length} tickets`
-  );
-
+async function readBody(req: Request): Promise<any> {
+  const ct = req.headers.get("content-type")?.toLowerCase() || "";
   try {
-    // Step 1: Check for idempotent duplicate
-    const { data: existingEntry } = await supabase
-      .from('joincompetition')
-      .select('uid, ticketnumbers, amountspent')
-      .eq('competitionid', competitionId)
-      .eq('transactionhash', idempotencyKey)
+    if (ct.includes("application/json")) return await req.json();
+    if (ct.includes("application/x-www-form-urlencoded")) {
+      const text = await req.text();
+      const params = new URLSearchParams(text);
+      const obj: Record<string, any> = {};
+      for (const [k, v] of params.entries()) obj[k] = v;
+      return obj;
+    }
+    if (ct.includes("multipart/form-data")) {
+      const form = await req.formData();
+      const obj: Record<string, any> = {};
+      for (const [k, v] of form.entries()) obj[k] = typeof v === "string" ? v : undefined;
+      return obj;
+    }
+    // Fallback: try JSON, otherwise parse query-like text
+    const raw = await req.text();
+    try { return JSON.parse(raw); } catch { /* ignore */ }
+    const params = new URLSearchParams(raw);
+    const obj: Record<string, any> = {};
+    for (const [k, v] of params.entries()) obj[k] = v;
+    return obj;
+  } catch { return {}; }
+}
+
+async function resolveCompetition(supabase: any, competition_id?: string | null, competition_uid?: string | null) {
+  if (competition_id) return { id: competition_id };
+  if (competition_uid) {
+    const { data, error } = await supabase
+      .from("competitions")
+      .select("id")
+      .eq("uid", competition_uid)
       .limit(1)
       .maybeSingle();
+    if (error) throw error;
+    return data || null;
+  }
+  return null;
+}
 
-    if (existingEntry) {
-      console.log(
-        `[purchase-with-balance][${requestId}] FALLBACK: Idempotent hit - already processed`
-      );
-      const existingTickets = existingEntry.ticketnumbers
-        ? existingEntry.ticketnumbers.split(',').map(Number)
-        : ticketNumbers;
+async function resolveUser(supabase: any, opts: {
+  accessToken: string | null,
+  user_id?: string | null,
+  canonical_user_id?: string | null,
+  wallet_address?: string | null,
+  uid?: string | null,
+}) {
+  const found: Record<string, boolean> = { jwt: false, user_id: false, canonical_user_id: false, wallet_address: false, uid: false };
 
-      // Get current balance
-      const { data: balRow } = await supabase
-        .from('sub_account_balances')
-        .select('available_balance')
-        .eq('canonical_user_id', canonicalUserId)
-        .eq('currency', 'USD')
+  // Try JWT first
+  if (opts.accessToken) {
+    const { data: authUser } = await supabase.auth.getUser(opts.accessToken).catch(() => ({ data: null }));
+    if (authUser?.user) {
+      found.jwt = true;
+      // Look up in canonical_users table
+      const { data: profile } = await supabase
+        .from("canonical_users")
+        .select("auth_user_id, canonical_user_id, wallet_address")
+        .eq("auth_user_id", authUser.user.id)
         .limit(1)
         .maybeSingle();
-
-      return {
-        success: true,
-        data: {
-          success: true,
-          idempotent: true,
-          entry_id: existingEntry.uid,
-          ticket_numbers: existingTickets,
-          ticket_count: existingTickets.length,
-          total_cost: existingEntry.amountspent,
-          available_balance: balRow?.available_balance ?? 0,
-          competition_id: competitionId,
-        },
-      };
+      if (profile) {
+        return { auth_user_id: profile.auth_user_id, canonical_user_id: profile.canonical_user_id, wallet_address: profile.wallet_address, found };
+      }
+      return { auth_user_id: authUser.user.id, canonical_user_id: null, wallet_address: null, found };
     }
+  }
 
-    // Step 2: Get user balance
-    const { data: balanceRow, error: balError } = await supabase
-      .from('sub_account_balances')
-      .select('available_balance, id')
-      .eq('canonical_user_id', canonicalUserId)
-      .eq('currency', 'USD')
+  // Try user_id lookup
+  if (opts.user_id) {
+    found.user_id = true;
+    const { data: profile } = await supabase
+      .from("canonical_users")
+      .select("auth_user_id, canonical_user_id, wallet_address")
+      .eq("auth_user_id", opts.user_id)
       .limit(1)
       .maybeSingle();
-
-    if (balError || !balanceRow) {
-      return { success: false, error: 'User balance not found' };
-    }
-
-    const currentBalance = Number(balanceRow.available_balance);
-    const totalCost = ticketPrice * ticketNumbers.length;
-
-    if (currentBalance < totalCost) {
-      return { success: false, error: 'Insufficient balance' };
-    }
-
-    const newBalance = currentBalance - totalCost;
-
-    // Step 3: Deduct balance
-    const { error: updateErr } = await supabase
-      .from('sub_account_balances')
-      .update({
-        available_balance: newBalance,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('canonical_user_id', canonicalUserId)
-      .eq('currency', 'USD');
-
-    if (updateErr) {
-      console.error(
-        `[purchase-with-balance][${requestId}] FALLBACK: Balance update failed:`,
-        updateErr.message
-      );
-      return { success: false, error: 'Failed to deduct balance' };
-    }
-
-    // Step 4: Create competition entry
-    const entryId = crypto.randomUUID();
-    const ticketNumbersStr = ticketNumbers.join(',');
-
-    const { error: entryErr } = await supabase
-      .from('joincompetition')
-      .insert({
-        uid: entryId,
-        userid: canonicalUserId,
-        canonical_user_id: canonicalUserId,
-        competitionid: competitionId,
-        ticketnumbers: ticketNumbersStr,
-        numberoftickets: ticketNumbers.length,
-        amountspent: totalCost,
-        transactionhash: idempotencyKey,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      });
-
-    if (entryErr) {
-      console.error(
-        `[purchase-with-balance][${requestId}] FALLBACK: Entry insert failed:`,
-        entryErr.message
-      );
-      // Refund the balance
-      await supabase
-        .from('sub_account_balances')
-        .update({
-          available_balance: currentBalance,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('canonical_user_id', canonicalUserId)
-        .eq('currency', 'USD');
-      return { success: false, error: 'Failed to create competition entry' };
-    }
-
-    console.log(
-      `[purchase-with-balance][${requestId}] FALLBACK: Success! ${ticketNumbers.length} tickets`
-    );
-
-    return {
-      success: true,
-      data: {
-        success: true,
-        entry_id: entryId,
-        ticket_numbers: ticketNumbers,
-        ticket_count: ticketNumbers.length,
-        total_cost: totalCost,
-        previous_balance: currentBalance,
-        available_balance: newBalance,
-        competition_id: competitionId,
-        fallback: true,
-      },
-    };
-  } catch (err) {
-    console.error(
-      `[purchase-with-balance][${requestId}] FALLBACK: Fatal error:`,
-      err
-    );
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : 'Fallback failed',
-    };
+    if (profile) return { ...profile, found };
+    return { auth_user_id: opts.user_id, canonical_user_id: null, wallet_address: null, found };
   }
+
+  // Try canonical_user_id lookup
+  if (opts.canonical_user_id) {
+    found.canonical_user_id = true;
+    const canon = opts.canonical_user_id; // Already normalized by caller
+    const { data: profile } = await supabase
+      .from("canonical_users")
+      .select("auth_user_id, canonical_user_id, wallet_address")
+      .eq("canonical_user_id", canon)
+      .limit(1)
+      .maybeSingle();
+    if (profile) return { ...profile, found };
+    // If not found but we have the canonical_user_id, pass it through directly
+    // This handles cases where user exists in sub_account_balances but not canonical_users
+    return { auth_user_id: null, canonical_user_id: canon, wallet_address: null, found };
+  }
+
+  // Try wallet_address lookup
+  if (opts.wallet_address) {
+    found.wallet_address = true;
+    const wallet = opts.wallet_address; // Already normalized by caller
+    const { data: profile } = await supabase
+      .from("canonical_users")
+      .select("auth_user_id, canonical_user_id, wallet_address")
+      .eq("wallet_address", wallet)
+      .limit(1)
+      .maybeSingle();
+    if (profile) return { ...profile, found };
+    // If not found but we have wallet, derive canonical_user_id from it
+    const derivedCanonical = `prize:pid:${wallet}`;
+    return { auth_user_id: null, canonical_user_id: derivedCanonical, wallet_address: wallet, found };
+  }
+
+  // Try uid lookup (alias for canonical_user_id)
+  if (opts.uid) {
+    found.uid = true;
+    const canon = normalizeCanonicalId(opts.uid);
+    const { data: profile } = await supabase
+      .from("canonical_users")
+      .select("auth_user_id, canonical_user_id, wallet_address")
+      .eq("canonical_user_id", canon)
+      .limit(1)
+      .maybeSingle();
+    if (profile) return { ...profile, found };
+    // Pass through if we have a uid
+    return { auth_user_id: null, canonical_user_id: canon, wallet_address: null, found };
+  }
+
+  return { auth_user_id: null, canonical_user_id: null, wallet_address: null, found };
 }
 
-// ============================================================================
-// Main Handler
-// ============================================================================
+async function performPurchase(supabase: any, args: {
+  competition_id: string,
+  auth_user_id: string | null,
+  canonical_user_id: string | null,
+  wallet_address: string | null,
+  reservation_id?: string | null,
+  ticket_numbers?: number[] | null,
+}) {
+  const payload = {
+    competition_id: args.competition_id,
+    reservation_id: args.reservation_id ?? null,
+    ticket_numbers: args.ticket_numbers ?? null,
+    auth_user_id: args.auth_user_id,
+    canonical_user_id: args.canonical_user_id,
+    wallet_address: args.wallet_address,
+  };
+  return await supabase.rpc("purchase_with_balance", payload);
+}
+
+async function performRescue(supabase: any, args: {
+  competition_id: string,
+  auth_user_id: string | null,
+  canonical_user_id: string | null,
+  wallet_address: string | null,
+  reservation_id?: string | null,
+  ticket_numbers?: number[] | null,
+}) {
+  const payload = {
+    competition_id: args.competition_id,
+    reservation_id: args.reservation_id ?? null,
+    ticket_numbers: args.ticket_numbers ?? null,
+    auth_user_id: args.auth_user_id,
+    canonical_user_id: args.canonical_user_id,
+    wallet_address: args.wallet_address,
+  };
+  return await supabase.rpc("verify_and_rescue_purchase", payload);
+}
 
 Deno.serve(async (req: Request) => {
-  const requestId = crypto.randomUUID().slice(0, 8);
-  const corsHeaders = buildCorsHeaders(req.headers.get('origin'));
-
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 200, headers: corsHeaders });
-  }
-
-  if (req.method !== 'POST') {
-    return errorResponse('METHOD_NOT_ALLOWED', 'Method Not Allowed', 405, corsHeaders);
-  }
-
-  // Require authorization header
-  const auth = req.headers.get('Authorization') || '';
-  if (!auth.startsWith('Bearer ')) {
-    return errorResponse('UNAUTHORIZED', 'Missing authorization header', 401, corsHeaders);
-  }
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    // Parse request body
-    const body = await req.json();
-    const {
-      p_user_identifier,
-      p_competition_id,
-      p_ticket_price,
-      p_ticket_count = null,
-      p_ticket_numbers = null,
-      p_idempotency_key,
-      p_reservation_id = null,
-    } = body;
+    const url = new URL(req.url);
 
-    // Validate required parameters
-    if (!p_user_identifier || !p_competition_id || typeof p_ticket_price !== 'number') {
-      return errorResponse(
-        'VALIDATION_ERROR',
-        'Missing required parameters: p_user_identifier, p_competition_id, p_ticket_price',
-        400,
-        corsHeaders
-      );
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+
+    const supabaseAdmin = createClient(supabaseUrl, serviceKey, { global: { headers: { "x-client-info": "edge-fn-purchase-with-balance" } } });
+
+    const accessToken = parseAuthHeader(req.headers.get("Authorization"));
+
+    const body = await readBody(req);
+
+    // Support all expected keys and also allow competitionId on querystring
+    const competition_id_raw = (
+      body.competition_id || body.competitionId || body.competition ||
+      url.searchParams.get("competition_id") || url.searchParams.get("competitionId") || url.searchParams.get("competition")
+    );
+    const competition_uid = body.competition_uid || body.competitionUid || url.searchParams.get("competition_uid") || url.searchParams.get("competitionUid");
+
+    const reservation_id = body.reservation_id ?? body.reservationId ?? url.searchParams.get("reservation_id") ?? url.searchParams.get("reservationId");
+    // Accept both array and CSV string for tickets
+    let ticket_numbers: number[] | null = null;
+    const tn = body.ticket_numbers ?? body.ticketNumbers ?? url.searchParams.get("ticket_numbers") ?? url.searchParams.get("ticketNumbers");
+    if (Array.isArray(tn)) ticket_numbers = tn.map((n: any) => Number(n)).filter((n: any) => Number.isFinite(n));
+    else if (typeof tn === "string" && tn) ticket_numbers = tn.split(",").map((n) => Number(n.trim())).filter((n) => Number.isFinite(n));
+
+    const uid = body.uid ?? url.searchParams.get("uid");
+    const canonical_user_id_raw = body.canonical_user_id ?? body.canonicalUserId ?? url.searchParams.get("canonical_user_id") ?? url.searchParams.get("canonicalUserId");
+    const wallet_address_raw = body.wallet_address ?? body.walletAddress ?? url.searchParams.get("wallet_address") ?? url.searchParams.get("walletAddress");
+    const user_id = body.user_id ?? body.userId ?? url.searchParams.get("user_id") ?? url.searchParams.get("userId");
+
+    const comp = await resolveCompetition(supabaseAdmin, competition_id_raw, competition_uid);
+    if (!comp?.id) {
+      return json(400, { error: "missing_competition", received: { competition_id_raw, competition_uid }, hint: "Provide competition_id (uuid) or competition_uid (slug)" });
     }
 
-    // Validate ticket parameters
-    if (!p_ticket_numbers && !p_ticket_count) {
-      return errorResponse(
-        'VALIDATION_ERROR',
-        'Must provide either p_ticket_numbers or p_ticket_count',
-        400,
-        corsHeaders
-      );
-    }
-
-    const baseUrl = Deno.env.get('SUPABASE_URL');
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-
-    if (!baseUrl || !serviceRoleKey) {
-      return errorResponse(
-        'CONFIGURATION_ERROR',
-        'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY',
-        500,
-        corsHeaders
-      );
-    }
-
-    console.log(`[purchase-with-balance][${requestId}] Processing purchase`, {
-      userId: p_user_identifier.substring(0, 20) + '...',
-      competitionId: p_competition_id.substring(0, 10) + '...',
-      ticketCount: p_ticket_numbers?.length || p_ticket_count,
-      ticketPrice: p_ticket_price,
-      hasReservation: !!p_reservation_id,
+    const userRes = await resolveUser(supabaseAdmin, {
+      accessToken,
+      user_id,
+      canonical_user_id: normalizeCanonicalId(canonical_user_id_raw),
+      wallet_address: normalizeWallet(wallet_address_raw),
+      uid,
     });
 
-    // Attempt RPC with retry
-    const { data: rpcResult, error: rpcError } = await callRpcWithRetry(
-      baseUrl,
-      serviceRoleKey,
-      {
-        p_user_identifier,
-        p_competition_id,
-        p_ticket_price,
-        p_ticket_count,
-        p_ticket_numbers,
-        p_idempotency_key,
-        p_reservation_id,
-      },
-      requestId
-    );
-
-    let finalResult = rpcResult;
-
-    // If RPC completely failed and we have ticket numbers, try fallback
-    if (!finalResult && p_ticket_numbers && Array.isArray(p_ticket_numbers)) {
-      console.log(`[purchase-with-balance][${requestId}] RPC failed, attempting fallback`);
-      
-      const supabase = createClient(baseUrl, serviceRoleKey);
-      const fallbackResult = await directDatabaseFallback(
-        supabase,
-        {
-          canonicalUserId: p_user_identifier,
-          competitionId: p_competition_id,
-          ticketPrice: p_ticket_price,
-          ticketNumbers: p_ticket_numbers,
-          idempotencyKey: p_idempotency_key,
-          reservationId: p_reservation_id,
-        },
-        requestId
-      );
-
-      if (fallbackResult.success) {
-        finalResult = fallbackResult.data;
-      }
+    const hasAnyUser = Boolean(userRes.auth_user_id || userRes.canonical_user_id || userRes.wallet_address);
+    if (!hasAnyUser) {
+      return json(400, {
+        error: "missing_user_identifier",
+        looked_for: ["jwt.auth.uid", "user_id", "canonical_user_id", "wallet_address", "uid"],
+        found: userRes.found,
+        hint: "Send Authorization: Bearer <user_jwt> or include canonical_user_id or wallet_address",
+      });
     }
 
-    if (!finalResult) {
-      console.error(
-        `[purchase-with-balance][${requestId}] No result from any attempt`,
-        rpcError
-      );
-      return errorResponse(
-        'RPC_ERROR',
-        rpcError?.message || 'No response from purchase function',
-        500,
-        corsHeaders
-      );
+    const primary = await performPurchase(supabaseAdmin, {
+      competition_id: comp.id,
+      auth_user_id: userRes.auth_user_id,
+      canonical_user_id: userRes.canonical_user_id,
+      wallet_address: userRes.wallet_address,
+      reservation_id,
+      ticket_numbers,
+    });
+
+    if (!primary.error) {
+      return json(200, { ok: true, phase: "primary", competition_id: comp.id, resolved_user: { auth_user_id: userRes.auth_user_id, canonical_user_id: userRes.canonical_user_id, wallet_address: userRes.wallet_address, sources: userRes.found }, result: primary.data });
     }
 
-    // Handle error responses
-    if (!finalResult.success) {
-      const errorCode = finalResult.error_code || 'PURCHASE_FAILED';
-      const errorMessage = finalResult.error || 'Purchase failed';
+    const code = primary.error.code || "";
+    const message = (primary.error.message || "").toLowerCase();
+    const isValidation = code === "PGRST116" || message.includes("invalid") || message.includes("missing") || message.includes("not found");
 
-      // Map error codes to HTTP status codes
-      let httpStatus = 400;
-      if (errorCode === 'INSUFFICIENT_BALANCE') httpStatus = 402;
-      if (errorCode === 'NO_BALANCE_RECORD') httpStatus = 404;
-      if (errorCode === 'NOT_ENOUGH_TICKETS') httpStatus = 409;
-      if (errorCode === 'INTERNAL_ERROR') httpStatus = 500;
-
-      return errorResponse(errorCode, errorMessage, httpStatus, corsHeaders);
+    if (isValidation) {
+      return json(400, { ok: false, phase: "primary", error: primary.error.code || primary.error.message || "purchase_failed", details: primary.error.details ?? null, hint: primary.error.hint ?? null });
     }
 
-    // Transform result to match expected format
-    const ticketNumbersResult: number[] = finalResult.ticket_numbers || [];
-    const responseData = {
-      status: 'ok',
-      success: true,
-      competition_id: finalResult.competition_id || p_competition_id,
-      tickets: ticketNumbersResult.map((num: number) => ({
-        ticket_number: num,
-      })),
-      entry_id: finalResult.entry_id,
-      total_cost: finalResult.total_cost,
-      new_balance: finalResult.available_balance,
-      available_balance: finalResult.available_balance,
-      previous_balance: finalResult.previous_balance,
-      idempotent: finalResult.idempotent || false,
-      used_reservation_id: finalResult.used_reservation_id,
-      used_reserved_count: finalResult.used_reserved_count,
-      topped_up_count: finalResult.topped_up_count,
-      note: finalResult.note,
-      fallback: finalResult.fallback || false,
-      message: `Successfully purchased ${ticketNumbersResult.length} ticket${ticketNumbersResult.length === 1 ? '' : 's'}`,
-    };
+    const rescue = await performRescue(supabaseAdmin, {
+      competition_id: comp.id,
+      auth_user_id: userRes.auth_user_id,
+      canonical_user_id: userRes.canonical_user_id,
+      wallet_address: userRes.wallet_address,
+      reservation_id,
+      ticket_numbers,
+    });
 
-    console.log(
-      `[purchase-with-balance][${requestId}] Success: ${ticketNumbersResult.length} tickets purchased`
-    );
+    if (!rescue.error) {
+      return json(200, { ok: true, phase: "rescue", competition_id: comp.id, resolved_user: { auth_user_id: userRes.auth_user_id, canonical_user_id: userRes.canonical_user_id, wallet_address: userRes.wallet_address, sources: userRes.found }, result: rescue.data });
+    }
 
-    return jsonResponse(responseData, 200, corsHeaders);
-  } catch (error) {
-    console.error(`[purchase-with-balance][${requestId}] Error:`, error);
-    return errorResponse(
-      'INTERNAL_ERROR',
-      error instanceof Error ? error.message : 'Internal server error',
-      500,
-      corsHeaders
-    );
+    return json(400, { ok: false, phase: "rescue_failed", error: rescue.error.code || rescue.error.message || "rescue_failed", primary_error: primary.error.message ?? null, rescue_details: rescue.error.details ?? null, rescue_hint: rescue.error.hint ?? null });
+  } catch (e) {
+    const message = e?.message || "internal_error";
+    return json(500, { error: "internal_error", message });
   }
 });
