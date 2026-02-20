@@ -112,7 +112,7 @@ async function processPurchase(req: Request): Promise<Response> {
     .rpc('get_unavailable_tickets', { p_competition_id: competitionId });
 
   const unavailableSet = new Set<number>((unavailableData as number[] | null) || []);
-  let availableNumbers: number[] = [];
+  const availableNumbers: number[] = [];
   for (let i = 1; i <= comp.total_tickets; i++) {
     if (!unavailableSet.has(i)) availableNumbers.push(i);
   }
