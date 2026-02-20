@@ -1,17 +1,68 @@
 # How to Regenerate Supabase Types
 
-## Quick Start (Recommended Method)
+## ⚡ Quick Start (Easiest Method)
 
-If you have access to the Supabase Dashboard:
+We've added an automated script that handles everything for you:
 
 ```bash
-# Using the Supabase CLI with your project ID
-npx supabase gen types typescript --project-id YOUR_PROJECT_ID > supabase/types.ts
+# Auto-detect connection method and regenerate types
+npm run types:generate
 ```
 
-Replace `YOUR_PROJECT_ID` with your actual Supabase project ID (found in Project Settings).
+The script will:
+- ✅ Automatically detect your Supabase configuration
+- ✅ Extract project ID from environment variables
+- ✅ Generate types to the correct location
+- ✅ Verify the output
+- ✅ Provide next steps
 
-## Alternative Methods
+## Configuration
+
+The script uses these environment variables (in order of priority):
+
+1. **VITE_SUPABASE_URL** - Extracts project ID from your Supabase URL (recommended)
+2. **SUPABASE_PROJECT_ID** - Direct project ID
+3. **DATABASE_URL** - Direct database connection string
+
+Set one in your `.env` file or export before running:
+
+```bash
+# From your .env or .env.local
+export VITE_SUPABASE_URL="https://yourproject.supabase.co"
+
+# Then regenerate
+npm run types:generate
+```
+
+## Advanced Usage
+
+### Use Local Database
+
+If you're running Supabase locally:
+
+```bash
+# First, start local Supabase
+npx supabase start
+
+# Then generate types from local DB
+npm run types:generate -- --local
+```
+
+### Use Specific Project ID
+
+Override auto-detection:
+
+```bash
+npm run types:generate -- --project-id your-project-id
+```
+
+### Get Help
+
+```bash
+npm run types:generate -- --help
+```
+
+## Manual Methods (If Automated Script Fails)
 
 ### Method 1: Using Connection String
 
