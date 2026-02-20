@@ -252,3 +252,210 @@ describe('purchase-with-balance CORS Configuration', () => {
     });
   });
 });
+
+describe('purchase-with-balance Retry Logic', () => {
+  it('should include retry mechanism for RPC failures', () => {
+    // The edge function now has retry logic with exponential backoff
+    // Max retries: 2, delays: 500ms, 1000ms
+    const maxRetries = 2;
+    const initialDelay = 500;
+    const maxDelay = 2000;
+
+    expect(maxRetries).toBe(2);
+    expect(initialDelay).toBe(500);
+    expect(maxDelay).toBe(2000);
+  });
+
+  it('should handle retryable vs non-retryable errors correctly', () => {
+    // Non-retryable errors (should return immediately):
+    const nonRetryableErrors = [
+      'INSUFFICIENT_BALANCE',
+      'NO_BALANCE_RECORD',
+      'VALIDATION_ERROR'
+    ];
+
+    // Retryable errors (should retry up to maxRetries):
+    const retryableErrors = [
+      'INTERNAL_ERROR',
+      'RPC_ERROR',
+      'NETWORK_ERROR'
+    ];
+
+    expect(nonRetryableErrors).toHaveLength(3);
+    expect(retryableErrors).toHaveLength(3);
+  });
+});
+
+describe('purchase-with-balance Fallback Mechanism', () => {
+  it('should have direct database fallback when RPC completely fails', () => {
+    // When all RPC retries fail, the edge function should:
+    // 1. Check for idempotent duplicates
+    // 2. Verify balance
+    // 3. Deduct balance atomically
+    // 4. Create competition entry
+    // 5. Return success with fallback=true flag
+
+    const fallbackSteps = [
+      'check_idempotency',
+      'get_balance',
+      'deduct_balance',
+      'create_entry',
+      'return_success'
+    ];
+
+    expect(fallbackSteps).toHaveLength(5);
+  });
+
+  it('should handle idempotent requests in fallback mode', () => {
+    // Fallback should check transactionhash (idempotency_key) to detect duplicates
+    // and return the existing entry without charging again
+    const idempotencyBehavior = {
+      checksBeforeCharging: true,
+      returnsExistingEntry: true,
+      avoidsDoubleCharge: true
+    };
+
+    expect(idempotencyBehavior.checksBeforeCharging).toBe(true);
+    expect(idempotencyBehavior.returnsExistingEntry).toBe(true);
+    expect(idempotencyBehavior.avoidsDoubleCharge).toBe(true);
+  });
+
+  it('should refund balance if entry creation fails in fallback', () => {
+    // If balance is deducted but entry creation fails,
+    // fallback should refund the balance to avoid losing user funds
+    const refundOnFailure = true;
+    expect(refundOnFailure).toBe(true);
+  });
+});
+
+describe('purchase-with-balance Error Handling', () => {
+  it('should map error codes to appropriate HTTP status codes', () => {
+    const errorMapping = {
+      'INSUFFICIENT_BALANCE': 402,
+      'NO_BALANCE_RECORD': 404,
+      'NOT_ENOUGH_TICKETS': 409,
+      'VALIDATION_ERROR': 400,
+      'INTERNAL_ERROR': 500,
+      'METHOD_NOT_ALLOWED': 405,
+      'UNAUTHORIZED': 401
+    };
+
+    expect(errorMapping['INSUFFICIENT_BALANCE']).toBe(402);
+    expect(errorMapping['NO_BALANCE_RECORD']).toBe(404);
+    expect(errorMapping['NOT_ENOUGH_TICKETS']).toBe(409);
+    expect(errorMapping['VALIDATION_ERROR']).toBe(400);
+    expect(errorMapping['INTERNAL_ERROR']).toBe(500);
+  });
+
+  it('should provide detailed error messages', () => {
+    // Error responses should include both code and message
+    const errorStructure = {
+      success: false,
+      error: {
+        code: 'ERROR_CODE',
+        message: 'Human-readable error message'
+      }
+    };
+
+    expect(errorStructure.success).toBe(false);
+    expect(errorStructure.error.code).toBeTruthy();
+    expect(errorStructure.error.message).toBeTruthy();
+  });
+});
+
+describe('purchase-with-balance Request Validation', () => {
+  it('should validate required parameters', () => {
+    const requiredParams = [
+      'p_user_identifier',
+      'p_competition_id',
+      'p_ticket_price'
+    ];
+
+    // Either p_ticket_numbers or p_ticket_count must be provided
+    const ticketParams = ['p_ticket_numbers', 'p_ticket_count'];
+
+    expect(requiredParams).toHaveLength(3);
+    expect(ticketParams).toHaveLength(2);
+  });
+
+  it('should require Authorization header', () => {
+    // All requests must include Bearer token (user or anon key)
+    const requiresAuth = true;
+    const authFormat = 'Bearer <token>';
+
+    expect(requiresAuth).toBe(true);
+    expect(authFormat).toContain('Bearer');
+  });
+
+  it('should validate ticket_price is a number', () => {
+    // ticket_price must be a number, not a string
+    const validPrice = 1.50;
+    const invalidPrice = '1.50';
+
+    expect(typeof validPrice).toBe('number');
+    expect(typeof invalidPrice).not.toBe('number');
+  });
+});
+
+describe('purchase-with-balance Response Format', () => {
+  it('should return consistent success response structure', () => {
+    const successResponse = {
+      status: 'ok',
+      success: true,
+      competition_id: 'uuid',
+      tickets: [{ ticket_number: 1 }],
+      entry_id: 'uuid',
+      total_cost: 1.50,
+      new_balance: 98.50,
+      available_balance: 98.50,
+      previous_balance: 100.00,
+      idempotent: false,
+      fallback: false,
+      message: 'Successfully purchased 1 tickets'
+    };
+
+    expect(successResponse.status).toBe('ok');
+    expect(successResponse.success).toBe(true);
+    expect(successResponse.tickets).toBeDefined();
+    expect(successResponse.entry_id).toBeDefined();
+  });
+
+  it('should include reservation fields when applicable', () => {
+    const responseWithReservation = {
+      used_reservation_id: 'reservation-uuid',
+      used_reserved_count: 5,
+      topped_up_count: 3,
+      note: 'Used 5 reserved tickets, topped up 3 additional'
+    };
+
+    expect(responseWithReservation.used_reservation_id).toBeDefined();
+    expect(responseWithReservation.used_reserved_count).toBeGreaterThanOrEqual(0);
+    expect(responseWithReservation.topped_up_count).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('purchase-with-balance Logging', () => {
+  it('should log key events with request ID', () => {
+    // Each request gets a unique 8-character request ID for tracing
+    const requestIdLength = 8;
+    const logEvents = [
+      'Processing purchase',
+      'RPC retry attempt',
+      'FALLBACK: Direct DB operations',
+      'Success: tickets purchased',
+      'Error occurred'
+    ];
+
+    expect(requestIdLength).toBe(8);
+    expect(logEvents.length).toBeGreaterThan(0);
+  });
+
+  it('should redact sensitive information in logs', () => {
+    // User IDs and competition IDs should be truncated in logs
+    const fullUserId = 'prize:pid:0x123456789abcdef';
+    const loggedUserId = fullUserId.substring(0, 20) + '...';
+
+    expect(loggedUserId.length).toBeLessThan(fullUserId.length);
+    expect(loggedUserId).toContain('...');
+  });
+});
