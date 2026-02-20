@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase';
 import { useAuthUser } from '../contexts/AuthContext';
 import { toPrizePid, userIdsEqual, isWalletAddress, normalizeWalletAddress } from '../utils/userId';
 import { parseBalanceResponse } from '../utils/balanceParser';
+import { callRPC } from '../lib/supabase-helpers';
+import type { Row } from '../lib/supabase-helpers';
 
 interface PendingTopUp {
   amount: number;
@@ -93,9 +95,11 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
 
       // Primary: Use get_user_balance RPC function (reads from sub_account_balances)
       // The RPC filters on canonical_user_id with case-insensitive LOWER() matching
-      const { data: rpcBalance, error: rpcError } = await (supabase.rpc as any)('get_user_balance', {
-        p_canonical_user_id: canonicalUserId
-      });
+      const { data: rpcBalance, error: rpcError } = await callRPC(
+        supabase,
+        'get_user_balance',
+        { p_canonical_user_id: canonicalUserId }
+      );
 
       // Check for type mismatch error (can occur if database migration not applied)
       const isTypeMismatchError = rpcError?.message?.includes('operator does not exist') ||
@@ -123,7 +127,7 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
           .limit(1);
 
         if (subAccountData && subAccountData.length > 0) {
-          const record = subAccountData[0] as any;
+          const record: Row<'sub_account_balances'> = subAccountData[0];
           if (record.user_id) {
             userUidRef.current = record.user_id;
           }
@@ -138,10 +142,11 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
           .limit(1);
 
         if (userData && userData.length > 0) {
-          if ((userData[0] as any).uid && !userUidRef.current) {
-            userUidRef.current = (userData[0] as any).uid;
+          const user: Row<'canonical_users'> = userData[0];
+          if (user.uid && !userUidRef.current) {
+            userUidRef.current = user.uid;
           }
-          setHasUsedBonus((userData[0] as any).has_used_new_user_bonus || false);
+          setHasUsedBonus(user.has_used_new_user_bonus || false);
         }
         return;
       }
@@ -168,7 +173,7 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
         .limit(1);
 
       if (subAccountData && subAccountData.length > 0 && !subAccountError) {
-        const record = subAccountData[0] as any;
+        const record: Row<'sub_account_balances'> = subAccountData[0];
         if (record.user_id) {
           userUidRef.current = record.user_id;
         }
@@ -187,7 +192,8 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
           .or(`canonical_user_id.eq.${canonicalUserId},privy_user_id.eq.${userId}`)
           .limit(1);
         if (userData && userData.length > 0) {
-          setHasUsedBonus((userData[0] as any).has_used_new_user_bonus || false);
+          const user: Row<'canonical_users'> = userData[0];
+          setHasUsedBonus(user.has_used_new_user_bonus || false);
         }
         return;
       }
@@ -205,10 +211,11 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
         .limit(1);
 
       if (userData && userData.length > 0) {
-        if ((userData[0] as any).uid) {
-          userUidRef.current = (userData[0] as any).uid;
+        const user: Row<'canonical_users'> = userData[0];
+        if (user.uid) {
+          userUidRef.current = user.uid;
         }
-        setHasUsedBonus((userData[0] as any).has_used_new_user_bonus || false);
+        setHasUsedBonus(user.has_used_new_user_bonus || false);
       }
 
       // Set balance to 0 - no errors, just no balance yet
