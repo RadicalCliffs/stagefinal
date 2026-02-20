@@ -63,26 +63,20 @@ export interface PurchaseRequest {
 
 /**
  * Purchase request body for /functions/v1/purchase-with-balance (Edge Function)
- * Matches the RPC function parameters directly (6 parameters only)
+ * IMPORTANT: Field names must match what the Edge Function expects (NOT p_ prefixed)
  */
 export interface RPCPurchaseRequest {
   /** Canonical user identifier (e.g., prize:pid:0x123...) */
-  p_user_identifier: string;
+  canonical_user_id: string;
   
   /** Competition UUID */
-  p_competition_id: string;
-  
-  /** Ticket price in USD */
-  p_ticket_price: number;
-  
-  /** Number of tickets to purchase */
-  p_ticket_count: number;
+  competition_id: string;
   
   /** Array of ticket numbers */
-  p_ticket_numbers: number[];
+  ticket_numbers: number[];
   
-  /** Idempotency key for deduplication */
-  p_idempotency_key: string;
+  /** Optional reservation ID */
+  reservation_id?: string | null;
 }
 
 /**
@@ -396,18 +390,14 @@ export class BalancePaymentService {
       const idempotencyKeyBase = reservationId || `purchase-${competitionId}-${Date.now()}`;
       const idempotencyKey = idempotencyKeyManager.getOrCreateKey(idempotencyKeyBase);
 
-      // Build request body with RPC function parameters (6 params only)
+      // Build request body with field names matching the Edge Function's expected format
+      // Edge Function accepts: competition_id, canonical_user_id, ticket_numbers, reservation_id
       const requestBody: RPCPurchaseRequest = {
-        p_user_identifier: canonicalUserId,
-        p_competition_id: competitionId,
-        p_ticket_price: ticketPrice,
-        p_ticket_count: ticketNumbers.length,
-        p_ticket_numbers: ticketNumbers,
-        p_idempotency_key: idempotencyKey
+        canonical_user_id: canonicalUserId,
+        competition_id: competitionId,
+        ticket_numbers: ticketNumbers,
+        reservation_id: reservationId || null
       };
-
-      // NOTE: p_reservation_id is NOT included - the RPC function only accepts 6 params
-      // The reservationId is used for idempotency key generation only
 
       console.log('[BalancePayment] Purchasing with balance (via Edge Function):', {
         userId: canonicalUserId.length > 20 ? canonicalUserId.substring(0, 20) + '...' : canonicalUserId,
