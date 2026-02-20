@@ -88,7 +88,7 @@ const VRFVerificationSection: React.FC<VRFVerificationSectionProps> = ({
           .order('winningTicket', { ascending: true } as any);
 
         if (!ticketError && ticketData) {
-          setWinningTickets(ticketData.map(t => t.winningTicket).filter(Boolean));
+          setWinningTickets(ticketData.map((t: any) => t.winningTicket).filter(Boolean));
         }
       } catch (err) {
         console.error('Error fetching VRF data:', err);

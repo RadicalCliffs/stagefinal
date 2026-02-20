@@ -184,7 +184,7 @@ const KeyPrizesSection: React.FC<KeyPrizesSectionProps> = ({
 
           // Build claimed tickets map
           const claimed = new Map<number, boolean>();
-          data.forEach(prize => {
+          data.forEach((prize: any) => {
             if (prize.winningTicket !== null) {
               claimed.set(prize.winningTicket, !!prize.winningWalletAddress);
             }

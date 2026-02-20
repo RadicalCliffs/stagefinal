@@ -543,7 +543,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
     setLoadingBalance(true);
     try {
-      const result = await getUserBalance(canonicalUserId);
+      const result = await getUserBalance(canonicalUserId!);
       if (result.success) {
         setUserBalance(result.data.usdc_balance ?? 0);
       }

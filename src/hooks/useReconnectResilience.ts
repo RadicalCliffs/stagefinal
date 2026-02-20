@@ -180,7 +180,7 @@ export async function reconcileBalance(
 
     // get_user_balance returns JSONB object: { success, balance, bonus_balance, total_balance }
     const balanceData = parseBalanceResponse(data);
-    const currentBalance = balanceData.balance;
+    const currentBalance = balanceData.balance!;
     const changed = lastKnownBalance !== null && currentBalance !== lastKnownBalance;
 
     if (changed) {

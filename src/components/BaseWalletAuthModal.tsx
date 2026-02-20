@@ -233,8 +233,8 @@ async function linkWalletToExistingUser(
       console.log('[BaseWallet] Found existing user, updating with wallet. uid:', existingUser.uid, 'old canonical_user_id:', existingUser.canonical_user_id);
 
       // Update user with wallet info - THIS IS CRITICAL for saving wallet to Supabase
-      const { error: updateError } = await supabase
-        .from('canonical_users')
+      const { error: updateError } = await (supabase
+        .from('canonical_users') as any)
         .update({
           canonical_user_id: canonicalUserId,
           wallet_address: walletAddress.toLowerCase(),
@@ -343,8 +343,8 @@ async function linkWalletToExistingUser(
         updates.email = normalizedEmail;
       }
 
-      const { error: updateError } = await supabase
-        .from('canonical_users')
+      const { error: updateError } = await (supabase
+        .from('canonical_users') as any)
         .update(updates as any)
         .eq('id', existingByWallet.id);
 
@@ -489,8 +489,8 @@ async function saveUserWithProfile(email: string, walletAddress: string, profile
     if (existingUser) {
       // Update existing user
       userId = existingUser.id;
-      const { error }: any = await supabase
-        .from('canonical_users')
+      const { error }: any = await (supabase
+        .from('canonical_users') as any)
         .update({
           wallet_address: walletAddress.toLowerCase(),
           base_wallet_address: walletAddress.toLowerCase(),
@@ -511,8 +511,8 @@ async function saveUserWithProfile(email: string, walletAddress: string, profile
       saveSuccess = !error;
     } else {
       // Create new user if not found
-      const { data: newUser, error } = await supabase
-        .from('canonical_users')
+      const { data: newUser, error } = await (supabase
+        .from('canonical_users') as any)
         .insert({
           canonical_user_id: canonicalUserId,
           email: normalizedEmail,

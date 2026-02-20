@@ -456,14 +456,14 @@ export class BalancePaymentService {
               return {
                 success: false,
                 error: 'Insufficient balance',
-                errorDetails: { code: 'INSUFFICIENT_BALANCE', message: errMsg, statusCode: 402 }
+                errorDetails: { message: errMsg, statusCode: 402 } as any
               };
             }
             if (errMsg.includes('not available') || errMsg.includes('not found')) {
               return {
                 success: false,
                 error: errMsg,
-                errorDetails: { code: 'TICKETS_NOT_AVAILABLE', message: errMsg, statusCode: 400 }
+                errorDetails: { message: errMsg, statusCode: 400 } as any
               };
             }
             lastError = { message: errMsg, code: 'PURCHASE_FAILED' };

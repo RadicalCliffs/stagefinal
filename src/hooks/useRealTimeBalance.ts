@@ -138,10 +138,10 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
           .limit(1);
 
         if (userData && userData.length > 0) {
-          if (userData[0].uid && !userUidRef.current) {
-            userUidRef.current = userData[0].uid;
+          if ((userData[0] as any).uid && !userUidRef.current) {
+            userUidRef.current = (userData[0] as any).uid;
           }
-          setHasUsedBonus(userData[0].has_used_new_user_bonus || false);
+          setHasUsedBonus((userData[0] as any).has_used_new_user_bonus || false);
         }
         return;
       }
@@ -187,7 +187,7 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
           .or(`canonical_user_id.eq.${canonicalUserId},privy_user_id.eq.${userId}`)
           .limit(1);
         if (userData && userData.length > 0) {
-          setHasUsedBonus(userData[0].has_used_new_user_bonus || false);
+          setHasUsedBonus((userData[0] as any).has_used_new_user_bonus || false);
         }
         return;
       }
@@ -205,10 +205,10 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
         .limit(1);
 
       if (userData && userData.length > 0) {
-        if (userData[0].uid) {
-          userUidRef.current = userData[0].uid;
+        if ((userData[0] as any).uid) {
+          userUidRef.current = (userData[0] as any).uid;
         }
-        setHasUsedBonus(userData[0].has_used_new_user_bonus || false);
+        setHasUsedBonus((userData[0] as any).has_used_new_user_bonus || false);
       }
 
       // Set balance to 0 - no errors, just no balance yet

@@ -1132,8 +1132,8 @@ export const database = {
     }
   ) {
     // Prefer canonical_user_id targeting
-    let { data, error }: any = (await supabase
-      .from('canonical_users')
+    let { data, error }: any = (await (supabase
+      .from('canonical_users') as any)
       .update(profile as any)
       .eq('canonical_user_id', userId)
       .select()
@@ -1141,8 +1141,8 @@ export const database = {
 
     // Fallback to id (uuid) if needed
     if ((!data && error) || (!data && !error)) {
-      const alt = (await supabase
-        .from('canonical_users')
+      const alt = (await (supabase
+        .from('canonical_users') as any)
         .update(profile as any)
         .eq('id', userId)
         .select()
@@ -2301,8 +2301,8 @@ export const database = {
             if (competitionIds.length > 0) {
               try {
                 // Try to fetch by id (UUID format) first
-                const uuidIds = competitionIds.filter(id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
-                const textIds = competitionIds.filter(id => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
+                const uuidIds = competitionIds.filter((id: any) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id as string)) as string[];
+                const textIds = competitionIds.filter((id: any) => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id as string)) as string[];
 
                 // Fetch UUID-based competitions
                 if (uuidIds.length > 0) {
@@ -2370,8 +2370,8 @@ export const database = {
 
             if (competitionIds.length > 0) {
               try {
-                const uuidIds = competitionIds.filter(id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
-                const textIds = competitionIds.filter(id => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
+                const uuidIds = competitionIds.filter((id: any) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id as string)) as string[];
+                const textIds = competitionIds.filter((id: any) => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id as string)) as string[];
 
                 if (uuidIds.length > 0) {
                   const { data: compData } = (await supabase
@@ -3288,8 +3288,8 @@ export const database = {
       }
 
       // Reserve tickets first to prevent race conditions
-      const { error }: any = (await supabase
-        .from('pending_tickets')
+      const { error }: any = (await (supabase
+        .from('pending_tickets') as any)
         .insert({
           id: crypto.randomUUID(),
           user_id: userId,
@@ -3341,8 +3341,8 @@ export const database = {
       const selectedTickets = shuffled.slice(0, ticketCount);
 
       // Reserve the tickets
-      const { error }: any = (await supabase
-        .from('pending_tickets')
+      const { error }: any = (await (supabase
+        .from('pending_tickets') as any)
         .insert({
           id: crypto.randomUUID(),
           user_id: userId,
@@ -3418,9 +3418,9 @@ export const database = {
       }
 
       // Cancel any existing pending reservations for this user/competition
-      await (supabase
-        .from('pending_tickets')
-        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+      await ((supabase
+        .from('pending_tickets') as any)
+        .update({ status: 'cancelled', updated_at: new Date().toISOString() } as any)
         .eq('user_id', userId)
         .eq('competition_id', competitionId)
         .eq('status', 'pending') as any);
@@ -3439,8 +3439,8 @@ export const database = {
       }
 
       // Create new reservation
-      const { error }: any = (await supabase
-        .from('pending_tickets')
+      const { error }: any = (await (supabase
+        .from('pending_tickets') as any)
         .insert({
           id: reservationId,
           user_id: userId,
@@ -3484,13 +3484,13 @@ export const database = {
         // Fallback to direct update if RPC doesn't exist yet
         console.warn('[confirmReservedTickets] RPC not available, using fallback:', rpcError.message);
 
-        const { error }: any = (await supabase
-          .from('pending_tickets')
+        const { error }: any = (await (supabase
+          .from('pending_tickets') as any)
           .update({
             status: 'confirmed',
             confirmed_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
-          })
+          } as any)
           .eq('id', reservationId)
           .eq('status', 'pending')) as any;
 

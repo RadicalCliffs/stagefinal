@@ -216,8 +216,8 @@ export class BasePaymentService {
       if (!authToken) {
         // Fallback to direct Supabase update if no auth token
         console.warn('[BasePayment] No auth token, falling back to direct Supabase update');
-        await supabase
-          .from('user_transactions')
+        await (supabase
+          .from('user_transactions') as any)
           .update({
             status,
             updated_at: new Date().toISOString(),
@@ -613,8 +613,8 @@ export class BasePaymentService {
         console.error('Payment succeeded but ticket confirmation failed:', confirmResult.error || confirmResult.data?.error);
 
         // Update transaction with warning status and detailed error info
-        await supabase
-          .from('user_transactions')
+        await (supabase
+          .from('user_transactions') as any)
           .update({
             status: 'completed',
             payment_status: 'completed',
@@ -657,8 +657,8 @@ export class BasePaymentService {
 
       // Update transaction as failed if we have a transaction ID
       if (transactionId) {
-        await supabase
-          .from('user_transactions')
+        await (supabase
+          .from('user_transactions') as any)
           .update({
             status: 'failed',
             payment_status: 'failed',

@@ -232,8 +232,8 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
         const transactionId = crypto.randomUUID();
         
         try {
-          const { error: insertError } = await supabase
-            .from('user_transactions')
+          const { error: insertError } = await (supabase
+            .from('user_transactions') as any)
             .insert({
               id: transactionId,
               user_id: toCanonicalUserId(baseUser.id as any),

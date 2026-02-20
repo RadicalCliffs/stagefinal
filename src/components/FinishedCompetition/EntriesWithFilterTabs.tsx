@@ -111,7 +111,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
             const { data: bypassData, error: bypassError } = await supabase
               .rpc('get_competition_entries_bypass_rls', {
                 competition_identifier: idToUse
-              });
+              } as any);
             rpcData = bypassData;
             rpcError = bypassError;
           }

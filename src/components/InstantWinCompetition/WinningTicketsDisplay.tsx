@@ -65,7 +65,7 @@ const WinningTicketsDisplay: React.FC<WinningTicketsDisplayProps> = ({
           .order('winningTicket', { ascending: true } as any);
 
         if (!error && data) {
-          const tickets: WinningTicketData[] = data.map(item => ({
+          const tickets: WinningTicketData[] = data.map((item: any) => ({
             ticketNumber: item.winningTicket || 0,
             prize: item.prize || 'Prize',
             priority: item.priority || 99,

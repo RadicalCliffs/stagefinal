@@ -54,7 +54,7 @@ const WinnerResultsTable = ({ competitionId }: WinnerResultsTableProps) => {
         // Fetch usernames for winner wallet addresses
         const usernameMap = new Map<string, string>();
         if (winnersData && winnersData.length > 0) {
-          const walletAddresses = winnersData.map(w => w.wallet_address).filter(Boolean);
+          const walletAddresses = winnersData.map((w: any) => w.wallet_address).filter(Boolean);
           if (walletAddresses.length > 0) {
             const { data: usersData } = await supabase
               .from('canonical_users')
@@ -76,7 +76,7 @@ const WinnerResultsTable = ({ competitionId }: WinnerResultsTableProps) => {
 
         // Add data from winners table
         if (winnersData && winnersData.length > 0) {
-          for (const winner of winnersData) {
+          for (const winner of winnersData as any[]) {
             const username = winner.wallet_address 
               ? usernameMap.get(winner.wallet_address.toLowerCase()) 
               : null;

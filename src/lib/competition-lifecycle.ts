@@ -255,13 +255,13 @@ export class CompetitionLifecycleService {
       const ticketToEntryMap = new Map<number, CompetitionEntry>();
 
       for (const entry of entries) {
-        if (entry.ticket_numbers) {
-          const ticketNumbers = entry.ticket_numbers
+        if ((entry as any).ticketnumbers) {
+          const ticketNumbers = (entry as any).ticketnumbers
             .split(',')
-            .map(t => parseInt(t.trim()))
-            .filter(t => !isNaN(t));
+            .map((t: any) => parseInt(t.trim()))
+            .filter((t: any) => !isNaN(t));
 
-          ticketNumbers.forEach(ticketNum => {
+          ticketNumbers.forEach((ticketNum: any) => {
             allTicketNumbers.push(ticketNum);
             ticketToEntryMap.set(ticketNum, entry);
           });
@@ -389,12 +389,12 @@ export class CompetitionLifecycleService {
         prize_claimed: false,
         username: user?.username || 'Unknown',
         country: user?.country || null,
-        wallet_address: entry.walletaddress || user?.wallet_address || null,
+        wallet_address: (entry as any).wallet_address || user?.wallet_address || null,
         created_at: new Date().toISOString()
       };
 
       const winnerInsertResult = await withRetry(
-        async () => await supabase.from('winners').insert(winnerData) as any,
+        async () => (supabase.from('winners') as any).insert(winnerData),
         'create winner record'
       ) as { data: any; error: any };
       
@@ -417,8 +417,8 @@ export class CompetitionLifecycleService {
    */
   private static async markCompetitionAsDrawn(competition: any): Promise<void> {
     const updateResult = await withRetry(
-      async () => await supabase
-        .from('competitions')
+      async () => await (supabase
+        .from('competitions') as any)
         .update({
           status: 'completed',
           competitionended: 1,

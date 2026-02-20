@@ -241,7 +241,7 @@ class OmnipotentDataService {
       if (error) throw error;
 
       const competitions = await Promise.all(
-        (data || []).map(comp => this.transformCompetition(comp))
+        (data || []).map((comp: any) => this.transformCompetition(comp))
       );
 
       dataCache.set(cacheKey, competitions, options.cacheDuration || 30000);
@@ -394,7 +394,7 @@ class OmnipotentDataService {
         const bypassResult = await supabase
           .rpc('get_competition_entries_bypass_rls', {
             competition_identifier: competitionId
-          }) as { data: any; error: any };
+          } as any) as { data: any; error: any };
         
         const { data: bypassData, error: bypassError } = bypassResult;
         data = bypassData;
@@ -758,7 +758,7 @@ class OmnipotentDataService {
           currentSelection = shuffled.slice(0, ticketNumbers.length);
           
           databaseLogger.info('[OmnipotentData] Reselected fresh tickets', { 
-            newSelection: currentSelection.slice(0, 5).concat(currentSelection.length > 5 ? ['...'] : []),
+            newSelection: (currentSelection.slice(0, 5) as any).concat(currentSelection.length > 5 ? ['...'] : []),
             totalSelected: currentSelection.length
           });
           

@@ -242,10 +242,10 @@ export function useInstantWinTickets({
 
       // ISSUE #2 FIX: Always fetch database records regardless of contract status
       // This creates a unified view combining both sources
-      const { data: claimedData, error: fetchError } = await supabase
+      const { data: claimedData, error: fetchError }: any = (await supabase
         .from('Prize_Instantprizes')
         .select('winningTicket, winningWalletAddress, prize, wonAt')
-        .eq('competitionId', competitionUid);
+        .eq('competitionId', competitionUid)) as any;
 
       if (fetchError) {
         console.error('Error fetching claimed tickets:', fetchError);
@@ -258,7 +258,7 @@ export function useInstantWinTickets({
       const dbTicketSet = new Set<number>();
 
       if (claimedData) {
-        claimedData.forEach((item) => {
+        claimedData.forEach((item: any) => {
           if (item.winningTicket !== null) {
             const ticket: WinningTicket = {
               ticketNumber: item.winningTicket,

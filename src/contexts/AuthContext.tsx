@@ -325,7 +325,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       const { data: entryData, error: entryError } = (await supabase
-        .rpc('get_user_active_tickets', { p_user_identifier: canonicalId })) as any;
+        .rpc('get_user_active_tickets', { p_user_identifier: canonicalId } as any)) as any;
       
       if (entryError) {
         console.error('[AuthContext] Error fetching entry data:', entryError);
@@ -337,7 +337,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // from a recent payment with stale data due to database replication lag
       if (!options?.skipBalance) {
         const { data: balanceData, error: balanceError } = (await supabase
-          .rpc('get_user_wallet_balance', { p_user_identifier: canonicalId })) as any;
+          .rpc('get_user_wallet_balance', { p_user_identifier: canonicalId } as any)) as any;
         
         if (balanceError) {
           console.error('[AuthContext] Error fetching balance data:', balanceError);

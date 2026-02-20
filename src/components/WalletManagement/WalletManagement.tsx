@@ -274,8 +274,8 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
 
     try {
       // Update canonical_users table directly (production doesn't have set_primary_wallet RPC)
-      const { error }: any = await supabase
-        .from('canonical_users')
+      const { error }: any = await (supabase
+        .from('canonical_users') as any)
         .update({ wallet_address: walletAddress } as any)
         .eq('canonical_user_id', canonicalUserId);
 

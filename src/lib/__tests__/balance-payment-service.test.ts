@@ -72,7 +72,7 @@ describe('BalancePaymentService', () => {
         new_balance: 97,
       },
       error: null,
-    });
+    } as any);
   });
 
   describe('purchaseWithBalance', () => {
@@ -320,9 +320,9 @@ describe('BalancePaymentService', () => {
           data: {
             ok: false,
             error: 'insufficient balance',
-          },
+          } as any,
           error: null,
-        });
+        } as any);
 
         const result = await BalancePaymentService.purchaseWithBalance({
           competitionId: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
@@ -340,9 +340,9 @@ describe('BalancePaymentService', () => {
           data: {
             ok: false,
             error: 'No balance record found',
-          },
+          } as any,
           error: null,
-        });
+        } as any);
 
         const result = await BalancePaymentService.purchaseWithBalance({
           competitionId: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
@@ -357,8 +357,8 @@ describe('BalancePaymentService', () => {
       it('should handle network errors gracefully', async () => {
         vi.mocked(supabase.rpc).mockResolvedValueOnce({
           data: null,
-          error: { message: 'Network error', code: 'NETWORK_ERROR' },
-        });
+          error: { message: 'Network error', code: 'NETWORK_ERROR' } as any,
+        } as any);
 
         const result = await BalancePaymentService.purchaseWithBalance({
           competitionId: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
@@ -391,9 +391,9 @@ describe('BalancePaymentService', () => {
             new_balance: 99.25,
             available_balance: 99.25,
             idempotent: false,
-          },
+          } as any,
           error: null,
-        });
+        } as any);
 
         const result = await BalancePaymentService.purchaseWithBalance({
           competitionId: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
@@ -423,9 +423,9 @@ describe('BalancePaymentService', () => {
             new_balance: 99,
             available_balance: 99,
             idempotent: true, // This was a duplicate request
-          },
+          } as any,
           error: null,
-        });
+        } as any);
 
         const result = await BalancePaymentService.purchaseWithBalance({
           competitionId: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',

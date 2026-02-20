@@ -387,8 +387,8 @@ export class CoinbaseCommerceService {
       `prize:pid:${userId}`;
 
     // Insert into pending_tickets - webhook will confirm and create actual tickets
-    const { error }: any = await supabase
-      .from('pending_tickets')
+    const { error }: any = await (supabase
+      .from('pending_tickets') as any)
       .insert({
         user_id: userId,
         canonical_user_id: canonicalUserId,
