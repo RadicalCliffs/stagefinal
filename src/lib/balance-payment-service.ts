@@ -395,24 +395,10 @@ export class BalancePaymentService {
       const canonicalUserId = toCanonicalUserId(userId);
 
       // Use idempotency manager for proper key management
-      // If reservation exists, use it as base for key to enable proper retry logic
       const idempotencyKeyBase = reservationId || `purchase-${competitionId}-${Date.now()}`;
       const idempotencyKey = idempotencyKeyManager.getOrCreateKey(idempotencyKeyBase);
 
-      // Build request body with field names matching the Edge Function's expected format
-      // Edge Function accepts: competition_id, canonical_user_id, wallet_address, ticket_numbers, ticket_price, idempotency_key
-      // Send BOTH canonical_user_id AND wallet_address to give Edge Function multiple ways to identify user
-      const requestBody: RPCPurchaseRequest = {
-        canonical_user_id: canonicalUserId,
-        competition_id: competitionId,
-        ticket_numbers: ticketNumbers,
-        ticket_price: ticketPrice, // REQUIRED by RPC function
-        idempotency_key: idempotencyKey, // For deduplication
-        reservation_id: reservationId || null,
-        wallet_address: userId // Original wallet address before canonical conversion
-      };
-
-      console.log('[BalancePayment] Purchasing with balance (via Edge Function):', {
+      console.log('[BalancePayment] Purchasing with balance (via direct RPC - PRIMARY):', {
         userId: canonicalUserId.length > 20 ? canonicalUserId.substring(0, 20) + '...' : canonicalUserId,
         competitionId: competitionId.substring(0, 10) + '...',
         ticketCount: ticketNumbers.length,
@@ -422,163 +408,82 @@ export class BalancePaymentService {
         idempotencyKey: idempotencyKey
       });
 
-      // Get authentication token - ALWAYS include Authorization header
-      let authHeader = '';
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.access_token) {
-          authHeader = `Bearer ${session.access_token}`;
-        } else {
-          // Fallback to anon key if no session
-          authHeader = `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`;
-        }
-      } catch (e) {
-        console.warn('[BalancePayment] Could not get auth session, using anon key:', e);
-        authHeader = `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`;
-      }
-
       // =====================================================
-      // SAFEGUARD 3: Client-side retry with exponential backoff
-      // Try the Edge Function up to 3 times before giving up
+      // PRIMARY: Direct Supabase RPC call (most reliable)
+      // The Edge Function has deployment issues, so use direct RPC first
       // =====================================================
-      const MAX_CLIENT_RETRIES = 3;
-      let lastProxyError: any = null;
       let proxySuccessData: any = null;
+      let lastError: any = null;
 
-      for (let attempt = 0; attempt < MAX_CLIENT_RETRIES; attempt++) {
-        if (attempt > 0) {
-          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 4000);
-          console.log(`[BalancePayment] Edge Function retry ${attempt}/${MAX_CLIENT_RETRIES - 1} after ${delay}ms`);
-          await new Promise(r => setTimeout(r, delay));
-        }
-
-        try {
-          const edgeUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/purchase-with-balance`;
-          const proxyResponse = await fetch(edgeUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': authHeader, // REQUIRED - always include
-            },
-            body: JSON.stringify(requestBody),
-          });
-
-          let data: any;
-          try {
-            data = await proxyResponse.json();
-          } catch {
-            lastProxyError = { message: 'Invalid response from server', statusCode: proxyResponse.status };
-            console.warn(`[BalancePayment] Attempt ${attempt + 1}: Invalid JSON response`);
-            continue;
+      try {
+        console.log('[BalancePayment] Calling purchase_tickets_with_balance RPC directly...');
+        const { data: rpcData, error: rpcError } = await supabase.rpc(
+          'purchase_tickets_with_balance',
+          {
+            p_user_identifier: canonicalUserId,
+            p_competition_id: competitionId,
+            p_ticket_price: ticketPrice,
+            p_ticket_count: null, // Let function determine from ticket_numbers
+            p_ticket_numbers: ticketNumbers,
+            p_idempotency_key: idempotencyKey,
           }
+        );
 
-          // If we got a non-retriable error (validation, insufficient balance), stop retrying
-          if (!proxyResponse.ok && data?.error) {
-            const errObj = typeof data.error === 'object' ? data.error : { message: data.error, code: data.error?.code };
-            const errCode = errObj.code || '';
-            if (errCode === 'INSUFFICIENT_BALANCE' || errCode === 'NO_BALANCE_RECORD' || errCode === 'VALIDATION_ERROR' ||
-                proxyResponse.status === 402 || proxyResponse.status === 404) {
-              // Non-retriable error - return immediately
-              const parsedError = parseError(errObj, proxyResponse.status);
-              return {
-                success: false,
-                error: getUserFriendlyError(parsedError),
-                errorDetails: parsedError
-              };
-            }
-            lastProxyError = errObj;
-            console.warn(`[BalancePayment] Attempt ${attempt + 1}: HTTP ${proxyResponse.status} - ${errObj.message || 'error'}`);
-            continue;
-          }
-
-          // Check for success
-          if (data && data.status === 'ok') {
-            proxySuccessData = data;
-            break;
-          }
-
-          // Error response format
-          if (data && data.status === 'error') {
-            lastProxyError = { message: data.error || 'Purchase failed' };
-            console.warn(`[BalancePayment] Attempt ${attempt + 1}: Error response - ${data.error}`);
-            continue;
-          }
-
-          // Unknown response format - might actually be success, check deeper
-          if (data && data.success === true) {
-            proxySuccessData = data;
-            break;
-          }
-
-          lastProxyError = { message: 'Invalid response from server' };
-          console.warn(`[BalancePayment] Attempt ${attempt + 1}: Unknown response format`, data);
-        } catch (fetchErr) {
-          lastProxyError = { message: fetchErr instanceof Error ? fetchErr.message : 'Network error' };
-          console.warn(`[BalancePayment] Attempt ${attempt + 1}: Fetch error -`, lastProxyError.message);
-        }
-      }
-
-      // =====================================================
-      // SAFEGUARD 4: Direct Supabase RPC fallback
-      // If all proxy attempts failed, try calling the RPC directly from client
-      // =====================================================
-      if (!proxySuccessData) {
-        console.warn('[BalancePayment] All proxy attempts failed, trying direct Supabase RPC fallback');
-
-        try {
-          const { data: rpcData, error: rpcError } = await supabase.rpc(
-            'purchase_tickets_with_balance',
-            {
-              p_user_identifier: canonicalUserId,
-              p_competition_id: competitionId,
-              p_ticket_price: ticketPrice,
-              p_ticket_count: null,
-              p_ticket_numbers: ticketNumbers,
-              p_idempotency_key: idempotencyKey,
-              p_reservation_id: reservationId || null,
-            }
-          );
-
-          if (!rpcError && rpcData && rpcData.success) {
-            console.log('[BalancePayment] Direct RPC fallback succeeded!');
-            // Convert RPC result to proxy format
+        if (!rpcError && rpcData) {
+          // Check if RPC returned success
+          if (rpcData.ok === true || rpcData.success === true) {
+            console.log('[BalancePayment] Direct RPC succeeded!');
+            // Convert RPC result to expected format
             proxySuccessData = {
               status: 'ok',
-              entry_id: rpcData.entry_id,
+              success: true,
+              entry_id: rpcData.order_id || rpcData.entry_id,
               competition_id: rpcData.competition_id || competitionId,
               tickets: (rpcData.ticket_numbers || []).map((num: number) => ({ ticket_number: num })),
-              total_cost: rpcData.total_cost,
-              new_balance: rpcData.available_balance,
+              ticket_numbers: rpcData.ticket_numbers || [],
+              total_cost: rpcData.amount || rpcData.total_cost,
+              new_balance: rpcData.available_balance ?? rpcData.new_balance,
               idempotent: rpcData.idempotent || false,
+              purchase_key: rpcData.purchase_key,
             };
-          } else if (rpcData && !rpcData.success) {
-            // RPC returned a business error
-            const errCode = rpcData.error_code || '';
-            if (errCode === 'INSUFFICIENT_BALANCE' || errCode === 'NO_BALANCE_RECORD') {
-              const parsedError = parseError({ message: rpcData.error }, errCode === 'INSUFFICIENT_BALANCE' ? 402 : 404);
+          } else if (rpcData.ok === false) {
+            // RPC returned business error
+            const errMsg = rpcData.error || 'Purchase failed';
+            console.warn('[BalancePayment] RPC returned business error:', errMsg);
+            
+            // Check for specific error types
+            if (errMsg.includes('insufficient balance')) {
               return {
                 success: false,
-                error: getUserFriendlyError(parsedError),
-                errorDetails: parsedError
+                error: 'Insufficient balance',
+                errorDetails: { code: 'INSUFFICIENT_BALANCE', message: errMsg, statusCode: 402 }
               };
             }
-            console.warn('[BalancePayment] Direct RPC fallback returned error:', rpcData.error);
-          } else if (rpcError) {
-            console.warn('[BalancePayment] Direct RPC fallback error:', rpcError.message);
+            if (errMsg.includes('not available') || errMsg.includes('not found')) {
+              return {
+                success: false,
+                error: errMsg,
+                errorDetails: { code: 'TICKETS_NOT_AVAILABLE', message: errMsg, statusCode: 400 }
+              };
+            }
+            lastError = { message: errMsg, code: 'PURCHASE_FAILED' };
           }
-        } catch (rpcErr) {
-          console.warn('[BalancePayment] Direct RPC fallback exception:', rpcErr);
+        } else if (rpcError) {
+          console.warn('[BalancePayment] RPC error:', rpcError.message);
+          lastError = { message: rpcError.message, code: rpcError.code };
         }
+      } catch (rpcException) {
+        console.warn('[BalancePayment] RPC exception:', rpcException);
+        lastError = { message: rpcException instanceof Error ? rpcException.message : 'RPC failed' };
       }
 
-      // If we still don't have success data, return error
+      // If direct RPC failed, return the error (don't try Edge Function - it's broken)
       if (!proxySuccessData) {
-        console.error('[BalancePayment] All purchase attempts failed:', lastProxyError);
-        const parsedError = parseError(lastProxyError || { message: 'Purchase failed after all attempts' });
+        console.error('[BalancePayment] Purchase failed:', lastError);
         return {
           success: false,
-          error: getUserFriendlyError(parsedError),
-          errorDetails: parsedError
+          error: lastError?.message || 'Purchase failed',
+          errorDetails: lastError
         };
       }
 
@@ -586,19 +491,19 @@ export class BalancePaymentService {
       const data = proxySuccessData;
       console.log('[BalancePayment] Purchase successful:', {
         competitionId: data.competition_id,
-        ticketCount: data.tickets?.length
+        ticketCount: data.tickets?.length || data.ticket_numbers?.length
       });
 
       const transformedData: PurchaseResponse = {
-        payment_id: data.entry_id || 'purchase-' + Date.now() + '-' + crypto.randomUUID(),
+        payment_id: data.entry_id || data.purchase_key || 'purchase-' + Date.now() + '-' + crypto.randomUUID(),
         status: 'succeeded',
-        amount: String(data.total_cost || ''),
+        amount: String(data.total_cost || data.amount || ''),
         currency: 'USD',
-        new_balance: String(data.new_balance || ''),
+        new_balance: String(data.new_balance ?? ''),
         competition_id: data.competition_id,
-        tickets: (data.tickets || []).map((t: any, index: number) => ({
+        tickets: (data.tickets || data.ticket_numbers?.map((n: number) => ({ ticket_number: n })) || []).map((t: any, index: number) => ({
           id: data.entry_id ? `${data.entry_id}-${index}` : `ticket-${index}`,
-          ticket_number: t.ticket_number
+          ticket_number: t.ticket_number ?? t
         }))
       };
 
