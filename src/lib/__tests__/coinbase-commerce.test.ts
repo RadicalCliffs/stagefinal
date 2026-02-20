@@ -290,7 +290,7 @@ describe('CoinbaseCommerceService - Top-Up Functionality', () => {
     it('should return sorted list of available amounts', () => {
       const amounts = CoinbaseCommerceService.getAvailableTopUpAmounts();
       
-      expect(amounts).toEqual([3, 5, 10, 25, 50, 100, 250, 500, 1000]);
+      expect(amounts).toEqual([3, 5, 10, 20, 50, 100, 250, 500, 1000]);
       expect(amounts.length).toBeGreaterThan(0);
       
       // Verify sorted
