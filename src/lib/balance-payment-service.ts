@@ -75,6 +75,12 @@ export interface RPCPurchaseRequest {
   /** Array of ticket numbers */
   ticket_numbers: number[];
   
+  /** Ticket price - REQUIRED by RPC function */
+  ticket_price: number;
+  
+  /** Idempotency key for deduplication */
+  idempotency_key?: string;
+  
   /** Optional reservation ID */
   reservation_id?: string | null;
   
@@ -394,12 +400,14 @@ export class BalancePaymentService {
       const idempotencyKey = idempotencyKeyManager.getOrCreateKey(idempotencyKeyBase);
 
       // Build request body with field names matching the Edge Function's expected format
-      // Edge Function accepts: competition_id, canonical_user_id, wallet_address, ticket_numbers, reservation_id
+      // Edge Function accepts: competition_id, canonical_user_id, wallet_address, ticket_numbers, ticket_price, idempotency_key
       // Send BOTH canonical_user_id AND wallet_address to give Edge Function multiple ways to identify user
       const requestBody: RPCPurchaseRequest = {
         canonical_user_id: canonicalUserId,
         competition_id: competitionId,
         ticket_numbers: ticketNumbers,
+        ticket_price: ticketPrice, // REQUIRED by RPC function
+        idempotency_key: idempotencyKey, // For deduplication
         reservation_id: reservationId || null,
         wallet_address: userId // Original wallet address before canonical conversion
       };

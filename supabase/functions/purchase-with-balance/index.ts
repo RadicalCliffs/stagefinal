@@ -169,40 +169,58 @@ async function resolveUser(supabase: any, opts: {
 
 async function performPurchase(supabase: any, args: {
   competition_id: string,
-  auth_user_id: string | null,
   canonical_user_id: string | null,
   wallet_address: string | null,
-  reservation_id?: string | null,
   ticket_numbers?: number[] | null,
+  ticket_price?: number | null,
+  ticket_count?: number | null,
+  idempotency_key?: string | null,
 }) {
+  // Build user identifier - prefer canonical_user_id, fallback to wallet-derived
+  const userIdentifier = args.canonical_user_id || (args.wallet_address ? `prize:pid:${args.wallet_address}` : null);
+  
+  if (!userIdentifier) {
+    return { data: null, error: { message: 'No user identifier available' } };
+  }
+
+  // The RPC function is purchase_tickets_with_balance with p_ prefixed params
   const payload = {
-    competition_id: args.competition_id,
-    reservation_id: args.reservation_id ?? null,
-    ticket_numbers: args.ticket_numbers ?? null,
-    auth_user_id: args.auth_user_id,
-    canonical_user_id: args.canonical_user_id,
-    wallet_address: args.wallet_address,
+    p_user_identifier: userIdentifier,
+    p_competition_id: args.competition_id,
+    p_ticket_price: args.ticket_price ?? 0.25, // Default ticket price if not provided
+    p_ticket_count: args.ticket_count ?? (args.ticket_numbers?.length || null),
+    p_ticket_numbers: args.ticket_numbers ?? null,
+    p_idempotency_key: args.idempotency_key ?? null,
   };
-  return await supabase.rpc("purchase_with_balance", payload);
+  return await supabase.rpc("purchase_tickets_with_balance", payload);
 }
 
+// Note: verify_and_rescue_purchase doesn't exist in DB - rescue is handled by idempotency in purchase_tickets_with_balance
+// Keeping performRescue as a retry of the main purchase for resilience
 async function performRescue(supabase: any, args: {
   competition_id: string,
-  auth_user_id: string | null,
   canonical_user_id: string | null,
   wallet_address: string | null,
-  reservation_id?: string | null,
   ticket_numbers?: number[] | null,
+  ticket_price?: number | null,
+  idempotency_key?: string | null,
 }) {
+  // Rescue = retry the same purchase with same idempotency key (will return existing result if already succeeded)
+  const userIdentifier = args.canonical_user_id || (args.wallet_address ? `prize:pid:${args.wallet_address}` : null);
+  
+  if (!userIdentifier) {
+    return { data: null, error: { message: 'No user identifier for rescue' } };
+  }
+
   const payload = {
-    competition_id: args.competition_id,
-    reservation_id: args.reservation_id ?? null,
-    ticket_numbers: args.ticket_numbers ?? null,
-    auth_user_id: args.auth_user_id,
-    canonical_user_id: args.canonical_user_id,
-    wallet_address: args.wallet_address,
+    p_user_identifier: userIdentifier,
+    p_competition_id: args.competition_id,
+    p_ticket_price: args.ticket_price ?? 0.25,
+    p_ticket_count: args.ticket_numbers?.length || null,
+    p_ticket_numbers: args.ticket_numbers ?? null,
+    p_idempotency_key: args.idempotency_key ?? null,
   };
-  return await supabase.rpc("verify_and_rescue_purchase", payload);
+  return await supabase.rpc("purchase_tickets_with_balance", payload);
 }
 
 Deno.serve(async (req: Request) => {
@@ -238,6 +256,13 @@ Deno.serve(async (req: Request) => {
     const canonical_user_id_raw = body.canonical_user_id ?? body.canonicalUserId ?? url.searchParams.get("canonical_user_id") ?? url.searchParams.get("canonicalUserId");
     const wallet_address_raw = body.wallet_address ?? body.walletAddress ?? url.searchParams.get("wallet_address") ?? url.searchParams.get("walletAddress");
     const user_id = body.user_id ?? body.userId ?? url.searchParams.get("user_id") ?? url.searchParams.get("userId");
+    
+    // Extract ticket_price - REQUIRED by the RPC function
+    const ticket_price_raw = body.ticket_price ?? body.ticketPrice ?? url.searchParams.get("ticket_price") ?? url.searchParams.get("ticketPrice");
+    const ticket_price = ticket_price_raw ? Number(ticket_price_raw) : null;
+    
+    // Generate idempotency key for deduplication
+    const idempotency_key = body.idempotency_key ?? body.idempotencyKey ?? `edge-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
     const comp = await resolveCompetition(supabaseAdmin, competition_id_raw, competition_uid);
     if (!comp?.id) {
@@ -264,11 +289,12 @@ Deno.serve(async (req: Request) => {
 
     const primary = await performPurchase(supabaseAdmin, {
       competition_id: comp.id,
-      auth_user_id: userRes.auth_user_id,
       canonical_user_id: userRes.canonical_user_id,
       wallet_address: userRes.wallet_address,
-      reservation_id,
       ticket_numbers,
+      ticket_price,
+      ticket_count: ticket_numbers?.length || null,
+      idempotency_key,
     });
 
     if (!primary.error) {
@@ -285,11 +311,11 @@ Deno.serve(async (req: Request) => {
 
     const rescue = await performRescue(supabaseAdmin, {
       competition_id: comp.id,
-      auth_user_id: userRes.auth_user_id,
       canonical_user_id: userRes.canonical_user_id,
       wallet_address: userRes.wallet_address,
-      reservation_id,
       ticket_numbers,
+      ticket_price,
+      idempotency_key,
     });
 
     if (!rescue.error) {
