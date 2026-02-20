@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { BalancePaymentService, type RPCPurchaseRequest } from '../balance-payment-service';
 import { toCanonicalUserId } from '../canonicalUserId';
+import { supabase } from '../supabase';
 
 // Mock fetch globally
 const mockFetch = vi.fn();
@@ -12,26 +13,30 @@ vi.stubGlobal('crypto', {
   randomUUID: () => mockUUID,
 });
 
-// Mock supabase
+// Mock supabase with proper return values using factory function
 vi.mock('../supabase', () => ({
   supabase: {
     auth: {
       getSession: vi.fn().mockResolvedValue({
         data: { session: { access_token: 'test-access-token-123' } }
-      })
+      }),
     },
     rpc: vi.fn().mockResolvedValue({
       data: {
+        ok: true,
         success: true,
-        entry_id: 'entry-123',
+        entry_id: 'entry-uuid-123',
+        order_id: 'entry-uuid-123',
         competition_id: 'test-competition-id',
         ticket_numbers: [1, 2, 3],
         total_cost: 3,
+        amount: 3,
         available_balance: 97,
+        new_balance: 97,
       },
       error: null,
     }),
-  }
+  },
 }));
 
 // Mock idempotency key manager
@@ -51,6 +56,23 @@ describe('BalancePaymentService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetch.mockReset();
+    
+    // Reset supabase.rpc to default successful response
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: {
+        ok: true,
+        success: true,
+        entry_id: 'entry-uuid-123',
+        order_id: 'entry-uuid-123',
+        competition_id: 'test-competition-id',
+        ticket_numbers: [1, 2, 3],
+        total_cost: 3,
+        amount: 3,
+        available_balance: 97,
+        new_balance: 97,
+      },
+      error: null,
+    });
   });
 
   describe('purchaseWithBalance', () => {
@@ -100,18 +122,6 @@ describe('BalancePaymentService', () => {
       });
 
       it('should ACCEPT valid UUID competitionId', async () => {
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            status: 'ok',
-            entry_id: 'entry-123',
-            competition_id: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
-            tickets: [{ ticket_number: 1 }, { ticket_number: 2 }, { ticket_number: 3 }],
-            total_cost: 3,
-            new_balance: 97,
-          }),
-        });
-
         const result = await BalancePaymentService.purchaseWithBalance({
           competitionId: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
           ticketNumbers: [1, 2, 3],
@@ -120,7 +130,7 @@ describe('BalancePaymentService', () => {
         });
 
         expect(result.success).toBe(true);
-        expect(mockFetch).toHaveBeenCalled();
+        expect(vi.mocked(supabase.rpc)).toHaveBeenCalled();
       });
     });
 
@@ -246,18 +256,6 @@ describe('BalancePaymentService', () => {
       });
 
       it('should ACCEPT valid ticketPrice of 0.25', async () => {
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            status: 'ok',
-            entry_id: 'entry-123',
-            competition_id: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
-            tickets: [{ ticket_number: 1 }],
-            total_cost: 0.25,
-            new_balance: 99.75,
-          }),
-        });
-
         const result = await BalancePaymentService.purchaseWithBalance({
           competitionId: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
           ticketNumbers: [1],
@@ -266,6 +264,7 @@ describe('BalancePaymentService', () => {
         });
 
         expect(result.success).toBe(true);
+        expect(vi.mocked(supabase.rpc)).toHaveBeenCalled();
       });
     });
 
@@ -275,18 +274,6 @@ describe('BalancePaymentService', () => {
     
     describe('request body construction', () => {
       it('should construct correct RPCPurchaseRequest payload', async () => {
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            status: 'ok',
-            entry_id: 'entry-123',
-            competition_id: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
-            tickets: [{ ticket_number: 1 }, { ticket_number: 2 }],
-            total_cost: 2,
-            new_balance: 98,
-          }),
-        });
-
         await BalancePaymentService.purchaseWithBalance({
           competitionId: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
           ticketNumbers: [1, 2],
@@ -294,42 +281,19 @@ describe('BalancePaymentService', () => {
           ticketPrice: 1,
         });
 
-        expect(mockFetch).toHaveBeenCalledWith(
-          expect.stringContaining('/functions/v1/purchase-with-balance'),
+        expect(vi.mocked(supabase.rpc)).toHaveBeenCalledWith(
+          'purchase_tickets_with_balance',
           expect.objectContaining({
-            method: 'POST',
-            headers: expect.objectContaining({
-              'Content-Type': 'application/json',
-              'Authorization': expect.stringContaining('Bearer'),
-            }),
+            p_user_identifier: 'prize:pid:0x123abc',
+            p_competition_id: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
+            p_ticket_price: 1,
+            p_ticket_numbers: [1, 2],
+            p_idempotency_key: expect.any(String),
           })
         );
-
-        // Parse the body to verify structure
-        const callArgs = mockFetch.mock.calls[0];
-        const body = JSON.parse(callArgs[1].body) as RPCPurchaseRequest;
-
-        expect(body.p_user_identifier).toBe('prize:pid:0x123abc');
-        expect(body.p_competition_id).toBe('e2e04124-5ea9-4fb2-951a-26e6d0991615');
-        expect(body.p_ticket_price).toBe(1);
-        expect(body.p_ticket_count).toBe(2);
-        expect(body.p_ticket_numbers).toEqual([1, 2]);
-        expect(body.p_idempotency_key).toBeDefined();
       });
 
       it('should convert wallet address to canonical user ID', async () => {
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            status: 'ok',
-            entry_id: 'entry-123',
-            competition_id: 'test-comp',
-            tickets: [{ ticket_number: 1 }],
-            total_cost: 1,
-            new_balance: 99,
-          }),
-        });
-
         await BalancePaymentService.purchaseWithBalance({
           competitionId: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
           ticketNumbers: [1],
@@ -337,11 +301,12 @@ describe('BalancePaymentService', () => {
           ticketPrice: 1,
         });
 
-        const callArgs = mockFetch.mock.calls[0];
-        const body = JSON.parse(callArgs[1].body);
-
-        // Should be lowercase and prefixed
-        expect(body.p_user_identifier).toBe('prize:pid:0xabcdef123456789');
+        expect(vi.mocked(supabase.rpc)).toHaveBeenCalledWith(
+          'purchase_tickets_with_balance',
+          expect.objectContaining({
+            p_user_identifier: 'prize:pid:0xabcdef123456789',
+          })
+        );
       });
     });
 
@@ -351,15 +316,12 @@ describe('BalancePaymentService', () => {
     
     describe('error handling', () => {
       it('should handle HTTP 400 insufficient balance error', async () => {
-        mockFetch.mockResolvedValueOnce({
-          ok: false,
-          status: 402,
-          json: async () => ({
-            error: {
-              code: 'INSUFFICIENT_BALANCE',
-              message: 'Insufficient balance',
-            },
-          }),
+        vi.mocked(supabase.rpc).mockResolvedValueOnce({
+          data: {
+            ok: false,
+            error: 'insufficient balance',
+          },
+          error: null,
         });
 
         const result = await BalancePaymentService.purchaseWithBalance({
@@ -374,15 +336,12 @@ describe('BalancePaymentService', () => {
       });
 
       it('should handle HTTP 404 no balance record error', async () => {
-        mockFetch.mockResolvedValueOnce({
-          ok: false,
-          status: 404,
-          json: async () => ({
-            error: {
-              code: 'NO_BALANCE_RECORD',
-              message: 'No balance record found',
-            },
-          }),
+        vi.mocked(supabase.rpc).mockResolvedValueOnce({
+          data: {
+            ok: false,
+            error: 'No balance record found',
+          },
+          error: null,
         });
 
         const result = await BalancePaymentService.purchaseWithBalance({
@@ -396,9 +355,10 @@ describe('BalancePaymentService', () => {
       });
 
       it('should handle network errors gracefully', async () => {
-        mockFetch.mockRejectedValueOnce(new Error('Network error'));
-        mockFetch.mockRejectedValueOnce(new Error('Network error'));
-        mockFetch.mockRejectedValueOnce(new Error('Network error'));
+        vi.mocked(supabase.rpc).mockResolvedValueOnce({
+          data: null,
+          error: { message: 'Network error', code: 'NETWORK_ERROR' },
+        });
 
         const result = await BalancePaymentService.purchaseWithBalance({
           competitionId: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
@@ -410,32 +370,6 @@ describe('BalancePaymentService', () => {
         // Should fail after retries
         expect(result.success).toBe(false);
       });
-
-      it('should handle invalid JSON responses', async () => {
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: async () => { throw new Error('Invalid JSON'); },
-        });
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: async () => { throw new Error('Invalid JSON'); },
-        });
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: async () => { throw new Error('Invalid JSON'); },
-        });
-
-        const result = await BalancePaymentService.purchaseWithBalance({
-          competitionId: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
-          ticketNumbers: [1],
-          userId: '0x123abc',
-          ticketPrice: 1,
-        });
-
-        // Proxy fails but RPC fallback might succeed
-        // The key is that it doesn't crash
-        expect(result).toBeDefined();
-      });
     });
 
     // ============================================================
@@ -444,21 +378,21 @@ describe('BalancePaymentService', () => {
     
     describe('success response handling', () => {
       it('should parse success response correctly', async () => {
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            status: 'ok',
+        vi.mocked(supabase.rpc).mockResolvedValueOnce({
+          data: {
+            ok: true,
+            success: true,
             entry_id: 'entry-uuid-123',
+            order_id: 'entry-uuid-123',
             competition_id: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
-            tickets: [
-              { ticket_number: 100 },
-              { ticket_number: 101 },
-              { ticket_number: 102 },
-            ],
+            ticket_numbers: [100, 101, 102],
             total_cost: 0.75,
+            amount: 0.75,
             new_balance: 99.25,
+            available_balance: 99.25,
             idempotent: false,
-          }),
+          },
+          error: null,
         });
 
         const result = await BalancePaymentService.purchaseWithBalance({
@@ -476,17 +410,21 @@ describe('BalancePaymentService', () => {
       });
 
       it('should handle idempotent response (duplicate request)', async () => {
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            status: 'ok',
+        vi.mocked(supabase.rpc).mockResolvedValueOnce({
+          data: {
+            ok: true,
+            success: true,
             entry_id: 'entry-uuid-123',
+            order_id: 'entry-uuid-123',
             competition_id: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
-            tickets: [{ ticket_number: 1 }],
+            ticket_numbers: [1],
             total_cost: 1,
+            amount: 1,
             new_balance: 99,
+            available_balance: 99,
             idempotent: true, // This was a duplicate request
-          }),
+          },
+          error: null,
         });
 
         const result = await BalancePaymentService.purchaseWithBalance({

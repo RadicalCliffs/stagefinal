@@ -45,6 +45,7 @@ export default defineConfig({
       'swiper',
       'wagmi',
       'viem',
+      'bs58',
     ],
   },
   build: {

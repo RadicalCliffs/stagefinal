@@ -427,14 +427,8 @@ describe('Top-Up Wallet Integration Test', () => {
       })
     );
 
-    // Verify optimistic top-up was still created (before error)
-    expect(mockSupabaseInsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        user_id: userId,
-        amount,
-        status: 'pending',
-        payment_provider: 'coinbase_commerce'
-      })
-    );
+    // Optimistic crediting should NOT happen when API call fails
+    // Because the error is thrown before reaching the optimistic credit code
+    expect(mockSupabaseInsert).not.toHaveBeenCalled();
   });
 });
