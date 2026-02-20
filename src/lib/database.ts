@@ -239,7 +239,7 @@ export const database = {
 
       // Get accurate ticket counts for all competitions in a single batch query
       // This avoids N+1 queries and ensures landing page counters match individual pages
-      const competitionIds = data.map(comp => comp.id || comp.uid).filter(Boolean);
+      const competitionIds = data.map((comp: any) => comp.id || comp.uid).filter(Boolean);
       
       // Fetch ticket counts for all competitions at once using aggregation
       const { data: ticketCounts, error: countError } = (await supabase
@@ -254,14 +254,14 @@ export const database = {
       // Build a map of competition_id -> ticket count
       const ticketCountMap = new Map<string, number>();
       if (ticketCounts) {
-        ticketCounts.forEach(ticket => {
+        ticketCounts.forEach((ticket: any) => {
           const compId = ticket.competition_id;
           ticketCountMap.set(compId, (ticketCountMap.get(compId) || 0) + 1);
         });
       }
 
       // Process image URLs and hydrate ticket progress
-      const processedData = data.map(comp => {
+      const processedData = data.map((comp: any) => {
         const competitionId = comp.id || comp.uid;
         const ticketsSold = ticketCountMap.get(competitionId) || 0;
 
@@ -347,7 +347,7 @@ export const database = {
           // Use RPC to get accurate ticket count - avoids uuid/text type mismatch in OR queries
           // The RPC properly resolves competition ID and handles both UUID and legacy uid formats
           const { data: availability } = (await supabase.rpc('get_competition_ticket_availability_text', {
-            competition_id_text: data.id
+            p_competition_id: data.id
           })) as any;
 
           if (availability && availability.sold_count !== undefined) {
@@ -1189,8 +1189,8 @@ export const database = {
 
     // PERFORMANCE FIX: Batch fetch all competitions and users instead of N+1 queries
     // Extract unique IDs for batch fetching
-    const competitionIds = [...new Set((entryData || []).map(t => t.competition_id || t.competitionid).filter(Boolean))];
-    const walletAddresses = [...new Set((entryData || []).map(t => t.wallet_address).filter(Boolean))];
+    const competitionIds = [...new Set((entryData || []).map((t: any) => t.competition_id || t.competitionid).filter(Boolean))];
+    const walletAddresses = [...new Set((entryData || []).map((t: any) => t.wallet_address).filter(Boolean))];
 
     // Batch fetch competitions (single query instead of N queries)
     const { data: competitionsData } = (competitionIds.length > 0
@@ -1348,7 +1348,7 @@ export const database = {
     // Filter for only monetary ($) or crypto prizes
     // Also include numeric prizes (treat any prize with a valid value as displayable)
     // AND filter out test/fake winner addresses
-    const filteredWinnerData = (winnerData || []).filter((winner) => {
+    const filteredWinnerData = (winnerData || []).filter((winner: any) => {
       // First, filter out fake/test wallet addresses
       if (!isValidWinnerAddress(winner.wallet_address)) return false;
       
@@ -1368,7 +1368,7 @@ export const database = {
     });
 
     // PERFORMANCE FIX: Batch fetch winner user data instead of N+1 queries
-    const winnerIdentifiers = [...new Set(filteredWinnerData.slice(0, 10).map(w => w.wallet_address).filter(Boolean))];
+    const winnerIdentifiers = [...new Set(filteredWinnerData.slice(0, 10).map((w: any) => w.wallet_address).filter(Boolean))];
 
     // Batch fetch winner users (single query instead of N queries)
     // NOTE: wallet_address can be either a plain wallet address OR a canonical_user_id (prize:pid:0x...)
@@ -1578,7 +1578,7 @@ export const database = {
         // Use RPC for accurate sold ticket data - avoids uuid/text type mismatch in OR queries
         // The RPC properly resolves competition ID and handles both UUID and legacy uid formats
         const { data: availability, error: rpcError } = (await supabase.rpc('get_competition_ticket_availability_text', {
-          competition_id_text: competitionId
+          p_competition_id: competitionId
         })) as any;
 
         // If RPC provides sold_tickets array directly, use it
@@ -3187,7 +3187,7 @@ export const database = {
     try {
       // Use the text wrapper RPC to avoid uuid = text type errors
       const { data, error } = (await supabase.rpc('get_competition_ticket_availability_text', {
-        competition_id_text: competitionId.trim()
+        p_competition_id: competitionId.trim()
       })) as any;
 
       if (error) {
@@ -3546,7 +3546,7 @@ export const database = {
       }
 
       const now = new Date();
-      const staleCompetitions = competitions.filter(c => {
+      const staleCompetitions = competitions.filter((c: any) => {
         if (!c.end_date) return false;
         const endDate = new Date(c.end_date);
         return endDate < now;

@@ -714,7 +714,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
       if (!competitionId || typeof competitionId !== 'string' || competitionId.length < 10) {
         console.error('[PaymentModal] ERROR: competitionId is missing or invalid:', competitionId);
-        setError('Internal error: Competition ID is missing. Please refresh and try again.');
+        setErrorMessage('Internal error: Competition ID is missing. Please refresh and try again.');
         setLoading(false);
         return;
       }

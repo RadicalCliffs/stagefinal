@@ -701,9 +701,9 @@ export async function executeBalancePaymentRPC({
     // Call the GODLIKE RPC using the centralized helper
     const { data, error } = await withRetry(
       async () => {
-        return await executeBalancePayment(supabase, {
+        return await executeBalancePaymentRPC({
           competitionId,
-          userIdentifier: userId,
+          userId: userId,
           amount,
           ticketCount,
           selectedTickets: selectedTickets && selectedTickets.length > 0 ? selectedTickets : null,
@@ -853,7 +853,7 @@ export async function finalizeBalancePayment({
     // Call the finalize_purchase RPC using the centralized helper
     const { data, error } = await withRetry(
       async () => {
-        return await finalizePurchase(supabase, {
+        return await finalizeBalancePayment({
           reservationId
         });
       },
