@@ -45,7 +45,7 @@ const WinnerResultsTable = ({ competitionId }: WinnerResultsTableProps) => {
           .from('competitions')
           .select('total_tickets, tickets_sold, vrf_pregenerated_tx_hash, outcomes_vrf_seed')
           .eq('id', competitionId)
-          .maybeSingle();
+          .maybeSingle() as any;
 
         if (compError) {
           console.error('Error fetching competition:', compError);
@@ -59,7 +59,7 @@ const WinnerResultsTable = ({ competitionId }: WinnerResultsTableProps) => {
             const { data: usersData } = await supabase
               .from('canonical_users')
               .select('username, wallet_address')
-              .in('wallet_address', walletAddresses);
+              .in('wallet_address', walletAddresses) as any;
             
             if (usersData) {
               for (const user of usersData) {

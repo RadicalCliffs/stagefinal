@@ -39,7 +39,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
         .from('competitions')
         .select('total_tickets')
         .eq('id', idToUse)
-        .single();
+        .single() as any;
 
       if (!error && data) {
         setTotalTickets((data as any).total_tickets || null);
@@ -225,7 +225,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
               .from('competitions')
               .select('uid')
               .eq('id', idToUse)
-              .single();
+              .single() as any;
 
             if (compData?.uid && compData.uid !== idToUse) {
               const uidStartTime = Date.now();
@@ -484,7 +484,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
               const { data: canonicalUsersData } = await supabase
                 .from('canonical_users')
                 .select('wallet_address, username, canonical_user_id, base_wallet_address')
-                .in('canonical_user_id', canonicalArray);
+                .in('canonical_user_id', canonicalArray) as any;
 
               if (canonicalUsersData && canonicalUsersData.length > 0) {
                 canonicalUsersData.forEach((user: any) => {
@@ -590,7 +590,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
                 .from('pending_tickets')
                 .select('canonical_user_id, wallet_address, user_id, transaction_hash, created_at')
                 .not('transaction_hash', 'is', null)
-                .order('created_at', { ascending: false });
+                .order('created_at', { ascending: false } as any);
 
               if (topUpData && topUpData.length > 0) {
                 // Build map of user identifier -> most recent tx hash

@@ -93,7 +93,7 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
 
       // Primary: Use get_user_balance RPC function (reads from sub_account_balances)
       // The RPC filters on canonical_user_id with case-insensitive LOWER() matching
-      const { data: rpcBalance, error: rpcError } = await supabase.rpc('get_user_balance', {
+      const { data: rpcBalance, error: rpcError } = await (supabase.rpc as any)('get_user_balance', {
         p_canonical_user_id: canonicalUserId
       });
 

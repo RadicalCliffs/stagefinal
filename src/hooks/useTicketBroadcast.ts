@@ -337,7 +337,7 @@ export function useTicketAvailability(options: {
     setIsLoading(true);
     try {
       // Call the text wrapper RPC to get accurate availability - avoids uuid = text type errors
-      const { data, error } = await supabase.rpc('get_competition_ticket_availability_text', {
+      const { data, error } = await (supabase.rpc as any)('get_competition_ticket_availability_text', {
         competition_id_text: competitionId,
       });
 

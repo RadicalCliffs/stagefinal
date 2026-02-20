@@ -70,7 +70,7 @@ export async function tableExists(tableName: string): Promise<boolean> {
       .select('table_name')
       .eq('table_schema', 'public')
       .eq('table_name', tableName)
-      .maybeSingle();
+      .maybeSingle() as any;
 
     return !error && data !== null;
   } catch (err) {
@@ -94,7 +94,7 @@ export async function columnExists(tableName: string, columnName: string): Promi
       .eq('table_schema', 'public')
       .eq('table_name', tableName)
       .eq('column_name', columnName)
-      .maybeSingle();
+      .maybeSingle() as any;
 
     return !error && data !== null;
   } catch (err) {

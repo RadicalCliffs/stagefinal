@@ -129,7 +129,7 @@ export async function getCompetitionUnavailableTickets(
   const unavailableSet = new Set<number>();
 
   try {
-    const { data, error } = await supabase.rpc('get_competition_unavailable_tickets', {
+    const { data, error } = await (supabase.rpc as any)('get_competition_unavailable_tickets', {
       p_competition_id: competitionId
     });
 
@@ -173,7 +173,7 @@ async function allocateBatchWithRetry(
 
   for (let attempt = 0; attempt < MAX_RETRY_ATTEMPTS; attempt++) {
     try {
-      const { data, error } = await supabase.rpc('allocate_lucky_dip_tickets_batch', {
+      const { data, error } = await (supabase.rpc as any)('allocate_lucky_dip_tickets_batch', {
         p_user_id: userId,
         p_competition_id: competitionId,
         p_count: count,
@@ -454,7 +454,7 @@ export async function getAvailableTicketCount(
   error?: string;
 }> {
   try {
-    const { data, error } = await supabase.rpc('get_available_ticket_count_v2', {
+    const { data, error } = await (supabase.rpc as any)('get_available_ticket_count_v2', {
       p_competition_id: competitionId
     });
 

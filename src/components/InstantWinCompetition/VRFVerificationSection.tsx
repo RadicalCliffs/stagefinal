@@ -57,7 +57,7 @@ const VRFVerificationSection: React.FC<VRFVerificationSectionProps> = ({
           .from('competitions')
           .select('outcomes_vrf_seed, randomness_verified_at, vrf_verified')
           .eq('id', lookupId)
-          .maybeSingle();
+          .maybeSingle() as any;
 
         if (byId) {
           compData = byId;
@@ -67,7 +67,7 @@ const VRFVerificationSection: React.FC<VRFVerificationSectionProps> = ({
             .from('competitions')
             .select('outcomes_vrf_seed, randomness_verified_at, vrf_verified')
             .eq('uid', lookupId)
-            .maybeSingle();
+            .maybeSingle() as any;
           compData = byUid;
           compError = byUidError;
         }
@@ -85,7 +85,7 @@ const VRFVerificationSection: React.FC<VRFVerificationSectionProps> = ({
           .from('Prize_Instantprizes')
           .select('winningTicket')
           .eq('competitionId', lookupId)
-          .order('winningTicket', { ascending: true });
+          .order('winningTicket', { ascending: true } as any);
 
         if (!ticketError && ticketData) {
           setWinningTickets(ticketData.map(t => t.winningTicket).filter(Boolean));

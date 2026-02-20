@@ -22,7 +22,7 @@ export async function checkCompetitionSoldOut(competitionId: string): Promise<bo
   try {
     // Call the RPC function that checks and marks sold-out competitions
     // Note: This function is defined in the migration and may not exist yet in all environments
-    const result = await supabase.rpc('check_and_mark_competition_sold_out' as any, {
+    const result = await (supabase.rpc as any)('check_and_mark_competition_sold_out' as any, {
       p_competition_id: competitionId
     }) as { data: any; error: any };
     
@@ -152,7 +152,7 @@ export async function purchaseTicketsWithBalance({
         .select('title')
         .eq('id', competitionId)
         .maybeSingle()
-        .then(({ data: compData }) => {
+        .then(({ data: compData }: any) => {
           const competitionTitle = compData?.title || 'Competition';
           notificationService.notifyEntry(userId, competitionTitle, ticketNumbers, competitionId).catch(err => {
             console.warn('[purchaseTicketsWithBalance] Failed to send entry notification:', err);
@@ -199,7 +199,7 @@ export async function getActiveCompetitions() {
       .from('competitions')
       .select('*')
       .eq('status', 'active')
-      .order('created_at', { ascending: false }) as { data: any; error: any };
+      .order('created_at', { ascending: false } as any) as { data: any; error: any };
     
     const { data, error } = result;
 
@@ -328,7 +328,7 @@ export async function getUserBalance(userId: string) {
 
     // Primary: Use get_user_balance RPC for consistent balance lookups
     // The RPC now checks sub_account_balances, wallet_balances, and canonical_users
-    const { data: rpcBalance, error: rpcError } = await supabase.rpc('get_user_balance', {
+    const { data: rpcBalance, error: rpcError } = await (supabase.rpc as any)('get_user_balance', {
       p_canonical_user_id: canonicalUserId
     });
 
@@ -342,7 +342,7 @@ export async function getUserBalance(userId: string) {
       // get_user_balance returns JSONB object: { success, balance, bonus_balance, total_balance }
       const balanceData = parseBalanceResponse(rpcBalance);
       
-      if (balanceData.balance > 0) {
+      if (balanceData.balance !== undefined && balanceData.balance > 0) {
         return {
           success: true,
           data: {
@@ -404,11 +404,11 @@ export async function getUserBonusStatus(userId: string) {
     const canonicalUserId = toPrizePid(userId);
 
     // Try canonical lookup first
-    let { data, error } = await supabase
+    let { data, error }: any = await supabase
       .from('canonical_users')
       .select('has_used_new_user_bonus, wallet_address')
       .eq('canonical_user_id', canonicalUserId)
-      .maybeSingle();
+      .maybeSingle() as any;
 
     // If no results with canonical, try fallback lookups for legacy data
     if (!error && !data) {
@@ -418,7 +418,7 @@ export async function getUserBonusStatus(userId: string) {
           .from('canonical_users')
           .select('has_used_new_user_bonus, wallet_address')
           .ilike('wallet_address', userId)
-          .maybeSingle();
+          .maybeSingle() as any;
 
         if (walletData) {
           data = walletData;
@@ -429,7 +429,7 @@ export async function getUserBonusStatus(userId: string) {
             .from('canonical_users')
             .select('has_used_new_user_bonus, wallet_address')
             .ilike('base_wallet_address', userId)
-            .maybeSingle();
+            .maybeSingle() as any;
 
           if (baseData) {
             data = baseData;
@@ -442,7 +442,7 @@ export async function getUserBonusStatus(userId: string) {
           .from('canonical_users')
           .select('has_used_new_user_bonus, wallet_address')
           .eq('privy_user_id', userId)
-          .maybeSingle();
+          .maybeSingle() as any;
         data = result.data;
         error = result.error;
       }
@@ -647,7 +647,7 @@ export async function executeBalancePaymentRPC({
   selectedTickets?: number[];
   idempotencyKey?: string;
   reservationId?: string | null;
-}) {
+}): Promise<any> {
   // Validate required fields
   if (!userId || typeof userId !== 'string' || userId.trim() === '') {
     console.error('[executeBalancePaymentRPC] Invalid userId provided:', userId);
@@ -699,14 +699,14 @@ export async function executeBalancePaymentRPC({
     });
 
     // Call the GODLIKE RPC using the centralized helper
-    const { data, error } = await withRetry(
-      async () => {
+    const { data, error }: any = await withRetry(
+      async (): Promise<any> => {
         return await executeBalancePaymentRPC({
           competitionId,
           userId: userId,
           amount,
           ticketCount,
-          selectedTickets: selectedTickets && selectedTickets.length > 0 ? selectedTickets : null,
+          selectedTickets: selectedTickets && selectedTickets.length > 0 ? selectedTickets : undefined,
           idempotencyKey: finalIdempotencyKey,
           reservationId: reservationId || null
         });
@@ -851,8 +851,8 @@ export async function finalizeBalancePayment({
     });
 
     // Call the finalize_purchase RPC using the centralized helper
-    const { data, error } = await withRetry(
-      async () => {
+    const { data, error }: any = await withRetry(
+      async (): Promise<any> => {
         return await finalizeBalancePayment({
           reservationId
         });

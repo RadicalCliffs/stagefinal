@@ -474,11 +474,11 @@ export class BaseAccountPaymentService {
     error?: string;
   }> {
     try {
-      const { data, error } = await supabase
+      const { data, error }: any = await supabase
         .from('user_transactions')
         .select('status, tx_id, payment_status')
         .eq('id', transactionId)
-        .single();
+        .single() as any;
 
       if (error) {
         throw error;
@@ -519,12 +519,12 @@ export class BaseAccountPaymentService {
       const canonicalUserId = toPrizePid(userId);
       const normalizedWallet = normalizeWalletAddress(userId);
 
-      const { data, error } = await supabase
+      const { data, error }: any = await supabase
         .from('user_transactions')
         .select('*')
         .eq('competition_id', competitionId)
         .or(`user_id.eq.${canonicalUserId},wallet_address.ilike.${normalizedWallet || userId}`)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false } as any);
 
       if (error) {
         throw error;
@@ -545,7 +545,7 @@ export class BaseAccountPaymentService {
       const canonicalUserId = toPrizePid(userId);
       const normalizedWallet = normalizeWalletAddress(userId);
 
-      const { data, error } = await supabase
+      const { data, error }: any = await supabase
         .from('user_transactions')
         .select(`
           *,
@@ -557,7 +557,7 @@ export class BaseAccountPaymentService {
           )
         `)
         .or(`user_id.eq.${canonicalUserId},wallet_address.ilike.${normalizedWallet || userId}`)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false } as any);
 
       if (error) {
         throw error;

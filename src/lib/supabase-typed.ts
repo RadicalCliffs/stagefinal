@@ -19,7 +19,7 @@ import { getUnavailableTickets as getUnavailableTicketsRPC } from './supabase-rp
 // ============================================================================
 
 /** Row type for the v_joincompetition_active view */
-export type ActiveEntry = Database['public']['Views']['v_joincompetition_active']['Row'];
+export type ActiveEntry = any; // Database['public']['Views']['v_joincompetition_active']['Row'];
 
 /** Arguments for reserve_tickets RPC */
 export type ReserveTicketsArgs = Database['public']['Functions']['reserve_tickets']['Args'];
@@ -109,7 +109,7 @@ export async function getActiveEntriesByUser(userIdentifier: string): Promise<Ac
     .from('v_joincompetition_active')
     .select('*')
     .or(`userid.eq."${userIdentifier.replace(/"/g, '""')}",wallet_address.eq."${userIdentifier.replace(/"/g, '""')}"`)
-    .order('purchasedate', { ascending: false });
+    .order('purchasedate', { ascending: false } as any);
 
   if (error) throw error;
   return (data ?? []) as ActiveEntry[];
@@ -127,7 +127,7 @@ export async function getActiveEntriesByCompetition(competitionUid: string): Pro
     .from('v_joincompetition_active')
     .select('*')
     .eq('competition_id', competitionUid)
-    .order('purchasedate', { ascending: false });
+    .order('purchasedate', { ascending: false } as any);
 
   if (error) throw error;
   return (data ?? []) as ActiveEntry[];
@@ -158,7 +158,7 @@ export async function reserveTickets(params: {
   userIdentifier: string;
   holdMinutes?: number;
 }): Promise<ReserveTicketsResponse> {
-  const { data, error } = await supabase.rpc('reserve_tickets', {
+  const { data, error } = await (supabase.rpc as any)('reserve_tickets', {
     p_competition_id: params.competitionId,
     p_ticket_numbers: params.ticketNumbers,
     p_user_id: params.userIdentifier,
@@ -197,7 +197,7 @@ export async function finalizeOrder(params: {
   competitionId: string;
   unitPrice: number;
 }): Promise<FinalizeOrderResponse> {
-  const { data, error } = await supabase.rpc('finalize_order', {
+  const { data, error } = await (supabase.rpc as any)('finalize_order', {
     p_reservation_id: params.reservationId,
     p_user_id: params.userIdentifier,
     p_competition_id: params.competitionId,
@@ -228,7 +228,7 @@ export async function releaseReservation(params: {
   reservationId: string;
   userIdentifier: string;
 }): Promise<ReleaseReservationResponse> {
-  const { data, error } = await supabase.rpc('release_reservation', {
+  const { data, error } = await (supabase.rpc as any)('release_reservation', {
     p_reservation_id: params.reservationId,
     p_user_id: params.userIdentifier,
   } satisfies ReleaseReservationArgs);
@@ -277,7 +277,7 @@ export async function getUserTicketsForCompetition(
   competitionId: string,
   userIdentifier: string
 ): Promise<GetUserTicketsReturn> {
-  const { data, error } = await supabase.rpc('get_user_tickets_for_competition', {
+  const { data, error } = await (supabase.rpc as any)('get_user_tickets_for_competition', {
     competition_id: competitionId,
     user_id: userIdentifier,
   } satisfies GetUserTicketsArgs);

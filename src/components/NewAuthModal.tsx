@@ -169,7 +169,7 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
         .from('canonical_users')
         .select('id, username, email, wallet_address, base_wallet_address')
         .ilike('username', username)
-        .maybeSingle();
+        .maybeSingle() as any;
 
       if (queryError) throw queryError;
 
@@ -229,14 +229,14 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
         .from('canonical_users')
         .select('id, username, email')
         .ilike('email', email.trim())
-        .maybeSingle();
+        .maybeSingle() as any;
 
       // Check for existing username (only if different from email check result)
       const { data: usernameData } = await supabase
         .from('canonical_users')
         .select('id, username, email')
         .ilike('username', username.trim())
-        .maybeSingle();
+        .maybeSingle() as any;
 
       // Both email and username exist for different accounts
       if (emailData && usernameData && emailData.id !== usernameData.id) {

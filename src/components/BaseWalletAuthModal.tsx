@@ -147,7 +147,7 @@ async function linkWalletToExistingUser(
       .from('canonical_users')
       .select('email, canonical_user_id, username')
       .or(`base_wallet_address.ilike.${walletAddress},wallet_address.ilike.${walletAddress},eth_wallet_address.ilike.${walletAddress}`)
-      .maybeSingle() as { data: any; error: any };
+      .maybeSingle() as any as { data: any; error: any };
     
     if (!walletCheckError && walletUser && walletUser.email && walletUser.email.toLowerCase() !== normalizedEmail) {
       // Wallet is already linked to a different email account
@@ -201,7 +201,7 @@ async function linkWalletToExistingUser(
         .from('canonical_users')
         .select('id, uid, canonical_user_id, username, email, country, first_name, last_name')
         .eq('uid', pendingSignupUid)
-        .maybeSingle() as { data: any; error: any };
+        .maybeSingle() as any as { data: any; error: any };
       
       existingUser = result.data;
       fetchError = result.error;
@@ -218,7 +218,7 @@ async function linkWalletToExistingUser(
         .from('canonical_users')
         .select('id, uid, canonical_user_id, username, email, country, first_name, last_name')
         .ilike('email', normalizedEmail)
-        .maybeSingle() as { data: any; error: any };
+        .maybeSingle() as any as { data: any; error: any };
       
       existingUser = result.data;
       fetchError = result.error;
@@ -241,9 +241,9 @@ async function linkWalletToExistingUser(
           base_wallet_address: walletAddress.toLowerCase(),
           eth_wallet_address: walletAddress.toLowerCase(),
           privy_user_id: walletAddress,
-          wallet_linked: true as any,
+          wallet_linked: true,
           auth_provider: 'cdp',
-        })
+        } as any)
         .eq('id', existingUser.id);
 
       if (updateError) {
@@ -327,7 +327,7 @@ async function linkWalletToExistingUser(
       .from('canonical_users')
       .select('id, username, email, country, first_name, last_name')
       .or(`wallet_address.ilike.${walletAddress.toLowerCase()},base_wallet_address.ilike.${walletAddress.toLowerCase()}`)
-      .maybeSingle();
+      .maybeSingle() as any;
 
     if (existingByWallet) {
       console.log('[BaseWallet] Found user by wallet address:', existingByWallet.id);
@@ -345,7 +345,7 @@ async function linkWalletToExistingUser(
 
       const { error: updateError } = await supabase
         .from('canonical_users')
-        .update(updates)
+        .update(updates as any)
         .eq('id', existingByWallet.id);
 
       if (updateError) {
@@ -481,7 +481,7 @@ async function saveUserWithProfile(email: string, walletAddress: string, profile
       .from('canonical_users')
       .select('id')
       .ilike('email', normalizedEmail)
-      .maybeSingle();
+      .maybeSingle() as any;
 
     let saveSuccess = false;
     let userId: string | null = null;
@@ -489,7 +489,7 @@ async function saveUserWithProfile(email: string, walletAddress: string, profile
     if (existingUser) {
       // Update existing user
       userId = existingUser.id;
-      const { error } = await supabase
+      const { error }: any = await supabase
         .from('canonical_users')
         .update({
           wallet_address: walletAddress.toLowerCase(),
@@ -534,7 +534,7 @@ async function saveUserWithProfile(email: string, walletAddress: string, profile
           created_at: new Date().toISOString(),
         })
         .select('id')
-        .single();
+        .single() as any;
 
       if (error && error.code !== '23505') {
         console.error('[BaseWallet] Error creating user:', error);

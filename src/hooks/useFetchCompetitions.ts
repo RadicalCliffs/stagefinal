@@ -178,7 +178,7 @@ export function useCompetitions() {
     // Verify update with server and rollback on failure
     supabase
       .from('competitions')
-      .update({ status: newStatus })
+      .update({ status: newStatus } as any)
       .eq('id', competitionId)
       .then(({ error }) => {
         if (error) {

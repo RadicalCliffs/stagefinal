@@ -142,7 +142,7 @@ export async function resolveUserIdentity(identifier: string | null | undefined)
         .from('canonical_users')
         .select('*')
         .or(`canonical_user_id.eq.${canonicalId},wallet_address.ilike.${normalizedAddress},base_wallet_address.ilike.${normalizedAddress}`)
-        .order('created_at', { ascending: false }) // Get the most recent record if duplicates exist
+        .order('created_at', { ascending: false } as any) // Get the most recent record if duplicates exist
         .limit(1);
 
       data = result.data?.[0] || null;
@@ -170,7 +170,7 @@ export async function resolveUserIdentity(identifier: string | null | undefined)
             .from('canonical_users')
             .select('*')
             .or(`canonical_user_id.eq.${trimmedId},wallet_address.ilike.${normalizedAddress},base_wallet_address.ilike.${normalizedAddress}`)
-            .order('created_at', { ascending: false })
+            .order('created_at', { ascending: false } as any)
             .limit(1);
 
           data = result.data?.[0] || null;
@@ -486,7 +486,7 @@ export async function fetchUserEntriesWithIdentity(identifier: string): Promise<
         )
       `)
       .or(filter)
-      .order('purchasedate', { ascending: false });
+      .order('purchasedate', { ascending: false } as any);
 
     if (error) {
       console.error('Error fetching user entries:', error);
@@ -525,7 +525,7 @@ export async function fetchUserTransactionsWithIdentity(identifier: string): Pro
       .from('user_transactions')
       .select('*')
       .or(filter)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false } as any);
 
     if (error) {
       console.error('Error fetching user transactions:', error);
@@ -557,7 +557,7 @@ export async function fetchPendingTicketsWithIdentity(identifier: string): Promi
     let data: any[] | null = null;
     let error: any = null;
 
-    const { data: standardData, error: standardError } = await supabase.rpc(
+    const { data: standardData, error: standardError } = await (supabase.rpc as any)(
       'get_user_pending_tickets' as any,
       { user_identifier: identity.primaryId }
     );
@@ -567,7 +567,7 @@ export async function fetchPendingTicketsWithIdentity(identifier: string): Promi
     } else {
       // Fallback to bypass_rls version if standard fails
       console.warn('[fetchPendingTicketsWithIdentity] Standard RPC not available, trying bypass_rls');
-      const { data: bypassData, error: bypassError } = await supabase.rpc(
+      const { data: bypassData, error: bypassError } = await (supabase.rpc as any)(
         'get_user_pending_tickets_bypass_rls' as any,
         { user_identifier: identity.primaryId }
       );
@@ -592,7 +592,7 @@ export async function fetchPendingTicketsWithIdentity(identifier: string): Promi
         .or(filter)
         .eq('status', 'pending')
         .gt('expires_at', new Date().toISOString())
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false } as any);
 
       if (fallbackError) {
         console.error('Error fetching pending tickets (fallback):', fallbackError);

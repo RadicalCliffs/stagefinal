@@ -228,7 +228,7 @@ class OmnipotentDataService {
         .from('competitions')
         .select('*')
         .eq('deleted', false)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false } as any);
 
       if (status) {
         query = query.eq('status', status);
@@ -236,7 +236,7 @@ class OmnipotentDataService {
 
       const result = await query as { data: any; error: any };
       
-      const { data, error } = result;
+      const { data, error }: any = result;
 
       if (error) throw error;
 
@@ -271,7 +271,7 @@ class OmnipotentDataService {
         .eq('id', competitionId)
         .single() as { data: any; error: any };
       
-      const { data, error } = result;
+      const { data, error }: any = result;
 
       if (error) throw error;
 
@@ -343,7 +343,7 @@ class OmnipotentDataService {
 
     try {
       // Use the comprehensive RPC function
-      const { data, error } = await getDashboardEntries(supabase, identity.canonicalUserId);
+      const { data, error }: any = await getDashboardEntries(supabase, identity.canonicalUserId);
 
       if (error) throw error;
 
@@ -693,7 +693,7 @@ class OmnipotentDataService {
       .from('competitions')
       .select('total_tickets')
       .eq('id', competitionId)
-      .single();
+      .single() as any;
     
     const totalTickets = competition?.total_tickets || 0;
 
@@ -819,7 +819,7 @@ class OmnipotentDataService {
         .from('competitions')
         .select('id, uid, status, total_tickets, end_date')
         .eq('id', competitionId)
-        .single();
+        .single() as any;
 
       if (compError || !competition) {
         return { success: false, error: 'Competition not found' };
@@ -853,10 +853,10 @@ class OmnipotentDataService {
         .from('pending_tickets')
         .select('ticket_numbers, user_id, expires_at')
         .eq('competition_id', competitionId)
-        .in('status', ['pending', 'confirming']);
+        .in('status', ['pending', 'confirming']) as any;
 
       if (pendingData) {
-        pendingData.forEach((row) => {
+        pendingData.forEach((row: any) => {
           const normalizedRowUserId = ((row as any).user_id || '').toLowerCase();
           // Exclude the current user's own expired reservations
           if (normalizedRowUserId === normalizedUserId && (row as any).expires_at && new Date((row as any).expires_at) < now) {
@@ -913,7 +913,7 @@ class OmnipotentDataService {
           status: 'pending',
           expires_at: expiresAt.toISOString(),
           created_at: new Date().toISOString()
-        });
+        } as any);
 
       if (insertError) {
         // Check for unique constraint violation (race condition)
@@ -1066,7 +1066,7 @@ class OmnipotentDataService {
   ): Promise<{ data: T | null; error: any }> {
     if (!this.aggressiveMode || !hasAdminAccess()) {
       // Fallback to regular insert
-      return await supabase.from(table).insert(data).select().single() as any;
+      return await supabase.from(table).insert(data as any).select().single() as any;
     }
 
     return await aggressiveCRUD.insert<T>(table, data, {
@@ -1085,7 +1085,7 @@ class OmnipotentDataService {
   ): Promise<{ data: T | null; error: any }> {
     if (!this.aggressiveMode || !hasAdminAccess()) {
       // Fallback to regular update
-      let query = supabase.from(table).update(data);
+      let query: any = (supabase.from(table) as any).update(data);
       Object.entries(filters).forEach(([key, value]) => {
         query = query.eq(key, value);
       });

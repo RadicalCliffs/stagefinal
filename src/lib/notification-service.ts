@@ -422,7 +422,7 @@ export const notificationService = {
 
     const insertResult = await supabase
       .from('user_notifications')
-      .insert(notifications) as { data: any; error: any };
+      .insert(notifications as any) as { data: any; error: any };
     
     const { error } = insertResult;
 
@@ -509,7 +509,7 @@ export const notificationService = {
       );
 
       // Fetch user transactions using RPC
-      const txResult = await supabase.rpc('get_user_transactions', {
+      const txResult = await (supabase.rpc as any)('get_user_transactions', {
         user_identifier: toPrizePid(userId),
       }) as { data: any; error: any };
       
@@ -575,7 +575,7 @@ export const notificationService = {
       // Fetch user entries using RPC (with fallback for when RPC is not available)
       let entries: any[] = [];
       try {
-        const entryRpcResult = await supabase.rpc('get_user_tickets', {
+        const entryRpcResult = await (supabase.rpc as any)('get_user_tickets', {
           user_identifier: toPrizePid(userId),
         }) as { data: any; error: any };
         

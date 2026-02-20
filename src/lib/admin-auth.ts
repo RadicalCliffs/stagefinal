@@ -24,7 +24,7 @@ export async function isAdmin(walletAddress: string): Promise<boolean> {
       .from('canonical_users')
       .select('is_admin')
       .ilike('wallet_address', walletAddress)
-      .maybeSingle();
+      .maybeSingle() as any;
 
     if (error) {
       console.error('[AdminAuth] Error checking admin status:', error);
@@ -49,7 +49,7 @@ export async function getAdminUser(walletAddress: string): Promise<AdminUser | n
       .from('canonical_users')
       .select('id, email, wallet_address, is_admin')
       .ilike('wallet_address', walletAddress)
-      .maybeSingle();
+      .maybeSingle() as any;
 
     if (error) {
       console.error('[AdminAuth] Error fetching admin user:', error);

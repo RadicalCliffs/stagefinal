@@ -44,7 +44,7 @@ export async function getCompetitionWinners(competitionId: string): Promise<Winn
       `)
       .eq('competition_id', competitionId)
       .eq('is_winner', true)
-      .order('won_at', { ascending: true });
+      .order('won_at', { ascending: true } as any);
 
     if (error) {
       console.error('[AdminService] Error fetching competition winners:', error);
@@ -75,7 +75,7 @@ export async function checkUserWinner(
       .eq('canonical_user_id', userId)
       .eq('competition_id', competitionId)
       .eq('is_winner', true)
-      .maybeSingle();
+      .maybeSingle() as any;
 
     if (error) {
       console.error('[AdminService] Error checking user winner status:', error);
@@ -129,7 +129,7 @@ export async function getWinnersByCompetition(): Promise<Array<{
     const { data: winners, error: winnersError } = await supabase
       .from('winners')
       .select('competition_id, won_at, competitions(id, title, vrf_tx_hash)')
-      .eq('is_winner', true);
+      .eq('is_winner', true) as any;
 
     if (winnersError) throw winnersError;
 

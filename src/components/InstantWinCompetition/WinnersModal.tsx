@@ -60,8 +60,8 @@ const WinnersModal: React.FC<WinnersModalProps> = ({
           .from('Prize_Instantprizes')
           .select('winningTicket, prize, priority, winningWalletAddress, claimed_at')
           .eq('competitionId', lookupId)
-          .order('priority', { ascending: true })
-          .order('winningTicket', { ascending: true });
+          .order('priority', { ascending: true } as any)
+          .order('winningTicket', { ascending: true } as any);
 
         if (!error && data) {
           const winnerEntries: WinnerEntry[] = data.map(item => ({

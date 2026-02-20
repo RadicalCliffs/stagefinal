@@ -564,7 +564,7 @@ export const userAuth = {
       .from('canonical_users')
       .insert(newUser)
       .select()
-      .single();
+      .single() as any;
 
     if (createError) {
       // Handle unique constraint violation - user may have been created concurrently

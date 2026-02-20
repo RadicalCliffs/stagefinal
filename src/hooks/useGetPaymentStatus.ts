@@ -223,7 +223,7 @@ export function usePaymentStatus(onOpen: () => void) {
               .from('user_transactions')
               .select('id, status, payment_status, amount, currency, created_at, updated_at, competition_id, ticket_count, user_id')
               .eq('id', txId)
-              .maybeSingle();
+              .maybeSingle() as any;
 
             if (error) {
               console.error('Error fetching transaction by txId:', error);
@@ -279,7 +279,7 @@ export function usePaymentStatus(onOpen: () => void) {
             let query = supabase
               .from('user_transactions')
               .select('id, status, payment_status, amount, currency, created_at, updated_at, competition_id, ticket_count, user_id')
-              .order('created_at', { ascending: false })
+              .order('created_at', { ascending: false } as any)
               .limit(1);
 
             if (orderId) {
@@ -288,7 +288,7 @@ export function usePaymentStatus(onOpen: () => void) {
               query = query.eq('tx_id', npId);
             }
 
-            const { data: transaction, error } = await query.maybeSingle();
+            const { data: transaction, error } = await query.maybeSingle() as any;
 
             if (error) {
               console.error('Error fetching transaction:', error);

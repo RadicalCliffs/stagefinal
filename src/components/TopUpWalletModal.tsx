@@ -236,7 +236,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
             .from('user_transactions')
             .insert({
               id: transactionId,
-              user_id: toCanonicalUserId(baseUser.id),
+              user_id: toCanonicalUserId(baseUser.id as any),
               amount: amount,
               currency: 'USD',
               payment_status: 'pending',

@@ -233,7 +233,7 @@ export class CoinbaseCommerceService {
       `prize:pid:${userId}`;
 
     // Insert into pending_topups table - webhook will confirm and move to available_balance
-    const { error } = await (supabase as any)
+    const { error }: any = await (supabase as any)
       .from('pending_topups')
       .insert({
         user_id: userId,
@@ -387,7 +387,7 @@ export class CoinbaseCommerceService {
       `prize:pid:${userId}`;
 
     // Insert into pending_tickets - webhook will confirm and create actual tickets
-    const { error } = await supabase
+    const { error }: any = await supabase
       .from('pending_tickets')
       .insert({
         user_id: userId,
@@ -428,11 +428,11 @@ export class CoinbaseCommerceService {
    */
   static async getTransactionStatus(transactionId: string): Promise<string | null> {
     try {
-      const { data, error } = await supabase
+      const { data, error }: any = await supabase
         .from('user_transactions')
         .select('status, payment_status')
         .eq('id', transactionId)
-        .single();
+        .single() as any;
 
       if (error) {
         return null;

@@ -315,7 +315,7 @@ export class CompetitionLifecycleService {
       `fetch entries for ${competitionId}`
     ) as { data: any; error: any };
     
-    const { data, error } = result;
+    const { data, error }: any = result;
 
     if (error) {
       safeError('[Competition Lifecycle] Error fetching entries', error);
@@ -398,7 +398,7 @@ export class CompetitionLifecycleService {
         'create winner record'
       ) as { data: any; error: any };
       
-      const { error } = winnerInsertResult;
+      const { error }: any = winnerInsertResult;
 
       if (error) {
         safeError('[Competition Lifecycle] Error creating winner', error);
@@ -428,7 +428,7 @@ export class CompetitionLifecycleService {
       'mark competition as drawn'
     ) as { data: any; error: any };
     
-    const { error } = updateResult;
+    const { error }: any = updateResult;
 
     if (error) {
       safeError('[Competition Lifecycle] Error marking competition as drawn', error);

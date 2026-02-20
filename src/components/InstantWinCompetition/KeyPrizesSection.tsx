@@ -176,7 +176,7 @@ const KeyPrizesSection: React.FC<KeyPrizesSectionProps> = ({
           .select('UID, winningTicket, prize, url, description, priority, winningWalletAddress')
           .eq('competitionId', lookupId)
           .lte('priority', MAJOR_PRIZE_COUNT)
-          .order('priority', { ascending: true });
+          .order('priority', { ascending: true } as any);
 
         if (!error && data) {
           // Store the full prize data

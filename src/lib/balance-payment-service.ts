@@ -417,7 +417,7 @@ export class BalancePaymentService {
 
       try {
         console.log('[BalancePayment] Calling purchase_tickets_with_balance RPC directly...');
-        const { data: rpcData, error: rpcError } = await supabase.rpc(
+        const { data: rpcData, error: rpcError } = await (supabase.rpc as any)(
           'purchase_tickets_with_balance',
           {
             p_user_identifier: canonicalUserId,
