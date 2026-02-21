@@ -54,8 +54,12 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
   const userUidRef = useRef<string | null>(null);
   // Track when a payment event updated the balance - prevent DB overwrites during cooldown
   const lastEventUpdateRef = useRef<number>(0);
+  // Debounce timer for real-time events to prevent balance jumping
+  const fetchDebounceRef = useRef<NodeJS.Timeout | null>(null);
   // Cooldown period (10 seconds) to let DB replicate before allowing DB reads
   const EVENT_COOLDOWN_MS = 10000;
+  // Debounce delay for real-time events (prevents rapid-fire balance updates)
+  const FETCH_DEBOUNCE_MS = 2000;
   
   // Optimistic UI state for pending top-ups
   const [optimisticBalance, setOptimisticBalance] = useState<number | null>(null);
@@ -231,6 +235,17 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
     }
   }, [userId]);
 
+  // Debounced version of fetchBalance for real-time events
+  // Prevents rapid-fire balance updates that cause the UI to jump
+  const debouncedFetchBalance = useCallback(() => {
+    if (fetchDebounceRef.current) {
+      clearTimeout(fetchDebounceRef.current);
+    }
+    fetchDebounceRef.current = setTimeout(() => {
+      fetchBalance();
+    }, FETCH_DEBOUNCE_MS);
+  }, [fetchBalance]);
+
   useEffect(() => {
     if (!userId) return;
 
@@ -280,7 +295,7 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
 
           if (matchesUserId || matchesCanonical || matchesPrivyId) {
             console.log('[RealTimeBalance] sub_account_balances update detected:', payload.eventType);
-            fetchBalance();
+            debouncedFetchBalance();
           }
         }
       )
@@ -311,7 +326,7 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
 
           if (matchesUid || matchesWallet || matchesBaseWallet || matchesPrivyId || matchesCanonical) {
             console.log('[RealTimeBalance] canonical_users update detected:', payload.eventType);
-            fetchBalance();
+            debouncedFetchBalance();
           }
         }
       )
@@ -341,7 +356,7 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
 
           if (matchesUserId || matchesCanonical || matchesWallet || matchesBaseWallet) {
             console.log('[RealTimeBalance] wallet_balances update detected:', payload.eventType);
-            fetchBalance();
+            debouncedFetchBalance();
           }
         }
       )
@@ -370,7 +385,7 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
 
           if (matchesUid || matchesWallet) {
             console.log('[RealTimeBalance] Balance ledger entry detected:', record.source, record.amount);
-            fetchBalance();
+            debouncedFetchBalance();
           }
         }
       )
@@ -407,10 +422,10 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
             
             if (isCompleted) {
               console.log('[RealTimeBalance] Transaction completed, refreshing balance');
-              fetchBalance();
+              debouncedFetchBalance();
             } else if (isPendingTopUp) {
               console.log('[RealTimeBalance] New pending top-up transaction created, refreshing for UI update');
-              fetchBalance();
+              debouncedFetchBalance();
             }
           }
         }
@@ -439,7 +454,7 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
 
           if (matchesWallet || matchesUserId) {
             console.log('[RealTimeBalance] New entry, refreshing balance');
-            fetchBalance();
+            debouncedFetchBalance();
           }
         }
       )
