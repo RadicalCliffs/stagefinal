@@ -11,13 +11,14 @@ interface BalanceHealthState {
 }
 
 /**
- * Hook to monitor balance synchronization health between canonical_users.usdc_balance
- * and sub_account_balances.available_balance.
+ * Hook to verify balance consistency.
  * 
-/*
-Detects discrepancies and flags an error state for backend reconciliation.
-Race conditions may occur; automatic sync is disabled.
-Balance synchronization is handled via database triggers. /
+ * After the balance system unification (2026-02-21), there is only ONE source of truth:
+ * - sub_account_balances.available_balance (currency='USD')
+ * - canonical_users.available_balance is synced via trigger
+ * 
+ * This hook now verifies the balance is readable and returns 'healthy' status.
+ * Discrepancies should not occur with the unified system.
  */
 export function useBalanceHealthCheck(canonicalUserId: string | null): BalanceHealthState & {
   checkNow: () => Promise<void>;
@@ -40,9 +41,9 @@ export function useBalanceHealthCheck(canonicalUserId: string | null): BalanceHe
       const [canonicalResult, subAccountResult] = await Promise.all([
         supabase
           .from('canonical_users')
-          .select('usdc_balance')
+          .select('available_balance')
           .eq('canonical_user_id', canonicalId)
-          .maybeSingle<{ usdc_balance: number }>(),
+          .maybeSingle<{ available_balance: number }>(),
         supabase
           .from('sub_account_balances')
           .select('available_balance')
@@ -65,7 +66,7 @@ export function useBalanceHealthCheck(canonicalUserId: string | null): BalanceHe
         return;
       }
 
-      const canonicalBalance = Number(canonicalResult.data?.usdc_balance || 0);
+      const canonicalBalance = Number(canonicalResult.data?.available_balance || 0);
       const subAccountBalance = Number(subAccountResult.data?.available_balance || 0);
       const diff = Math.abs(canonicalBalance - subAccountBalance);
 
@@ -73,19 +74,13 @@ export function useBalanceHealthCheck(canonicalUserId: string | null): BalanceHe
       setLastCheck(new Date());
 
       if (diff > 0.01) {
-        // Balances are out of sync
+        // Balances are out of sync - should not happen with unified system
         console.warn('[BalanceHealthCheck] Balance discrepancy detected:', {
           canonical: canonicalBalance,
           subAccount: subAccountBalance,
           difference: diff,
         });
-// Mark as error; manual intervention or backend reconciliation required.
-// Automatic sync is disabled (sync_user_balances does not exist).
-// sync_all_user_balances affects ALL users and should only be run manually.
-// Balance reconciliation occurs via database triggers on sub_account_balances changes.
-// Back off polling to reduce pressure during discrepancy states.
-setStatus('error');
-// 60s backoff when discrepancy detected
+        setStatus('error');
       } else {
         // Balances are in sync
         setStatus('healthy');

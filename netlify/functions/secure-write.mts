@@ -322,7 +322,7 @@ async function handleCreateTransaction(
     competition_id,
     ticket_count,
     amount,
-    currency: "USDC",
+    currency: "USD",
     network: finalNetwork,
     payment_provider: finalPaymentProvider,
     status: "pending",

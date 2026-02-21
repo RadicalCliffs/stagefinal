@@ -135,12 +135,12 @@ Deno.serve(async (req: Request) => {
           telephone_number,
           wallet_address: effectiveWalletAddress,
           base_wallet_address: effectiveWalletAddress,
-          usdc_balance: 0,
+          available_balance: 0,
           has_used_new_user_bonus: false,
         },
         { onConflict: "canonical_user_id" }  // Use canonical_user_id as conflict key
       )
-      .select("canonical_user_id, privy_user_id, email, username, avatar_url, usdc_balance, has_used_new_user_bonus, wallet_address")
+      .select("canonical_user_id, privy_user_id, email, username, avatar_url, available_balance, has_used_new_user_bonus, wallet_address")
       .maybeSingle();
 
     if (upsertErr) {

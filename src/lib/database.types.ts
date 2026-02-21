@@ -286,7 +286,7 @@ export interface Database {
           eth_wallet_address: string | null
           username: string | null
           avatar_url: string | null
-          usdc_balance: number
+          available_balance: number
           bonus_balance: number
           has_used_new_user_bonus: boolean
           created_at: string
@@ -313,7 +313,7 @@ export interface Database {
           eth_wallet_address?: string | null
           username?: string | null
           avatar_url?: string | null
-          usdc_balance?: number
+          available_balance?: number
           bonus_balance?: number
           has_used_new_user_bonus?: boolean
           created_at?: string
@@ -340,7 +340,7 @@ export interface Database {
           eth_wallet_address?: string | null
           username?: string | null
           avatar_url?: string | null
-          usdc_balance?: number
+          available_balance?: number
           bonus_balance?: number
           has_used_new_user_bonus?: boolean
           created_at?: string

@@ -401,7 +401,7 @@ export default async (request: Request, context: Context): Promise<Response> => 
           wallet_address: normalizedWallet,
           competition_id: null, // Top-up has no competition
           amount: creditAmount,
-          currency: "USDC",
+          currency: "USD",
           network: "base",
           payment_provider: "instant_wallet_topup",
           status: "completed",

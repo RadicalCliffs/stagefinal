@@ -347,7 +347,7 @@ export async function getUserBalance(userId: string) {
         return {
           success: true,
           data: {
-            usdc_balance: balanceData.balance
+            available_balance: balanceData.balance
           }
         };
       }
@@ -373,7 +373,7 @@ export async function getUserBalance(userId: string) {
         return {
           success: true,
           data: {
-            usdc_balance: Number(record.available_balance) || 0
+            available_balance: Number(record.available_balance) || 0
           }
         };
       }
@@ -385,14 +385,14 @@ export async function getUserBalance(userId: string) {
     return {
       success: true,
       data: {
-        usdc_balance: 0
+        available_balance: 0
       }
     };
   } catch (err) {
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Failed to load balance',
-      data: { usdc_balance: 0 }
+      data: { available_balance: 0 }
     };
   }
 }

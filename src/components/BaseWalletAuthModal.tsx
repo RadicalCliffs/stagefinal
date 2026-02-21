@@ -527,7 +527,7 @@ async function saveUserWithProfile(email: string, walletAddress: string, profile
           avatar_url: profile.avatar || userDataService.getDefaultAvatar(),
           telephone_number: profile.mobile || null,
           telegram_handle: profile.socialProfiles || null,
-          usdc_balance: 0,
+          available_balance: 0,
           has_used_new_user_bonus: false as any,
           wallet_linked: true as any,
           auth_provider: 'cdp',
