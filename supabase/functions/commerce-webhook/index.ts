@@ -375,7 +375,7 @@ Deno.serve(async (req: Request) => {
                 transaction_hash: txHash,
                 wallet_address: payerWallet,
                 competition_id: null,  // NULL = top-up, NOT a competition entry
-                is_topup: true,
+                type: "topup",
                 // For pending top-ups, we credit immediately, so mark as credited to prevent double-crediting
                 wallet_credited: shouldCreditImmediately,
                 created_at: eventData.created_at || new Date().toISOString(),
