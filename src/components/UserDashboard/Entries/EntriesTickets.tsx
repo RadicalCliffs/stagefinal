@@ -118,9 +118,20 @@ const EntriesTickets = ({
     : [];
 
   // Use purchase groups if available, otherwise fall back to individual entries
-  const displayGroups = purchaseGroups && purchaseGroups.length > 0
-    ? purchaseGroups
-    : null;
+  // FILTER OUT invalid purchase groups with no valid ticket data
+  const validPurchaseGroups = purchaseGroups
+    ? purchaseGroups.filter(group => {
+        // Must have actual tickets
+        if (!group.total_tickets || group.total_tickets <= 0) return false;
+        // Must have events with real data
+        if (!group.events || !Array.isArray(group.events) || group.events.length === 0) return false;
+        // Check that events have valid amounts
+        const hasValidEvents = group.events.some((e: any) => e && e.amount && e.amount > 0);
+        return hasValidEvents;
+      })
+    : [];
+  
+  const displayGroups = validPurchaseGroups.length > 0 ? validPurchaseGroups : null;
 
   // Format date and time for purchase groups
   const formatDateTime = (dateStr: string | null | undefined): string => {
