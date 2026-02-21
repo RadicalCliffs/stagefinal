@@ -398,208 +398,158 @@ export class BalancePaymentService {
       const idempotencyKeyBase = reservationId || `purchase-${competitionId}-${Date.now()}`;
       const idempotencyKey = idempotencyKeyManager.getOrCreateKey(idempotencyKeyBase);
 
-      console.log('[BalancePayment] Purchasing with balance (via direct RPC - PRIMARY):', {
+      console.log('[BalancePayment] Purchasing with balance (2-step flow):', {
         userId: canonicalUserId.length > 20 ? canonicalUserId.substring(0, 20) + '...' : canonicalUserId,
         competitionId: competitionId.substring(0, 10) + '...',
         ticketCount: ticketNumbers.length,
         ticketPrice: ticketPrice,
-        tickets: ticketNumbers,
-        reservationId: reservationId || 'none',
-        idempotencyKey: idempotencyKey
+        reservationId: reservationId || 'none'
       });
 
       // =====================================================
-      // WORKING APPROACH: 2-step direct SQL
-      // 1. Confirm pending_tickets (trigger creates tickets)
-      // 2. Deduct balance from sub_account_balances
+      // WORKING 2-STEP APPROACH:
+      // 1. Allocate tickets via allocate_lucky_dip_tickets_batch
+      // 2. Confirm pending_tickets + deduct balance
       // =====================================================
-      let proxySuccessData: any = null;
-      let lastError: any = null;
 
-      try {
-        console.log('[BalancePayment] Calling purchase_tickets_with_balance RPC directly...');
-        const { data: rpcData, error: rpcError } = await (supabase.rpc as any)(
-          'purchase_tickets_with_balance',
+      // Calculate total amount
+      const totalAmount = ticketNumbers.length * ticketPrice;
+
+      // Step 0: Check balance FIRST before doing anything
+      console.log('[BalancePayment] Checking balance...');
+      const { data: balanceData } = await supabase
+        .from('sub_account_balances')
+        .select('available_balance')
+        .eq('canonical_user_id', canonicalUserId)
+        .eq('currency', 'USD')
+        .single();
+
+      const currentBalance = balanceData?.available_balance ?? 0;
+      if (currentBalance < totalAmount) {
+        console.error('[BalancePayment] Insufficient balance:', currentBalance, '<', totalAmount);
+        return {
+          success: false,
+          error: 'Insufficient balance',
+          errorDetails: { code: 'INSUFFICIENT_BALANCE', message: `Need $${totalAmount.toFixed(2)}, have $${currentBalance.toFixed(2)}`, statusCode: 402 }
+        };
+      }
+
+      // Step 1: Allocate tickets (if no reservation provided)
+      let actualReservationId = reservationId;
+      let actualTicketNumbers = ticketNumbers;
+
+      if (!reservationId) {
+        console.log('[BalancePayment] Step 1: Allocating tickets...');
+        const { data: allocData, error: allocError } = await supabase.rpc(
+          'allocate_lucky_dip_tickets_batch',
           {
-            p_user_identifier: canonicalUserId,
+            p_user_id: canonicalUserId,
             p_competition_id: competitionId,
             p_count: ticketNumbers.length,
             p_ticket_price: ticketPrice,
             p_hold_minutes: 15,
             p_session_id: idempotencyKey,
-            p_excluded_tickets: null,
-          });
-
-          if (allocError || !allocData?.success) {
-            const errMsg = allocError?.message || allocData?.error || 'Failed to reserve tickets';
-            console.error('[BalancePayment] Allocation failed:', errMsg);
-            return {
-              success: false,
-              error: errMsg,
-              errorDetails: { code: 'ALLOCATION_FAILED', message: errMsg, statusCode: 400 }
-            };
-          } else if (rpcData.ok === false) {
-            // RPC returned business error
-            const errMsg = rpcData.error || 'Purchase failed';
-            console.warn('[BalancePayment] RPC returned business error:', errMsg);
-            
-            // Check for specific error types
-            if (errMsg.includes('insufficient balance')) {
-              return {
-                success: false,
-                error: 'Insufficient balance',
-                errorDetails: { message: errMsg, statusCode: 402 } as any
-              };
-            }
-            if (errMsg.includes('not available') || errMsg.includes('not found')) {
-              return {
-                success: false,
-                error: errMsg,
-                errorDetails: { message: errMsg, statusCode: 400 } as any
-              };
-            }
-            lastError = { message: errMsg, code: 'PURCHASE_FAILED' };
+            p_excluded_tickets: null
           }
+        );
 
-          actualReservationId = allocData.reservation_id;
-          actualTicketNumbers = allocData.ticket_numbers;
-          console.log('[BalancePayment] Reserved:', actualTicketNumbers, 'ID:', actualReservationId);
-        }
-
-        // Step 1: Confirm the pending_tickets (trigger creates tickets)
-        console.log('[BalancePayment] Confirming reservation...');
-        const { error: confirmError } = await supabase
-          .from('pending_tickets')
-          .update({ 
-            status: 'confirmed', 
-            confirmed_at: new Date().toISOString(),
-            canonical_user_id: canonicalUserId
-          })
-          .eq('id', actualReservationId);
-
-        if (confirmError) {
-          console.error('[BalancePayment] Confirm failed:', confirmError.message);
+        if (allocError || !allocData?.success) {
+          const errMsg = allocError?.message || allocData?.error || 'Failed to reserve tickets';
+          console.error('[BalancePayment] Allocation failed:', errMsg);
           return {
             success: false,
-            error: 'Failed to confirm reservation',
-            errorDetails: { code: 'CONFIRM_FAILED', message: confirmError.message, statusCode: 500 }
+            error: errMsg,
+            errorDetails: { code: 'ALLOCATION_FAILED', message: errMsg, statusCode: 400 }
           };
         }
 
-        // Step 2: Deduct balance
-        console.log('[BalancePayment] Deducting balance...');
-        
-        // First get current balance
-        const { data: balanceData } = await supabase
-          .from('sub_account_balances')
-          .select('available_balance')
-          .eq('canonical_user_id', canonicalUserId)
-          .eq('currency', 'USD')
-          .single();
-
-        const currentBalance = balanceData?.available_balance ?? 0;
-        if (currentBalance < totalAmount) {
-          console.error('[BalancePayment] Insufficient balance:', currentBalance, '<', totalAmount);
-          return {
-            success: false,
-            error: 'Insufficient balance',
-            errorDetails: { code: 'INSUFFICIENT_BALANCE', message: `Need $${totalAmount}, have $${currentBalance}`, statusCode: 402 }
-          };
-        }
-
-        const newBalance = currentBalance - totalAmount;
-
-        const { error: balanceError } = await supabase
-          .from('sub_account_balances')
-          .update({ 
-            available_balance: newBalance,
-            last_updated: new Date().toISOString()
-          })
-          .eq('canonical_user_id', canonicalUserId)
-          .eq('currency', 'USD');
-
-        if (balanceError) {
-          console.error('[BalancePayment] Balance deduction failed:', balanceError.message);
-          // Note: tickets are already created but balance not deducted - edge case
-          return {
-            success: false,
-            error: 'Failed to deduct balance',
-            errorDetails: { code: 'BALANCE_DEDUCTION_FAILED', message: balanceError.message, statusCode: 500 }
-          };
-        }
-
-        // Step 3: Record ledger entry (best practice, non-blocking)
-        supabase.from('balance_ledger').insert({
-          canonical_user_id: canonicalUserId,
-          transaction_type: 'debit',
-          amount: totalAmount,
-          currency: 'USD',
-          balance_before: currentBalance,
-          balance_after: newBalance,
-          reference_id: actualReservationId,
-          description: `Ticket purchase - ${actualTicketNumbers.length} tickets`,
-        }).then(() => {
-          console.log('[BalancePayment] Ledger entry recorded');
-        }).catch((err) => {
-          console.warn('[BalancePayment] Ledger entry failed (non-critical):', err);
-        });
-
-        console.log('[BalancePayment] ✓ Purchase completed successfully!');
-        proxySuccessData = {
-          status: 'ok',
-          success: true,
-          entry_id: actualReservationId,
-          competition_id: competitionId,
-          tickets: actualTicketNumbers.map((num: number) => ({ ticket_number: num })),
-          ticket_numbers: actualTicketNumbers,
-          total_cost: totalAmount,
-          new_balance: newBalance,
-          idempotent: false,
-          purchase_key: idempotencyKey,
-        };
-      } catch (rpcException) {
-        console.warn('[BalancePayment] Exception:', rpcException);
-        lastError = { message: rpcException instanceof Error ? rpcException.message : 'Purchase failed' };
+        actualReservationId = allocData.reservation_id;
+        actualTicketNumbers = allocData.ticket_numbers || ticketNumbers;
+        console.log('[BalancePayment] Allocated tickets:', actualTicketNumbers, 'Reservation ID:', actualReservationId);
       }
 
-      // If direct RPC failed, return the error (don't try Edge Function - it's broken)
-      if (!proxySuccessData) {
-        console.error('[BalancePayment] Purchase failed:', lastError);
+      // Step 2: Confirm the pending_tickets (trigger creates tickets automatically)
+      console.log('[BalancePayment] Step 2: Confirming reservation...');
+      const { error: confirmError } = await supabase
+        .from('pending_tickets')
+        .update({ 
+          status: 'confirmed', 
+          confirmed_at: new Date().toISOString(),
+          canonical_user_id: canonicalUserId
+        })
+        .eq('id', actualReservationId);
+
+      if (confirmError) {
+        console.error('[BalancePayment] Confirm failed:', confirmError.message);
         return {
           success: false,
-          error: lastError?.message || 'Purchase failed',
-          errorDetails: lastError
+          error: 'Failed to confirm reservation',
+          errorDetails: { code: 'CONFIRM_FAILED', message: confirmError.message, statusCode: 500 }
         };
       }
 
-      // We have success data - transform and return
-      const data = proxySuccessData;
-      console.log('[BalancePayment] Purchase successful:', {
-        competitionId: data.competition_id,
-        ticketCount: data.tickets?.length || data.ticket_numbers?.length
+      // Step 3: Deduct balance
+      console.log('[BalancePayment] Step 3: Deducting balance...');
+      const newBalance = currentBalance - totalAmount;
+
+      const { error: balanceError } = await supabase
+        .from('sub_account_balances')
+        .update({ 
+          available_balance: newBalance,
+          last_updated: new Date().toISOString()
+        })
+        .eq('canonical_user_id', canonicalUserId)
+        .eq('currency', 'USD');
+
+      if (balanceError) {
+        console.error('[BalancePayment] Balance deduction failed:', balanceError.message);
+        return {
+          success: false,
+          error: 'Failed to deduct balance',
+          errorDetails: { code: 'BALANCE_DEDUCTION_FAILED', message: balanceError.message, statusCode: 500 }
+        };
+      }
+
+      // Step 4: Record ledger entry (non-blocking)
+      supabase.from('balance_ledger').insert({
+        canonical_user_id: canonicalUserId,
+        transaction_type: 'debit',
+        amount: totalAmount,
+        currency: 'USD',
+        balance_before: currentBalance,
+        balance_after: newBalance,
+        reference_id: actualReservationId,
+        description: `Ticket purchase - ${actualTicketNumbers.length} tickets`,
+      }).then(() => {
+        console.log('[BalancePayment] Ledger entry recorded');
+      }).catch((err) => {
+        console.warn('[BalancePayment] Ledger entry failed (non-critical):', err);
       });
 
+      console.log('[BalancePayment] ✓ Purchase completed successfully!');
+
+      // Transform response
       const transformedData: PurchaseResponse = {
-        payment_id: data.entry_id || data.purchase_key || 'purchase-' + Date.now() + '-' + crypto.randomUUID(),
+        payment_id: actualReservationId || 'purchase-' + Date.now() + '-' + crypto.randomUUID(),
         status: 'succeeded',
-        amount: String(data.total_cost || data.amount || ''),
+        amount: String(totalAmount),
         currency: 'USD',
-        new_balance: String(data.new_balance ?? ''),
-        competition_id: data.competition_id,
-        tickets: (data.tickets || data.ticket_numbers?.map((n: number) => ({ ticket_number: n })) || []).map((t: any, index: number) => ({
-          id: data.entry_id ? `${data.entry_id}-${index}` : `ticket-${index}`,
-          ticket_number: t.ticket_number ?? t
+        new_balance: String(newBalance),
+        competition_id: competitionId,
+        tickets: actualTicketNumbers.map((num: number, index: number) => ({
+          id: actualReservationId ? `${actualReservationId}-${index}` : `ticket-${index}`,
+          ticket_number: num
         }))
       };
 
       // Dispatch balance-updated event
-      if (typeof window !== 'undefined' && data.new_balance !== undefined && data.new_balance !== null) {
+      if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('balance-updated', {
           detail: {
-            newBalance: Number(data.new_balance),
-            purchaseAmount: Number(data.total_cost || 0),
+            newBalance: newBalance,
+            purchaseAmount: totalAmount,
             tickets: transformedData.tickets,
-            competitionId: data.competition_id
+            competitionId: competitionId
           }
         }));
       }

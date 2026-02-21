@@ -14,30 +14,80 @@ vi.stubGlobal('crypto', {
 });
 
 // Mock supabase with proper return values using factory function
-vi.mock('../supabase', () => ({
-  supabase: {
-    auth: {
-      getSession: vi.fn().mockResolvedValue({
-        data: { session: { access_token: 'test-access-token-123' } }
+// Updated for 2-step flow: allocate_lucky_dip_tickets_batch + direct table updates
+vi.mock('../supabase', () => {
+  const createMockChain = (result: any) => ({
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    update: vi.fn().mockReturnThis(),
+    insert: vi.fn().mockReturnThis(),
+    single: vi.fn().mockResolvedValue(result),
+    then: vi.fn().mockImplementation((cb: any) => Promise.resolve(result).then(cb)),
+  });
+
+  return {
+    supabase: {
+      auth: {
+        getSession: vi.fn().mockResolvedValue({
+          data: { session: { access_token: 'test-access-token-123' } }
+        }),
+      },
+      // Mock for allocate_lucky_dip_tickets_batch RPC
+      rpc: vi.fn().mockResolvedValue({
+        data: {
+          success: true,
+          reservation_id: 'reservation-uuid-123',
+          ticket_numbers: [1, 2, 3],
+        },
+        error: null,
+      }),
+      // Mock for table operations (select, update on sub_account_balances and pending_tickets)
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'sub_account_balances') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({
+                    data: { available_balance: 100 },
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+            update: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockResolvedValue({
+                  data: null,
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === 'pending_tickets') {
+          return {
+            update: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({
+                data: null,
+                error: null,
+              }),
+            }),
+          };
+        }
+        if (table === 'balance_ledger') {
+          return {
+            insert: vi.fn().mockReturnValue({
+              then: vi.fn().mockImplementation((cb: any) => Promise.resolve().then(cb)),
+              catch: vi.fn().mockReturnThis(),
+            }),
+          };
+        }
+        return createMockChain({ data: null, error: null });
       }),
     },
-    rpc: vi.fn().mockResolvedValue({
-      data: {
-        ok: true,
-        success: true,
-        entry_id: 'entry-uuid-123',
-        order_id: 'entry-uuid-123',
-        competition_id: 'test-competition-id',
-        ticket_numbers: [1, 2, 3],
-        total_cost: 3,
-        amount: 3,
-        available_balance: 97,
-        new_balance: 97,
-      },
-      error: null,
-    }),
-  },
-}));
+  };
+});
 
 // Mock idempotency key manager
 vi.mock('../idempotency-keys', () => ({
@@ -57,19 +107,15 @@ describe('BalancePaymentService', () => {
     vi.clearAllMocks();
     mockFetch.mockReset();
     
-    // Reset supabase.rpc to default successful response
+    // Reset supabase.rpc completely (clears mockResolvedValueOnce queue)
+    vi.mocked(supabase.rpc).mockReset();
+    
+    // Set default successful response for allocate_lucky_dip_tickets_batch
     vi.mocked(supabase.rpc).mockResolvedValue({
       data: {
-        ok: true,
         success: true,
-        entry_id: 'entry-uuid-123',
-        order_id: 'entry-uuid-123',
-        competition_id: 'test-competition-id',
+        reservation_id: 'reservation-uuid-123',
         ticket_numbers: [1, 2, 3],
-        total_cost: 3,
-        amount: 3,
-        available_balance: 97,
-        new_balance: 97,
       },
       error: null,
     } as any);
@@ -269,11 +315,11 @@ describe('BalancePaymentService', () => {
     });
 
     // ============================================================
-    // Request body construction tests - Updated for direct SQL flow
+    // Request body construction tests - Updated for 2-step flow
     // ============================================================
     
     describe('request body construction', () => {
-      it('should construct correct RPCPurchaseRequest payload', async () => {
+      it('should construct correct allocate_lucky_dip_tickets_batch payload', async () => {
         await BalancePaymentService.purchaseWithBalance({
           competitionId: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
           ticketNumbers: [1, 2],
@@ -282,13 +328,15 @@ describe('BalancePaymentService', () => {
         });
 
         expect(vi.mocked(supabase.rpc)).toHaveBeenCalledWith(
-          'purchase_tickets_with_balance',
+          'allocate_lucky_dip_tickets_batch',
           expect.objectContaining({
-            p_user_identifier: 'prize:pid:0x123abc',
+            p_user_id: 'prize:pid:0x123abc',
             p_competition_id: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
+            p_count: 2,
             p_ticket_price: 1,
-            p_ticket_numbers: [1, 2],
-            p_idempotency_key: expect.any(String),
+            p_hold_minutes: 15,
+            p_session_id: expect.any(String),
+            p_excluded_tickets: null,
           })
         );
       });
@@ -302,9 +350,9 @@ describe('BalancePaymentService', () => {
         });
 
         expect(vi.mocked(supabase.rpc)).toHaveBeenCalledWith(
-          'purchase_tickets_with_balance',
+          'allocate_lucky_dip_tickets_batch',
           expect.objectContaining({
-            p_user_identifier: 'prize:pid:0xabcdef123456789',
+            p_user_id: 'prize:pid:0xabcdef123456789',
           })
         );
       });
@@ -373,31 +421,15 @@ describe('BalancePaymentService', () => {
     });
 
     // ============================================================
-    // Success response handling tests - Updated for direct SQL flow
+    // Success response handling tests - Updated for 2-step flow
     // ============================================================
     
     describe('success response handling', () => {
       it('should parse success response correctly', async () => {
-        vi.mocked(supabase.rpc).mockResolvedValueOnce({
-          data: {
-            ok: true,
-            success: true,
-            entry_id: 'entry-uuid-123',
-            order_id: 'entry-uuid-123',
-            competition_id: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
-            ticket_numbers: [100, 101, 102],
-            total_cost: 0.75,
-            amount: 0.75,
-            new_balance: 99.25,
-            available_balance: 99.25,
-            idempotent: false,
-          } as any,
-          error: null,
-        } as any);
-
+        // Uses default mock from beforeEach - allocate_lucky_dip_tickets_batch returns success with tickets [1,2,3]
         const result = await BalancePaymentService.purchaseWithBalance({
           competitionId: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
-          ticketNumbers: [100, 101, 102],
+          ticketNumbers: [1, 2, 3],
           userId: '0x123abc',
           ticketPrice: 0.25,
         });
@@ -405,23 +437,17 @@ describe('BalancePaymentService', () => {
         expect(result.success).toBe(true);
         expect(result.data).toBeDefined();
         expect(result.data?.tickets).toBeDefined();
+        expect(result.data?.tickets.length).toBe(3);
       });
 
       it('should handle idempotent response (duplicate request)', async () => {
+        // Mock allocate_lucky_dip_tickets_batch response
         vi.mocked(supabase.rpc).mockResolvedValueOnce({
           data: {
-            ok: true,
             success: true,
-            entry_id: 'entry-uuid-123',
-            order_id: 'entry-uuid-123',
-            competition_id: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
+            reservation_id: 'reservation-uuid-123',
             ticket_numbers: [1],
-            total_cost: 1,
-            amount: 1,
-            new_balance: 99,
-            available_balance: 99,
-            idempotent: true, // This was a duplicate request
-          } as any,
+          },
           error: null,
         } as any);
 
