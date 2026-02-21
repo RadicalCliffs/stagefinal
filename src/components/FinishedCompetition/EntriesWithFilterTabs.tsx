@@ -132,12 +132,6 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
             });
 
             rpcData.forEach((entry: any) => {
-              // DEBUG: Log first entry to see actual field names
-              if (rpcData.indexOf(entry) === 0) {
-                console.log('[EntriesWithFilterTabs] First RPC entry fields:', Object.keys(entry));
-                console.log('[EntriesWithFilterTabs] First RPC entry data:', JSON.stringify(entry, null, 2));
-              }
-              
               // RPC returns walletaddress (no underscore), view returns wallet_address
               // Also check userid which may contain the wallet address
               // canonical_user_id format is 'prize:pid:' + wallet_address
@@ -279,12 +273,6 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
             });
 
             jcData.forEach((entry: any) => {
-              // DEBUG: Log first entry to see actual field names
-              if (jcData.indexOf(entry) === 0) {
-                console.log('[EntriesWithFilterTabs] First v_jc entry fields:', Object.keys(entry));
-                console.log('[EntriesWithFilterTabs] First v_jc entry data:', JSON.stringify(entry, null, 2));
-              }
-              
               // View has wallet_address and user_id (with underscores)
               // canonical_user_id format is 'prize:pid:' + wallet_address
               let wallet = entry.wallet_address || entry.user_id || entry.userid || '';
@@ -596,7 +584,6 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
             const entriesNeedingWallet = transformedEntries.filter(e => !e.walletAddress || e.walletAddress === 'Unknown' || !e.walletAddress.startsWith('0x'));
             if (entriesNeedingWallet.length > 0) {
               const ticketNumbersToLookup = entriesNeedingWallet.map(e => e.ticketNumber);
-              console.log('[EntriesWithFilterTabs] Looking up wallet addresses for', ticketNumbersToLookup.length, 'entries');
               
               const { data: ticketWalletData, error: ticketLookupError } = await supabase
                 .from('tickets')
@@ -605,9 +592,6 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
                 .in('ticket_number', ticketNumbersToLookup);
               
               if (!ticketLookupError && ticketWalletData && ticketWalletData.length > 0) {
-                console.log('[EntriesWithFilterTabs] Found wallet data for', ticketWalletData.length, 'tickets');
-                console.log('[EntriesWithFilterTabs] First ticket wallet data:', JSON.stringify(ticketWalletData[0], null, 2));
-                
                 // Build ticket number -> wallet address map
                 const ticketToWallet = new Map<number, string>();
                 ticketWalletData.forEach((t: any) => {
@@ -689,59 +673,49 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
           }
         }
 
-        // For entries without transaction hashes, try to fetch from user's most recent top-up
-        // This handles balance payments where the tx hash isn't directly on the entry
+        // For entries without transaction hashes, try to fetch from pending_tickets for this competition
+        // This handles entries where the tx hash wasn't included in the main data sources
         const entriesWithoutTxHash = transformedEntries.filter(e => !e.transactionHash);
         if (entriesWithoutTxHash.length > 0) {
           try {
-            // Collect unique user identifiers that need tx hash lookup
-            const usersNeedingTxHash = new Set<string>();
-            entriesWithoutTxHash.forEach(entry => {
-              if (entry.walletAddress && entry.walletAddress !== 'Unknown') {
-                usersNeedingTxHash.add(entry.walletAddress.toLowerCase());
-              }
-            });
+            // Query pending_tickets for tx hashes ONLY for THIS competition
+            // SECURITY FIX: Filter by competition_id to prevent data leakage across competitions
+            const { data: competitionTxData } = await supabase
+              .from('pending_tickets')
+              .select('canonical_user_id, wallet_address, user_id, transaction_hash, created_at')
+              .eq('competition_id', idToUse)
+              .not('transaction_hash', 'is', null)
+              .order('created_at', { ascending: false } as any);
 
-            if (usersNeedingTxHash.size > 0) {
-              const userArray = Array.from(usersNeedingTxHash);
+            if (competitionTxData && competitionTxData.length > 0) {
+              // Build map of user identifier -> most recent tx hash for this competition
+              const userToTxHash = new Map<string, string>();
+              competitionTxData.forEach((record: any) => {
+                const identifiers = [
+                  record.canonical_user_id?.toLowerCase(),
+                  record.wallet_address?.toLowerCase(),
+                  record.user_id?.toLowerCase()
+                ].filter(Boolean);
 
-              // Query pending_tickets for the most recent tx hash per user (from top-ups)
-              const { data: topUpData } = await supabase
-                .from('pending_tickets')
-                .select('canonical_user_id, wallet_address, user_id, transaction_hash, created_at')
-                .not('transaction_hash', 'is', null)
-                .order('created_at', { ascending: false } as any);
-
-              if (topUpData && topUpData.length > 0) {
-                // Build map of user identifier -> most recent tx hash
-                const userToTxHash = new Map<string, string>();
-                topUpData.forEach((record: any) => {
-                  const identifiers = [
-                    record.canonical_user_id?.toLowerCase(),
-                    record.wallet_address?.toLowerCase(),
-                    record.user_id?.toLowerCase()
-                  ].filter(Boolean);
-
-                  identifiers.forEach(id => {
-                    if (id && record.transaction_hash && !userToTxHash.has(id)) {
-                      userToTxHash.set(id, record.transaction_hash);
-                    }
-                  });
-                });
-
-                // Update entries with the fetched tx hashes
-                entriesWithoutTxHash.forEach(entry => {
-                  if (entry.walletAddress && !entry.transactionHash) {
-                    const txHash = userToTxHash.get(entry.walletAddress.toLowerCase());
-                    if (txHash) {
-                      entry.transactionHash = txHash;
-                    }
+                identifiers.forEach((id: string) => {
+                  if (id && record.transaction_hash && !userToTxHash.has(id)) {
+                    userToTxHash.set(id, record.transaction_hash);
                   }
                 });
-              }
+              });
+
+              // Update entries with the fetched tx hashes
+              entriesWithoutTxHash.forEach(entry => {
+                if (entry.walletAddress && !entry.transactionHash) {
+                  const txHash = userToTxHash.get(entry.walletAddress.toLowerCase());
+                  if (txHash) {
+                    entry.transactionHash = txHash;
+                  }
+                }
+              });
             }
           } catch (txHashErr) {
-            entriesLogger.warn('Failed to fetch top-up tx hashes', txHashErr);
+            entriesLogger.warn('Failed to fetch competition tx hashes', txHashErr);
           }
         }
 
