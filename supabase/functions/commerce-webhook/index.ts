@@ -182,6 +182,9 @@ Deno.serve(async (req: Request) => {
     const selectedTicketsStr = metadata.selected_tickets;
     const entryCount = Number(metadata.entry_count) || 0;
     
+    // Check if user_id is missing - this happens with static checkout links
+    const hasUserIdInMetadata = !!inputUserId && inputUserId.trim() !== '';
+    
     // Extract wallet address from metadata or canonical user_id format (prize:pid:0x...)
     let walletAddress = metadata.wallet_address;
     if (!walletAddress && inputUserId) {
@@ -231,9 +234,10 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Convert to canonical format
-    const userId = toPrizePid(inputUserId);
-    console.log(`[commerce-webhook][${requestId}] Canonical user ID: ${userId}`);
+    // Only convert to canonical format if we have a real user ID
+    // Don't generate random UUIDs for missing user IDs
+    const userId = hasUserIdInMetadata ? toPrizePid(inputUserId) : null;
+    console.log(`[commerce-webhook][${requestId}] Canonical user ID: ${userId || '(none - will match by amount/time)'}`);
 
     console.log(`[commerce-webhook][${requestId}] Transaction: ${transactionId}, User: ${userId}, Competition: ${competitionId}`);
 
@@ -282,16 +286,24 @@ Deno.serve(async (req: Request) => {
       if (paymentAmount) {
         // Find recent matching transactions (within last 30 minutes)
         const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-        const { data, error } = await supabase
+        
+        let query = supabase
           .from("user_transactions")
           .select("*")
           .eq("user_id", userId)
-          .eq("competition_id", competitionId)
           .eq("amount", Number(paymentAmount))
           .gte("created_at", thirtyMinutesAgo)
           .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .limit(1);
+        
+        // For topups (no competition), search for type=topup with null competition_id
+        if (!competitionId) {
+          query = query.eq("type", "topup").is("competition_id", null);
+        } else {
+          query = query.eq("competition_id", competitionId);
+        }
+        
+        const { data, error } = await query.maybeSingle();
 
         if (!error && data) {
           transaction = data;
@@ -304,6 +316,53 @@ Deno.serve(async (req: Request) => {
             .eq("id", transaction.id);
         } else if (error) {
           console.error(`[commerce-webhook][${requestId}] Error in fallback lookup:`, error);
+        }
+      }
+    }
+
+    // STATIC CHECKOUT FALLBACK: For topups without user_id in metadata (static checkout links)
+    // Match by amount + type + status + no existing charge_id
+    if (!transaction && !hasUserIdInMetadata && !competitionId) {
+      const paymentAmount = eventData.pricing?.local?.amount || 
+                           eventData.pricing?.settlement?.amount ||
+                           eventData.pricing?.['USDC']?.amount;
+      
+      if (paymentAmount) {
+        console.log(`[commerce-webhook][${requestId}] 🔍 Static checkout fallback: searching for pending topup of $${paymentAmount}`);
+        
+        const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+        
+        // Find the OLDEST pending topup with matching amount that hasn't been matched yet
+        const { data, error } = await supabase
+          .from("user_transactions")
+          .select("*")
+          .eq("type", "topup")
+          .eq("amount", Number(paymentAmount))
+          .eq("status", "pending")
+          .is("competition_id", null)
+          .is("tx_id", null)  // Not yet linked to a Coinbase charge
+          .gte("created_at", thirtyMinutesAgo)
+          .order("created_at", { ascending: true })  // Oldest first (FIFO)
+          .limit(1)
+          .maybeSingle();
+
+        if (!error && data) {
+          transaction = data;
+          console.log(`[commerce-webhook][${requestId}] ✅ Found pending topup by amount: ${transaction.id} for user ${transaction.user_id}`);
+          
+          // Update the tx_id to link this transaction to the Coinbase charge
+          await supabase
+            .from("user_transactions")
+            .update({ 
+              tx_id: eventData.id,
+              charge_id: eventData.id,
+              charge_code: eventData.code,
+            })
+            .eq("id", transaction.id);
+        } else if (error) {
+          console.error(`[commerce-webhook][${requestId}] Error in static checkout fallback:`, error);
+        } else {
+          console.log(`[commerce-webhook][${requestId}] No pending topup found for $${paymentAmount}`);
         }
       }
     }
@@ -358,7 +417,7 @@ Deno.serve(async (req: Request) => {
         
         if (paymentAmount > 0) {
           try {
-            // For pending top-ups, we'll immediately credit the balance, so set wallet_credited based on event type
+            // For pending top-ups, we'll immediately credit the balance, so set posted_to_balance based on event type
             const shouldCreditImmediately = eventType === "charge:pending";
             
             const { data: newTransaction, error: insertError } = await supabase
@@ -372,21 +431,20 @@ Deno.serve(async (req: Request) => {
                 payment_status: eventType === "charge:confirmed" ? "completed" : "pending",
                 payment_provider: "coinbase_commerce",
                 tx_id: eventData.id,
-                transaction_hash: txHash,
                 wallet_address: payerWallet,
-                competition_id: null,  // NULL = top-up, NOT a competition entry
+                competition_id: null,
                 type: "topup",
-                // For pending top-ups, we credit immediately, so mark as credited to prevent double-crediting
-                wallet_credited: shouldCreditImmediately,
+                charge_id: eventData.id,
+                charge_code: eventData.code,
+                checkout_url: eventData.hosted_url,
+                posted_to_balance: shouldCreditImmediately,
                 created_at: eventData.created_at || new Date().toISOString(),
                 completed_at: eventData.confirmed_at || (eventType === "charge:confirmed" ? new Date().toISOString() : null),
                 metadata: {
-                  charge_id: eventData.id,
-                  charge_code: eventData.code,
                   charge_name: eventData.name,
-                  hosted_url: eventData.hosted_url,
                   created_from_webhook: true,
-                  webhook_event_type: eventType
+                  webhook_event_type: eventType,
+                  payment_tx_hash: txHash
                 }
               })
               .select()
@@ -654,7 +712,7 @@ Deno.serve(async (req: Request) => {
 
         if (topUpAmount > 0 && transaction.user_id) {
           // Check if this top-up was already credited (idempotency)
-          if (transaction.wallet_credited === true) {
+          if (transaction.posted_to_balance === true) {
             console.log(`[commerce-webhook][${requestId}] Top-up already credited, skipping balance update`);
           } else {
             // ROBUST CREDITING: Retry up to 3 times with exponential backoff
@@ -813,7 +871,7 @@ Deno.serve(async (req: Request) => {
                   status: 'needs_reconciliation',
                   payment_status: 'confirmed',
                   credit_synced: false,
-                  wallet_credited: false,
+                  posted_to_balance: false,
                   completed_at: new Date().toISOString(),
                   updated_at: new Date().toISOString(),
                 })
@@ -875,7 +933,7 @@ Deno.serve(async (req: Request) => {
                     payment_id: payment?.payment_id || payment?.transaction_id,
                     completed_at: new Date().toISOString(),
                     credit_synced: true,
-                    wallet_credited: creditSuccess
+                    posted_to_balance: creditSuccess
                   };
 
                   console.log(`[commerce-webhook][${requestId}] Updating transaction ${txnId} with payload:`, updatePayload);
@@ -964,7 +1022,7 @@ Deno.serve(async (req: Request) => {
         
         const topUpAmount = Number(transaction.amount) || 0;
         
-        if (topUpAmount > 0 && transaction.user_id && !transaction.wallet_credited) {
+        if (topUpAmount > 0 && transaction.user_id && !transaction.posted_to_balance) {
           try {
             // Credit balance immediately for pending top-ups
             const { data: creditResult, error: rpcError } = await supabase.rpc(
@@ -973,11 +1031,28 @@ Deno.serve(async (req: Request) => {
                 p_canonical_user_id: transaction.user_id,
                 p_amount: topUpAmount,
                 p_reason: 'commerce_topup_pending',
-                p_reference_id: eventData.id || transaction.id
+                p_reference_id: transaction.id  // Use transaction ID, not charge ID, to avoid duplicates
               }
             );
             
             if (rpcError) {
+              // Check if it's a duplicate key error - means already processed
+              if (rpcError.code === '23505') {
+                console.log(`[commerce-webhook][${requestId}] ℹ️ Top-up already credited (duplicate key), marking as complete`);
+                await supabase
+                  .from("user_transactions")
+                  .update({
+                    status: "completed",
+                    posted_to_balance: true,
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq("id", transaction.id);
+                
+                return new Response(
+                  JSON.stringify({ success: true, message: "Top-up already processed" }),
+                  { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                );
+              }
               console.error(`[commerce-webhook][${requestId}] ❌ Failed to credit pending top-up:`, rpcError);
             } else if (creditResult?.success) {
               console.log(`[commerce-webhook][${requestId}] ✅ Pending top-up credited: ${topUpAmount}`);
@@ -993,7 +1068,7 @@ Deno.serve(async (req: Request) => {
                 .update({
                   status: "completed",  // Balance is credited - user can spend immediately
                   payment_status: "pending",  // Blockchain confirmation still in progress
-                  wallet_credited: true,
+                  posted_to_balance: true,
                   completed_at: new Date().toISOString(),
                   updated_at: new Date().toISOString(),
                 })
