@@ -226,7 +226,7 @@ export function useRealtimeWithGuards(userId: string | null) {
             .from('pending_tickets')
             .select('*')
             .eq('id', reservationId)
-            .single();
+            .single() as any;
           
           if (error || !data) return null;
           

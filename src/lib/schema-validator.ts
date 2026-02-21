@@ -84,7 +84,7 @@ export async function functionExists(functionName: string): Promise<boolean> {
       .select('routine_name')
       .eq('routine_schema', 'public')
       .eq('routine_name', functionName)
-      .maybeSingle();
+      .maybeSingle() as any;
 
     const exists = !error && data !== null;
     setCached(cacheKey, exists);
@@ -117,7 +117,7 @@ export async function indexExists(indexName: string): Promise<boolean> {
       .select('indexname')
       .eq('schemaname', 'public')
       .eq('indexname', indexName)
-      .maybeSingle();
+      .maybeSingle() as any;
 
     const exists = !error && data !== null;
     setCached(cacheKey, exists);
@@ -151,7 +151,7 @@ export async function triggerExists(tableName: string, triggerName: string): Pro
       .eq('event_object_schema', 'public')
       .eq('event_object_table', tableName)
       .eq('trigger_name', triggerName)
-      .maybeSingle();
+      .maybeSingle() as any;
 
     const exists = !error && data !== null;
     setCached(cacheKey, exists);
@@ -185,7 +185,7 @@ export async function constraintExists(tableName: string, constraintName: string
       .eq('table_schema', 'public')
       .eq('table_name', tableName)
       .eq('constraint_name', constraintName)
-      .maybeSingle();
+      .maybeSingle() as any;
 
     const exists = !error && data !== null;
     setCached(cacheKey, exists);

@@ -231,11 +231,11 @@ export class OnchainKitCheckoutService {
    */
   static async getTransactionStatus(transactionId: string): Promise<string | null> {
     try {
-      const { data, error } = await supabase
+      const { data, error }: any = await supabase
         .from('user_transactions')
         .select('status, payment_status')
         .eq('id', transactionId)
-        .single();
+        .single() as any;
 
       if (error) {
         console.error('Error fetching transaction status:', error);
@@ -259,8 +259,8 @@ export class OnchainKitCheckoutService {
     status: 'success' | 'pending' | 'error'
   ): Promise<boolean> {
     try {
-      const { error } = await supabase
-        .from('user_transactions')
+      const { error }: any = await (supabase
+        .from('user_transactions') as any)
         .update({
           tx_hash: txHash,
           status: status === 'success' ? 'finished' : status,
@@ -287,7 +287,7 @@ export class OnchainKitCheckoutService {
   static async linkReservation(reservationId: string, transactionId: string): Promise<void> {
     try {
       // Use RPC function to bypass RLS which fails with Privy auth (auth.uid() is null)
-      const { error: rpcError } = await supabase.rpc(
+      const { error: rpcError } = await (supabase.rpc as any)(
         'link_pending_reservation_to_session',
         { p_reservation_id: reservationId, p_session_id: transactionId }
       );
@@ -298,7 +298,7 @@ export class OnchainKitCheckoutService {
 
         await (supabase as any)
           .from('pending_tickets')
-          .update({ session_id: transactionId } as any)
+          .update({ session_id: transactionId } as any as any)
           .eq('id', reservationId);
       }
     } catch (error) {

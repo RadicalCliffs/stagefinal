@@ -216,8 +216,8 @@ export class BasePaymentService {
       if (!authToken) {
         // Fallback to direct Supabase update if no auth token
         console.warn('[BasePayment] No auth token, falling back to direct Supabase update');
-        await supabase
-          .from('user_transactions')
+        await (supabase
+          .from('user_transactions') as any)
           .update({
             status,
             updated_at: new Date().toISOString(),
@@ -613,8 +613,8 @@ export class BasePaymentService {
         console.error('Payment succeeded but ticket confirmation failed:', confirmResult.error || confirmResult.data?.error);
 
         // Update transaction with warning status and detailed error info
-        await supabase
-          .from('user_transactions')
+        await (supabase
+          .from('user_transactions') as any)
           .update({
             status: 'completed',
             payment_status: 'completed',
@@ -624,7 +624,7 @@ export class BasePaymentService {
               reservationId: request.reservationId,
               competitionId: request.competitionId,
               ticketCount: request.ticketCount,
-            })}`,
+            } as any)}`,
             completed_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
@@ -657,8 +657,8 @@ export class BasePaymentService {
 
       // Update transaction as failed if we have a transaction ID
       if (transactionId) {
-        await supabase
-          .from('user_transactions')
+        await (supabase
+          .from('user_transactions') as any)
           .update({
             status: 'failed',
             payment_status: 'failed',
@@ -689,11 +689,11 @@ export class BasePaymentService {
    */
   static async getTransactionStatus(transactionId: string): Promise<TransactionStatus> {
     try {
-      const { data, error } = await supabase
+      const { data, error }: any = await supabase
         .from('user_transactions')
         .select('status, tx_id, payment_status')
         .eq('id', transactionId)
-        .single();
+        .single() as any;
 
       if (error) {
         throw error;
@@ -737,12 +737,12 @@ export class BasePaymentService {
       const normalizedWallet = normalizeWalletAddress(userId);
 
       // Query by canonical_user_id or wallet_address
-      const { data, error } = await supabase
+      const { data, error }: any = await supabase
         .from('user_transactions')
         .select('*')
         .eq('competition_id', competitionId)
         .or(`user_id.eq.${canonicalUserId},wallet_address.ilike.${normalizedWallet || userId}`)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false } as any);
 
       if (error) {
         throw error;
@@ -766,7 +766,7 @@ export class BasePaymentService {
       const normalizedWallet = normalizeWalletAddress(userId);
 
       // Query by canonical_user_id or wallet_address
-      const { data, error } = await supabase
+      const { data, error }: any = await supabase
         .from('user_transactions')
         .select(`
           *,
@@ -778,7 +778,7 @@ export class BasePaymentService {
           )
         `)
         .or(`user_id.eq.${canonicalUserId},wallet_address.ilike.${normalizedWallet || userId}`)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false } as any);
 
       if (error) {
         throw error;

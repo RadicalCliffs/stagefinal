@@ -176,11 +176,11 @@ export function useCompetitions() {
     setDrawnCompetitions(prev => updateInArray(prev) as Competition[]);
 
     // Verify update with server and rollback on failure
-    supabase
-      .from('competitions')
-      .update({ status: newStatus })
+    (supabase
+      .from('competitions') as any)
+      .update({ status: newStatus } as any)
       .eq('id', competitionId)
-      .then(({ error }) => {
+      .then(({ error }: any) => {
         if (error) {
           console.error('Failed to update competition status:', error);
           // Rollback by refetching

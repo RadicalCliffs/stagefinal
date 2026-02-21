@@ -403,10 +403,10 @@ describe('getUserCompetitionEntries RPC Helper', () => {
       
       // Verify aggregated totals match sum of individual purchases
       const totalTickets = entry.individual_purchases.reduce(
-        (sum, p) => sum + p.tickets_count, 0
+        (sum: any, p: any) => sum + p.tickets_count, 0
       );
       const totalAmount = entry.individual_purchases.reduce(
-        (sum, p) => sum + p.amount_spent, 0
+        (sum: any, p: any) => sum + p.amount_spent, 0
       );
 
       expect(entry.tickets_count).toBe(totalTickets);

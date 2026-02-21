@@ -76,7 +76,7 @@ export async function fetchRecentPurchaseSessions(params: {
     .from('purchase_groups')
     .select('*')
     .eq('user_id', userId)
-    .order('group_start_at', { ascending: false })
+    .order('group_start_at', { ascending: false } as any)
     .range(offset, offset + limit - 1);
   
   if (error) throw error;
@@ -91,11 +91,11 @@ export async function fetchRecentPurchaseSessions(params: {
     const { data: comps, error: compErr } = await supabase
       .from('competitions')
       .select('id,title')
-      .in('id', competitionIds as string[]);
+      .in('id', competitionIds as string[]) as any;
     
     if (compErr) throw compErr;
     
-    competitionsMap = (comps || []).reduce((acc, c) => {
+    competitionsMap = (comps || []).reduce((acc: any, c: any) => {
       acc[c.id] = c as Competition;
       return acc;
     }, {} as Record<string, Competition>);
@@ -127,7 +127,7 @@ export async function fetchCompetitionPurchaseSessions(params: {
     .select('*')
     .eq('user_id', userId)
     .eq('competition_id', competitionId)
-    .order('group_start_at', { ascending: false })
+    .order('group_start_at', { ascending: false } as any)
     .range(offset, offset + limit - 1);
   
   if (error) throw error;
@@ -141,7 +141,7 @@ export async function fetchCompetitionPurchaseSessions(params: {
       .select('id,title')
       .eq('id', competitionId)
       .limit(1)
-      .maybeSingle();
+      .maybeSingle() as any;
     
     if (compErr) throw compErr;
     
@@ -184,7 +184,7 @@ export async function fetchSessionDetail(params: {
     .select('id,title')
     .eq('id', competitionId)
     .limit(1)
-    .maybeSingle();
+    .maybeSingle() as any;
   
   if (compErr) throw compErr;
   
@@ -215,7 +215,7 @@ export async function fetchRawPurchaseEvents(params: {
   }
   
   const { data, error } = await query
-    .order('occurred_at', { ascending: false })
+    .order('occurred_at', { ascending: false } as any)
     .range(offset, offset + limit - 1);
   
   if (error) throw error;

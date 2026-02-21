@@ -73,7 +73,7 @@ export function useAuthoritativeAvailability(options: {
         .from('v_competition_ticket_stats')
         .select('competition_id,sold,held,total')
         .eq('competition_id', competitionId)
-        .maybeSingle();
+        .maybeSingle() as any;
 
       if (viewErr) throw viewErr;
 

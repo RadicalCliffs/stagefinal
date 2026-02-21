@@ -53,11 +53,11 @@ async function createInstantWinPrize(prize: {
 
   const prizeResult = await supabase
     .from('Prize_Instantprizes')
-    .insert(prizeData as any)
+    .insert(prizeData as any as any)
     .select()
     .maybeSingle() as { data: any; error: any };
   
-  const { data, error } = prizeResult;
+  const { data, error }: any = prizeResult;
 
   if (error) {
     console.error('Error creating instant win prize:', error);
@@ -216,11 +216,11 @@ export const instantWinHelper = {
         return false;
       }
 
-      await supabase
-        .from('Prize_Instantprizes')
+      await (supabase
+        .from('Prize_Instantprizes') as any)
         .update({
           winningWalletAddress: userId,
-        })
+        } as any)
         .eq('UID', prize.UID) as any;
 
       const { notificationService } = await import('./notification-service');
@@ -264,14 +264,14 @@ export const instantWinHelper = {
 
       if (existing) {
         // Update existing record with winner
-        await supabase
-          .from('Prize_Instantprizes')
-          .update({ winningWalletAddress: winnerAddress })
+        await (supabase
+          .from('Prize_Instantprizes') as any)
+          .update({ winningWalletAddress: winnerAddress } as any)
           .eq('UID', existing.UID) as any;
       } else {
         // Create new record for contract-based win
-        await supabase
-          .from('Prize_Instantprizes')
+        await (supabase
+          .from('Prize_Instantprizes') as any)
           .insert({
             UID: crypto.randomUUID(),
             competitionId: competitionUid,

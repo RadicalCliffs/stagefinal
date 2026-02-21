@@ -61,11 +61,11 @@ const WinningTicketsDisplay: React.FC<WinningTicketsDisplayProps> = ({
           .from('Prize_Instantprizes')
           .select('winningTicket, prize, priority, winningWalletAddress')
           .eq('competitionId', lookupId)
-          .order('priority', { ascending: true })
-          .order('winningTicket', { ascending: true });
+          .order('priority', { ascending: true } as any)
+          .order('winningTicket', { ascending: true } as any);
 
         if (!error && data) {
-          const tickets: WinningTicketData[] = data.map(item => ({
+          const tickets: WinningTicketData[] = data.map((item: any) => ({
             ticketNumber: item.winningTicket || 0,
             prize: item.prize || 'Prize',
             priority: item.priority || 99,

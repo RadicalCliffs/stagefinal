@@ -543,7 +543,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
     setLoadingBalance(true);
     try {
-      const result = await getUserBalance(canonicalUserId);
+      const result = await getUserBalance(canonicalUserId!);
       if (result.success) {
         setUserBalance(result.data.usdc_balance ?? 0);
       }
@@ -714,7 +714,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
       if (!competitionId || typeof competitionId !== 'string' || competitionId.length < 10) {
         console.error('[PaymentModal] ERROR: competitionId is missing or invalid:', competitionId);
-        setError('Internal error: Competition ID is missing. Please refresh and try again.');
+        setErrorMessage('Internal error: Competition ID is missing. Please refresh and try again.');
         setLoading(false);
         return;
       }

@@ -33,7 +33,7 @@ const WinnerDetails = ({ competitionId }: WinnerDetailsProps) => {
                     .from('competitions')
                     .select('winner_address, outcomes_vrf_seed, tickets_sold, vrf_pregenerated_tx_hash')
                     .eq('id', competitionId)
-                    .maybeSingle();
+                    .maybeSingle() as any;
 
                 if (compError) {
                     console.error('Error fetching competition winner data:', compError);
@@ -49,7 +49,7 @@ const WinnerDetails = ({ competitionId }: WinnerDetailsProps) => {
                         .from('competitions')
                         .select('winner_address, outcomes_vrf_seed, tickets_sold, vrf_pregenerated_tx_hash')
                         .eq('uid', competitionId)
-                        .maybeSingle();
+                        .maybeSingle() as any;
                     compData = byUid || null;
                 }
 
@@ -69,7 +69,7 @@ const WinnerDetails = ({ competitionId }: WinnerDetailsProps) => {
                         .from('winners')
                         .select('distribution_hash, ticket_number, wallet_address')
                         .eq('competition_id', competitionId)
-                        .maybeSingle();
+                        .maybeSingle() as any;
 
                     if (winnerRow) {
                         setWinnerData(prev => ({

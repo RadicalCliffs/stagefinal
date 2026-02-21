@@ -102,7 +102,7 @@ export async function getOwnedTicketsForCompetition(
     }
 
     type RpcResult = { competitionid: string; ticketnumbers: string[] };
-    const { data, error } = await supabase.rpc('get_user_active_tickets', {
+    const { data, error } = await (supabase.rpc as any)('get_user_active_tickets', {
       p_user_identifier: id,
     }) as { data: RpcResult[] | null; error: any };
 

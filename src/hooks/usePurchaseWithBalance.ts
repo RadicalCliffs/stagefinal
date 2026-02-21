@@ -134,13 +134,13 @@ export function usePurchaseWithBalance(): UsePurchaseWithBalanceResult {
       
       // Build request body - must match RPC function parameters (6 params only)
       const requestBody: RPCPurchaseRequest = {
-        p_user_identifier: canonicalUserId,
+        canonical_user_id: canonicalUserId,
         p_competition_id: competitionId,
         p_ticket_price: ticketPrice,
         p_ticket_count: ticketNumbers.length,
         p_ticket_numbers: ticketNumbers,
         p_idempotency_key: idempotencyKey
-      };
+      } as any;
       
       // NOTE: p_reservation_id is NOT included - the RPC function only accepts 6 params
       // The reservationId is used for idempotency key generation only

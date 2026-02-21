@@ -45,21 +45,21 @@ const WinnerResultsTable = ({ competitionId }: WinnerResultsTableProps) => {
           .from('competitions')
           .select('total_tickets, tickets_sold, vrf_pregenerated_tx_hash, outcomes_vrf_seed')
           .eq('id', competitionId)
-          .maybeSingle();
+          .maybeSingle() as any;
 
         if (compError) {
           console.error('Error fetching competition:', compError);
         }
 
         // Fetch usernames for winner wallet addresses
-        let usernameMap = new Map<string, string>();
+        const usernameMap = new Map<string, string>();
         if (winnersData && winnersData.length > 0) {
-          const walletAddresses = winnersData.map(w => w.wallet_address).filter(Boolean);
+          const walletAddresses = winnersData.map((w: any) => w.wallet_address).filter(Boolean);
           if (walletAddresses.length > 0) {
             const { data: usersData } = await supabase
               .from('canonical_users')
               .select('username, wallet_address')
-              .in('wallet_address', walletAddresses);
+              .in('wallet_address', walletAddresses) as any;
             
             if (usersData) {
               for (const user of usersData) {
@@ -76,7 +76,7 @@ const WinnerResultsTable = ({ competitionId }: WinnerResultsTableProps) => {
 
         // Add data from winners table
         if (winnersData && winnersData.length > 0) {
-          for (const winner of winnersData) {
+          for (const winner of winnersData as any[]) {
             const username = winner.wallet_address 
               ? usernameMap.get(winner.wallet_address.toLowerCase()) 
               : null;

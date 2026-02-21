@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { BalancePaymentService, type RPCPurchaseRequest } from '../balance-payment-service';
 import { toCanonicalUserId } from '../canonicalUserId';
+import { supabase } from '../supabase';
 
 // Mock fetch globally
 const mockFetch = vi.fn();
@@ -12,96 +13,30 @@ vi.stubGlobal('crypto', {
   randomUUID: () => mockUUID,
 });
 
-// Track mock calls for assertions
-const mockRpcCalls: { fn: string; args: Record<string, unknown> }[] = [];
-const mockFromCalls: { table: string; operation: string; data?: unknown }[] = [];
-
-// Mock supabase - updated for new 2-step direct SQL flow
+// Mock supabase with proper return values using factory function
 vi.mock('../supabase', () => ({
   supabase: {
     auth: {
       getSession: vi.fn().mockResolvedValue({
         data: { session: { access_token: 'test-access-token-123' } }
-      })
+      }),
     },
-    rpc: vi.fn().mockImplementation((fnName: string, args: Record<string, unknown>) => {
-      mockRpcCalls.push({ fn: fnName, args });
-      
-      if (fnName === 'allocate_lucky_dip_tickets_batch') {
-        return Promise.resolve({
-          data: {
-            success: true,
-            reservation_id: 'reservation-uuid-123',
-            ticket_numbers: args.p_count ? Array.from({ length: args.p_count as number }, (_, i) => i + 1) : [1, 2, 3],
-          },
-          error: null,
-        });
-      }
-      
-      // Default RPC response
-      return Promise.resolve({
-        data: {
-          success: true,
-          entry_id: 'entry-123',
-          competition_id: 'test-competition-id',
-          ticket_numbers: [1, 2, 3],
-          total_cost: 3,
-          available_balance: 97,
-        },
-        error: null,
-      });
+    rpc: vi.fn().mockResolvedValue({
+      data: {
+        ok: true,
+        success: true,
+        entry_id: 'entry-uuid-123',
+        order_id: 'entry-uuid-123',
+        competition_id: 'test-competition-id',
+        ticket_numbers: [1, 2, 3],
+        total_cost: 3,
+        amount: 3,
+        available_balance: 97,
+        new_balance: 97,
+      },
+      error: null,
     }),
-    from: vi.fn().mockImplementation((table: string) => {
-      const createChain = (operation: string, data?: unknown) => {
-        mockFromCalls.push({ table, operation, data });
-        
-        const chainMethods = {
-          update: vi.fn().mockImplementation((updateData: unknown) => createChain('update', updateData)),
-          insert: vi.fn().mockImplementation((insertData: unknown) => createChain('insert', insertData)),
-          select: vi.fn().mockImplementation(() => createChain('select')),
-          eq: vi.fn().mockImplementation(() => chainMethods),
-          single: vi.fn().mockImplementation(() => {
-            if (table === 'sub_account_balances') {
-              return Promise.resolve({
-                data: { available_balance: 100 },
-                error: null,
-              });
-            }
-            return Promise.resolve({ data: null, error: null });
-          }),
-          then: vi.fn().mockImplementation((cb: (result: unknown) => void) => {
-            cb({ error: null });
-            return Promise.resolve();
-          }),
-        };
-        
-        // Return success for update/insert operations
-        if (operation === 'update' || operation === 'insert') {
-          return {
-            eq: vi.fn().mockReturnValue({
-              then: (cb: (result: unknown) => void) => {
-                cb({ error: null });
-                return Promise.resolve({ error: null });
-              },
-              ...chainMethods,
-            }),
-            then: (cb: (result: unknown) => void) => {
-              cb({ error: null });
-              return Promise.resolve({ error: null });
-            },
-          };
-        }
-        
-        return chainMethods;
-      };
-      
-      return {
-        update: vi.fn().mockImplementation((data: unknown) => createChain('update', data)),
-        insert: vi.fn().mockImplementation((data: unknown) => createChain('insert', data)),
-        select: vi.fn().mockImplementation(() => createChain('select')),
-      };
-    }),
-  }
+  },
 }));
 
 // Mock idempotency key manager
@@ -121,8 +56,23 @@ describe('BalancePaymentService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetch.mockReset();
-    mockRpcCalls.length = 0;
-    mockFromCalls.length = 0;
+    
+    // Reset supabase.rpc to default successful response
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: {
+        ok: true,
+        success: true,
+        entry_id: 'entry-uuid-123',
+        order_id: 'entry-uuid-123',
+        competition_id: 'test-competition-id',
+        ticket_numbers: [1, 2, 3],
+        total_cost: 3,
+        amount: 3,
+        available_balance: 97,
+        new_balance: 97,
+      },
+      error: null,
+    } as any);
   });
 
   describe('purchaseWithBalance', () => {
@@ -172,7 +122,6 @@ describe('BalancePaymentService', () => {
       });
 
       it('should ACCEPT valid UUID competitionId', async () => {
-        // New flow uses supabase.rpc directly, not fetch
         const result = await BalancePaymentService.purchaseWithBalance({
           competitionId: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
           ticketNumbers: [1, 2, 3],
@@ -181,8 +130,7 @@ describe('BalancePaymentService', () => {
         });
 
         expect(result.success).toBe(true);
-        // Verify allocate_lucky_dip_tickets_batch was called
-        expect(mockRpcCalls.some(c => c.fn === 'allocate_lucky_dip_tickets_batch')).toBe(true);
+        expect(vi.mocked(supabase.rpc)).toHaveBeenCalled();
       });
     });
 
@@ -316,6 +264,7 @@ describe('BalancePaymentService', () => {
         });
 
         expect(result.success).toBe(true);
+        expect(vi.mocked(supabase.rpc)).toHaveBeenCalled();
       });
     });
 
@@ -324,7 +273,7 @@ describe('BalancePaymentService', () => {
     // ============================================================
     
     describe('request body construction', () => {
-      it('should call allocate_lucky_dip_tickets_batch with correct params', async () => {
+      it('should construct correct RPCPurchaseRequest payload', async () => {
         await BalancePaymentService.purchaseWithBalance({
           competitionId: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
           ticketNumbers: [1, 2],
@@ -332,12 +281,16 @@ describe('BalancePaymentService', () => {
           ticketPrice: 1,
         });
 
-        // Find the allocation call
-        const allocCall = mockRpcCalls.find(c => c.fn === 'allocate_lucky_dip_tickets_batch');
-        expect(allocCall).toBeDefined();
-        expect(allocCall?.args.p_competition_id).toBe('e2e04124-5ea9-4fb2-951a-26e6d0991615');
-        expect(allocCall?.args.p_count).toBe(2);
-        expect(allocCall?.args.p_ticket_price).toBe(1);
+        expect(vi.mocked(supabase.rpc)).toHaveBeenCalledWith(
+          'purchase_tickets_with_balance',
+          expect.objectContaining({
+            p_user_identifier: 'prize:pid:0x123abc',
+            p_competition_id: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
+            p_ticket_price: 1,
+            p_ticket_numbers: [1, 2],
+            p_idempotency_key: expect.any(String),
+          })
+        );
       });
 
       it('should convert wallet address to canonical user ID', async () => {
@@ -348,11 +301,12 @@ describe('BalancePaymentService', () => {
           ticketPrice: 1,
         });
 
-        // Find the allocation call and check user ID is canonical
-        const allocCall = mockRpcCalls.find(c => c.fn === 'allocate_lucky_dip_tickets_batch');
-        expect(allocCall).toBeDefined();
-        // Should be lowercase and prefixed
-        expect(allocCall?.args.p_user_id).toBe('prize:pid:0xabcdef123456789');
+        expect(vi.mocked(supabase.rpc)).toHaveBeenCalledWith(
+          'purchase_tickets_with_balance',
+          expect.objectContaining({
+            p_user_identifier: 'prize:pid:0xabcdef123456789',
+          })
+        );
       });
     });
 
@@ -361,8 +315,15 @@ describe('BalancePaymentService', () => {
     // ============================================================
     
     describe('error handling', () => {
-      it('should handle insufficient balance error', async () => {
-        // This is now handled in the direct flow via balance check
+      it('should handle HTTP 400 insufficient balance error', async () => {
+        vi.mocked(supabase.rpc).mockResolvedValueOnce({
+          data: {
+            ok: false,
+            error: 'insufficient balance',
+          } as any,
+          error: null,
+        } as any);
+
         const result = await BalancePaymentService.purchaseWithBalance({
           competitionId: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
           ticketNumbers: [1, 2, 3],
@@ -375,7 +336,15 @@ describe('BalancePaymentService', () => {
         expect(result).toBeDefined();
       });
 
-      it('should handle no balance record error', async () => {
+      it('should handle HTTP 404 no balance record error', async () => {
+        vi.mocked(supabase.rpc).mockResolvedValueOnce({
+          data: {
+            ok: false,
+            error: 'No balance record found',
+          } as any,
+          error: null,
+        } as any);
+
         const result = await BalancePaymentService.purchaseWithBalance({
           competitionId: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
           ticketNumbers: [1],
@@ -387,18 +356,11 @@ describe('BalancePaymentService', () => {
       });
 
       it('should handle network errors gracefully', async () => {
-        // The new flow uses supabase client which handles errors internally
-        const result = await BalancePaymentService.purchaseWithBalance({
-          competitionId: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
-          ticketNumbers: [1],
-          userId: '0x123abc',
-          ticketPrice: 1,
-        });
+        vi.mocked(supabase.rpc).mockResolvedValueOnce({
+          data: null,
+          error: { message: 'Network error', code: 'NETWORK_ERROR' } as any,
+        } as any);
 
-        expect(result).toBeDefined();
-      });
-
-      it('should handle invalid responses gracefully', async () => {
         const result = await BalancePaymentService.purchaseWithBalance({
           competitionId: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
           ticketNumbers: [1],
@@ -416,6 +378,23 @@ describe('BalancePaymentService', () => {
     
     describe('success response handling', () => {
       it('should parse success response correctly', async () => {
+        vi.mocked(supabase.rpc).mockResolvedValueOnce({
+          data: {
+            ok: true,
+            success: true,
+            entry_id: 'entry-uuid-123',
+            order_id: 'entry-uuid-123',
+            competition_id: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
+            ticket_numbers: [100, 101, 102],
+            total_cost: 0.75,
+            amount: 0.75,
+            new_balance: 99.25,
+            available_balance: 99.25,
+            idempotent: false,
+          } as any,
+          error: null,
+        } as any);
+
         const result = await BalancePaymentService.purchaseWithBalance({
           competitionId: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
           ticketNumbers: [100, 101, 102],
@@ -429,6 +408,23 @@ describe('BalancePaymentService', () => {
       });
 
       it('should handle idempotent response (duplicate request)', async () => {
+        vi.mocked(supabase.rpc).mockResolvedValueOnce({
+          data: {
+            ok: true,
+            success: true,
+            entry_id: 'entry-uuid-123',
+            order_id: 'entry-uuid-123',
+            competition_id: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
+            ticket_numbers: [1],
+            total_cost: 1,
+            amount: 1,
+            new_balance: 99,
+            available_balance: 99,
+            idempotent: true, // This was a duplicate request
+          } as any,
+          error: null,
+        } as any);
+
         const result = await BalancePaymentService.purchaseWithBalance({
           competitionId: 'e2e04124-5ea9-4fb2-951a-26e6d0991615',
           ticketNumbers: [1],

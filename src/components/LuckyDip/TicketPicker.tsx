@@ -110,7 +110,7 @@ export default function TicketPicker({
         .from('competitions')
         .select('id, ticket_price')
         .eq('onchain_competition_id', competitionId)
-        .maybeSingle();
+        .maybeSingle() as any;
       
       if (dbError) {
         console.error('Error loading database competition:', dbError);

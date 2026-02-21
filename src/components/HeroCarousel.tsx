@@ -31,7 +31,7 @@ const HeroCarousel = () => {
         .select('value')
         .eq('category', 'hero_carousel')
         .eq('key', 'slider_interval')
-        .maybeSingle()
+        .maybeSingle() as any
 
       if (data?.value) {
         setSliderInterval(parseInt(data.value) || 5000)

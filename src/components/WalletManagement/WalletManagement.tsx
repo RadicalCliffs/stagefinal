@@ -123,11 +123,11 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
 
       try {
         // Query canonical_users table directly (production doesn't have get_linked_external_wallet RPC)
-        const { data, error } = await supabase
+        const { data, error }: any = await supabase
           .from('canonical_users')
           .select('wallet_address, base_wallet_address, eth_wallet_address')
           .eq('canonical_user_id', canonicalUserId)
-          .maybeSingle();
+          .maybeSingle() as any;
 
         if (error) {
           console.error('Error fetching linked wallet:', error);
@@ -159,13 +159,13 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
         const canonicalId = toPrizePid(baseUser.id);
         const normalizedWallet = isWalletAddress(baseUser.id) ? baseUser.id.toLowerCase() : baseUser.id;
 
-        const { data, error } = await supabase
+        const { data, error }: any = await supabase
           .from('user_transactions')
           .select('*')
           .eq('type', 'topup')
           .in('status', ['pending', 'pending_payment', 'waiting', 'processing', 'finished', 'completed', 'confirmed', 'success'])
           .or(`user_id.eq.${normalizedWallet},canonical_user_id.eq.${canonicalId},wallet_address.eq.${normalizedWallet}`)
-          .order('created_at', { ascending: false })
+          .order('created_at', { ascending: false } as any)
           .limit(10) as { data: WalletTransaction[]; error: any };
 
         if (error) {
@@ -241,7 +241,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
     if (!canonicalUserId) return;
 
     try {
-      const { data, error } = await (supabase.rpc as any)('get_user_wallets', {
+      const { data, error }: any = await (supabase.rpc as any)('get_user_wallets', {
         user_identifier: canonicalUserId
       });
 
@@ -274,9 +274,9 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
 
     try {
       // Update canonical_users table directly (production doesn't have set_primary_wallet RPC)
-      const { error } = await supabase
-        .from('canonical_users')
-        .update({ wallet_address: walletAddress })
+      const { error }: any = await (supabase
+        .from('canonical_users') as any)
+        .update({ wallet_address: walletAddress } as any)
         .eq('canonical_user_id', canonicalUserId);
 
       if (error) {
@@ -302,7 +302,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
     if (!canonicalUserId) return;
 
     try {
-      const { data, error } = await (supabase.rpc as any)('update_wallet_nickname', {
+      const { data, error }: any = await (supabase.rpc as any)('update_wallet_nickname', {
         user_identifier: canonicalUserId,
         p_wallet_address: walletAddress,
         p_nickname: nickname
@@ -336,7 +336,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
     setLinkSuccess(null);
 
     try {
-      const { data, error } = await (supabase.rpc as any)('unlink_wallet', {
+      const { data, error }: any = await (supabase.rpc as any)('unlink_wallet', {
         user_identifier: canonicalUserId,
         p_wallet_address: walletAddress
       });
@@ -419,7 +419,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
 
     try {
       // Use RPC function which bypasses RLS
-      const { data, error } = await (supabase.rpc as any)('unlink_external_wallet', {
+      const { data, error }: any = await (supabase.rpc as any)('unlink_external_wallet', {
         user_identifier: canonicalUserId
       });
 

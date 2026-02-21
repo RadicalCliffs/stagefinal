@@ -417,16 +417,11 @@ export class BalancePaymentService {
       let lastError: any = null;
 
       try {
-        // We need a reservation ID - either passed in or create one now
-        let actualReservationId = reservationId;
-        let actualTicketNumbers = ticketNumbers;
-        const totalAmount = ticketPrice * ticketNumbers.length;
-
-        // If no reservation, create one first via allocate_lucky_dip_tickets_batch
-        if (!actualReservationId) {
-          console.log('[BalancePayment] No reservation - creating via allocate_lucky_dip_tickets_batch...');
-          const { data: allocData, error: allocError } = await supabase.rpc('allocate_lucky_dip_tickets_batch', {
-            p_user_id: canonicalUserId,
+        console.log('[BalancePayment] Calling purchase_tickets_with_balance RPC directly...');
+        const { data: rpcData, error: rpcError } = await (supabase.rpc as any)(
+          'purchase_tickets_with_balance',
+          {
+            p_user_identifier: canonicalUserId,
             p_competition_id: competitionId,
             p_count: ticketNumbers.length,
             p_ticket_price: ticketPrice,
@@ -443,6 +438,27 @@ export class BalancePaymentService {
               error: errMsg,
               errorDetails: { code: 'ALLOCATION_FAILED', message: errMsg, statusCode: 400 }
             };
+          } else if (rpcData.ok === false) {
+            // RPC returned business error
+            const errMsg = rpcData.error || 'Purchase failed';
+            console.warn('[BalancePayment] RPC returned business error:', errMsg);
+            
+            // Check for specific error types
+            if (errMsg.includes('insufficient balance')) {
+              return {
+                success: false,
+                error: 'Insufficient balance',
+                errorDetails: { message: errMsg, statusCode: 402 } as any
+              };
+            }
+            if (errMsg.includes('not available') || errMsg.includes('not found')) {
+              return {
+                success: false,
+                error: errMsg,
+                errorDetails: { message: errMsg, statusCode: 400 } as any
+              };
+            }
+            lastError = { message: errMsg, code: 'PURCHASE_FAILED' };
           }
 
           actualReservationId = allocData.reservation_id;

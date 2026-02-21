@@ -99,7 +99,7 @@ export async function getVRFStatus(competitionId: string): Promise<VRFStatus> {
       .from('competitions')
       .select('vrf_status, vrf_tx_hash, vrf_draw_completed_at, onchain_competition_id, num_winners, status')
       .eq('id', competitionId)
-      .single();
+      .single() as any;
 
     if (error) throw error;
 
@@ -251,7 +251,7 @@ export async function triggerVRF(competitionId: string): Promise<{
       .from('competitions')
       .select('onchain_competition_id, status, vrf_status')
       .eq('id', competitionId)
-      .single();
+      .single() as any;
 
     if (error) throw error;
 
@@ -277,7 +277,7 @@ export async function triggerVRF(competitionId: string): Promise<{
     }
 
     // Trigger the draw using vrf-debug helper
-    const result = await triggerDraw(competition.onchain_competition_id);
+    const result: any = await triggerDraw(competition.onchain_competition_id);
 
     if (result.success) {
       // Note: Sync will be handled by backend scheduler after VRF callback
@@ -313,11 +313,11 @@ export async function getVRFQueue(): Promise<VRFQueueItem[]> {
       .from('competitions')
       .select('id, vrf_status, vrf_tx_hash, vrf_draw_requested_at')
       .in('vrf_status', ['requested', 'processing'])
-      .order('vrf_draw_requested_at', { ascending: true });
+      .order('vrf_draw_requested_at', { ascending: true } as any) as any;
 
     if (error) throw error;
 
-    return (data || []).map((item) => ({
+    return (data || []).map((item: any) => ({
       competitionId: item.id,
       status: item.vrf_status || 'unknown',
       requestedAt: item.vrf_draw_requested_at,

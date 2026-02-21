@@ -172,7 +172,7 @@ export async function reconcileBalance(
 ): Promise<{ balance: number; changed: boolean }> {
   try {
     // Fetch latest balance from server
-    const { data, error } = await supabase.rpc('get_user_balance', {
+    const { data, error }: any = await (supabase.rpc as any)('get_user_balance', {
       p_canonical_user_id: userId,
     });
 
@@ -180,7 +180,7 @@ export async function reconcileBalance(
 
     // get_user_balance returns JSONB object: { success, balance, bonus_balance, total_balance }
     const balanceData = parseBalanceResponse(data);
-    const currentBalance = balanceData.balance;
+    const currentBalance = balanceData.balance!;
     const changed = lastKnownBalance !== null && currentBalance !== lastKnownBalance;
 
     if (changed) {
@@ -206,11 +206,11 @@ export async function verifyReservation(
   reservationId: string
 ): Promise<{ valid: boolean; status: string | null; expired: boolean }> {
   try {
-    const { data, error } = await supabase
+    const { data, error }: any = await supabase
       .from('pending_tickets')
       .select('status, expires_at')
       .eq('id', reservationId)
-      .single();
+      .single() as any;
 
     if (error || !data) {
       console.log('[ReconnectResilience] Reservation not found:', reservationId);

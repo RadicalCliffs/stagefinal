@@ -186,7 +186,7 @@ describe('Top-Up Wallet Integration Test', () => {
     // Let's verify the RPC would be called correctly
     const { supabase } = await import('../supabase');
     
-    const creditResult = await supabase.rpc('credit_balance_with_first_deposit_bonus', {
+    const creditResult = await (supabase.rpc as any)('credit_balance_with_first_deposit_bonus', {
       p_canonical_user_id: userId,
       p_amount: topUpAmount,
       p_reason: 'commerce_topup',
@@ -208,7 +208,7 @@ describe('Top-Up Wallet Integration Test', () => {
       .from('sub_account_balances')
       .select('*')
       .eq('canonical_user_id', userId)
-      .single();
+      .single() as any;
 
     expect(balanceData).toEqual({
       available_balance: 100,
@@ -270,7 +270,7 @@ describe('Top-Up Wallet Integration Test', () => {
     expect(result.transactionId).toBe('txn_existing_user_456');
 
     // Simulate webhook crediting
-    const creditResult = await supabase.rpc('credit_balance_with_first_deposit_bonus', {
+    const creditResult = await (supabase.rpc as any)('credit_balance_with_first_deposit_bonus', {
       p_canonical_user_id: userId,
       p_amount: topUpAmount,
       p_reason: 'commerce_topup',
@@ -427,8 +427,8 @@ describe('Top-Up Wallet Integration Test', () => {
       })
     );
 
-    // Note: Optimistic insert does NOT happen when API returns error
-    // because callCreateCharge throws before we reach the insert code
+    // Optimistic crediting should NOT happen when API call fails
+    // Because the error is thrown before reaching the optimistic credit code
     expect(mockSupabaseInsert).not.toHaveBeenCalled();
   });
 });

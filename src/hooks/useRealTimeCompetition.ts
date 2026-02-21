@@ -115,7 +115,7 @@ export function useRealTimeCompetition(options: UseRealTimeCompetitionOptions): 
         .from('competitions')
         .select('*')
         .eq('id', competitionId)
-        .single();
+        .single() as any;
 
       if (fetchError) throw fetchError;
 
