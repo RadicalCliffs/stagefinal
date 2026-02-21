@@ -99,12 +99,22 @@ const EntriesTickets = ({
   };
 
   // Sort individual entries by purchase date (most recent first) for the breakdown
+  // FILTER OUT invalid entries with no ticket numbers
   const sortedEntries = individualEntries
-    ? [...individualEntries].sort(
-        (a, b) =>
-          new Date(b.purchase_date || 0).getTime() -
-          new Date(a.purchase_date || 0).getTime()
-      )
+    ? [...individualEntries]
+        .filter(entry => {
+          // Must have valid ticket_numbers
+          const tickets = entry.ticket_numbers;
+          if (!tickets || tickets.trim() === '' || tickets === '0') return false;
+          // Parse and verify at least one valid ticket number > 0
+          const ticketArray = tickets.split(',').map(t => parseInt(t.trim())).filter(t => !isNaN(t) && t > 0);
+          return ticketArray.length > 0;
+        })
+        .sort(
+          (a, b) =>
+            new Date(b.purchase_date || 0).getTime() -
+            new Date(a.purchase_date || 0).getTime()
+        )
     : [];
 
   // Use purchase groups if available, otherwise fall back to individual entries

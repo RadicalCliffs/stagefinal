@@ -144,7 +144,19 @@ export default function EntriesList() {
         allTitles: data?.map((e: any) => e.title).filter(Boolean)
       });
 
-      setEntries(data || []);
+      // FILTER OUT invalid entries with no ticket numbers before setting state
+      const validEntries = (data || []).filter((entry: any) => {
+        const tickets = entry.ticket_numbers;
+        if (!tickets || tickets.trim() === '' || tickets === '0') {
+          console.log('[Dashboard.Entries] Filtering out invalid entry:', entry.id);
+          return false;
+        }
+        // Parse and verify at least one valid ticket number > 0
+        const ticketArray = String(tickets).split(',').map(t => parseInt(t.trim())).filter(t => !isNaN(t) && t > 0);
+        return ticketArray.length > 0;
+      });
+
+      setEntries(validEntries);
       initialLoadDoneRef.current = true;
       // Reset consecutive error counter on success
       consecutiveErrorsRef.current = 0;

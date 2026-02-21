@@ -132,6 +132,18 @@ const CompetitionEntryDetails = () => {
       if (seen.has(entry.id)) {
         return false;
       }
+      // FILTER OUT INVALID ENTRIES - must have actual ticket numbers
+      const tickets = entry.ticket_numbers;
+      if (!tickets || tickets.trim() === '' || tickets === '0') {
+        console.log('[CompetitionEntryDetails] Filtering out invalid entry with no tickets:', entry.id);
+        return false;
+      }
+      // Parse and verify tickets are real numbers > 0
+      const ticketArray = tickets.split(',').map(t => parseInt(t.trim())).filter(t => !isNaN(t) && t > 0);
+      if (ticketArray.length === 0) {
+        console.log('[CompetitionEntryDetails] Filtering out entry with no valid ticket numbers:', entry.id);
+        return false;
+      }
       seen.add(entry.id);
       return true;
     });
