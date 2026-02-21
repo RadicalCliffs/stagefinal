@@ -1,6 +1,26 @@
 -- RUN THIS IN SUPABASE SQL EDITOR
 -- Cleans up duplicate entries and fixes ticket counts
 
+-- Step 0: DIAGNOSE - Find orphan entries with empty ticket numbers (erroneous $1 entries)
+SELECT 
+  id,
+  uid,
+  competitionid,
+  wallet_address,
+  numberoftickets,
+  ticketnumbers,
+  amountspent,
+  purchasedate,
+  created_at
+FROM joincompetition
+WHERE (ticketnumbers IS NULL OR ticketnumbers = '' OR TRIM(ticketnumbers) = '')
+ORDER BY created_at DESC
+LIMIT 50;
+
+-- Step 0b: DELETE orphan entries with no ticket numbers
+DELETE FROM joincompetition
+WHERE (ticketnumbers IS NULL OR ticketnumbers = '' OR TRIM(ticketnumbers) = '');
+
 -- Step 1: DIAGNOSE - Find entries where numberoftickets doesn't match actual ticket count
 SELECT 
   id,
