@@ -1781,7 +1781,7 @@ export const database = {
       console.log('[getUserTransactions] Calling RPC with user_identifier:', userId.substring(0, 20) + '...');
       const { data, error }: any = (await (supabase
         .rpc as any)('get_user_transactions', {
-          p_user_identifier: userId.trim()
+          user_identifier: userId.trim()
         })) as any;
 
       console.log('[getUserTransactions] RPC response:', { 
