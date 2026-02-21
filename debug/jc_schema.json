@@ -1,0 +1,17 @@
+﻿{
+    "value":  [
+                  {
+                      "id":  "588bbf9d-79c8-42f6-ba04-83a229ee2f4a",
+                      "uid":  "490e326f-00a4-4c1f-959b-9dc45fbba3f4",
+                      "competition_id":  "0e4d80d8-899b-4dd6-9cb4-35c36a8ddb17",
+                      "competitionid":  "0e4d80d8-899b-4dd6-9cb4-35c36a8ddb17"
+                  },
+                  {
+                      "id":  "ef28a4c7-5f7b-4e21-b59f-0739f684054a",
+                      "uid":  "490e326f-00a4-4c1f-959b-9dc45fbba3f4",
+                      "competition_id":  "51e074a8-4f78-4e84-b7c8-bed970932467",
+                      "competitionid":  "51e074a8-4f78-4e84-b7c8-bed970932467"
+                  }
+              ],
+    "Count":  2
+}

@@ -216,7 +216,8 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
         setStep('crypto-checkout');
       } else if (paymentMethod === 'commerce') {
         
-        // Check if we have a pre-configured checkout URL for this amount
+        // Coinbase Commerce top-up - uses pre-configured checkout URLs
+        // NOTE: Redirect URLs must be configured in Coinbase Commerce dashboard for each checkout link
         const checkoutUrl = TOP_UP_CHECKOUT_URLS[amount];
         
         if (!checkoutUrl) {
@@ -227,8 +228,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
           return;
         }
         
-        // Create a transaction record for tracking (without calling create-charge API)
-        // This ensures we have a record of the payment attempt
+        // Create a transaction record for tracking
         const transactionId = crypto.randomUUID();
         
         try {

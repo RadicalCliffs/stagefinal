@@ -144,17 +144,14 @@ Deno.serve(async (req: Request) => {
     // Log webhook event for audit (with enhanced metadata for debugging)
     try {
       const eventData = payload.event?.data || {};
-      const metadata = eventData.metadata || {};
+      const eventId = payload.event?.id || eventData.id || crypto.randomUUID();
       await supabase.from("payment_webhook_events").insert({
+        event_id: eventId,
         provider: "coinbase_commerce",
         payload,
-        status: 200,
-        event_type: payload.event?.type,
-        charge_id: eventData.id,
-        user_id: metadata.user_id,
-        competition_id: metadata.competition_id,
-        transaction_id: metadata.transaction_id,
-        webhook_received_at: new Date().toISOString(),
+        status: "received",
+        event_type: payload.event?.type || "unknown",
+        received_at: new Date().toISOString(),
       });
       console.log(`[commerce-webhook][${requestId}] ✅ Webhook event logged to payment_webhook_events`);
     } catch (logError) {

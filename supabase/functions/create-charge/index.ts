@@ -367,10 +367,15 @@ Deno.serve(async (req: Request) => {
         type,
         selected_tickets: selectedTickets ? JSON.stringify(selectedTickets) : null,
       } as ChargeMetadata,
-      // CRITICAL: Always redirect to /dashboard/entries for ALL payment types (entries and top-ups)
-      // This ensures users see their entries immediately after payment completion
-      redirect_url: `${successBaseUrl}/dashboard/entries?payment=success&txId=${transactionId}`,
-      cancel_url: `${successBaseUrl}/dashboard/entries?payment=cancelled&txId=${transactionId}`,
+      // Redirect to appropriate page based on payment type
+      // - Entries: /dashboard/entries (see competition entries)
+      // - Top-ups: /dashboard/orders (see transaction history)
+      redirect_url: isEntry 
+        ? `${successBaseUrl}/dashboard/entries?payment=success&txId=${transactionId}`
+        : `${successBaseUrl}/dashboard/orders?payment=success&txId=${transactionId}`,
+      cancel_url: isEntry
+        ? `${successBaseUrl}/dashboard/entries?payment=cancelled&txId=${transactionId}`
+        : `${successBaseUrl}/dashboard/orders?payment=cancelled&txId=${transactionId}`,
     };
 
     console.log(`[create-charge][${requestId}] Creating Coinbase Commerce charge for $${normalizedAmount}`);

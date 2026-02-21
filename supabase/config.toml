@@ -162,6 +162,20 @@ vector_port = 54328
 # Configure one of the supported backends: `postgres`, `bigquery`.
 backend = "postgres"
 
+# Edge Functions configuration
+# Disable JWT verification for webhook endpoints (they use their own signature verification)
+[functions.commerce-webhook]
+verify_jwt = false
+
+[functions.chainlink-vrf-webhook]
+verify_jwt = false
+
+[functions.onramp-webhook]
+verify_jwt = false
+
+[functions.offramp-webhook]
+verify_jwt = false
+
 # Experimental features may be removed any time their development is discontinued.
 [experimental]
 # Configures Postgres SSL to use server-client certificate authentication.
