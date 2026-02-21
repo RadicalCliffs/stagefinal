@@ -470,12 +470,18 @@ export class BalancePaymentService {
 
       // Step 2: Confirm the pending_tickets (trigger creates tickets automatically)
       console.log('[BalancePayment] Step 2: Confirming reservation...');
+      
+      // Extract wallet address for fallback lookup
+      const walletAddress = userId.startsWith('0x') ? userId.toLowerCase() : 
+        (canonicalUserId.startsWith('prize:pid:0x') ? canonicalUserId.substring(10).toLowerCase() : null);
+      
       const { error: confirmError } = await supabase
         .from('pending_tickets')
         .update({ 
           status: 'confirmed', 
           confirmed_at: new Date().toISOString(),
-          canonical_user_id: canonicalUserId
+          canonical_user_id: canonicalUserId,
+          wallet_address: walletAddress // For dashboard fallback lookup
         })
         .eq('id', actualReservationId);
 

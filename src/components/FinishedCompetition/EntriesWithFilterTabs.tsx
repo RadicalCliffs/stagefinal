@@ -656,14 +656,25 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
   const idToUse = competitionId || competitionUid;
   const shouldSubscribe = !!(idToUse && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idToUse));
 
+  // Debounced fetch to prevent rapid re-fetches when multiple tickets are inserted
+  const fetchEntriesDebounced = useMemo(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        fetchEntries();
+      }, 500); // Wait 500ms after last event before fetching
+    };
+  }, [fetchEntries]);
+
   useSupabaseRealtimeMultiple([
     {
       table: 'tickets',
       handlers: {
         onInsert: (payload) => {
           if (payload.new.competition_id === idToUse) {
-            console.log('[EntriesWithFilterTabs] New ticket detected, refreshing entries');
-            fetchEntries();
+            console.log('[EntriesWithFilterTabs] New ticket detected, refreshing entries (debounced)');
+            fetchEntriesDebounced();
           }
         }
       }
@@ -673,21 +684,14 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
       handlers: {
         onInsert: (payload) => {
           if (payload.new.competition_id === idToUse) {
-            console.log('[EntriesWithFilterTabs] New transaction detected, refreshing entries');
-            fetchEntries();
+            console.log('[EntriesWithFilterTabs] New transaction detected, refreshing entries (debounced)');
+            fetchEntriesDebounced();
           }
         }
       }
-    },
-    {
-      table: 'balance_ledger',
-      handlers: {
-        onInsert: () => {
-          console.log('[EntriesWithFilterTabs] Balance ledger updated, refreshing entries');
-          fetchEntries();
-        }
-      }
     }
+    // Note: Removed balance_ledger subscription - it was triggering on ALL ledger entries globally
+    // and is not relevant to competition entries display
   ], shouldSubscribe);
 
   // Dynamically determine filter ranges based on entries or competition total_tickets
