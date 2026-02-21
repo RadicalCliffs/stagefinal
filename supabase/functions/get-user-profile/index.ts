@@ -99,7 +99,7 @@ Deno.serve(async (req: Request) => {
     // Query by canonical_user_id (primary) with fallback to legacy fields during transition
     const { data, error } = await supabase
       .from("canonical_users")
-      .select("canonical_user_id, privy_user_id, email, username, avatar_url, usdc_balance, has_used_new_user_bonus, wallet_address, base_wallet_address")
+      .select("canonical_user_id, privy_user_id, email, username, avatar_url, available_balance, has_used_new_user_bonus, wallet_address, base_wallet_address")
       .eq("canonical_user_id", canonicalUserId)
       .maybeSingle();
     
@@ -109,7 +109,7 @@ Deno.serve(async (req: Request) => {
       console.log(`[get-user-profile] Canonical lookup failed, trying legacy lookup`);
       const { data: legacyData } = await supabase
         .from("canonical_users")
-        .select("canonical_user_id, privy_user_id, email, username, avatar_url, usdc_balance, has_used_new_user_bonus, wallet_address, base_wallet_address")
+        .select("canonical_user_id, privy_user_id, email, username, avatar_url, available_balance, has_used_new_user_bonus, wallet_address, base_wallet_address")
         .or(`privy_user_id.eq.${inputUserId},wallet_address.ilike.${inputUserId},base_wallet_address.ilike.${inputUserId}`)
         .maybeSingle();
       puc = legacyData;
@@ -126,7 +126,7 @@ Deno.serve(async (req: Request) => {
       email: null,
       username: null,
       avatar_url: null,
-      usdc_balance: 0,
+      available_balance: 0,
       has_used_new_user_bonus: false,
       wallet_address: isWalletAddress(inputUserId) ? inputUserId.toLowerCase() : null,
     };
@@ -185,7 +185,7 @@ Deno.serve(async (req: Request) => {
         has_used_new_user_bonus: profile.has_used_new_user_bonus,
       },
       wallet: {
-        usdc_balance: Number(profile.usdc_balance ?? 0),
+        available_balance: Number(profile.available_balance ?? 0),
       },
       tickets: {
         total_count: (userTickets || []).length,

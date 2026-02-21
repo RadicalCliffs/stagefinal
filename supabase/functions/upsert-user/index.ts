@@ -193,7 +193,7 @@ Deno.serve(async (req) => {
         country: country || null,
         telegram_handle: telegram || null,
         avatar_url: avatar || getRandomAvatarUrl(),
-        usdc_balance: 0,
+        available_balance: 0,
         has_used_new_user_bonus: false,
         // Include wallet fields if wallet address is provided
         ...buildWalletFields(),

@@ -288,7 +288,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         console.log('[PaymentModal] Balance ledger changed, refreshing balance');
         getUserBalance(canonicalUserId).then(result => {
           if (result.success) {
-            setUserBalance(result.data.usdc_balance);
+            setUserBalance(result.data.available_balance);
           }
         }).catch(err => console.warn('[PaymentModal] Balance refresh failed:', err));
       }
@@ -298,7 +298,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         console.log('[PaymentModal] Sub-account balance changed, refreshing balance');
         getUserBalance(canonicalUserId).then(result => {
           if (result.success) {
-            setUserBalance(result.data.usdc_balance);
+            setUserBalance(result.data.available_balance);
           }
         }).catch(err => console.warn('[PaymentModal] Balance refresh failed:', err));
       }
@@ -545,7 +545,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     try {
       const result = await getUserBalance(canonicalUserId!);
       if (result.success) {
-        setUserBalance(result.data.usdc_balance ?? 0);
+        setUserBalance(result.data.available_balance ?? 0);
       }
     } catch (error) {
       console.error('Failed to load user balance:', error);
@@ -1956,7 +1956,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
               if (canonicalUserId) {
                 setLoadingBalance(true);
                 getUserBalance(canonicalUserId)
-                  .then(balance => setUserBalance(balance.data.usdc_balance))
+                  .then(balance => setUserBalance(balance.data.available_balance))
                   .catch(err => console.warn('Failed to refresh balance:', err))
                   .finally(() => setLoadingBalance(false));
               }

@@ -123,7 +123,7 @@ export const userAuth = {
         first_name?: string | null;
         last_name?: string | null;
         country?: string | null;
-        usdc_balance?: number | null;
+        available_balance?: number | null;
         [key: string]: any;
       }>();
 
@@ -133,7 +133,7 @@ export const userAuth = {
         email: byCanonical.email,
         wallet: byCanonical.wallet_address,
         canonical_user_id: byCanonical.canonical_user_id,
-        usdc_balance: byCanonical.usdc_balance,
+        available_balance: byCanonical.available_balance,
       });
 
       // Update fields if needed
@@ -362,7 +362,7 @@ export const userAuth = {
           first_name?: string | null;
           last_name?: string | null;
           country?: string | null;
-          usdc_balance?: number | null;
+          available_balance?: number | null;
           [key: string]: any;
         }> | null };
 
@@ -376,7 +376,7 @@ export const userAuth = {
           base_wallet: byEmail.base_wallet_address,
           hasCanonicalId: !!byEmail.canonical_user_id,
           existingCanonicalId: byEmail.canonical_user_id,
-          usdc_balance: byEmail.usdc_balance,
+          available_balance: byEmail.available_balance,
         });
 
         // CRITICAL: Link the canonical ID and wallet to this existing account
@@ -555,7 +555,7 @@ export const userAuth = {
       // Use getRandomAvatar() ONLY during account creation so user gets a unique avatar once
       // After creation, the avatar_url is stored in the database and should not be regenerated
       avatar_url: userDataService.getRandomAvatar(),
-      usdc_balance: 0,
+      available_balance: 0,
       has_used_new_user_bonus: false,
       created_at: new Date().toISOString(),
     };

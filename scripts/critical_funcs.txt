@@ -1,0 +1,579 @@
+== apply_topup_and_welcome_bonus ==
+
+DECLARE
+  v_user_id text;
+  v_amount numeric;
+  v_currency text;
+  v_provider text;
+  v_before numeric;
+  v_after numeric;
+  v_bonus_before boolean;
+  v_bonus_amount numeric := 0;
+  v_after_bonus numeric;
+  v_ref_topup text;
+  v_ref_bonus text;
+  v_idem_key text;
+BEGIN
+  -- Only when posted_to_balance flips to true
+  IF TG_OP <> 'UPDATE' OR (NEW.posted_to_balance IS DISTINCT FROM TRUE) OR (OLD.posted_to_balance IS TRUE) THEN
+    RETURN NEW;
+  END IF;
+
+  -- Only for top-up providers
+  v_provider := NEW.payment_provider;
+  IF NOT public.is_topup_provider(v_provider) THEN
+    RETURN NEW;
+  END IF;
+
+  -- Idempotency lock per external ref if available (prevents double credit on webhook retries)
+  v_idem_key := COALESCE(NEW.webhook_ref, NEW.charge_id, NEW.id::text, gen_random_uuid()::text);
+  PERFORM pg_advisory_xact_lock(hashtext('user_tx_topup:' || v_idem_key));
+
+  v_user_id  := COALESCE(NEW.canonical_user_id, NEW.canonical_user_id_norm, NEW.user_id);
+  v_amount   := COALESCE(NEW.amount, 0);
+  v_currency := COALESCE(NEW.currency, 'USDC');
+  v_ref_topup := COALESCE(NEW.charge_id, NEW.webhook_ref, 'user_tx:' || NEW.id::text);
+  v_ref_bonus := v_ref_topup || ':bonus50';
+
+  IF v_user_id IS NULL OR v_user_id = '' THEN
+    RAISE EXCEPTION 'Cannot credit top-up: missing canonical_user_id in user_transactions id=%', NEW.id;
+  END IF;
+  IF v_amount <= 0 THEN
+    RAISE EXCEPTION 'Cannot credit top-up: non-positive amount % (user_transactions id=%)', v_amount, NEW.id;
+  END IF;
+
+  -- Lock user row
+  SELECT COALESCE(usdc_balance, 0), COALESCE(has_used_new_user_bonus, false)
+  INTO v_before, v_bonus_before
+  FROM public.canonical_users
+  WHERE canonical_user_id = v_user_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'canonical_user not found for id % (tx id=%)', v_user_id, NEW.id;
+  END IF;
+
+  -- 1) Credit the cash top-up
+  UPDATE public.canonical_users
+  SET usdc_balance = usdc_balance + v_amount,
+      updated_at = now()
+  WHERE canonical_user_id = v_user_id;
+
+  SELECT usdc_balance INTO v_after
+  FROM public.canonical_users
+  WHERE canonical_user_id = v_user_id;
+
+  INSERT INTO public.balance_ledger (
+    canonical_user_id, transaction_type, amount, currency,
+    balance_before, balance_after, reference_id, description, created_at, type, payment_provider
+  ) VALUES (
+    v_user_id, 'credit', v_amount, v_currency,
+    v_before, v_after, v_ref_topup, 'Wallet top-up', now(), 'topup', v_provider
+  );
+
+  -- 2) Apply 50% welcome bonus exactly once (no cap), directly to usdc_balance
+  IF v_bonus_before IS FALSE THEN
+    v_bonus_amount := ROUND(v_amount * 0.5, 2); -- adjust rounding if needed
+
+    UPDATE public.canonical_users
+    SET usdc_balance = usdc_balance + v_bonus_amount,
+        has_used_new_user_bonus = true,
+        updated_at = now()
+    WHERE canonical_user_id = v_user_id;
+
+    SELECT usdc_balance INTO v_after_bonus
+    FROM public.canonical_users
+    WHERE canonical_user_id = v_user_id;
+
+    INSERT INTO public.balance_ledger (
+      canonical_user_id, transaction_type, amount, currency,
+      balance_before, balance_after, reference_id, description, created_at, type, payment_provider
+    ) VALUES (
+      v_user_id, 'credit', v_bonus_amount, v_currency,
+      v_after, v_after_bonus, v_ref_bonus, 'First top-up 50% bonus', now(), 'bonus', v_provider
+    );
+  END IF;
+
+  RETURN NEW;
+END;
+
+
+== commerce_post_to_balance ==
+
+BEGIN
+  -- Only proceed if not already posted and status is completed
+  IF NEW.posted_to_balance IS TRUE THEN
+    RETURN NEW;
+  END IF;
+  IF NEW.status IS DISTINCT FROM 'completed' THEN
+    RETURN NEW;
+  END IF;
+
+  -- Only for explicit commerce providers and topups
+  IF NEW.type = 'topup' AND NEW.payment_provider IN ('coinbase_commerce','cdp_commerce') THEN
+    -- Credit canonical_users.usdc_balance (or sub_account_balances if preferred)
+    -- Here we credit canonical_users.usdc_balance as example. Adjust to your source of truth.
+    IF NEW.canonical_user_id IS NULL THEN
+      RAISE EXCEPTION 'Cannot post topup without canonical_user_id for tx %', NEW.id;
+    END IF;
+
+    UPDATE public.canonical_users cu
+      SET usdc_balance = COALESCE(cu.usdc_balance, 0) + COALESCE(NEW.amount, 0),
+          updated_at = now()
+      WHERE cu.canonical_user_id = NEW.canonical_user_id;
+
+    -- Mark posted
+    NEW.posted_to_balance := true;
+  END IF;
+
+  RETURN NEW;
+END;
+
+
+== credit_sub_account_balance ==
+
+DECLARE
+  v_record_id uuid;
+  v_previous_balance numeric;
+  v_new_balance numeric;
+  v_transaction_id uuid;
+BEGIN
+  -- Validate
+  IF p_amount IS NULL OR p_amount <= 0 THEN
+    RETURN QUERY SELECT FALSE, 0::NUMERIC, 0::NUMERIC, 'Amount must be positive'::TEXT;
+    RETURN;
+  END IF;
+
+  -- Seed/lock target balance row (deterministic key)
+  INSERT INTO public.sub_account_balances (canonical_user_id, currency, available_balance, pending_balance, last_updated)
+  VALUES (p_canonical_user_id, p_currency, 0, 0, NOW())
+  ON CONFLICT (canonical_user_id, currency) DO NOTHING;
+
+  SELECT id, coalesce(available_balance, 0)
+    INTO v_record_id, v_previous_balance
+  FROM public.sub_account_balances
+  WHERE canonical_user_id = p_canonical_user_id
+    AND currency = p_currency
+  FOR UPDATE;
+
+  IF v_record_id IS NULL THEN
+    -- Should not happen due to seed+unique, but handle anyway
+    v_previous_balance := 0;
+    INSERT INTO public.sub_account_balances (
+      canonical_user_id, user_id, currency, available_balance, pending_balance, last_updated
+    ) VALUES (
+      p_canonical_user_id, p_canonical_user_id, p_currency, 0, 0, NOW()
+    )
+    RETURNING id INTO v_record_id;
+  END IF;
+
+  v_new_balance := round(v_previous_balance + p_amount, 2);
+
+  UPDATE public.sub_account_balances
+  SET available_balance = v_new_balance,
+      last_updated = NOW()
+  WHERE id = v_record_id;
+
+  -- Mirror to canonical_users for USD only (consider deprecating later)
+  IF p_currency = 'USD' THEN
+    UPDATE public.canonical_users
+    SET usdc_balance = coalesce(usdc_balance, 0) + p_amount,
+        updated_at = NOW()
+    WHERE canonical_user_id = p_canonical_user_id;
+  END IF;
+
+  -- Idempotent user transaction (topup)
+  INSERT INTO public.user_transactions (
+    canonical_user_id,
+    amount,
+    currency,
+    type,
+    status,
+    payment_status,
+    balance_before,
+    balance_after,
+    tx_id,
+    webhook_ref,
+    payment_provider,
+    method,
+    notes,
+    created_at,
+    completed_at
+  ) VALUES (
+    p_canonical_user_id,
+    p_amount,
+    p_currency,
+    'topup',
+    'completed',
+    'confirmed',
+    v_previous_balance,
+    v_new_balance,
+    p_reference_id,
+    p_reference_id,
+    'system',
+    'credit_sub_account_balance',
+    coalesce(p_description, 'Account balance credited'),
+    NOW(),
+    NOW()
+  )
+  ON CONFLICT (type, canonical_user_id, tx_id) DO NOTHING
+  RETURNING id INTO v_transaction_id;
+
+  -- Balance ledger (consistent vocabulary)
+  INSERT INTO public.balance_ledger (
+    canonical_user_id,
+    transaction_type,
+    amount,
+    currency,
+    balance_before,
+    balance_after,
+    reference_id,
+    description,
+    created_at
+  ) VALUES (
+    p_canonical_user_id,
+    'deposit',
+    p_amount,
+    p_currency,
+    v_previous_balance,
+    v_new_balance,
+    p_reference_id,
+    coalesce(p_description, 'Account balance credited'),
+    NOW()
+  );
+
+  RETURN QUERY SELECT TRUE, v_previous_balance, v_new_balance, NULL::TEXT;
+END;
+
+
+== credit_sub_account_with_bonus ==
+
+DECLARE
+  v_user RECORD;
+  v_has_used_bonus BOOLEAN;
+  v_bonus_amount NUMERIC := 0;
+  v_total_credit NUMERIC := 0;
+  v_current_balance NUMERIC := 0;
+  v_new_balance NUMERIC := 0;
+  v_can_log BOOLEAN := false;
+BEGIN
+  SELECT c.* INTO v_user
+  FROM canonical_users c
+  WHERE c.canonical_user_id = p_canonical_user_id
+  LIMIT 1;
+
+  IF v_user IS NULL THEN
+    RETURN QUERY SELECT false, 0::NUMERIC, 0::NUMERIC, 0::NUMERIC, false;
+    RETURN;
+  END IF;
+
+  v_has_used_bonus := COALESCE(v_user.has_used_new_user_bonus, false);
+  v_current_balance := COALESCE(v_user.usdc_balance, 0);
+
+  IF v_has_used_bonus = false THEN
+    v_bonus_amount := COALESCE(p_amount,0) * 0.5;
+    v_total_credit := COALESCE(p_amount,0) + v_bonus_amount;
+  ELSE
+    v_total_credit := COALESCE(p_amount,0);
+  END IF;
+
+  v_new_balance := v_current_balance + v_total_credit;
+
+  UPDATE canonical_users
+     SET usdc_balance = v_new_balance,
+         has_used_new_user_bonus = CASE WHEN v_bonus_amount > 0 THEN true ELSE has_used_new_user_bonus END,
+         updated_at = NOW()
+   WHERE id = v_user.id;
+
+  SELECT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_class cls
+    JOIN pg_catalog.pg_namespace ns ON ns.oid = cls.relnamespace
+    WHERE ns.nspname = 'public' AND cls.relname = 'balance_history' AND cls.relkind = 'r'
+  ) INTO v_can_log;
+
+  IF v_can_log THEN
+    IF COALESCE(p_amount,0) > 0 THEN
+      INSERT INTO public.balance_history (user_id, amount, type, reason, balance_before, balance_after, created_at)
+      VALUES (v_user.id, p_amount, 'credit', 'topup', v_current_balance, v_current_balance + p_amount, NOW());
+    END IF;
+
+    IF v_bonus_amount > 0 THEN
+      INSERT INTO public.balance_history (user_id, amount, type, reason, balance_before, balance_after, created_at)
+      VALUES (v_user.id, v_bonus_amount, 'credit', '50% first deposit bonus', v_current_balance + p_amount, v_new_balance, NOW());
+    END IF;
+  ELSE
+    RAISE NOTICE 'balance_history table not found in public schema — skipping audit logs';
+  END IF;
+
+  RETURN QUERY SELECT true, v_current_balance, v_new_balance, v_bonus_amount, v_bonus_amount > 0;
+END;
+
+== credit_user_balance ==
+
+DECLARE v_new_balance NUMERIC; BEGIN
+  UPDATE canonical_users SET usdc_balance = COALESCE(usdc_balance,0)+amount, updated_at=NOW() WHERE id=user_id::UUID RETURNING usdc_balance INTO v_new_balance;
+  RETURN COALESCE(v_new_balance,0); END; 
+
+== credit_user_topup ==
+
+DECLARE
+  v_before numeric;
+  v_after numeric;
+  v_bonus_before boolean;
+  v_bonus_amount numeric := 0;
+  v_new_after numeric;
+  v_sqlstate text;
+  v_errmsg text;
+  v_ref_topup text := COALESCE(p_external_ref, gen_random_uuid()::text);
+  v_ref_bonus text := v_ref_topup || ':bonus50';
+BEGIN
+  PERFORM set_config('lock_timeout', '500ms', true);
+  PERFORM set_config('statement_timeout', '15000ms', true);
+
+  IF p_amount IS NULL OR p_amount <= 0 THEN
+    RAISE EXCEPTION 'Top-up amount must be > 0' USING ERRCODE = '22023';
+  END IF;
+  IF p_canonical_user_id IS NULL OR p_canonical_user_id = '' THEN
+    RAISE EXCEPTION 'canonical_user_id required' USING ERRCODE = '22023';
+  END IF;
+
+  -- Optional idempotency via payment_idempotency (if you pass a stable key)
+  IF p_external_ref IS NOT NULL AND p_external_ref <> '' THEN
+    -- Take a transaction-scoped advisory lock to serialize same-ref calls
+    PERFORM pg_advisory_xact_lock(hashtext('topup-idem:' || p_external_ref));
+
+    -- If already processed, return previously stored result
+    PERFORM 1
+    FROM public.payment_idempotency
+    WHERE idempotency_key = p_external_ref
+      AND canonical_user_id = p_canonical_user_id;
+
+    IF FOUND THEN
+      RETURN jsonb_build_object('ok', true, 'idempotent', true, 'message', 'Top-up previously processed');
+    END IF;
+  END IF;
+
+  -- Lock user row to prevent balance race
+  SELECT COALESCE(usdc_balance,0), COALESCE(has_used_new_user_bonus,false)
+  INTO v_before, v_bonus_before
+  FROM public.canonical_users
+  WHERE canonical_user_id = p_canonical_user_id
+  FOR UPDATE;
+
+  -- 1) Credit the cash top-up
+  UPDATE public.canonical_users
+  SET usdc_balance = usdc_balance + p_amount,
+      updated_at = now()
+  WHERE canonical_user_id = p_canonical_user_id;
+
+  SELECT usdc_balance INTO v_after
+  FROM public.canonical_users
+  WHERE canonical_user_id = p_canonical_user_id;
+
+  INSERT INTO public.balance_ledger (
+    canonical_user_id, transaction_type, amount, currency,
+    balance_before, balance_after, reference_id, description, created_at, type, payment_provider
+  ) VALUES (
+    p_canonical_user_id, 'credit', p_amount, p_currency,
+    v_before, v_after, v_ref_topup, 'Wallet top-up', now(), 'topup', p_payment_provider
+  );
+
+  -- 2) Apply 50% first-top-up bonus exactly once (no cap)
+  IF v_bonus_before IS FALSE THEN
+    v_bonus_amount := ROUND(p_amount * 0.5, 2); -- 2dp rounding; remove if not desired
+
+    UPDATE public.canonical_users
+    SET usdc_balance = usdc_balance + v_bonus_amount,
+        has_used_new_user_bonus = true,
+        updated_at = now()
+    WHERE canonical_user_id = p_canonical_user_id;
+
+    SELECT usdc_balance INTO v_new_after
+    FROM public.canonical_users
+    WHERE canonical_user_id = p_canonical_user_id;
+
+    INSERT INTO public.balance_ledger (
+      canonical_user_id, transaction_type, amount, currency,
+      balance_before, balance_after, reference_id, description, created_at, type, payment_provider
+    ) VALUES (
+      p_canonical_user_id, 'credit', v_bonus_amount, p_currency,
+      v_after, v_new_after, v_ref_bonus, 'First top-up 50% bonus', now(), 'bonus', p_payment_provider
+    );
+  ELSE
+    v_new_after := v_after;
+  END IF;
+
+  -- Record idempotency entry if provided
+  IF p_external_ref IS NOT NULL AND p_external_ref <> '' THEN
+    INSERT INTO public.payment_idempotency (idempotency_key, user_id, competition_id, amount, ticket_count, result, canonical_user_id)
+    VALUES (p_external_ref, p_canonical_user_id, NULL, p_amount, NULL,
+            jsonb_build_object('topup_ref', v_ref_topup, 'bonus_ref', CASE WHEN v_bonus_amount > 0 THEN v_ref_bonus ELSE NULL END),
+            p_canonical_user_id);
+  END IF;
+
+  RETURN jsonb_build_object(
+    'ok', true,
+    'credited', p_amount,
+    'bonus_applied', (v_bonus_amount > 0),
+    'bonus_amount', v_bonus_amount,
+    'balance_after', v_new_after,
+    'topup_ref', v_ref_topup,
+    'bonus_ref', CASE WHEN v_bonus_amount > 0 THEN v_ref_bonus ELSE NULL END
+  );
+
+EXCEPTION
+  WHEN OTHERS THEN
+    GET STACKED DIAGNOSTICS v_sqlstate = RETURNED_SQLSTATE, v_errmsg = MESSAGE_TEXT;
+
+    INSERT INTO public.function_call_log(function_schema, function_name, arg_types, arg_values, success, error)
+    VALUES (
+      'public',
+      'credit_user_topup',
+      'text,numeric,text,text,text',
+      jsonb_build_object(
+        'p_canonical_user_id', p_canonical_user_id,
+        'p_amount', p_amount,
+        'p_currency', p_currency,
+        'p_payment_provider', p_payment_provider,
+        'p_external_ref', p_external_ref
+      ),
+      false,
+      format('SQLSTATE=%s MSG=%s', v_sqlstate, v_errmsg)
+    );
+
+    RETURN jsonb_build_object('ok', false, 'code', v_sqlstate, 'error', v_errmsg);
+END;
+
+
+== rollback_balance_from_ledger ==
+
+DECLARE
+  v_user_record RECORD;
+  v_ledger_balance NUMERIC;
+  v_fixed_count INTEGER := 0;
+  v_total_checked INTEGER := 0;
+BEGIN
+  -- If specific user provided, fix only that user
+  IF p_canonical_user_id IS NOT NULL THEN
+    -- Get the last balance_after from balance_ledger for this user
+    SELECT COALESCE(balance_after, 0) INTO v_ledger_balance
+    FROM balance_ledger
+    WHERE canonical_user_id = p_canonical_user_id
+      AND currency = 'USD'
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1;
+
+    -- If no ledger entries, check sub_account_balances
+    IF v_ledger_balance IS NULL THEN
+      SELECT COALESCE(available_balance, 0) INTO v_ledger_balance
+      FROM sub_account_balances
+      WHERE canonical_user_id = p_canonical_user_id
+        AND currency = 'USD'
+      LIMIT 1;
+    END IF;
+
+    -- Update both tables with correct balance from ledger
+    UPDATE canonical_users
+    SET usdc_balance = COALESCE(v_ledger_balance, 0),
+        updated_at = NOW()
+    WHERE canonical_user_id = p_canonical_user_id;
+
+    UPDATE sub_account_balances
+    SET available_balance = COALESCE(v_ledger_balance, 0),
+        last_updated = NOW()
+    WHERE canonical_user_id = p_canonical_user_id
+      AND currency = 'USD';
+
+    v_fixed_count := 1;
+    v_total_checked := 1;
+
+  ELSE
+    -- Fix all users with discrepancies
+    FOR v_user_record IN
+      SELECT DISTINCT bl.canonical_user_id
+      FROM balance_ledger bl
+      WHERE bl.currency = 'USD'
+    LOOP
+      v_total_checked := v_total_checked + 1;
+
+      -- Get the last balance_after from balance_ledger
+      SELECT COALESCE(balance_after, 0) INTO v_ledger_balance
+      FROM balance_ledger
+      WHERE canonical_user_id = v_user_record.canonical_user_id
+        AND currency = 'USD'
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1;
+
+      -- Update both tables with correct balance from ledger
+      UPDATE canonical_users
+      SET usdc_balance = v_ledger_balance,
+          updated_at = NOW()
+      WHERE canonical_user_id = v_user_record.canonical_user_id;
+
+      UPDATE sub_account_balances
+      SET available_balance = v_ledger_balance,
+          last_updated = NOW()
+      WHERE canonical_user_id = v_user_record.canonical_user_id
+        AND currency = 'USD';
+
+      v_fixed_count := v_fixed_count + 1;
+    END LOOP;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'users_checked', v_total_checked,
+    'users_fixed', v_fixed_count,
+    'message', 'Balances restored from balance_ledger (source of truth)'
+  );
+END;
+
+
+== sync_canonical_user_balance ==
+
+BEGIN
+  UPDATE public.canonical_users cu
+  SET 
+    usdc_balance = NEW.available_balance,
+    updated_at = now()
+  WHERE cu.canonical_user_id = NEW.canonical_user_id;
+  RETURN NEW;
+END;
+
+
+== sync_canonical_user_usdc_from_sab ==
+
+BEGIN
+  -- Only map currency USDC to canonical_users.usdc_balance
+  IF (NEW.currency = 'USDC') THEN
+    UPDATE public.canonical_users cu
+    SET usdc_balance = NEW.available_balance,
+        updated_at = NOW()
+    WHERE cu.canonical_user_id = NEW.user_id
+       OR cu.id::text = NEW.user_id; -- support either key based on sample
+  END IF;
+  RETURN NEW;
+END;
+
+
+== sync_external_wallet_balances ==
+
+DECLARE v_user_record RECORD; v_ext NUMERIC; v_prev NUMERIC; v_new NUMERIC; BEGIN
+  SELECT * INTO v_user_record FROM canonical_users WHERE privy_user_id=privy_user_id_param LIMIT 1;
+  IF v_user_record IS NULL THEN RETURN; END IF;
+  v_ext := 0; v_prev := COALESCE(v_user_record.usdc_balance,0); v_new := v_prev + v_ext;
+  UPDATE canonical_users SET usdc_balance=v_new, updated_at=NOW() WHERE id=v_user_record.id;
+  RETURN QUERY SELECT v_user_record.wallet_address, v_ext, v_prev, v_new, v_new - v_prev; END; 
+
+== update_custody_balance ==
+
+DECLARE v_user_uuid UUID; v_before NUMERIC; v_after NUMERIC; BEGIN
+  SELECT id INTO v_user_uuid FROM canonical_users WHERE uid=p_user_id OR wallet_address=p_user_id OR base_wallet_address=p_user_id LIMIT 1;
+  IF v_user_uuid IS NULL THEN RETURN QUERY SELECT false, p_user_id, 0::NUMERIC, 0::NUMERIC; RETURN; END IF;
+  SELECT COALESCE(usdc_balance,0) INTO v_before FROM canonical_users WHERE id=v_user_uuid;
+  UPDATE canonical_users SET usdc_balance = v_before + p_amount, updated_at=NOW() WHERE id=v_user_uuid;
+  v_after := v_before + p_amount;
+  INSERT INTO custody_wallet_balances (user_id, transaction_type, change_amount, balance_before, balance_after, reference_id)
+  VALUES (v_user_uuid, p_transaction_type, p_amount, v_before, v_after, p_reference_id);
+  RETURN QUERY SELECT true, v_user_uuid::TEXT, v_before, v_after; END; 
+

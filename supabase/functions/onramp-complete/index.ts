@@ -100,7 +100,7 @@ Deno.serve(async (req: Request) => {
               // Primary lookup by canonical_user_id
               const { data: canonicalData } = await supabase
                 .from('canonical_users')
-                .select('id, usdc_balance')
+                .select('id, available_balance')
                 .eq('canonical_user_id', canonicalUserId)
                 .maybeSingle();
 
@@ -110,7 +110,7 @@ Deno.serve(async (req: Request) => {
                 // Fallback to legacy lookups for backward compatibility
                 const { data: legacyData } = await supabase
                   .from('canonical_users')
-                  .select('id, usdc_balance')
+                  .select('id, available_balance')
                   .or(`privy_user_id.eq.${inputUserId},wallet_address.ilike.${inputUserId},base_wallet_address.ilike.${inputUserId}`)
                   .maybeSingle();
                 userData = legacyData;

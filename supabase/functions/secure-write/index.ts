@@ -163,7 +163,7 @@ Deno.serve(async (req) => {
         user_privy_id: privyUserId,  // Keep for backward compatibility
         wallet_address: finalWalletAddress,
         amount,
-        currency: "USDC",
+        currency: "USD",
         network: network || "base",
         payment_provider: payment_provider || "privy_base_wallet",
         status: "pending",
@@ -294,7 +294,7 @@ Deno.serve(async (req) => {
       const lookupCanonicalId = toPrizePid(txData.user_id);
       const { data: userData } = await serviceClient
         .from("canonical_users")
-        .select("id, usdc_balance")
+        .select("id, available_balance")
         .eq("canonical_user_id", lookupCanonicalId)
         .maybeSingle();
 
@@ -336,14 +336,14 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Update canonical_users.usdc_balance using the UUID
-      const currentBalance = Number(userData.usdc_balance || 0);
+      // Update canonical_users.available_balance using the UUID
+      const currentBalance = Number(userData.available_balance || 0);
       const newBalance = currentBalance + Number(topupAmount);
 
       await serviceClient
         .from("canonical_users")
         .update({
-          usdc_balance: newBalance,
+          available_balance: newBalance,
           updated_at: new Date().toISOString()
         })
         .eq("id", userUuid);

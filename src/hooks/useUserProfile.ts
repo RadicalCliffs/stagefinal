@@ -20,7 +20,7 @@ export interface UserProfile {
 }
 
 export interface UserWallet {
-  usdc_balance: number;
+  available_balance: number;
 }
 
 export interface UserTicket {
@@ -99,7 +99,7 @@ export function useUserProfile(privyUserId: string | null | undefined): UseUserP
         setData({
           profile: serverData.data.profile || null,
           wallet: {
-            usdc_balance: serverData.data.wallet?.usdc_balance || 0,
+            available_balance: serverData.data.wallet?.available_balance || 0,
           },
           tickets: serverData.data.tickets || [],
           orders: serverData.data.orders || [],
@@ -200,7 +200,7 @@ export function useUserProfile(privyUserId: string | null | undefined): UseUserP
         updated_at: profileData.updated_at,
       } : null,
       wallet: {
-        usdc_balance: profileData?.usdc_balance || 0,
+        available_balance: profileData?.available_balance || 0,
       },
       tickets,
       orders,

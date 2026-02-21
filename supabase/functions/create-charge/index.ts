@@ -195,7 +195,7 @@ Deno.serve(async (req: Request) => {
         eth_wallet_address: walletAddress,
         // CRITICAL: Only use fallback username if NOT in signup flow
         username: walletAddress ? `user_${walletAddress.slice(2, 8)}` : `user_${Date.now()}`,
-        usdc_balance: 0,
+        available_balance: 0,
         has_used_new_user_bonus: false,
         created_at: new Date().toISOString(),
       });

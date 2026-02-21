@@ -507,7 +507,7 @@ Deno.serve(async (req: Request) => {
           // Get user's UUID and bonus status from canonical_users by canonical ID
           const { data: userData, error: userError } = await supabase
             .from('canonical_users')
-            .select('id, usdc_balance, has_used_new_user_bonus')
+            .select('id, available_balance, has_used_new_user_bonus')
             .eq('canonical_user_id', canonicalUserId)
             .maybeSingle();
 
