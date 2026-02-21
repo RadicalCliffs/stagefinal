@@ -592,6 +592,78 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
               }
             }
 
+            // CRITICAL FIX: For entries with Unknown wallet, query tickets table directly by ticket number
+            const entriesNeedingWallet = transformedEntries.filter(e => !e.walletAddress || e.walletAddress === 'Unknown' || !e.walletAddress.startsWith('0x'));
+            if (entriesNeedingWallet.length > 0) {
+              const ticketNumbersToLookup = entriesNeedingWallet.map(e => e.ticketNumber);
+              console.log('[EntriesWithFilterTabs] Looking up wallet addresses for', ticketNumbersToLookup.length, 'entries');
+              
+              const { data: ticketWalletData, error: ticketLookupError } = await supabase
+                .from('tickets')
+                .select('ticket_number, wallet_address, canonical_user_id, user_id')
+                .eq('competition_id', idToUse)
+                .in('ticket_number', ticketNumbersToLookup);
+              
+              if (!ticketLookupError && ticketWalletData && ticketWalletData.length > 0) {
+                console.log('[EntriesWithFilterTabs] Found wallet data for', ticketWalletData.length, 'tickets');
+                console.log('[EntriesWithFilterTabs] First ticket wallet data:', JSON.stringify(ticketWalletData[0], null, 2));
+                
+                // Build ticket number -> wallet address map
+                const ticketToWallet = new Map<number, string>();
+                ticketWalletData.forEach((t: any) => {
+                  let wallet = t.wallet_address || '';
+                  // Extract wallet from canonical_user_id if needed
+                  if ((!wallet || !wallet.startsWith('0x')) && t.canonical_user_id && t.canonical_user_id.startsWith('prize:pid:')) {
+                    wallet = t.canonical_user_id.substring(10);
+                  }
+                  // Try user_id as fallback
+                  if ((!wallet || !wallet.startsWith('0x')) && t.user_id && t.user_id.startsWith('0x')) {
+                    wallet = t.user_id;
+                  }
+                  if (wallet && wallet.startsWith('0x') && t.ticket_number != null) {
+                    ticketToWallet.set(parseInt(t.ticket_number), wallet);
+                    walletAddresses.add(wallet.toLowerCase());
+                  }
+                });
+                
+                // Update entries with resolved wallet addresses
+                entriesNeedingWallet.forEach(entry => {
+                  const resolvedWallet = ticketToWallet.get(entry.ticketNumber);
+                  if (resolvedWallet) {
+                    entry.walletAddress = resolvedWallet;
+                  }
+                });
+                
+                // Fetch usernames for the newly resolved wallet addresses
+                const newWallets = Array.from(walletAddresses).filter(w => !walletToUsername.has(w));
+                if (newWallets.length > 0) {
+                  const { data: newUsersData } = await supabase
+                    .from('canonical_users')
+                    .select('wallet_address, username, canonical_user_id, base_wallet_address')
+                    .or(`wallet_address.in.(${newWallets.map(w => `"${w}"`).join(',')}),base_wallet_address.in.(${newWallets.map(w => `"${w}"`).join(',')})`);
+                  
+                  if (newUsersData && newUsersData.length > 0) {
+                    newUsersData.forEach((user: any) => {
+                      if (user.wallet_address) {
+                        const lowercaseWallet = user.wallet_address.toLowerCase();
+                        if (user.username) {
+                          walletToUsername.set(lowercaseWallet, user.username);
+                        }
+                      }
+                      if (user.base_wallet_address) {
+                        const lowercaseBase = user.base_wallet_address.toLowerCase();
+                        if (user.username) {
+                          walletToUsername.set(lowercaseBase, user.username);
+                        }
+                      }
+                    });
+                  }
+                }
+              } else if (ticketLookupError) {
+                console.warn('[EntriesWithFilterTabs] Ticket wallet lookup error:', ticketLookupError);
+              }
+            }
+
             // Update entries with usernames and wallet addresses
             transformedEntries.forEach(entry => {
               if (entry.walletAddress) {
