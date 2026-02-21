@@ -132,7 +132,16 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
             });
 
             rpcData.forEach((entry: any) => {
-              const wallet = entry.wallet_address || entry.privy_user_id || '';
+              // RPC returns walletaddress (no underscore), view returns wallet_address
+              // Also check userid which may contain the wallet address
+              // canonical_user_id format is 'prize:pid:' + wallet_address
+              let wallet = entry.walletaddress || entry.wallet_address || entry.userid || entry.user_id || entry.privy_user_id || '';
+              
+              // Extract wallet from canonical_user_id if present
+              if ((!wallet || !wallet.startsWith('0x')) && entry.canonical_user_id && entry.canonical_user_id.startsWith('prize:pid:')) {
+                wallet = entry.canonical_user_id.substring(10); // Remove 'prize:pid:' prefix
+              }
+              
               if (wallet && wallet.startsWith('0x')) {
                 walletAddresses.add(wallet.toLowerCase());
               }
@@ -140,8 +149,10 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
               // Get transaction hash - could be from crypto payment or stored in entry
               const txHash = entry.transactionhash || entry.transaction_hash || entry.vrf_hash || '';
 
-              if (entry.ticket_numbers) {
-                const ticketNumbers = entry.ticket_numbers
+              // RPC returns ticketnumbers (no underscore), view returns ticket_numbers
+              const ticketNumbersStr = entry.ticketnumbers || entry.ticket_numbers;
+              if (ticketNumbersStr) {
+                const ticketNumbers = ticketNumbersStr
                   .split(',')
                   .map((t: string) => parseInt(t.trim()))
                   .filter((t: number) => !isNaN(t));
@@ -262,7 +273,15 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
             });
 
             jcData.forEach((entry: any) => {
-              const wallet = entry.wallet_address || entry.userid || '';
+              // View has wallet_address and user_id (with underscores)
+              // canonical_user_id format is 'prize:pid:' + wallet_address
+              let wallet = entry.wallet_address || entry.user_id || entry.userid || '';
+              
+              // Extract wallet from canonical_user_id if present
+              if ((!wallet || !wallet.startsWith('0x')) && entry.canonical_user_id && entry.canonical_user_id.startsWith('prize:pid:')) {
+                wallet = entry.canonical_user_id.substring(10); // Remove 'prize:pid:' prefix
+              }
+              
               if (wallet && wallet.startsWith('0x')) {
                 walletAddresses.add(wallet.toLowerCase());
               }
@@ -270,8 +289,10 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
               // Get transaction hash from entry
               const txHash = entry.transactionhash || entry.transaction_hash || '';
 
-              if (entry.ticket_numbers) {
-                const ticketNumbers = entry.ticket_numbers
+              // View may have ticket_numbers or ticketnumbers
+              const ticketNumbersStr = entry.ticket_numbers || entry.ticketnumbers;
+              if (ticketNumbersStr) {
+                const ticketNumbers = ticketNumbersStr
                   .split(',')
                   .map((t: string) => parseInt(t.trim()))
                   .filter((t: number) => !isNaN(t));
@@ -317,7 +338,7 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
           const ticketsStartTime = Date.now();
           const { data: ticketsData, error: ticketsError } = await supabase
             .from('tickets')
-            .select('ticket_number, created_at, privy_user_id, user_id, transaction_hash')
+            .select('ticket_number, created_at, privy_user_id, user_id, wallet_address, canonical_user_id, transaction_hash')
             .eq('competition_id', idToUse);
 
           if (!ticketsError && ticketsData && ticketsData.length > 0) {
@@ -335,7 +356,15 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
             });
 
             ticketsData.forEach((ticket: any) => {
-              const wallet = ticket.user_id || ticket.privy_user_id || '';
+              // Check wallet_address first as it's the most reliable
+              // canonical_user_id format is 'prize:pid:' + wallet_address
+              let wallet = ticket.wallet_address || ticket.user_id || ticket.privy_user_id || '';
+              
+              // Extract wallet from canonical_user_id if present
+              if ((!wallet || !wallet.startsWith('0x')) && ticket.canonical_user_id && ticket.canonical_user_id.startsWith('prize:pid:')) {
+                wallet = ticket.canonical_user_id.substring(10); // Remove 'prize:pid:' prefix
+              }
+              
               if (wallet && wallet.startsWith('0x')) {
                 walletAddresses.add(wallet.toLowerCase());
               }
@@ -390,7 +419,14 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
           });
 
           pendingData.forEach((pending: any) => {
-            const wallet = pending.wallet_address || pending.canonical_user_id || pending.user_id || '';
+            // canonical_user_id format is 'prize:pid:' + wallet_address
+            let wallet = pending.wallet_address || pending.user_id || '';
+            
+            // Extract wallet from canonical_user_id if present
+            if ((!wallet || !wallet.startsWith('0x')) && pending.canonical_user_id && pending.canonical_user_id.startsWith('prize:pid:')) {
+              wallet = pending.canonical_user_id.substring(10); // Remove 'prize:pid:' prefix
+            }
+            
             if (wallet && wallet.startsWith('0x')) {
               walletAddresses.add(wallet.toLowerCase());
             }
