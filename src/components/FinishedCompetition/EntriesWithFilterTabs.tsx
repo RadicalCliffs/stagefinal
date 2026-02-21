@@ -132,6 +132,12 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
             });
 
             rpcData.forEach((entry: any) => {
+              // DEBUG: Log first entry to see actual field names
+              if (rpcData.indexOf(entry) === 0) {
+                console.log('[EntriesWithFilterTabs] First RPC entry fields:', Object.keys(entry));
+                console.log('[EntriesWithFilterTabs] First RPC entry data:', JSON.stringify(entry, null, 2));
+              }
+              
               // RPC returns walletaddress (no underscore), view returns wallet_address
               // Also check userid which may contain the wallet address
               // canonical_user_id format is 'prize:pid:' + wallet_address
@@ -273,6 +279,12 @@ const EntriesWithFilterTabs = ({ competitionId, competitionUid }: EntriesWithFil
             });
 
             jcData.forEach((entry: any) => {
+              // DEBUG: Log first entry to see actual field names
+              if (jcData.indexOf(entry) === 0) {
+                console.log('[EntriesWithFilterTabs] First v_jc entry fields:', Object.keys(entry));
+                console.log('[EntriesWithFilterTabs] First v_jc entry data:', JSON.stringify(entry, null, 2));
+              }
+              
               // View has wallet_address and user_id (with underscores)
               // canonical_user_id format is 'prize:pid:' + wallet_address
               let wallet = entry.wallet_address || entry.user_id || entry.userid || '';
