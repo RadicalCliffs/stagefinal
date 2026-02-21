@@ -3674,6 +3674,16 @@ export const database = {
       };
       
       data.forEach((entry: any) => {
+        // SKIP ENTRIES WITH NO VALID TICKETS
+        const entryTickets = Array.isArray(entry.ticket_numbers)
+          ? entry.ticket_numbers.filter((t: any) => t && t > 0)
+          : String(entry.ticket_numbers || '').split(',').map(t => parseInt(t.trim())).filter(t => !isNaN(t) && t > 0);
+        
+        if (entryTickets.length === 0) {
+          console.log('[Database.getUserEntriesFromCompetitionEntries] Skipping entry with no valid tickets:', entry.id);
+          return; // Skip this entry entirely
+        }
+
         // RPC function returns flattened data with competition_ prefixes
         const rawCompetitionStatus = entry.competition_status;
         const status = mapStatus(rawCompetitionStatus);
@@ -3687,9 +3697,21 @@ export const database = {
         // Check if individual_purchases exists and has items
         const individualPurchases = entry.individual_purchases || [];
         
-        if (Array.isArray(individualPurchases) && individualPurchases.length > 0) {
+        // FILTER OUT INVALID PURCHASES - must have valid ticket_numbers with at least one real ticket
+        const validPurchases = Array.isArray(individualPurchases) 
+          ? individualPurchases.filter((purchase: any) => {
+              const tickets = purchase.ticket_numbers || '';
+              // Must have actual ticket numbers (not empty, not just commas, not "0")
+              if (!tickets || tickets === '' || tickets === '0' || tickets.trim() === '') return false;
+              // Parse and check if there are real ticket numbers
+              const ticketArray = String(tickets).split(',').map(t => parseInt(t.trim())).filter(t => !isNaN(t) && t > 0);
+              return ticketArray.length > 0;
+            })
+          : [];
+        
+        if (validPurchases.length > 0) {
           // Expand each individual purchase into a separate entry
-          individualPurchases.forEach((purchase: any) => {
+          validPurchases.forEach((purchase: any) => {
             formattedEntries.push({
               id: purchase.id || entry.id,
               competition_id: entry.competition_id,
