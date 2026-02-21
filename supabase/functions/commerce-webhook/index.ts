@@ -841,6 +841,7 @@ Deno.serve(async (req: Request) => {
                     .from('sub_account_balances')
                     .insert({
                       canonical_user_id: transaction.user_id,
+                      canonical_user_id_norm: transaction.user_id.toLowerCase(),
                       user_id: transaction.user_id,
                       currency: 'USD',
                       available_balance: topUpAmount,
