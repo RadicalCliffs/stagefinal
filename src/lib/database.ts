@@ -1190,7 +1190,9 @@ export const database = {
     // PERFORMANCE FIX: Batch fetch all competitions and users instead of N+1 queries
     // Extract unique IDs for batch fetching
     const competitionIds = [...new Set((entryData || []).map((t: any) => t.competition_id || t.competitionid).filter(Boolean))];
+    // Extract both wallet_address AND canonical_user_id - some entries have one but not the other
     const walletAddresses = [...new Set((entryData || []).map((t: any) => t.wallet_address).filter(Boolean))];
+    const canonicalUserIds = [...new Set((entryData || []).map((t: any) => t.canonical_user_id).filter(Boolean))];
 
     // Batch fetch competitions (single query instead of N queries)
     const { data: competitionsData } = (competitionIds.length > 0
@@ -1215,11 +1217,13 @@ export const database = {
 
     // Batch fetch users by wallet addresses AND canonical_user_ids (single query instead of N queries)
     // NOTE: wallet_address in joincompetition can be either a plain wallet address OR a canonical_user_id (prize:pid:0x...)
-    const { data: usersData } = (walletAddresses.length > 0
+    // Combine both sets of identifiers for the lookup query
+    const allUserIdentifiers = [...new Set([...walletAddresses, ...canonicalUserIds])];
+    const { data: usersData } = (allUserIdentifiers.length > 0
       ? await supabase
           .from('canonical_users')
           .select('username, avatar_url, wallet_address, canonical_user_id')
-          .or(walletAddresses.map(addr => `wallet_address.eq.${addr},canonical_user_id.eq.${addr}`).join(','))
+          .or(allUserIdentifiers.map(addr => `wallet_address.eq.${addr},canonical_user_id.eq.${addr}`).join(','))
       : { data: [] }) as any;
 
     // Create user lookup map for O(1) access
@@ -1262,8 +1266,12 @@ export const database = {
       // Skip entries where we can't find valid competition data
       if (!comp || !comp.competitionname) continue;
 
-      // Look up user data by wallet address (lowercase for case-insensitive match)
-      const userData = ticket.wallet_address ? userMap.get(ticket.wallet_address.toLowerCase()) : null;
+      // Look up user data by wallet address OR canonical_user_id (lowercase for case-insensitive match)
+      // Try wallet_address first, then fall back to canonical_user_id
+      let userData = ticket.wallet_address ? userMap.get(ticket.wallet_address.toLowerCase()) : null;
+      if (!userData && ticket.canonical_user_id) {
+        userData = userMap.get(ticket.canonical_user_id.toLowerCase());
+      }
 
       // For the TIME column on Entry actions, show when the activity happened (purchase date)
       // not the competition end date - users want to see when the entry was made
