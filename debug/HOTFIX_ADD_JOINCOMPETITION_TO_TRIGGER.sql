@@ -60,7 +60,6 @@ BEGIN
     INSERT INTO public.joincompetition (
       id,
       user_id,
-      userid,
       competition_id,
       competitionid,
       ticket_numbers,
@@ -76,7 +75,6 @@ BEGIN
       updated_at
     ) VALUES (
       v_join_id,
-      NEW.canonical_user_id,
       NEW.canonical_user_id,
       NEW.competition_id,
       NEW.competition_id,
@@ -160,13 +158,12 @@ BEGIN
     v_total := COALESCE(rec.total_amount, 0);
     
     INSERT INTO public.joincompetition (
-      id, user_id, userid, competition_id, competitionid,
+      id, user_id, competition_id, competitionid,
       ticket_numbers, ticketnumbers, purchase_date,
       canonical_user_id, wallet_address, status,
       numberoftickets, amount_spent, created_at, updated_at
     ) VALUES (
       gen_random_uuid(),
-      rec.canonical_user_id,
       rec.canonical_user_id,
       rec.competition_id,
       rec.competition_id,
