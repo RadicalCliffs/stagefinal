@@ -126,34 +126,34 @@ const WinnersPage = () => {
               <span className="text-[#DDE404]">prizes.</span>
             </p>
 
-            <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6 mb-5">
+            <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6 mb-10">
               <div className="flex sm:gap-4 gap-2">
-                <div className="relative flex-1 bg-[#1F1F1F] rounded-xl sm:block hidden">
+                <div className="relative flex-1 bg-[#2A2A2A] rounded-xl sm:block hidden">
                   <input
                     type="text"
                     placeholder="Search by username, prize, or country..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full  border border-transparent rounded-xl pt-3.5 pb-4 px-4 text-white placeholder:text-[#4F4F4F] sequel-45 focus:outline-none focus:border-[#DDE404] transition-colors text-sm "
+                    className="w-full  border border-white/20 rounded-xl pt-3.5 pb-4 px-4 text-white placeholder:text-gray-400 sequel-45 focus:outline-none focus:border-[#DDE404] transition-colors text-sm "
                   />
                   <Search
                     className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 text-[#DDE404]"
                     size={20}
                   />
                 </div>
-                <div className="flex sm:flex-none flex-1 items-center cursor-pointer justify-between sm:gap-4 gap-2 bg-[#1F1F1F] rounded-xl pb-[0.563rem] pt-[0.688rem] sm:pt-3.5 sm:pb-4 sm:px-6 px-3">
-                  <p className="sequel-45 text-[#4F4F4F] sm:text-sm text-xs max-[410px]:text-[0.65rem]">
+                <div className="flex sm:flex-none flex-1 items-center cursor-pointer justify-between sm:gap-4 gap-2 bg-[#2A2A2A] border border-white/20 rounded-xl pb-[0.563rem] pt-[0.688rem] sm:pt-3.5 sm:pb-4 sm:px-6 px-3">
+                  <p className="sequel-45 text-gray-400 sm:text-sm text-xs max-[410px]:text-[0.65rem]">
                     Filter <span className="sm:inline hidden">By</span> Date
                   </p>
                   <SlidersHorizontal color="#DDE404" size={18} />
                 </div>
-                <div className="flex sm:flex-none flex-1 cursor-pointer items-center justify-between  sm:gap-4 gap-2 bg-[#1F1F1F] rounded-xl pb-[0.563rem] pt-[0.688rem] sm:pt-3.5 sm:pb-4 sm:px-6 px-3">
-                  <p className="sequel-45 text-[#4F4F4F] sm:text-sm text-xs max-[410px]:text-[0.65rem]">
+                <div className="flex sm:flex-none flex-1 cursor-pointer items-center justify-between  sm:gap-4 gap-2 bg-[#2A2A2A] border border-white/20 rounded-xl pb-[0.563rem] pt-[0.688rem] sm:pt-3.5 sm:pb-4 sm:px-6 px-3">
+                  <p className="sequel-45 text-gray-400 sm:text-sm text-xs max-[410px]:text-[0.65rem]">
                     Sort <span className="sm:inline hidden">By</span> Category
                   </p>
                   <List color="#DDE404" size={18} />
                 </div>
-                <div className="sm:hidden bg-[#1F1F1F] cursor-pointer rounded-xl flex justify-center items-center min-w-12 max-[410px]:min-w-10 min-h-8">
+                <div className="sm:hidden bg-[#2A2A2A] border border-white/20 cursor-pointer rounded-xl flex justify-center items-center min-w-12 max-[410px]:min-w-10 min-h-8">
                   {showSearchBar ? (
                     <X
                       onClick={() => setShowSearchBar(false)}
@@ -170,13 +170,13 @@ const WinnersPage = () => {
                 </div>
               </div>
               <Activity mode={showSearchBar ? "visible" : "hidden"}>
-                <div className="relative flex-1 bg-[#1F1F1F] rounded-xl sm:hidden">
+                <div className="relative flex-1 bg-[#2A2A2A] rounded-xl sm:hidden">
                   <input
                     type="text"
                     placeholder="Search by username, prize, or country..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full  border border-transparent rounded-xl pt-2.5 pb-2 px-4 text-white placeholder:text-[#4F4F4F] sequel-45 focus:outline-none focus:border-[#DDE404] transition-colors text-xs"
+                    className="w-full  border border-white/20 rounded-xl pt-2.5 pb-2 px-4 text-white placeholder:text-gray-400 sequel-45 focus:outline-none focus:border-[#DDE404] transition-colors text-xs"
                   />
                 </div>
               </Activity>
@@ -190,7 +190,7 @@ const WinnersPage = () => {
               /> */}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-1 gap-y-8 max-w-7xl mx-auto sm:px-0 ">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-5xl mx-auto sm:px-0 ">
               {displayedWinners.map((winner, index) => (
                 <WinnerCard key={index} {...winner} />
               ))}
