@@ -64,7 +64,8 @@ export function useLiveData<T>({
       setLoading(true);
     }
 
-    fetchFnRef.current()
+    fetchFnRef
+      .current()
       .then((result) => {
         if (isMountedRef.current) {
           setData(result);
