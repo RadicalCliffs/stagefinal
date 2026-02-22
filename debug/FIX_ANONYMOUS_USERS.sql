@@ -8,17 +8,17 @@
 -- SOLUTION: Modify the view to JOIN with canonical_users and include 
 -- username and avatar_url directly.
 --
--- Run this in Supabase SQL Editor
+-- APPLIED: 2026-02-21 via scripts/fix_anonymous_view.cjs
 -- =============================================================================
 
--- First, let's see the current view definition
--- SELECT pg_get_viewdef('v_joincompetition_active'::regclass, true);
-
 -- Drop and recreate the view with username included
+-- Three-way lookup to handle all edge cases:
+-- 1. canonical_user_id match
+-- 2. wallet_address match to canonical_users.wallet_address
+-- 3. wallet_address match to canonical_users.canonical_user_id (for entries where canonical_user_id was stored in wrong column)
 CREATE OR REPLACE VIEW v_joincompetition_active AS
 SELECT 
-    jc.uid AS id,
-    jc.uid,
+    jc.id,
     jc.user_id,
     jc.user_id AS userid,
     jc.competition_id,
@@ -33,16 +33,19 @@ SELECT
     jc.privy_user_id,
     jc.wallet_address,
     jc.status,
-    -- NEW: Include username and avatar from canonical_users
-    -- Try to join by canonical_user_id first, then by wallet_address
-    COALESCE(cu1.username, cu2.username) AS username,
-    COALESCE(cu1.avatar_url, cu2.avatar_url) AS avatar_url
+    COALESCE(
+      cu1.username,    -- 1. Match by canonical_user_id
+      cu2.username,    -- 2. Match wallet_address to canonical_users.wallet_address
+      cu3.username     -- 3. Match wallet_address to canonical_users.canonical_user_id (edge case)
+    ) AS username,
+    COALESCE(cu1.avatar_url, cu2.avatar_url, cu3.avatar_url) AS avatar_url
 FROM joincompetition jc
--- Join by canonical_user_id (primary lookup)
 LEFT JOIN canonical_users cu1 ON cu1.canonical_user_id = jc.canonical_user_id
--- Join by wallet_address (fallback lookup)
 LEFT JOIN canonical_users cu2 ON cu2.wallet_address = jc.wallet_address 
     AND jc.canonical_user_id IS NULL
+LEFT JOIN canonical_users cu3 ON cu3.canonical_user_id = jc.wallet_address 
+    AND jc.canonical_user_id IS NULL
+    AND jc.wallet_address LIKE 'prize:pid:%'
 WHERE jc.status = 'active';
 
 -- Verify the view has the new columns
@@ -53,12 +56,7 @@ ORDER BY ordinal_position;
 
 -- Test query to verify usernames are populated
 SELECT 
-    wallet_address,
-    canonical_user_id,
-    username,
-    avatar_url,
-    COUNT(*) as entry_count
-FROM v_joincompetition_active
-GROUP BY wallet_address, canonical_user_id, username, avatar_url
-ORDER BY entry_count DESC
-LIMIT 20;
+    COUNT(*) as total,
+    COUNT(username) as with_username,
+    COUNT(*) - COUNT(username) as without_username
+FROM v_joincompetition_active;
