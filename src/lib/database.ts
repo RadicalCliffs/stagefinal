@@ -1267,7 +1267,7 @@ export const database = {
       if (!comp || !comp.competitionname) continue;
 
       // Look up user data by wallet address OR canonical_user_id (lowercase for case-insensitive match)
-      // Try wallet_address first, then fall back to canonical_user_id
+      // PRIORITY: 1) username from view (if populated), 2) userData lookup, 3) truncated wallet, 4) Anonymous
       let userData = ticket.wallet_address ? userMap.get(ticket.wallet_address.toLowerCase()) : null;
       if (!userData && ticket.canonical_user_id) {
         userData = userMap.get(ticket.canonical_user_id.toLowerCase());
@@ -1283,12 +1283,16 @@ export const database = {
         timeDisplay = 'Recent';
       }
 
-      const displayName = userData?.username ||
+      // Priority for display name: view's username > lookup username > truncated wallet > Anonymous
+      const displayName = ticket.username || userData?.username ||
         (ticket.wallet_address
           ? ticket.wallet_address.substring(0, 6) + '...' + ticket.wallet_address.slice(-4)
-          : 'Anonymous');
+          : (ticket.canonical_user_id 
+              ? ticket.canonical_user_id.substring(0, 6) + '...' + ticket.canonical_user_id.slice(-4)
+              : 'Anonymous'));
 
-      const avatarUrl = userData?.avatar_url || getRandomAvatar();
+      // Priority for avatar: view's avatar > lookup avatar > random avatar
+      const avatarUrl = ticket.avatar_url || userData?.avatar_url || getRandomAvatar();
       // Use actual prize from database, skip if no prize value exists
       const prize = comp.competitionprize;
       if (!prize) continue;
