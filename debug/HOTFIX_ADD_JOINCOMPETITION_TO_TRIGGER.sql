@@ -57,21 +57,11 @@ BEGIN
     v_join_id := gen_random_uuid();
     
     -- CREATE JOINCOMPETITION ENTRY (this is what was missing!)
-    -- NOTE: competitionid and ticketnumbers are GENERATED columns - don't insert into them
+    -- NOTE: competitionid, ticketnumbers, numberoftickets are GENERATED columns
     INSERT INTO public.joincompetition (
-      id,
-      user_id,
-      competition_id,
-      ticket_numbers,
-      purchase_date,
-      canonical_user_id,
-      privy_user_id,
-      wallet_address,
-      status,
-      numberoftickets,
-      amount_spent,
-      created_at,
-      updated_at
+      id, user_id, competition_id, ticket_numbers, purchase_date,
+      canonical_user_id, privy_user_id, wallet_address, status,
+      amount_spent, created_at, updated_at
     ) VALUES (
       v_join_id,
       NEW.canonical_user_id,
@@ -84,7 +74,6 @@ BEGIN
                (SELECT cu.wallet_address FROM public.canonical_users cu
                 WHERE cu.canonical_user_id = NEW.canonical_user_id)),
       'active',
-      v_ticket_count,
       v_total_amount,
       NEW.confirmed_at,
       NEW.confirmed_at
@@ -96,7 +85,6 @@ BEGIN
         THEN EXCLUDED.ticket_numbers
         ELSE joincompetition.ticket_numbers || ',' || EXCLUDED.ticket_numbers
       END,
-      numberoftickets = COALESCE(joincompetition.numberoftickets, 0) + EXCLUDED.numberoftickets,
       amount_spent = COALESCE(joincompetition.amount_spent, 0) + EXCLUDED.amount_spent,
       purchase_date = EXCLUDED.purchase_date,
       updated_at = EXCLUDED.updated_at;
@@ -122,7 +110,6 @@ DO $$
 DECLARE
   rec RECORD;
   v_ticket_csv TEXT;
-  v_count INT;
   v_total NUMERIC;
 BEGIN
   -- Find confirmed pending_tickets from today that don't have joincompetition entries
@@ -146,14 +133,11 @@ BEGIN
       )
   LOOP
     v_ticket_csv := array_to_string(COALESCE(rec.ticket_numbers, ARRAY[]::int[]), ',');
-    v_count := COALESCE(array_length(rec.ticket_numbers, 1), 0);
     v_total := COALESCE(rec.total_amount, 0);
     
     INSERT INTO public.joincompetition (
-      id, user_id, competition_id,
-      ticket_numbers, purchase_date,
-      canonical_user_id, wallet_address, status,
-      numberoftickets, amount_spent, created_at, updated_at
+      id, user_id, competition_id, ticket_numbers, purchase_date,
+      canonical_user_id, wallet_address, status, amount_spent, created_at, updated_at
     ) VALUES (
       gen_random_uuid(),
       rec.canonical_user_id,
@@ -163,7 +147,6 @@ BEGIN
       rec.canonical_user_id,
       rec.wallet_address,
       'active',
-      v_count,
       v_total,
       rec.confirmed_at,
       rec.confirmed_at
@@ -174,7 +157,6 @@ BEGIN
         THEN EXCLUDED.ticket_numbers
         ELSE joincompetition.ticket_numbers || ',' || EXCLUDED.ticket_numbers
       END,
-      numberoftickets = COALESCE(joincompetition.numberoftickets, 0) + EXCLUDED.numberoftickets,
       amount_spent = COALESCE(joincompetition.amount_spent, 0) + EXCLUDED.amount_spent,
       purchase_date = EXCLUDED.purchase_date,
       updated_at = now();
