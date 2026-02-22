@@ -118,11 +118,11 @@ const EntriesTickets = ({
     : [];
 
   // Use purchase groups if available, otherwise fall back to individual entries
-  // FILTER OUT invalid purchase groups with no valid ticket data
+  // FILTER OUT invalid purchase groups with no valid data
   const validPurchaseGroups = purchaseGroups
     ? purchaseGroups.filter(group => {
-        // Must have actual tickets
-        if (!group.total_tickets || group.total_tickets <= 0) return false;
+        // Must have actual amount (the view returns total_amount, NOT total_tickets)
+        if (!group.total_amount || group.total_amount <= 0) return false;
         // Must have events with real data
         if (!group.events || !Array.isArray(group.events) || group.events.length === 0) return false;
         // Check that events have valid amounts
