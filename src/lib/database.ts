@@ -1689,16 +1689,18 @@ export const database = {
         // Fallback: Try to get sold tickets directly (pending tickets may fail due to RLS)
         databaseLogger.info('Using fallback: direct joincompetition query');
 
-        // Use single eq filter to avoid uuid/text type mismatch in OR queries
-        // Use v_joincompetition_active view for stable read interface
+        // CRITICAL: Query joincompetition directly, NOT the view!
+        // The view v_joincompetition_active filters status='active' which misses status='sold' entries
+        // This caused double-selling when RPC failed because 'sold' tickets were invisible
         const { data: soldData } = (await supabase
-          .from('v_joincompetition_active')
-          .select('ticket_numbers')
-          .eq('competition_id', competitionId)) as any;
+          .from('joincompetition')
+          .select('ticketnumbers')
+          .eq('competitionid', competitionId)
+          .in('status', ['active', 'sold'])) as any;
 
         if (soldData) {
-          soldData.forEach((row: { ticket_numbers: string | null }) => {
-            const nums = String(row.ticket_numbers || '')
+          soldData.forEach((row: { ticketnumbers: string | null }) => {
+            const nums = String(row.ticketnumbers || '')
               .split(',')
               .map(x => parseInt(x.trim(), 10))
               .filter(n => Number.isFinite(n) && n > 0);
