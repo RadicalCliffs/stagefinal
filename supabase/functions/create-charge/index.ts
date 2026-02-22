@@ -57,7 +57,8 @@ Deno.serve(async (req: Request) => {
   // Handle preflight
   if (req.method === "OPTIONS") {
     console.log(`[create-charge][${requestId}] Responding to OPTIONS preflight`);
-    return new Response(null, { status: 200,  // Use 200 instead of 204 for better compatibility headers: cors });
+    // Use 200 instead of 204 for better compatibility
+    return new Response(null, { status: 200, headers: cors });
   }
 
   try {
@@ -367,15 +368,11 @@ Deno.serve(async (req: Request) => {
         type,
         selected_tickets: selectedTickets ? JSON.stringify(selectedTickets) : null,
       } as ChargeMetadata,
-      // Redirect to appropriate page based on payment type
-      // - Entries: /dashboard/entries (see competition entries)
-      // - Top-ups: /dashboard/orders (see transaction history)
-      redirect_url: isEntry 
-        ? `${successBaseUrl}/dashboard/entries?payment=success&txId=${transactionId}`
-        : `${successBaseUrl}/dashboard/orders?payment=success&txId=${transactionId}`,
-      cancel_url: isEntry
-        ? `${successBaseUrl}/dashboard/entries?payment=cancelled&txId=${transactionId}`
-        : `${successBaseUrl}/dashboard/orders?payment=cancelled&txId=${transactionId}`,
+      // Redirect URLs - all payments go to entries dashboard on success/cancel
+      // Success: User sees their entries and balance update
+      // Cancel: User can retry payment from dashboard
+      redirect_url: `${successBaseUrl}/dashboard/entries?payment=success&txId=${transactionId}`,
+      cancel_url: `${successBaseUrl}/dashboard/entries?payment=cancelled&txId=${transactionId}`,
     };
 
     console.log(`[create-charge][${requestId}] Creating Coinbase Commerce charge for $${normalizedAmount}`);

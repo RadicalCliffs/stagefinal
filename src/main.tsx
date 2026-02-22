@@ -106,6 +106,7 @@ const CookiePolicyPage = lazy(() => import('./pages/CookiePolicyPage.tsx'));
 const TermsAndConditionsPage = lazy(() => import('./pages/TermsAndConditionsPage.tsx'));
 const TermsOfUsePage = lazy(() => import('./pages/TermsOfUsePage.tsx'));
 const AcceptableUsePage = lazy(() => import('./pages/AcceptableUsePage.tsx'));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage.tsx'));
 const CompetitionDetail = lazy(() => import('./components/CompetitionDetail.tsx'));
 
 // Hero competition pages
@@ -207,6 +208,15 @@ const router = createBrowserRouter([
           { path: 'promo', element: <Promo /> },
           { path: 'account', element: <Account /> },
         ],
+      },
+      // 404 catch-all route - must be last
+      {
+        path: '*',
+        element: (
+          <Suspense fallback={<Loader />}>
+            <NotFoundPage />
+          </Suspense>
+        ),
       },
     ],
   },

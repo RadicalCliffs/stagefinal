@@ -3,7 +3,7 @@ import { X, Check, AlertCircle, ExternalLink, CreditCard, Gift, Coins, ChevronRi
 import { useAuthUser } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { toCanonicalUserId } from '../lib/canonicalUserId';
-import { TOP_UP_CHECKOUT_URLS } from '../lib/coinbase-commerce';
+import { TOP_UP_CHECKOUT_URLS, CoinbaseCommerceService } from '../lib/coinbase-commerce';
 import { CoinbaseOnrampService } from '../lib/coinbase-onramp';
 import { isSuccessStatus, isFailureStatus } from '../lib/payment-status';
 import { notificationService } from '../lib/notification-service';
@@ -216,45 +216,32 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
         setStep('crypto-checkout');
       } else if (paymentMethod === 'commerce') {
         
-        // Coinbase Commerce top-up - uses pre-configured checkout URLs
-        // NOTE: Redirect URLs must be configured in Coinbase Commerce dashboard for each checkout link
-        const checkoutUrl = TOP_UP_CHECKOUT_URLS[amount];
+        // Coinbase Commerce top-up - uses API to create dynamic charge with redirect URLs
+        // This ensures proper metadata (user_id) is passed for webhook processing
+        const allowedAmounts = [3, 5, 10, 20, 50, 100, 250, 500, 1000];
         
-        if (!checkoutUrl) {
-          const availableAmounts = Object.keys(TOP_UP_CHECKOUT_URLS).map(Number).join(', ');
-          const errorMsg = `Amount $${amount} is not available. Available amounts: $${availableAmounts}`;
+        if (!allowedAmounts.includes(amount)) {
+          const errorMsg = `Amount $${amount} is not available. Available amounts: $${allowedAmounts.join(', $')}`;
           setError(errorMsg);
           setStep('error');
           return;
         }
         
-        // Create a transaction record for tracking
-        const transactionId = crypto.randomUUID();
+        // Call API to create charge with proper redirect_url and metadata
+        const result = await CoinbaseCommerceService.createTopUpTransaction(
+          toCanonicalUserId(baseUser.id),
+          amount
+        );
         
-        try {
-          const { error: insertError } = await (supabase
-            .from('user_transactions') as any)
-            .insert({
-              id: transactionId,
-              user_id: toCanonicalUserId(baseUser.id as any),
-              amount: amount,
-              currency: 'USD',
-              payment_status: 'pending',
-              status: 'pending',
-              payment_provider: 'coinbase',
-              type: 'topup',
-              created_at: new Date().toISOString(),
-            });
-          
-          if (insertError) {
-            // Continue anyway - the webhook will create the record if needed
-          }
-        } catch (dbError) {
-          // Continue anyway
+        if (!result.checkoutUrl) {
+          const errorMsg = 'Failed to create checkout - no URL returned';
+          setError(errorMsg);
+          setStep('error');
+          return;
         }
         
-        setTransactionId(transactionId);
-        setCheckoutUrl(checkoutUrl);
+        setTransactionId(result.transactionId);
+        setCheckoutUrl(result.checkoutUrl);
         setStep('commerce-checkout');
       } else if (paymentMethod === 'offramp') {
         
