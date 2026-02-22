@@ -4,23 +4,24 @@ import { toPrizePid } from "../_shared/userId.ts";
 
 // CORS configuration - allow all origins since Netlify proxy handles origin validation
 // Production calls go through the Netlify proxy function which adds proper CORS headers
-const ALLOWED_METHODS = 'GET,POST,PUT,DELETE,OPTIONS';
-const ALLOWED_HEADERS = 'authorization,content-type,x-client-info,apikey,cache-control,pragma,expires';
-const MAX_AGE = '86400';
+const ALLOWED_METHODS = "GET,POST,PUT,DELETE,OPTIONS";
+const ALLOWED_HEADERS =
+  "authorization,content-type,x-client-info,apikey,cache-control,pragma,expires";
+const MAX_AGE = "86400";
 
 function corsHeaders(req: Request) {
-  const origin = req.headers.get('origin') ?? '*';
+  const origin = req.headers.get("origin") ?? "*";
   return {
-    'Access-Control-Allow-Origin': origin || '*',
-    'Access-Control-Allow-Methods': ALLOWED_METHODS,
-    'Access-Control-Allow-Headers': ALLOWED_HEADERS,
-    'Access-Control-Max-Age': MAX_AGE,
-    'Vary': 'Origin',
+    "Access-Control-Allow-Origin": origin || "*",
+    "Access-Control-Allow-Methods": ALLOWED_METHODS,
+    "Access-Control-Allow-Headers": ALLOWED_HEADERS,
+    "Access-Control-Max-Age": MAX_AGE,
+    Vary: "Origin",
   };
 }
 
 // Coinbase Commerce API base URL
-const COINBASE_COMMERCE_API = 'https://api.commerce.coinbase.com';
+const COINBASE_COMMERCE_API = "https://api.commerce.coinbase.com";
 
 interface ChargeMetadata {
   user_id: string;
@@ -29,7 +30,7 @@ interface ChargeMetadata {
   entry_count?: number;
   entry_price?: number;
   reservation_id?: string;
-  type: 'entry' | 'topup';
+  type: "entry" | "topup";
 }
 
 interface CreateChargeRequest {
@@ -41,9 +42,9 @@ interface CreateChargeRequest {
   amount?: number; // Legacy field name, prefer totalAmount
   selectedTickets?: number[];
   reservationId?: string;
-  type: 'entry' | 'topup';
+  type: "entry" | "topup";
   checkoutUrl?: string;
-  paymentMethod?: 'coinbase' | 'onchainkit' | 'base_account' | 'commerce';
+  paymentMethod?: "coinbase" | "onchainkit" | "base_account" | "commerce";
 }
 
 Deno.serve(async (req: Request) => {
@@ -52,11 +53,15 @@ Deno.serve(async (req: Request) => {
   const requestId = crypto.randomUUID().slice(0, 8);
   const startTime = Date.now();
 
-  console.log(`[create-charge][${requestId}] Incoming request: method=${req.method}, origin=${req.headers.get('origin')}`);
+  console.log(
+    `[create-charge][${requestId}] Incoming request: method=${req.method}, origin=${req.headers.get("origin")}`,
+  );
 
   // Handle preflight
   if (req.method === "OPTIONS") {
-    console.log(`[create-charge][${requestId}] Responding to OPTIONS preflight`);
+    console.log(
+      `[create-charge][${requestId}] Responding to OPTIONS preflight`,
+    );
     // Use 200 instead of 204 for better compatibility
     return new Response(null, { status: 200, headers: cors });
   }
@@ -65,21 +70,31 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     // Support both COINBASE_COMMERCE_API_KEY and COMMERCE_API_KEY for flexibility
-    const coinbaseApiKey = Deno.env.get("COINBASE_COMMERCE_API_KEY") || Deno.env.get("COMMERCE_API_KEY");
-    const successBaseUrl = Deno.env.get("SUCCESS_URL") || "https://stage.theprize.io";
+    const coinbaseApiKey =
+      Deno.env.get("COINBASE_COMMERCE_API_KEY") ||
+      Deno.env.get("COMMERCE_API_KEY");
+    const successBaseUrl =
+      Deno.env.get("SUCCESS_URL") || "https://stage.theprize.io";
 
-    console.log(`[create-charge][${requestId}] Config check: supabaseUrl=${!!supabaseUrl}, serviceKey=${!!supabaseServiceKey}, apiKey=${!!coinbaseApiKey}`);
+    console.log(
+      `[create-charge][${requestId}] Config check: supabaseUrl=${!!supabaseUrl}, serviceKey=${!!supabaseServiceKey}, apiKey=${!!coinbaseApiKey}`,
+    );
 
     if (!coinbaseApiKey) {
-      console.error(`[create-charge][${requestId}] Missing COINBASE_COMMERCE_API_KEY or COMMERCE_API_KEY environment variable`);
+      console.error(
+        `[create-charge][${requestId}] Missing COINBASE_COMMERCE_API_KEY or COMMERCE_API_KEY environment variable`,
+      );
       return new Response(
         JSON.stringify({
           success: false,
           error: "Payment service configuration error - missing API key",
           code: "CONFIG_ERROR",
-          hint: "Ensure COINBASE_COMMERCE_API_KEY or COMMERCE_API_KEY is set in Supabase secrets"
+          hint: "Ensure COINBASE_COMMERCE_API_KEY or COMMERCE_API_KEY is set in Supabase secrets",
         }),
-        { status: 200, headers: { "Content-Type": "application/json", ...cors } }
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...cors },
+        },
       );
     }
 
@@ -89,13 +104,25 @@ Deno.serve(async (req: Request) => {
     let body: CreateChargeRequest;
     try {
       const rawBody = await req.text();
-      console.log(`[create-charge][${requestId}] Raw body length: ${rawBody.length}`);
+      console.log(
+        `[create-charge][${requestId}] Raw body length: ${rawBody.length}`,
+      );
       body = JSON.parse(rawBody);
     } catch (parseError) {
-      console.error(`[create-charge][${requestId}] JSON parse error:`, parseError);
+      console.error(
+        `[create-charge][${requestId}] JSON parse error:`,
+        parseError,
+      );
       return new Response(
-        JSON.stringify({ success: false, error: "Invalid JSON in request body", code: "VALIDATION_ERROR" }),
-        { status: 200, headers: { "Content-Type": "application/json", ...cors } }
+        JSON.stringify({
+          success: false,
+          error: "Invalid JSON in request body",
+          code: "VALIDATION_ERROR",
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...cors },
+        },
       );
     }
 
@@ -118,48 +145,54 @@ Deno.serve(async (req: Request) => {
 
     // Convert userId to canonical format immediately for consistent storage
     const canonicalUserId = toPrizePid(userId);
-    console.log(`[create-charge][${requestId}] Parsed request: userId=${userId} -> canonical=${canonicalUserId}, competitionId=${competitionId}, entryCount=${entryCount}, totalAmount=${totalAmount}, amount=${amount}, rawAmount=${rawAmount} (type: ${typeof rawAmount}), type=${type}`);
-    
+    console.log(
+      `[create-charge][${requestId}] Parsed request: userId=${userId} -> canonical=${canonicalUserId}, competitionId=${competitionId}, entryCount=${entryCount}, totalAmount=${totalAmount}, amount=${amount}, rawAmount=${rawAmount} (type: ${typeof rawAmount}), type=${type}`,
+    );
+
     // Extract wallet address from userId if it's a wallet format
     // This ensures we always have the parent wallet in metadata
     let walletAddress: string | null = null;
-    if (userId.startsWith('0x') && userId.length === 42) {
+    if (userId.startsWith("0x") && userId.length === 42) {
       walletAddress = userId.toLowerCase();
-    } else if (userId.startsWith('prize:pid:0x')) {
+    } else if (userId.startsWith("prize:pid:0x")) {
       walletAddress = userId.substring(10).toLowerCase(); // Remove 'prize:pid:' prefix
     }
-    console.log(`[create-charge][${requestId}] Extracted wallet address from userId: ${walletAddress}`);
+    console.log(
+      `[create-charge][${requestId}] Extracted wallet address from userId: ${walletAddress}`,
+    );
 
     // CRITICAL: Ensure user exists in canonical_users before creating transaction
     // This prevents orphaned transactions for users who bypassed the auth modal
-    
+
     // Extract wallet address for fallback lookup
-    if (!walletAddress && canonicalUserId.startsWith('prize:pid:0x')) {
+    if (!walletAddress && canonicalUserId.startsWith("prize:pid:0x")) {
       walletAddress = canonicalUserId.substring(10).toLowerCase();
     }
-    
+
     // Step 1: Try to find user by canonical_user_id
     let { data: existingUser } = await supabase
-      .from('canonical_users')
-      .select('id, canonical_user_id')
-      .eq('canonical_user_id', canonicalUserId)
+      .from("canonical_users")
+      .select("id, canonical_user_id")
+      .eq("canonical_user_id", canonicalUserId)
       .maybeSingle();
 
     // Step 2: If not found by canonical_user_id, try wallet_address (user from signup form)
     if (!existingUser && walletAddress) {
       const { data: userByWallet } = await supabase
-        .from('canonical_users')
-        .select('id, canonical_user_id')
-        .eq('wallet_address', walletAddress)
+        .from("canonical_users")
+        .select("id, canonical_user_id")
+        .eq("wallet_address", walletAddress)
         .maybeSingle();
-      
+
       if (userByWallet) {
-        console.log(`[create-charge][${requestId}] Found user by wallet_address, updating canonical_user_id`);
+        console.log(
+          `[create-charge][${requestId}] Found user by wallet_address, updating canonical_user_id`,
+        );
         // User exists but needs canonical_user_id set - UPDATE, don't create
         await supabase
-          .from('canonical_users')
+          .from("canonical_users")
           .update({ canonical_user_id: canonicalUserId })
-          .eq('id', userByWallet.id);
+          .eq("id", userByWallet.id);
         existingUser = userByWallet;
       }
     }
@@ -168,64 +201,101 @@ Deno.serve(async (req: Request) => {
     // CRITICAL FIX: Check if signup is in progress via request headers
     // If X-Signup-Username or X-Signup-Email are present, DO NOT create user here
     // Let the signup flow complete via upsert-user instead
-    const signupUsername = req.headers.get('x-signup-username');
-    const signupEmail = req.headers.get('x-signup-email');
+    const signupUsername = req.headers.get("x-signup-username");
+    const signupEmail = req.headers.get("x-signup-email");
     const isSignupInProgress = signupUsername || signupEmail;
-    
+
     if (!existingUser) {
       if (isSignupInProgress) {
-        console.log(`[create-charge][${requestId}] Signup in progress detected, skipping user creation. Will be created by signup flow.`);
+        console.log(
+          `[create-charge][${requestId}] Signup in progress detected, skipping user creation. Will be created by signup flow.`,
+        );
         // Return error - the user will be created by the signup flow with proper username
         // The user must complete signup before making purchases
         return new Response(
-          JSON.stringify({ 
-            success: false, 
+          JSON.stringify({
+            success: false,
             error: "Please complete your signup before making a purchase",
-            code: "SIGNUP_IN_PROGRESS" 
+            code: "SIGNUP_IN_PROGRESS",
           }),
-          { status: 400, headers: { "Content-Type": "application/json", ...cors } }
+          {
+            status: 400,
+            headers: { "Content-Type": "application/json", ...cors },
+          },
         );
       }
-      
-      console.log(`[create-charge][${requestId}] No user found, creating minimal entry`);
-      const { error: createUserError } = await supabase.from('canonical_users').insert({
-        canonical_user_id: canonicalUserId,
-        privy_user_id: walletAddress,
-        wallet_address: walletAddress,
-        base_wallet_address: walletAddress,
-        eth_wallet_address: walletAddress,
-        // CRITICAL: Only use fallback username if NOT in signup flow
-        username: walletAddress ? `user_${walletAddress.slice(2, 8)}` : `user_${Date.now()}`,
-        available_balance: 0,
-        has_used_new_user_bonus: false,
-        created_at: new Date().toISOString(),
-      });
-      
+
+      console.log(
+        `[create-charge][${requestId}] No user found, creating minimal entry`,
+      );
+      const { error: createUserError } = await supabase
+        .from("canonical_users")
+        .insert({
+          canonical_user_id: canonicalUserId,
+          privy_user_id: walletAddress,
+          wallet_address: walletAddress,
+          base_wallet_address: walletAddress,
+          eth_wallet_address: walletAddress,
+          // CRITICAL: Only use fallback username if NOT in signup flow
+          username: walletAddress
+            ? `user_${walletAddress.slice(2, 8)}`
+            : `user_${Date.now()}`,
+          available_balance: 0,
+          has_used_new_user_bonus: false,
+          created_at: new Date().toISOString(),
+        });
+
       // Error code 23505 = unique_violation (user already exists due to race condition)
-      if (createUserError && createUserError.code !== '23505') {
-        console.error(`[create-charge][${requestId}] Failed to create user:`, createUserError);
+      if (createUserError && createUserError.code !== "23505") {
+        console.error(
+          `[create-charge][${requestId}] Failed to create user:`,
+          createUserError,
+        );
         return new Response(
-          JSON.stringify({ success: false, error: "Failed to initialize user account" }),
-          { status: 200, headers: { "Content-Type": "application/json", ...cors } }
+          JSON.stringify({
+            success: false,
+            error: "Failed to initialize user account",
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json", ...cors },
+          },
         );
       }
-      console.log(`[create-charge][${requestId}] Created canonical_users entry for ${canonicalUserId}`);
+      console.log(
+        `[create-charge][${requestId}] Created canonical_users entry for ${canonicalUserId}`,
+      );
     }
 
     // Validate required fields
     if (!userId) {
-      console.log(`[create-charge][${requestId}] Validation failed: missing userId`);
+      console.log(
+        `[create-charge][${requestId}] Validation failed: missing userId`,
+      );
       return new Response(
-        JSON.stringify({ success: false, error: "Missing userId", code: "VALIDATION_ERROR" }),
-        { status: 200, headers: { "Content-Type": "application/json", ...cors } }
+        JSON.stringify({
+          success: false,
+          error: "Missing userId",
+          code: "VALIDATION_ERROR",
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...cors },
+        },
       );
     }
 
     // Normalize totalAmount - handle string values that may come from JSON
     // rawAmount supports both 'totalAmount' (preferred) and 'amount' (legacy) field names
     const normalizedAmount = Number(rawAmount);
-    if (!normalizedAmount || !Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
-      console.log(`[create-charge][${requestId}] Validation failed: invalid amount - totalAmount=${totalAmount}, amount=${amount}, rawAmount=${rawAmount} (type: ${typeof rawAmount}), normalized=${normalizedAmount}`);
+    if (
+      !normalizedAmount ||
+      !Number.isFinite(normalizedAmount) ||
+      normalizedAmount <= 0
+    ) {
+      console.log(
+        `[create-charge][${requestId}] Validation failed: invalid amount - totalAmount=${totalAmount}, amount=${amount}, rawAmount=${rawAmount} (type: ${typeof rawAmount}), normalized=${normalizedAmount}`,
+      );
       return new Response(
         JSON.stringify({
           success: false,
@@ -236,14 +306,17 @@ Deno.serve(async (req: Request) => {
             receivedAmount: amount,
             receivedType: typeof rawAmount,
             normalizedValue: normalizedAmount,
-            hint: "Provide either 'totalAmount' or 'amount' as a positive number"
-          }
+            hint: "Provide either 'totalAmount' or 'amount' as a positive number",
+          },
         }),
-        { status: 200, headers: { "Content-Type": "application/json", ...cors } }
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...cors },
+        },
       );
     }
 
-    const isEntry = type === 'entry' && competitionId;
+    const isEntry = type === "entry" && competitionId;
 
     // Create a transaction record first - use canonical userId
     const transactionId = crypto.randomUUID();
@@ -251,13 +324,18 @@ Deno.serve(async (req: Request) => {
       ? `COMP_${canonicalUserId}_${competitionId}_${transactionId}`
       : `TOPUP_${canonicalUserId}_${transactionId}`;
 
-    console.log(`[create-charge][${requestId}] Creating transaction: id=${transactionId}, webhookRef=${webhookRef}`);
+    console.log(
+      `[create-charge][${requestId}] Creating transaction: id=${transactionId}, webhookRef=${webhookRef}`,
+    );
 
     // Prepare insert data for logging and insertion
     // payment_provider is determined by paymentMethod or defaults to 'coinbase' for Commerce flow
-    const effectiveProvider = paymentMethod === 'base_account' ? 'base_account'
-      : paymentMethod === 'onchainkit' ? 'onchainkit'
-      : 'coinbase';
+    const effectiveProvider =
+      paymentMethod === "base_account"
+        ? "base_account"
+        : paymentMethod === "onchainkit"
+          ? "onchainkit"
+          : "coinbase";
 
     const transactionData = {
       id: transactionId,
@@ -267,45 +345,60 @@ Deno.serve(async (req: Request) => {
       currency: "USD",
       payment_status: "pending",
       status: "pending",
-      ticket_count: isEntry ? (entryCount || 1) : 0,
+      ticket_count: isEntry ? entryCount || 1 : 0,
       order_id: reservationId || null,
       webhook_ref: webhookRef,
       payment_provider: effectiveProvider,
-      type: type || 'entry', // Default to 'entry' if not specified for backward compatibility
+      type: type || "entry", // Default to 'entry' if not specified for backward compatibility
     };
-    console.log(`[create-charge][${requestId}] Transaction data:`, JSON.stringify(transactionData));
+    console.log(
+      `[create-charge][${requestId}] Transaction data:`,
+      JSON.stringify(transactionData),
+    );
 
     const { error: insertError } = await supabase
       .from("user_transactions")
       .insert(transactionData);
 
     if (insertError) {
-      console.error(`[create-charge][${requestId}] Transaction insert error:`, insertError);
-      console.error(`[create-charge][${requestId}] Insert error details: code=${insertError.code}, message=${insertError.message}, hint=${insertError.hint}`);
+      console.error(
+        `[create-charge][${requestId}] Transaction insert error:`,
+        insertError,
+      );
+      console.error(
+        `[create-charge][${requestId}] Insert error details: code=${insertError.code}, message=${insertError.message}, hint=${insertError.hint}`,
+      );
       // Include more detail for debugging while keeping user-facing message clean
       const errorDetails = [
         insertError.message,
         insertError.code ? `(code: ${insertError.code})` : null,
-        insertError.hint ? `Hint: ${insertError.hint}` : null
-      ].filter(Boolean).join(' - ');
+        insertError.hint ? `Hint: ${insertError.hint}` : null,
+      ]
+        .filter(Boolean)
+        .join(" - ");
       return new Response(
         JSON.stringify({
           success: false,
           error: "Failed to create transaction record",
           code: "DB_ERROR",
           details: errorDetails,
-          db_error_code: insertError.code
+          db_error_code: insertError.code,
         }),
-        { status: 200, headers: { "Content-Type": "application/json", ...cors } }
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...cors },
+        },
       );
     }
 
     // For base_account or onchainkit payment methods, return early with just the transaction ID
     // The client will handle the actual blockchain payment separately
     // This avoids trying to create a Coinbase Commerce charge which would fail
-    if (paymentMethod === 'base_account' || paymentMethod === 'onchainkit') {
+    if (paymentMethod === "base_account" || paymentMethod === "onchainkit") {
       const elapsed = Date.now() - startTime;
-      console.log(`[create-charge][${requestId}] SUCCESS (${paymentMethod}): transaction=${transactionId}, elapsed=${elapsed}ms`);
+      console.log(
+        `[create-charge][${requestId}] SUCCESS (${paymentMethod}): transaction=${transactionId}, elapsed=${elapsed}ms`,
+      );
 
       return new Response(
         JSON.stringify({
@@ -315,13 +408,18 @@ Deno.serve(async (req: Request) => {
             // No chargeId or checkoutUrl - client handles payment via SDK
           },
         }),
-        { status: 200, headers: { "Content-Type": "application/json", ...cors } }
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...cors },
+        },
       );
     }
 
     // If a pre-configured checkout URL was provided (for fixed-price products), use it directly
     if (checkoutUrl) {
-      console.log(`[create-charge][${requestId}] Using pre-configured checkout URL`);
+      console.log(
+        `[create-charge][${requestId}] Using pre-configured checkout URL`,
+      );
 
       // Update transaction with checkout URL
       await supabase
@@ -330,7 +428,9 @@ Deno.serve(async (req: Request) => {
         .eq("id", transactionId);
 
       const elapsed = Date.now() - startTime;
-      console.log(`[create-charge][${requestId}] SUCCESS (pre-configured): transaction=${transactionId}, elapsed=${elapsed}ms`);
+      console.log(
+        `[create-charge][${requestId}] SUCCESS (pre-configured): transaction=${transactionId}, elapsed=${elapsed}ms`,
+      );
 
       return new Response(
         JSON.stringify({
@@ -340,17 +440,20 @@ Deno.serve(async (req: Request) => {
             checkoutUrl,
           },
         }),
-        { status: 200, headers: { "Content-Type": "application/json", ...cors } }
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...cors },
+        },
       );
     }
 
     // Create a Coinbase Commerce charge
     const chargePayload = {
       name: isEntry
-        ? `Competition Entry: ${entryCount} ticket${entryCount !== 1 ? 's' : ''}`
+        ? `Competition Entry: ${entryCount} ticket${entryCount !== 1 ? "s" : ""}`
         : `Wallet Top-Up: $${normalizedAmount}`,
       description: isEntry
-        ? `Purchase ${entryCount} entry ticket${entryCount !== 1 ? 's' : ''} for competition`
+        ? `Purchase ${entryCount} entry ticket${entryCount !== 1 ? "s" : ""} for competition`
         : `Add $${normalizedAmount} to your wallet balance`,
       pricing_type: "fixed_price",
       local_price: {
@@ -366,7 +469,9 @@ Deno.serve(async (req: Request) => {
         reservation_id: reservationId || null,
         transaction_id: transactionId,
         type,
-        selected_tickets: selectedTickets ? JSON.stringify(selectedTickets) : null,
+        selected_tickets: selectedTickets
+          ? JSON.stringify(selectedTickets)
+          : null,
       } as ChargeMetadata,
       // Redirect URLs - all payments go to entries dashboard on success/cancel
       // Success: User sees their entries and balance update
@@ -375,7 +480,9 @@ Deno.serve(async (req: Request) => {
       cancel_url: `${successBaseUrl}/dashboard/entries?payment=cancelled&txId=${transactionId}`,
     };
 
-    console.log(`[create-charge][${requestId}] Creating Coinbase Commerce charge for $${normalizedAmount}`);
+    console.log(
+      `[create-charge][${requestId}] Creating Coinbase Commerce charge for $${normalizedAmount}`,
+    );
 
     const chargeResponse = await fetch(`${COINBASE_COMMERCE_API}/charges`, {
       method: "POST",
@@ -388,10 +495,16 @@ Deno.serve(async (req: Request) => {
     });
 
     const responseText = await chargeResponse.text();
-    console.log(`[create-charge][${requestId}] Coinbase response: status=${chargeResponse.status}, body_length=${responseText.length}`);
+    console.log(
+      `[create-charge][${requestId}] Coinbase response: status=${chargeResponse.status}, body_length=${responseText.length}`,
+    );
 
     if (!chargeResponse.ok) {
-      console.error(`[create-charge][${requestId}] Coinbase Commerce API error:`, chargeResponse.status, responseText.slice(0, 500));
+      console.error(
+        `[create-charge][${requestId}] Coinbase Commerce API error:`,
+        chargeResponse.status,
+        responseText.slice(0, 500),
+      );
 
       // Update transaction to failed
       await supabase
@@ -415,21 +528,29 @@ Deno.serve(async (req: Request) => {
           code: "PROVIDER_ERROR",
           upstream_status: chargeResponse.status,
           // Include transactionId so client can track the failed transaction
-          data: { transactionId }
+          data: { transactionId },
         }),
-        { status: 200, headers: { "Content-Type": "application/json", ...cors } }
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...cors },
+        },
       );
     }
 
     const chargeData = JSON.parse(responseText);
     const charge = chargeData.data;
 
-    console.log(`[create-charge][${requestId}] Charge created: id=${charge.id}, code=${charge.code}, hosted_url=${charge.hosted_url}`);
+    console.log(
+      `[create-charge][${requestId}] Charge created: id=${charge.id}, code=${charge.code}, hosted_url=${charge.hosted_url}`,
+    );
 
     // Validate that we received the hosted_url (checkout URL)
     if (!charge.hosted_url) {
-      console.error(`[create-charge][${requestId}] ERROR: Coinbase Commerce did not return hosted_url. Charge data:`, JSON.stringify(charge).substring(0, 500));
-      
+      console.error(
+        `[create-charge][${requestId}] ERROR: Coinbase Commerce did not return hosted_url. Charge data:`,
+        JSON.stringify(charge).substring(0, 500),
+      );
+
       // Update transaction status to failed
       const { error: failedUpdateError } = await supabase
         .from("user_transactions")
@@ -437,21 +558,28 @@ Deno.serve(async (req: Request) => {
           payment_status: "failed",
         })
         .eq("id", transactionId);
-      
+
       if (failedUpdateError) {
-        console.error(`[create-charge][${requestId}] Error updating transaction to failed status:`, failedUpdateError);
+        console.error(
+          `[create-charge][${requestId}] Error updating transaction to failed status:`,
+          failedUpdateError,
+        );
       }
-      
+
       return new Response(
         JSON.stringify({
           success: false,
-          error: "Payment service error: Unable to generate checkout URL. Please try again or contact support.",
+          error:
+            "Payment service error: Unable to generate checkout URL. Please try again or contact support.",
           code: "CHECKOUT_URL_MISSING",
           data: {
             transactionId,
           },
         }),
-        { status: 500, headers: { "Content-Type": "application/json", ...cors } }
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...cors },
+        },
       );
     }
 
@@ -466,11 +594,16 @@ Deno.serve(async (req: Request) => {
       .eq("id", transactionId);
 
     if (updateError) {
-      console.error(`[create-charge][${requestId}] Error updating transaction with charge data:`, updateError);
+      console.error(
+        `[create-charge][${requestId}] Error updating transaction with charge data:`,
+        updateError,
+      );
     }
 
     const elapsed = Date.now() - startTime;
-    console.log(`[create-charge][${requestId}] SUCCESS: transaction=${transactionId}, charge=${charge.id}, elapsed=${elapsed}ms`);
+    console.log(
+      `[create-charge][${requestId}] SUCCESS: transaction=${transactionId}, charge=${charge.id}, elapsed=${elapsed}ms`,
+    );
 
     return new Response(
       JSON.stringify({
@@ -482,13 +615,21 @@ Deno.serve(async (req: Request) => {
           chargeCode: charge.code,
         },
       }),
-      { status: 200, headers: { "Content-Type": "application/json", ...cors } }
+      { status: 200, headers: { "Content-Type": "application/json", ...cors } },
     );
   } catch (error) {
     console.error(`[create-charge] Unhandled error:`, error);
     return new Response(
-      JSON.stringify({ success: false, error: "Internal server error", code: "INTERNAL_ERROR", message: (error as Error).message }),
-      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders(req) } }
+      JSON.stringify({
+        success: false,
+        error: "Internal server error",
+        code: "INTERNAL_ERROR",
+        message: (error as Error).message,
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...corsHeaders(req) },
+      },
     );
   }
 });

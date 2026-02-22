@@ -1,18 +1,20 @@
-import { Link } from 'react-router';
-import { Home, ArrowLeft, Search } from 'lucide-react';
+import { Link } from "react-router";
+import { Home, ArrowLeft, Search } from "lucide-react";
 
 const NotFoundPage = () => {
   return (
     <>
       {/* Global background */}
       <div className="custom-landing-page-background bg-full-size absolute inset-0 w-full h-full"></div>
-      
+
       <div className="relative min-h-[70vh] flex items-center justify-center px-4">
         <div className="max-w-2xl mx-auto text-center">
           {/* 404 Badge */}
           <div className="mb-8">
             <span className="inline-block px-6 py-2 bg-[#DDE404]/10 border border-[#DDE404]/30 rounded-full">
-              <span className="text-[#DDE404] sequel-75 text-sm uppercase tracking-wider">Error 404</span>
+              <span className="text-[#DDE404] sequel-75 text-sm uppercase tracking-wider">
+                Error 404
+              </span>
             </span>
           </div>
 
@@ -24,11 +26,13 @@ const NotFoundPage = () => {
           {/* Apology message */}
           <div className="space-y-4 mb-10">
             <p className="text-white sequel-45 text-lg md:text-xl">
-              We're sorry, but the page you're looking for doesn't exist or has been moved.
+              We're sorry, but the page you're looking for doesn't exist or has
+              been moved.
             </p>
             <p className="text-gray-400 sequel-45 text-base">
-              Don't worry though — you can head back home and find what you're looking for, 
-              or check out our live competitions for a chance to win big.
+              Don't worry though — you can head back home and find what you're
+              looking for, or check out our live competitions for a chance to
+              win big.
             </p>
           </div>
 
@@ -66,7 +70,7 @@ const NotFoundPage = () => {
               <div
                 key={i}
                 className="w-2 h-2 rounded-full bg-[#DDE404]"
-                style={{ opacity: 0.2 + (i * 0.2) }}
+                style={{ opacity: 0.2 + i * 0.2 }}
               />
             ))}
           </div>
