@@ -9,9 +9,9 @@ interface EntriesCardProps {
   showCountDown?: boolean;
   activeTab?: string;
   status?: "live" | "completed" | "drawn" | "pending";
-  title?:string;
-  description?:string
-  isPromoCard?:boolean
+  title?: string;
+  description?: string;
+  isPromoCard?: boolean;
   endDate?: string;
   competitionId?: string;
   // Rich entry data
@@ -40,7 +40,7 @@ const EntriesCard = ({
   showCountDown = true,
   activeTab = "live",
   status = "live",
-  title = 'Competition',
+  title = "Competition",
   description = "Enter our competition for a chance to win amazing prizes!",
   isPromoCard = false,
   endDate,
@@ -62,11 +62,12 @@ const EntriesCard = ({
   // Back button for detailed view
   showBackButton = false,
   // VRF transaction hash
-  vrfTxHash
+  vrfTxHash,
 }: EntriesCardProps) => {
   const isDetailed = variant === "detailed";
   // 'completed' and 'drawn' both indicate finished competitions
-  const isFinished = activeTab === "finished" || status === "drawn" || status === "completed";
+  const isFinished =
+    activeTab === "finished" || status === "drawn" || status === "completed";
 
   // Colors: pending = amber, finished winner = yellow, finished loss = pink, live = yellow
   // If finished but no vrfTxHash, show as pending (amber) instead of loss (pink)
@@ -76,8 +77,8 @@ const EntriesCard = ({
       ? isWinner
         ? "border-[#DDE404]"
         : vrfTxHash
-          ? "border-[#EF008F]"  // Loss (pink) only if VRF hash exists
-          : "border-amber-500"  // Pending (amber) if no VRF hash
+          ? "border-[#EF008F]" // Loss (pink) only if VRF hash exists
+          : "border-amber-500" // Pending (amber) if no VRF hash
       : "border-[#DDE404]";
 
   const background = isPending
@@ -86,8 +87,8 @@ const EntriesCard = ({
       ? isWinner
         ? "bg-[#DDE404]"
         : vrfTxHash
-          ? "bg-[#EF008F]"  // Loss (pink) only if VRF hash exists
-          : "bg-amber-500"  // Pending (amber) if no VRF hash
+          ? "bg-[#EF008F]" // Loss (pink) only if VRF hash exists
+          : "bg-amber-500" // Pending (amber) if no VRF hash
       : "bg-[#DDE404]";
 
   const showBanner = (isFinished || isPending) && variant === "compact";
@@ -99,7 +100,7 @@ const EntriesCard = ({
     const now = new Date();
     const diffMs = expiresDate.getTime() - now.getTime();
 
-    if (diffMs <= 0) return 'Expired';
+    if (diffMs <= 0) return "Expired";
 
     const diffMinutes = Math.floor(diffMs / (1000 * 60));
     const diffHours = Math.floor(diffMinutes / 60);
@@ -112,7 +113,9 @@ const EntriesCard = ({
   };
 
   return (
-    <div className={`border relative ${borderColor} py-4 sm:py-5 px-3 sm:px-4 rounded-md bg-[#1A1A1A]`}>
+    <div
+      className={`border relative ${borderColor} py-4 sm:py-5 px-3 sm:px-4 rounded-md bg-[#1A1A1A]`}
+    >
       <div
         className={`flex ${
           isDetailed
@@ -125,22 +128,28 @@ const EntriesCard = ({
           <span
             className={`${background} absolute right-0 bottom-0 w-fit text-center uppercase text-black rounded-tl-sm text-[10px] sm:text-xs sequel-95 py-1.5 sm:py-2 px-2 sm:px-3`}
           >
-            {isPending ? "Pending" : isWinner ? "Winner!" : vrfTxHash ? "Loss" : "Pending"}
+            {isPending
+              ? "Pending"
+              : isWinner
+                ? "Winner!"
+                : vrfTxHash
+                  ? "Loss"
+                  : "Pending"}
           </span>
         )}
 
         {/* Instant Win Badge */}
         {isInstantWin && !showBanner && (
-          <span
-            className="absolute right-0 top-0 w-fit text-center uppercase bg-[#DDE404] text-black rounded-bl-sm text-[10px] sm:text-xs sequel-95 py-1.5 sm:py-2 px-2 sm:px-3 flex items-center gap-1"
-          >
+          <span className="absolute right-0 top-0 w-fit text-center uppercase bg-[#DDE404] text-black rounded-bl-sm text-[10px] sm:text-xs sequel-95 py-1.5 sm:py-2 px-2 sm:px-3 flex items-center gap-1">
             <Zap size={12} className="inline" />
             Instant
           </span>
         )}
 
         {/* Image */}
-        <div className={`${isDetailed ? "w-full" : "w-16 h-16 sm:w-24 sm:h-24 md:w-32 md:h-24 shrink-0 overflow-hidden rounded-sm"}`}>
+        <div
+          className={`${isDetailed ? "w-full" : "w-16 h-16 sm:w-24 sm:h-24 md:w-32 md:h-24 shrink-0 overflow-hidden rounded-sm"}`}
+        >
           <img
             src={competitionImage || monkeyNftV3}
             alt={title || "competition"}
@@ -158,14 +167,18 @@ const EntriesCard = ({
             <div className="flex-1 min-w-0 pr-2">
               <h2
                 className={`sequel-95 uppercase ${
-                  isDetailed ? "sm:text-4xl text-3xl" : "text-sm sm:text-base md:text-lg lg:text-xl line-clamp-1"
+                  isDetailed
+                    ? "sm:text-4xl text-3xl"
+                    : "text-sm sm:text-base md:text-lg lg:text-xl line-clamp-1"
                 }`}
               >
                 {title}
               </h2>
               <div
                 className={`bg-[#EF008F] mt-2 ${
-                  isDetailed ? "lg:w-6/12 h-[4px]" : "w-full max-w-20 sm:max-w-[120px] h-0.5 sm:h-[3px]"
+                  isDetailed
+                    ? "lg:w-6/12 h-[4px]"
+                    : "w-full max-w-20 sm:max-w-[120px] h-0.5 sm:h-[3px]"
                 }`}
               ></div>
               <p
@@ -177,100 +190,135 @@ const EntriesCard = ({
               </p>
 
               {/* Rich Entry Data - Only show for compact variant */}
-              {!isDetailed && (ticketNumbers || amountSpent || purchaseDate || isPending || isInstantWin) && (
-                <div className="mt-3 space-y-1.5">
-                  {/* Instant Win Indicator */}
-                  {isInstantWin && (
-                    <div className="flex items-center text-[#DDE404] mb-2">
-                      <Zap className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                      <span className="text-[10px] sm:text-xs font-medium sequel-45">
-                        Instant Win Competition
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Expiration Time - Only for pending reservations */}
-                  {isPending && expiresAt && (
-                    <div className="flex items-center text-amber-500 mb-2">
-                      <Clock className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                      <span className="text-[10px] sm:text-xs font-medium sequel-45">
-                        Expires in {formatExpirationTime(expiresAt)}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Ticket Count and Numbers */}
-                  {numberOfTickets !== undefined && numberOfTickets > 0 && (
-                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                      <span className="text-[#DDE404] sequel-45 text-[10px] sm:text-xs whitespace-nowrap">Tickets:</span>
-                      <span className="text-white sequel-45 text-[10px] sm:text-xs">{numberOfTickets}</span>
-                      {ticketNumbers && (
-                        <span className="text-white/60 sequel-45 text-[10px] sm:text-xs">
-                          ({ticketNumbers.split(',').map(t => parseInt(t.trim(), 10)).filter(n => !isNaN(n)).sort((a, b) => a - b).slice(0, 3).join(', ')}
-                          {ticketNumbers.split(',').length > 3 && '...'})
+              {!isDetailed &&
+                (ticketNumbers ||
+                  amountSpent ||
+                  purchaseDate ||
+                  isPending ||
+                  isInstantWin) && (
+                  <div className="mt-3 space-y-1.5">
+                    {/* Instant Win Indicator */}
+                    {isInstantWin && (
+                      <div className="flex items-center text-[#DDE404] mb-2">
+                        <Zap className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                        <span className="text-[10px] sm:text-xs font-medium sequel-45">
+                          Instant Win Competition
                         </span>
-                      )}
-                    </div>
-                  )}
+                      </div>
+                    )}
 
-                  {/* Amount Spent - show for all entries including pending */}
-                  {amountSpent && (
-                    <div className="flex items-center gap-x-2">
-                      <span className="text-[#DDE404] sequel-45 text-[10px] sm:text-xs whitespace-nowrap">Spent:</span>
-                      <span className="text-white sequel-45 text-[10px] sm:text-xs">${amountSpent}</span>
-                    </div>
-                  )}
+                    {/* Expiration Time - Only for pending reservations */}
+                    {isPending && expiresAt && (
+                      <div className="flex items-center text-amber-500 mb-2">
+                        <Clock className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                        <span className="text-[10px] sm:text-xs font-medium sequel-45">
+                          Expires in {formatExpirationTime(expiresAt)}
+                        </span>
+                      </div>
+                    )}
 
-                  {/* Purchase Date - show as "Reserved" for pending */}
-                  {purchaseDate && (
-                    <div className="flex items-center gap-x-2">
-                      <span className="text-[#DDE404] sequel-45 text-[10px] sm:text-xs whitespace-nowrap">{isPending ? 'Reserved:' : 'Date:'}</span>
-                      <span className="text-white sequel-45 text-[10px] sm:text-xs">
-                        {new Date(purchaseDate).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric'
-                        })}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
+                    {/* Ticket Count and Numbers */}
+                    {numberOfTickets !== undefined && numberOfTickets > 0 && (
+                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                        <span className="text-[#DDE404] sequel-45 text-[10px] sm:text-xs whitespace-nowrap">
+                          Tickets:
+                        </span>
+                        <span className="text-white sequel-45 text-[10px] sm:text-xs">
+                          {numberOfTickets}
+                        </span>
+                        {ticketNumbers && (
+                          <span className="text-white/60 sequel-45 text-[10px] sm:text-xs">
+                            (
+                            {ticketNumbers
+                              .split(",")
+                              .map((t) => parseInt(t.trim(), 10))
+                              .filter((n) => !isNaN(n))
+                              .sort((a, b) => a - b)
+                              .slice(0, 3)
+                              .join(", ")}
+                            {ticketNumbers.split(",").length > 3 && "..."})
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Amount Spent - show for all entries including pending */}
+                    {amountSpent && (
+                      <div className="flex items-center gap-x-2">
+                        <span className="text-[#DDE404] sequel-45 text-[10px] sm:text-xs whitespace-nowrap">
+                          Spent:
+                        </span>
+                        <span className="text-white sequel-45 text-[10px] sm:text-xs">
+                          ${amountSpent}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Purchase Date - show as "Reserved" for pending */}
+                    {purchaseDate && (
+                      <div className="flex items-center gap-x-2">
+                        <span className="text-[#DDE404] sequel-45 text-[10px] sm:text-xs whitespace-nowrap">
+                          {isPending ? "Reserved:" : "Date:"}
+                        </span>
+                        <span className="text-white sequel-45 text-[10px] sm:text-xs">
+                          {new Date(purchaseDate).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
 
               {/* Rich Entry Data - Detailed variant summary */}
-              {isDetailed && (numberOfTickets || amountSpent || purchaseDate) && (
-                <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2">
-                  {numberOfTickets !== undefined && numberOfTickets > 0 && (
-                    <div className="flex items-center gap-x-2">
-                      <span className="text-[#DDE404] sequel-45 text-sm whitespace-nowrap">Tickets:</span>
-                      <span className="text-white sequel-45 text-sm">{numberOfTickets}</span>
-                    </div>
-                  )}
-                  {amountSpent && (
-                    <div className="flex items-center gap-x-2">
-                      <span className="text-[#DDE404] sequel-45 text-sm whitespace-nowrap">Total Spent:</span>
-                      <span className="text-white sequel-45 text-sm">${amountSpent}</span>
-                    </div>
-                  )}
-                  {purchaseDate && (
-                    <div className="flex items-center gap-x-2">
-                      <span className="text-[#DDE404] sequel-45 text-sm whitespace-nowrap">Last Purchase:</span>
-                      <span className="text-white sequel-45 text-sm">
-                        {new Date(purchaseDate).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric'
-                        })}
-                      </span>
-                    </div>
-                  )}
-                  {isInstantWin && (
-                    <div className="flex items-center text-[#DDE404]">
-                      <Zap className="h-4 w-4 mr-1" />
-                      <span className="text-sm font-medium sequel-45">Instant Win</span>
-                    </div>
-                  )}
-                </div>
-              )}
+              {isDetailed &&
+                (numberOfTickets || amountSpent || purchaseDate) && (
+                  <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2">
+                    {numberOfTickets !== undefined && numberOfTickets > 0 && (
+                      <div className="flex items-center gap-x-2">
+                        <span className="text-[#DDE404] sequel-45 text-sm whitespace-nowrap">
+                          Tickets:
+                        </span>
+                        <span className="text-white sequel-45 text-sm">
+                          {numberOfTickets}
+                        </span>
+                      </div>
+                    )}
+                    {amountSpent && (
+                      <div className="flex items-center gap-x-2">
+                        <span className="text-[#DDE404] sequel-45 text-sm whitespace-nowrap">
+                          Total Spent:
+                        </span>
+                        <span className="text-white sequel-45 text-sm">
+                          ${amountSpent}
+                        </span>
+                      </div>
+                    )}
+                    {purchaseDate && (
+                      <div className="flex items-center gap-x-2">
+                        <span className="text-[#DDE404] sequel-45 text-sm whitespace-nowrap">
+                          Last Purchase:
+                        </span>
+                        <span className="text-white sequel-45 text-sm">
+                          {new Date(purchaseDate).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </span>
+                      </div>
+                    )}
+                    {isInstantWin && (
+                      <div className="flex items-center text-[#DDE404]">
+                        <Zap className="h-4 w-4 mr-1" />
+                        <span className="text-sm font-medium sequel-45">
+                          Instant Win
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
             </div>
 
             {/* Chevron (only compact) */}
@@ -278,7 +326,11 @@ const EntriesCard = ({
               <div
                 className={`shrink-0 ${background} w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-md`}
               >
-                <ChevronRight color="#393939" size={14} className="sm:w-4.5 sm:h-4.5" />
+                <ChevronRight
+                  color="#393939"
+                  size={14}
+                  className="sm:w-4.5 sm:h-4.5"
+                />
               </div>
             )}
           </div>
@@ -316,7 +368,11 @@ const EntriesCard = ({
           {/* Button */}
           {showButton && !showBackButton && (
             <Link
-              to={competitionId ? `/competitions/${competitionId}` : "/competitions"}
+              to={
+                competitionId
+                  ? `/competitions/${competitionId}`
+                  : "/competitions"
+              }
               className="uppercase sequel-75 block text-center text-lg bg-[#DDE404] text-[#000000] w-full rounded-lg py-3 mt-8"
             >
               View Competition
@@ -324,7 +380,11 @@ const EntriesCard = ({
           )}
           {showBackButton && (
             <Link
-              to={competitionId ? `/competitions/${competitionId}` : "/competitions"}
+              to={
+                competitionId
+                  ? `/competitions/${competitionId}`
+                  : "/competitions"
+              }
               className="uppercase sequel-75 block text-center text-lg bg-[#DDE404] text-[#000000] w-full rounded-lg py-3 mt-8"
             >
               Buy More Entries
@@ -332,13 +392,17 @@ const EntriesCard = ({
           )}
         </div>
       </div>
-      {
-        isPromoCard && <div className="mt-7 flex flex-col sm:flex-row justify-between gap-3 sm:gap-4">
-        <input className="bg-white/25 text-black sm:text-base text-sm w-full rounded-md sequel-45 px-3 sm:pl-4 py-2.5 sm:py-3 placeholder:text-white/70" placeholder="Enter Promotional Code..."/>
-        <button className="sequel-95 bg-[#DDE404] sm:text-base text-sm cursor-pointer text-[#000] uppercase px-4 py-2.5 sm:py-3 rounded-md shrink-0">Enter</button>
-      </div>
-      }
-
+      {isPromoCard && (
+        <div className="mt-7 flex flex-col sm:flex-row justify-between gap-3 sm:gap-4">
+          <input
+            className="bg-white/25 text-black sm:text-base text-sm w-full rounded-md sequel-45 px-3 sm:pl-4 py-2.5 sm:py-3 placeholder:text-white/70"
+            placeholder="Enter Promotional Code..."
+          />
+          <button className="sequel-95 bg-[#DDE404] sm:text-base text-sm cursor-pointer text-[#000] uppercase px-4 py-2.5 sm:py-3 rounded-md shrink-0">
+            Enter
+          </button>
+        </div>
+      )}
     </div>
   );
 };
