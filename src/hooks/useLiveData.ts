@@ -68,6 +68,7 @@ export function useLiveData<T>({
       .current()
       .then((result) => {
         if (isMountedRef.current) {
+          console.log(`[${channelName}] Data fetched:`, Array.isArray(result) ? `${result.length} items` : result);
           setData(result);
           setLoading(false);
           initialLoadDoneRef.current = true;
@@ -115,6 +116,7 @@ export function useLiveData<T>({
 
     // Polling fallback
     const pollTimer = setInterval(() => {
+      console.log(`[${channelName}] Polling refresh...`);
       fetchData();
     }, pollInterval);
 
