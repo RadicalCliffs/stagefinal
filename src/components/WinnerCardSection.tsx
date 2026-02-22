@@ -15,7 +15,7 @@ const POLLING_INTERVAL_MS = 30000;
 
 const WinnersV2 = () => {
   const isMobile = useIsMobile();
-  const sectionRef = useSectionTracking('winners_section');
+  const sectionRef = useSectionTracking("winners_section");
   const [winners, setWinners] = useState<WinnerCardProps[]>([]);
   const [loading, setLoading] = useState(true);
   const initialLoadDoneRef = useRef<boolean>(false);
@@ -34,7 +34,7 @@ const WinnersV2 = () => {
     if (!initialLoadDoneRef.current) {
       setLoading(true);
     }
-    
+
     const data = await database.getAllWinners();
     setWinners(data);
     setLoading(false);
@@ -46,40 +46,40 @@ const WinnersV2 = () => {
 
     // Set up real-time subscription for new winners
     const channel = supabase
-      .channel('home-winners-updates')
+      .channel("home-winners-updates")
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'winners'
+          event: "INSERT",
+          schema: "public",
+          table: "winners",
         },
         (payload) => {
-          console.log('[WinnersV2] New winner detected:', payload.new);
+          console.log("[WinnersV2] New winner detected:", payload.new);
           // Refresh winners list when new winner is added
           fetchWinners();
-        }
+        },
       )
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'winners'
+          event: "UPDATE",
+          schema: "public",
+          table: "winners",
         },
         (payload) => {
-          console.log('[WinnersV2] Winner updated:', payload.new);
+          console.log("[WinnersV2] Winner updated:", payload.new);
           // Refresh on updates (e.g., claimed status change)
           fetchWinners();
-        }
+        },
       )
       .subscribe((status) => {
-        console.log('[WinnersV2] Realtime subscription status:', status);
+        console.log("[WinnersV2] Realtime subscription status:", status);
       });
 
     // Polling fallback - realtime can silently disconnect
     const pollInterval = setInterval(() => {
-      console.log('[WinnersV2] Polling fallback - refreshing winners');
+      console.log("[WinnersV2] Polling fallback - refreshing winners");
       fetchWinners();
     }, POLLING_INTERVAL_MS);
 

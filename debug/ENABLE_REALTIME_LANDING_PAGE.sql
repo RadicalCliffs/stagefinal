@@ -1,33 +1,43 @@
 -- ============================================================================
--- ENABLE REALTIME ON LANDING PAGE TABLES
+-- CHECK REALTIME STATUS ON LANDING PAGE TABLES
 -- ============================================================================
 -- Run this in Supabase Dashboard > SQL Editor
--- This enables realtime subscriptions for the live entries and winners sections
 -- ============================================================================
 
--- 1. Add tables to the realtime publication
--- The supabase_realtime publication is what powers postgres_changes subscriptions
+-- First, just check what's currently enabled:
+SELECT 'Tables currently in supabase_realtime publication:' as info;
+SELECT schemaname, tablename 
+FROM pg_publication_tables 
+WHERE pubname = 'supabase_realtime' 
+ORDER BY tablename;
 
-ALTER PUBLICATION supabase_realtime ADD TABLE public.joincompetition;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.winners;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.competition_entries;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.competitions;
+-- Check if our required tables are there:
+SELECT 
+  t.table_name,
+  CASE WHEN p.tablename IS NOT NULL THEN '✅ ENABLED' ELSE '❌ NOT ENABLED' END as realtime_status
+FROM (
+  VALUES ('joincompetition'), ('winners'), ('competition_entries'), ('competitions')
+) AS t(table_name)
+LEFT JOIN pg_publication_tables p 
+  ON p.tablename = t.table_name AND p.pubname = 'supabase_realtime';
 
--- 2. Set REPLICA IDENTITY FULL for better update tracking
--- This ensures UPDATE events include both old and new values
+-- ============================================================================
+-- If any table shows NOT ENABLED, run the appropriate line below:
+-- (Comment out lines for tables already enabled to avoid errors)
+-- ============================================================================
 
+-- ALTER PUBLICATION supabase_realtime ADD TABLE public.joincompetition;
+-- ALTER PUBLICATION supabase_realtime ADD TABLE public.winners;
+-- ALTER PUBLICATION supabase_realtime ADD TABLE public.competition_entries;
+-- ALTER PUBLICATION supabase_realtime ADD TABLE public.competitions;
+
+-- Set REPLICA IDENTITY FULL (safe to run even if already set):
 ALTER TABLE public.joincompetition REPLICA IDENTITY FULL;
 ALTER TABLE public.winners REPLICA IDENTITY FULL;
-ALTER TABLE public.competition_entries REPLICA IDENTITY FULL;
-ALTER TABLE public.competitions REPLICA IDENTITY FULL;
-
--- 3. Verify the configuration
-SELECT 'Tables in supabase_realtime publication:' as info;
-SELECT tablename FROM pg_publication_tables WHERE pubname = 'supabase_realtime' ORDER BY tablename;
 
 -- ============================================================================
--- IMPORTANT: After running this, you may need to:
--- 1. Go to Database > Replication in Supabase Dashboard
--- 2. Verify the tables show as enabled
--- 3. Your app's realtime subscriptions should now receive updates
+-- If realtime IS enabled but still not working, the issue is likely:
+-- 1. RLS policies blocking the subscription
+-- 2. The client not subscribing to the right table/events
+-- 3. Network/connection issues with the realtime websocket
 -- ============================================================================

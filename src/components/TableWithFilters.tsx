@@ -16,7 +16,7 @@ const OPTIONS = [
 const POLLING_INTERVAL_MS = 30000;
 
 const TableWithFilters = () => {
-  const sectionRef = useSectionTracking('live_activity_section');
+  const sectionRef = useSectionTracking("live_activity_section");
   const [activeTab, setActiveTab] = useState(OPTIONS[0]);
   const [tableData, setTableData] = useState<TableRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,35 +24,38 @@ const TableWithFilters = () => {
   const initialLoadDoneRef = useRef<boolean>(false);
 
   // Fetch activity data with deduplication
-  const fetchActivity = useCallback(async (force = false) => {
-    // Debounce rapid calls (within 2 seconds) unless forced
-    const now = Date.now();
-    if (!force && now - lastFetchRef.current < 2000) {
-      return;
-    }
-    lastFetchRef.current = now;
+  const fetchActivity = useCallback(
+    async (force = false) => {
+      // Debounce rapid calls (within 2 seconds) unless forced
+      const now = Date.now();
+      if (!force && now - lastFetchRef.current < 2000) {
+        return;
+      }
+      lastFetchRef.current = now;
 
-    // Only show loading on initial load
-    if (!initialLoadDoneRef.current) {
-      setLoading(true);
-    }
-    
-    // Fetch more data to ensure we have enough of each type after filtering
-    const limit = 50;
-    const data = await database.getRecentActivity(limit);
+      // Only show loading on initial load
+      if (!initialLoadDoneRef.current) {
+        setLoading(true);
+      }
 
-    // Filter based on active tab:
-    // - "live" tab shows BUYS only (ticket purchases) - this is "Live Activity"
-    // - "wins" tab shows WINS only
-    const filteredData =
-      activeTab.key === "wins"
-        ? data.filter((row) => row.action === "Win")
-        : data.filter((row) => row.action === "Buy");
+      // Fetch more data to ensure we have enough of each type after filtering
+      const limit = 50;
+      const data = await database.getRecentActivity(limit);
 
-    setTableData(filteredData);
-    setLoading(false);
-    initialLoadDoneRef.current = true;
-  }, [activeTab]);
+      // Filter based on active tab:
+      // - "live" tab shows BUYS only (ticket purchases) - this is "Live Activity"
+      // - "wins" tab shows WINS only
+      const filteredData =
+        activeTab.key === "wins"
+          ? data.filter((row) => row.action === "Win")
+          : data.filter((row) => row.action === "Buy");
+
+      setTableData(filteredData);
+      setLoading(false);
+      initialLoadDoneRef.current = true;
+    },
+    [activeTab],
+  );
 
   // Initial fetch
   useEffect(() => {
@@ -62,7 +65,7 @@ const TableWithFilters = () => {
   // Polling fallback - realtime can silently disconnect
   useEffect(() => {
     const interval = setInterval(() => {
-      console.log('[TableWithFilters] Polling fallback - refreshing activity');
+      console.log("[TableWithFilters] Polling fallback - refreshing activity");
       fetchActivity();
     }, POLLING_INTERVAL_MS);
 
@@ -72,36 +75,44 @@ const TableWithFilters = () => {
   // Subscribe to realtime updates for joincompetition (the actual source table for entries) and winners
   useSupabaseRealtimeMultiple([
     {
-      table: 'joincompetition',
+      table: "joincompetition",
       handlers: {
         onInsert: () => {
-          console.log('[TableWithFilters] New entry in joincompetition, refreshing activity');
+          console.log(
+            "[TableWithFilters] New entry in joincompetition, refreshing activity",
+          );
           fetchActivity();
         },
         onUpdate: () => {
-          console.log('[TableWithFilters] Entry updated in joincompetition, refreshing activity');
+          console.log(
+            "[TableWithFilters] Entry updated in joincompetition, refreshing activity",
+          );
           fetchActivity();
-        }
-      }
+        },
+      },
     },
     {
-      table: 'competition_entries',
+      table: "competition_entries",
       handlers: {
         onInsert: () => {
-          console.log('[TableWithFilters] New competition_entry detected, refreshing activity');
+          console.log(
+            "[TableWithFilters] New competition_entry detected, refreshing activity",
+          );
           fetchActivity();
-        }
-      }
+        },
+      },
     },
     {
-      table: 'winners',
+      table: "winners",
       handlers: {
         onInsert: () => {
-          console.log('[TableWithFilters] New winner detected, refreshing activity');
+          console.log(
+            "[TableWithFilters] New winner detected, refreshing activity",
+          );
           fetchActivity();
-        }
-      }
-    }
+        },
+      },
+    },
   ]);
 
   if (loading) {
@@ -113,7 +124,10 @@ const TableWithFilters = () => {
   }
 
   return (
-    <div ref={sectionRef} className=" md:bg-inherit bg-[#131313] rounded-md md:pt-0 pt-6 relative z-10 ">
+    <div
+      ref={sectionRef}
+      className=" md:bg-inherit bg-[#131313] rounded-md md:pt-0 pt-6 relative z-10 "
+    >
       <FilterTabs
         options={OPTIONS}
         active={activeTab}
