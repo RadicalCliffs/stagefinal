@@ -21,7 +21,10 @@ const WinnersV2 = () => {
     channelName: "home-winners",
   });
 
-  const displayedWinners = useMemo(() => (winners || []).slice(0, 9), [winners]);
+  const displayedWinners = useMemo(
+    () => (winners || []).slice(0, 9),
+    [winners],
+  );
 
   if (loading) {
     return (

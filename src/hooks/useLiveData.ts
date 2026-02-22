@@ -1,6 +1,6 @@
 /**
  * useLiveData - A hook for data that stays fresh via realtime + polling fallback
- * 
+ *
  * Combines:
  * - Initial data fetch
  * - Supabase realtime subscriptions to multiple tables
@@ -8,9 +8,9 @@
  * - Debouncing to prevent hammering the database
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '../lib/supabase';
-import type { RealtimeChannel } from '@supabase/supabase-js';
+import { useState, useEffect, useCallback, useRef } from "react";
+import { supabase } from "../lib/supabase";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 interface UseLiveDataOptions<T> {
   /** Function to fetch the data */
@@ -36,50 +36,55 @@ export function useLiveData<T>({
   tables,
   pollInterval = 30000,
   debounceMs = 2000,
-  channelName = 'live-data',
+  channelName = "live-data",
 }: UseLiveDataOptions<T>): UseLiveDataResult<T> {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const lastFetchRef = useRef<number>(0);
   const initialLoadDoneRef = useRef<boolean>(false);
 
-  const fetchData = useCallback(async (force = false) => {
-    const now = Date.now();
-    if (!force && now - lastFetchRef.current < debounceMs) {
-      return;
-    }
-    lastFetchRef.current = now;
+  const fetchData = useCallback(
+    async (force = false) => {
+      const now = Date.now();
+      if (!force && now - lastFetchRef.current < debounceMs) {
+        return;
+      }
+      lastFetchRef.current = now;
 
-    if (!initialLoadDoneRef.current) {
-      setLoading(true);
-    }
+      if (!initialLoadDoneRef.current) {
+        setLoading(true);
+      }
 
-    try {
-      const result = await fetchFn();
-      setData(result);
-    } catch (error) {
-      console.error(`[${channelName}] Fetch error:`, error);
-    } finally {
-      setLoading(false);
-      initialLoadDoneRef.current = true;
-    }
-  }, [fetchFn, debounceMs, channelName]);
+      try {
+        const result = await fetchFn();
+        setData(result);
+      } catch (error) {
+        console.error(`[${channelName}] Fetch error:`, error);
+      } finally {
+        setLoading(false);
+        initialLoadDoneRef.current = true;
+      }
+    },
+    [fetchFn, debounceMs, channelName],
+  );
 
   useEffect(() => {
     // Initial fetch
     fetchData(true);
 
     // Set up realtime subscriptions for all tables
-    let channel: RealtimeChannel = supabase.channel(`${channelName}-${Date.now()}`);
-    
-    tables.forEach(table => {
+    let channel: RealtimeChannel = supabase.channel(
+      `${channelName}-${Date.now()}`,
+    );
+
+    tables.forEach((table) => {
       channel = channel.on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table },
+        "postgres_changes",
+        { event: "*", schema: "public", table },
         (payload) => {
           console.log(`[${channelName}] ${table} changed:`, payload.eventType);
           fetchData();
-        }
+        },
       );
     });
 
