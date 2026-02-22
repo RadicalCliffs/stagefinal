@@ -1,25 +1,38 @@
-import { supabase } from './supabase';
-import { withRetry, handleDatabaseError } from './error-handler';
-import { databaseLogger, requestTracker, showDebugHintOnError } from './debug-console';
+import { supabase } from "./supabase";
+import { withRetry, handleDatabaseError } from "./error-handler";
+import {
+  databaseLogger,
+  requestTracker,
+  showDebugHintOnError,
+} from "./debug-console";
 import {
   resolveUserIdentity,
   buildIdentityFilter,
   type ResolvedIdentity,
-} from './identity';
+} from "./identity";
 import {
   isCompetitionVisible,
   COMPETITION_VISIBILITY_CUTOFF,
-} from './appConfig';
-import { userIdsEqual, normalizeWalletAddress, toPrizePid, isWalletAddress } from '../utils/userId';
-import { getDashboardEntries, getUnavailableTickets, getUserCompetitionEntries } from './supabase-rpc-helpers';
-import { isFinishedStatus } from '../constants/competition-status';
+} from "./appConfig";
+import {
+  userIdsEqual,
+  normalizeWalletAddress,
+  toPrizePid,
+  isWalletAddress,
+} from "../utils/userId";
+import {
+  getDashboardEntries,
+  getUnavailableTickets,
+  getUserCompetitionEntries,
+} from "./supabase-rpc-helpers";
+import { isFinishedStatus } from "../constants/competition-status";
 import type {
   WinnerCardProps,
   Faq,
   EntryCard,
   PurchaseOrder,
-  TableRow
-} from '../models/models';
+  TableRow,
+} from "../models/models";
 import {
   ethTier,
   btcTier,
@@ -29,47 +42,51 @@ import {
   watchImage,
   sportsCar,
   monkeyNft,
-  nft
-} from '../assets/images';
-import { VALID_AVATAR_FILENAMES, SUPABASE_AVATAR_BASE_URL } from './avatarConstants';
+  nft,
+} from "../assets/images";
+import {
+  VALID_AVATAR_FILENAMES,
+  SUPABASE_AVATAR_BASE_URL,
+} from "./avatarConstants";
 
 // ISSUE #5 FIX: Visibility configuration is now centralized in src/lib/appConfig.ts
 // Use isCompetitionVisible() to check if a competition should be shown
 
 const imageMap: Record<string, string> = {
-  'eth tier 1.png': ethTier,
-  'eth tier 2.png': ethTier,
-  'eth tier 3.png': ethTier,
-  'ethtier1.png': ethTier,
-  'ethtier2.png': ethTier,
-  'ethtier3.png': ethTier,
-  'ethtier3.jpg': ethTier,
-  'btc tier 1.png': btcTier,
-  'btc tier 2.png': btcTier,
-  'btc tier 3.png': btcTier,
-  'btctier1.png': btcTier,
-  'btctier2.png': btcTier,
-  'btctier2.jpg': btcTier,
-  'sol tier 1.png': solTier,
-  'sol tier 2.png': solTier,
-  'soltier1.png': solTier,
-  'soltier1.jpg': solTier,
-  'tier1.jpg': tierOne,
-  'bitcoin.webp': bitcoinImage,
-  'watch.webp': watchImage,
-  'car.webp': sportsCar,
-  'monkey.webp': monkeyNft,
-  'nft.webp': nft,
+  "eth tier 1.png": ethTier,
+  "eth tier 2.png": ethTier,
+  "eth tier 3.png": ethTier,
+  "ethtier1.png": ethTier,
+  "ethtier2.png": ethTier,
+  "ethtier3.png": ethTier,
+  "ethtier3.jpg": ethTier,
+  "btc tier 1.png": btcTier,
+  "btc tier 2.png": btcTier,
+  "btc tier 3.png": btcTier,
+  "btctier1.png": btcTier,
+  "btctier2.png": btcTier,
+  "btctier2.jpg": btcTier,
+  "sol tier 1.png": solTier,
+  "sol tier 2.png": solTier,
+  "soltier1.png": solTier,
+  "soltier1.jpg": solTier,
+  "tier1.jpg": tierOne,
+  "bitcoin.webp": bitcoinImage,
+  "watch.webp": watchImage,
+  "car.webp": sportsCar,
+  "monkey.webp": monkeyNft,
+  "nft.webp": nft,
 };
 
 function getImageUrl(imageUrl: string | null): string {
-  if (!imageUrl) return '';
+  if (!imageUrl) return "";
 
-  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
     // Fix malformed Supabase Competition Images URLs
     // The correct path is: Competition%20Images/Competition%20Images/<filename>
     // But some URLs are stored as: Competition%20Images/<filename> (missing the subfolder)
-    const supabasePattern = /supabase\.co\/storage\/v1\/object\/public\/Competition%20Images\/([^/]+\.(jpg|jpeg|png|gif|webp|svg|bmp))$/i;
+    const supabasePattern =
+      /supabase\.co\/storage\/v1\/object\/public\/Competition%20Images\/([^/]+\.(jpg|jpeg|png|gif|webp|svg|bmp))$/i;
     const match = imageUrl.match(supabasePattern);
     if (match) {
       // URL is missing the "Competition Images" subfolder - fix it
@@ -79,7 +96,7 @@ function getImageUrl(imageUrl: string | null): string {
     return imageUrl;
   }
 
-  const filename = imageUrl.split('/').pop()?.toLowerCase() || '';
+  const filename = imageUrl.split("/").pop()?.toLowerCase() || "";
   const mapped = imageMap[filename];
   return mapped || imageUrl;
 }
@@ -87,30 +104,41 @@ function getImageUrl(imageUrl: string | null): string {
 /**
  * Transform a joincompetition row to the expected entry format
  */
-function transformJoinCompetitionEntry(jc: any, identity: ResolvedIdentity): any {
+function transformJoinCompetitionEntry(
+  jc: any,
+  identity: ResolvedIdentity,
+): any {
   const comp = jc.competitions;
-  const compStatus = comp?.status || 'active';
+  const compStatus = comp?.status || "active";
 
   // Map database status to frontend status
-  let mappedStatus = 'live';
-  if (compStatus === 'active') {
-    mappedStatus = 'live';
-  } else if (compStatus === 'completed' || compStatus === 'drawn' || compStatus === 'drawing') {
-    mappedStatus = 'drawn';
-  } else if (compStatus === 'cancelled') {
-    mappedStatus = 'cancelled';
+  let mappedStatus = "live";
+  if (compStatus === "active") {
+    mappedStatus = "live";
+  } else if (
+    compStatus === "completed" ||
+    compStatus === "drawn" ||
+    compStatus === "drawing"
+  ) {
+    mappedStatus = "drawn";
+  } else if (compStatus === "cancelled") {
+    mappedStatus = "cancelled";
   }
 
   // Check winner using case-insensitive comparison for wallet addresses
   // SCHEMA: joincompetition has userid, not wallet_address
-  const isWinner = identity.walletAddress && comp?.winner_address
-    ? userIdsEqual(jc.userid, comp.winner_address) ||
-      userIdsEqual(identity.walletAddress, comp.winner_address)
-    : false;
+  const isWinner =
+    identity.walletAddress && comp?.winner_address
+      ? userIdsEqual(jc.userid, comp.winner_address) ||
+        userIdsEqual(identity.walletAddress, comp.winner_address)
+      : false;
 
   // Generate a safe ID - use a combination of fields if uid/id are missing
   // SCHEMA: Use user_id and joinedat (not wallet_address and purchasedate)
-  const entryId = jc.uid || jc.id || `entry-${jc.competition_id || jc.competitionid || 'no-comp'}-${jc.user_id?.substring(0, 8) || jc.userid?.substring(0, 8) || 'no-user'}-${jc.joinedat || 'unknown'}`;
+  const entryId =
+    jc.uid ||
+    jc.id ||
+    `entry-${jc.competition_id || jc.competitionid || "no-comp"}-${jc.user_id?.substring(0, 8) || jc.userid?.substring(0, 8) || "no-user"}-${jc.joinedat || "unknown"}`;
 
   // Calculate number of tickets from ticket_numbers array
   const ticketNumbers = jc.ticket_numbers || jc.ticketnumbers;
@@ -119,18 +147,20 @@ function transformJoinCompetitionEntry(jc: any, identity: ResolvedIdentity): any
   return {
     id: entryId,
     competition_id: jc.competition_id || jc.competitionid,
-    title: comp?.title || 'Unknown Competition',
-    description: comp?.description || '',
+    title: comp?.title || "Unknown Competition",
+    description: comp?.description || "",
     image: comp?.image_url,
     status: mappedStatus,
-    entry_type: 'completed', // joincompetition entries are always completed
+    entry_type: "completed", // joincompetition entries are always completed
     expires_at: null,
     is_winner: isWinner,
     ticket_numbers: ticketNumbers,
     // SCHEMA: joincompetition doesn't have numberoftickets - calculate from array
     number_of_tickets: ticketCount,
     // SCHEMA: joincompetition doesn't have amountspent - calculate if ticket_price available
-    amount_spent: comp?.ticket_price ? (comp.ticket_price * ticketCount) : undefined,
+    amount_spent: comp?.ticket_price
+      ? comp.ticket_price * ticketCount
+      : undefined,
     // SCHEMA: Use joinedat instead of purchasedate
     purchase_date: jc.joinedat || jc.created_at,
     // SCHEMA: Use userid instead of walletaddress
@@ -213,23 +243,33 @@ export const database = {
   //     }
   //   },
 
-  async getCompetitionsV2(status: "active" | "completed" | 'drawing' | 'drawn' | 'cancelled' | 'expired' | 'draft', limit: number = 8) {
+  async getCompetitionsV2(
+    status:
+      | "active"
+      | "completed"
+      | "drawing"
+      | "drawn"
+      | "cancelled"
+      | "expired"
+      | "draft",
+    limit: number = 8,
+  ) {
     try {
       // Fetch all competitions without date filter
       let query = supabase
-        .from('competitions')
-        .select('*')
-        .eq('deleted', false)
+        .from("competitions")
+        .select("*")
+        .eq("deleted", false)
         .limit(limit);
 
       if (status) {
-        query = query.eq('status', status);
+        query = query.eq("status", status);
       }
 
       const { data, error }: any = (await query) as any;
 
       if (error) {
-        handleDatabaseError(error, 'getCompetitionsV2');
+        handleDatabaseError(error, "getCompetitionsV2");
         return [];
       }
 
@@ -239,16 +279,21 @@ export const database = {
 
       // Get accurate ticket counts for all competitions in a single batch query
       // This avoids N+1 queries and ensures landing page counters match individual pages
-      const competitionIds = data.map((comp: any) => comp.id || comp.uid).filter(Boolean);
-      
+      const competitionIds = data
+        .map((comp: any) => comp.id || comp.uid)
+        .filter(Boolean);
+
       // Fetch ticket counts for all competitions at once using aggregation
       const { data: ticketCounts, error: countError } = (await supabase
-        .from('tickets')
-        .select('competition_id')
-        .in('competition_id', competitionIds)) as any;
+        .from("tickets")
+        .select("competition_id")
+        .in("competition_id", competitionIds)) as any;
 
       if (countError) {
-        console.warn('Failed to fetch ticket counts, using fallback:', countError);
+        console.warn(
+          "Failed to fetch ticket counts, using fallback:",
+          countError,
+        );
       }
 
       // Build a map of competition_id -> ticket count
@@ -274,7 +319,7 @@ export const database = {
 
       return processedData;
     } catch (error) {
-      handleDatabaseError(error, 'getCompetitionsV2 - outer catch');
+      handleDatabaseError(error, "getCompetitionsV2 - outer catch");
       return [];
     }
   },
@@ -282,14 +327,14 @@ export const database = {
   async getCompetitionByIdV2(competitionId: string) {
     try {
       const { data, error }: any = (await supabase
-        .from('competitions')
-        .select('*')
-        .eq('id', competitionId)
-        .eq('deleted', false)
+        .from("competitions")
+        .select("*")
+        .eq("id", competitionId)
+        .eq("deleted", false)
         .maybeSingle()) as any;
 
       if (error) {
-        console.error('Error fetching competition:', error);
+        console.error("Error fetching competition:", error);
         return null;
       }
 
@@ -300,16 +345,20 @@ export const database = {
       let ticketsSold = 0;
       try {
         const { data: stats, error: countError } = (await supabase
-          .from('v_competition_ticket_stats')
-          .select('sold')
-          .eq('competition_id', competitionId)
+          .from("v_competition_ticket_stats")
+          .select("sold")
+          .eq("competition_id", competitionId)
           .single()) as any;
 
         if (!countError && stats) {
           ticketsSold = stats.sold || 0;
         }
       } catch (countError) {
-        console.warn('Failed to fetch ticket count for competition:', competitionId, countError);
+        console.warn(
+          "Failed to fetch ticket count for competition:",
+          competitionId,
+          countError,
+        );
       }
 
       // Process image URL and add tickets_sold
@@ -319,88 +368,100 @@ export const database = {
         image_url: getImageUrl(data.image_url || data.imageurl),
       };
     } catch (error) {
-      console.log('Error:', error);
+      console.log("Error:", error);
       return null;
     }
   },
 
   async getCompetitionById(id: string) {
     try {
-      return await withRetry(async () => {
-        const { data, error }: any = (await supabase
-          .from('competitions')
-          .select('*')
-          .eq('id', id)
-          .eq('deleted', false)
-          .maybeSingle()) as any;
+      return await withRetry(
+        async () => {
+          const { data, error }: any = (await supabase
+            .from("competitions")
+            .select("*")
+            .eq("id", id)
+            .eq("deleted", false)
+            .maybeSingle()) as any;
 
-        if (error) {
-          handleDatabaseError(error, 'getCompetitionById');
-          return null;
-        }
-
-        if (!data) return null;
-
-        let ticketsSold = data.havetickets || 0;
-
-        try {
-          // Use RPC to get accurate ticket count - avoids uuid/text type mismatch in OR queries
-          // The RPC properly resolves competition ID and handles both UUID and legacy uid formats
-          const { data: availability } = (await (supabase.rpc as any)('get_competition_ticket_availability_text', {
-            p_competition_id: data.id
-          })) as any;
-
-          if (availability && availability.sold_count !== undefined) {
-            ticketsSold = availability.sold_count;
-          } else {
-            // Fallback: Direct query using only the competition ID (not OR)
-            // Use v_joincompetition_active view for stable read interface
-            const { count } = (await supabase
-              .from('v_joincompetition_active')
-              .select('*', { count: 'exact', head: true })
-              .eq('competition_id', data.id)) as any;
-
-            ticketsSold = count || ticketsSold;
+          if (error) {
+            handleDatabaseError(error, "getCompetitionById");
+            return null;
           }
-        } catch (error) {
-          handleDatabaseError(error, `getCompetitionById - count for ${id}`);
-        }
 
-        return {
-          id: data.id,
-          title: data.competitionname || 'Untitled Competition',
-          description: data.competitioninformation || '',
-          image_url: getImageUrl(data.imageurl),
-          prize_type: data.category || 'crypto',
-          prize_value: data.competitionprize || '',
-          total_tickets: data.competitionticketsize || 0,
-          ticket_price: 1,
-          draw_date: data.end_date,
-          end_date: data.end_date,
-          status: (!data.competitionended || (data.competitionended as any) === 0 || data.competitionended === null) ? 'active' : 'finished',
-          is_instant_win: data.instant || false,
-          is_featured: ((data.featured as any) === 1 || data.featured === true),
-          tickets_sold: ticketsSold,
-          created_at: data.crdate,
-          updated_at: data.crdate,
-        };
-      }, { context: 'getCompetitionById', maxRetries: 2 });
+          if (!data) return null;
+
+          let ticketsSold = data.havetickets || 0;
+
+          try {
+            // Use RPC to get accurate ticket count - avoids uuid/text type mismatch in OR queries
+            // The RPC properly resolves competition ID and handles both UUID and legacy uid formats
+            const { data: availability } = (await (supabase.rpc as any)(
+              "get_competition_ticket_availability_text",
+              {
+                p_competition_id: data.id,
+              },
+            )) as any;
+
+            if (availability && availability.sold_count !== undefined) {
+              ticketsSold = availability.sold_count;
+            } else {
+              // Fallback: Direct query using only the competition ID (not OR)
+              // Use v_joincompetition_active view for stable read interface
+              const { count } = (await supabase
+                .from("v_joincompetition_active")
+                .select("*", { count: "exact", head: true })
+                .eq("competition_id", data.id)) as any;
+
+              ticketsSold = count || ticketsSold;
+            }
+          } catch (error) {
+            handleDatabaseError(error, `getCompetitionById - count for ${id}`);
+          }
+
+          return {
+            id: data.id,
+            title: data.competitionname || "Untitled Competition",
+            description: data.competitioninformation || "",
+            image_url: getImageUrl(data.imageurl),
+            prize_type: data.category || "crypto",
+            prize_value: data.competitionprize || "",
+            total_tickets: data.competitionticketsize || 0,
+            ticket_price: 1,
+            draw_date: data.end_date,
+            end_date: data.end_date,
+            status:
+              !data.competitionended ||
+              (data.competitionended as any) === 0 ||
+              data.competitionended === null
+                ? "active"
+                : "finished",
+            is_instant_win: data.instant || false,
+            is_featured: (data.featured as any) === 1 || data.featured === true,
+            tickets_sold: ticketsSold,
+            created_at: data.crdate,
+            updated_at: data.crdate,
+          };
+        },
+        { context: "getCompetitionById", maxRetries: 2 },
+      );
     } catch (error) {
-      handleDatabaseError(error, 'getCompetitionById - outer catch');
+      handleDatabaseError(error, "getCompetitionById - outer catch");
       return null;
     }
   },
 
-  async getAllWinners(limit: number = 50): Promise<WinnerCardProps[]>{
+  async getAllWinners(limit: number = 50): Promise<WinnerCardProps[]> {
     try {
       // First, try fetching with distribution_hash column
       let winners: any[] | null = null;
       let error: any = null;
-      
+
       try {
         const result = (await supabase
-          .from('winners')
-          .select(`
+          .from("winners")
+          .select(
+            `
             id,
             wallet_address,
             prize_value,
@@ -419,30 +480,35 @@ export const database = {
               prize_value,
               prize_type
             )
-          `)
-          .not('wallet_address', 'is', null)
-          .order('won_at', { ascending: false, nullsLast: true } as any)
+          `,
+          )
+          .not("wallet_address", "is", null)
+          .order("won_at", { ascending: false, nullsLast: true } as any)
           .limit(150)) as any; // Query more to account for filtered test data
-        
+
         winners = result.data;
         error = result.error;
       } catch (queryError: any) {
         // Check if this is a schema drift error (missing column)
         const errorCode = queryError?.code ?? queryError?.details?.code;
-        const errorMessage = queryError?.message || '';
-        
+        const errorMessage = queryError?.message || "";
+
         // PostgreSQL error code 42703 = column does not exist
         // Also check for similar error messages
         if (
-          errorCode === '42703' || 
-          (errorMessage.includes('column') && errorMessage.includes('does not exist'))
+          errorCode === "42703" ||
+          (errorMessage.includes("column") &&
+            errorMessage.includes("does not exist"))
         ) {
-          console.warn('[Database] distribution_hash column not found, retrying query without it');
-          
+          console.warn(
+            "[Database] distribution_hash column not found, retrying query without it",
+          );
+
           // Retry query without distribution_hash
           const fallbackResult = (await supabase
-            .from('winners')
-            .select(`
+            .from("winners")
+            .select(
+              `
               id,
               wallet_address,
               prize_value,
@@ -460,11 +526,12 @@ export const database = {
                 prize_value,
                 prize_type
               )
-            `)
-            .not('wallet_address', 'is', null)
-            .order('won_at', { ascending: false, nullsLast: true } as any)
+            `,
+            )
+            .not("wallet_address", "is", null)
+            .order("won_at", { ascending: false, nullsLast: true } as any)
             .limit(150)) as any;
-          
+
           winners = fallbackResult.data;
           error = fallbackResult.error;
         } else {
@@ -474,7 +541,7 @@ export const database = {
       }
 
       if (error) {
-        handleDatabaseError(error, 'getAllWinners');
+        handleDatabaseError(error, "getAllWinners");
         return [];
       }
 
@@ -488,11 +555,12 @@ export const database = {
         // Reject if address is too short to be real
         if (cleanAddr.length < 10) return false;
         // Reject obvious test patterns
-        if (cleanAddr.includes('test') || cleanAddr.includes('fake')) return false;
+        if (cleanAddr.includes("test") || cleanAddr.includes("fake"))
+          return false;
         // Reject did:priv patterns which are test identifiers
-        if (cleanAddr.startsWith('did:priv')) return false;
+        if (cleanAddr.startsWith("did:priv")) return false;
         // Reject prize:pid patterns which are pseudo-identifiers (not real wallets)
-        if (cleanAddr.startsWith('prize:pid:')) return false;
+        if (cleanAddr.startsWith("prize:pid:")) return false;
         return true;
       };
 
@@ -503,33 +571,53 @@ export const database = {
       });
 
       // Batch fetch user data for winners
-      const winnerAddresses = [...new Set(filteredWinners.slice(0, limit).map(w => w.wallet_address).filter(Boolean))];
-      const { data: usersData } = winnerAddresses.length > 0
-        ? await supabase
-            .from('canonical_users')
-            .select('username, avatar_url, wallet_address, country')
-            .in('wallet_address', winnerAddresses) as any
-        : { data: [] };
+      const winnerAddresses = [
+        ...new Set(
+          filteredWinners
+            .slice(0, limit)
+            .map((w) => w.wallet_address)
+            .filter(Boolean),
+        ),
+      ];
+      const { data: usersData } =
+        winnerAddresses.length > 0
+          ? ((await supabase
+              .from("canonical_users")
+              .select("username, avatar_url, wallet_address, country")
+              .in("wallet_address", winnerAddresses)) as any)
+          : { data: [] };
 
       // Create user lookup map
-      const userMap = new Map<string, { username: string | null; avatar_url: string | null; country: string | null }>();
+      const userMap = new Map<
+        string,
+        {
+          username: string | null;
+          avatar_url: string | null;
+          country: string | null;
+        }
+      >();
       for (const user of usersData || []) {
         if (user.wallet_address) {
           userMap.set(user.wallet_address.toLowerCase(), {
             username: user.username,
             avatar_url: user.avatar_url,
-            country: user.country
+            country: user.country,
           });
         }
       }
 
-      let lastUsedAvatar = '';
+      let lastUsedAvatar = "";
       const getRandomAvatar = () => {
         let avatar;
         do {
-          const randomIndex = Math.floor(Math.random() * VALID_AVATAR_FILENAMES.length);
+          const randomIndex = Math.floor(
+            Math.random() * VALID_AVATAR_FILENAMES.length,
+          );
           avatar = VALID_AVATAR_FILENAMES[randomIndex];
-        } while (avatar === lastUsedAvatar && VALID_AVATAR_FILENAMES.length > 1);
+        } while (
+          avatar === lastUsedAvatar &&
+          VALID_AVATAR_FILENAMES.length > 1
+        );
 
         lastUsedAvatar = avatar;
         return `${SUPABASE_AVATAR_BASE_URL}/${avatar}`;
@@ -537,13 +625,19 @@ export const database = {
 
       // Helper to format date
       const formatDate = (dateStr: string | null): string => {
-        if (!dateStr) return 'Recent';
+        if (!dateStr) return "Recent";
         try {
           const date = new Date(dateStr);
-          if (isNaN(date.getTime())) return 'Recent';
-          return date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '.');
+          if (isNaN(date.getTime())) return "Recent";
+          return date
+            .toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+            })
+            .replace(/\//g, ".");
         } catch {
-          return 'Recent';
+          return "Recent";
         }
       };
 
@@ -551,92 +645,114 @@ export const database = {
       for (let i = 0; i < Math.min(filteredWinners.length, limit); i++) {
         const winner = filteredWinners[i];
         const competition = winner.competitions;
-        
+
         // Determine prize display - prioritize prize info over competition title
-        let prizeDisplay = '';
-        
+        let prizeDisplay = "";
+
         // First try: Use prize_description from winner or competition
         if (winner.prize_description) {
           prizeDisplay = winner.prize_description;
         } else if (competition?.prize_description) {
           prizeDisplay = competition.prize_description;
         }
-        
+
         // Second try: Construct from prize_value and prize_type
         if (!prizeDisplay && winner.prize_value) {
-          const prizeType = competition?.prize_type || '';
+          const prizeType = competition?.prize_type || "";
           // Check if prize type indicates crypto currency
-          if (prizeType.toLowerCase().includes('btc') || prizeType.toLowerCase().includes('bitcoin')) {
+          if (
+            prizeType.toLowerCase().includes("btc") ||
+            prizeType.toLowerCase().includes("bitcoin")
+          ) {
             prizeDisplay = `${winner.prize_value} BTC`;
-          } else if (prizeType.toLowerCase().includes('eth') || prizeType.toLowerCase().includes('ethereum')) {
+          } else if (
+            prizeType.toLowerCase().includes("eth") ||
+            prizeType.toLowerCase().includes("ethereum")
+          ) {
             prizeDisplay = `${winner.prize_value} ETH`;
-          } else if (prizeType.toLowerCase().includes('sol') || prizeType.toLowerCase().includes('solana')) {
+          } else if (
+            prizeType.toLowerCase().includes("sol") ||
+            prizeType.toLowerCase().includes("solana")
+          ) {
             prizeDisplay = `${winner.prize_value} SOL`;
-          } else if (prizeType.toLowerCase().includes('crypto') || prizeType.toLowerCase().includes('usdt') || prizeType.toLowerCase().includes('usdc')) {
+          } else if (
+            prizeType.toLowerCase().includes("crypto") ||
+            prizeType.toLowerCase().includes("usdt") ||
+            prizeType.toLowerCase().includes("usdc")
+          ) {
             // For generic crypto or stablecoins, use $ prefix
             prizeDisplay = `$${winner.prize_value} ${prizeType}`;
           } else {
             // Default to $ prefix for monetary prizes
-            prizeDisplay = `$${winner.prize_value}` + (prizeType ? ` ${prizeType}` : '');
+            prizeDisplay =
+              `$${winner.prize_value}` + (prizeType ? ` ${prizeType}` : "");
           }
         }
-        
+
         // Last resort: Use competition title
         if (!prizeDisplay && competition?.title) {
           prizeDisplay = competition.title;
         }
-        
+
         // Skip if we still don't have a prize to display
         if (!prizeDisplay) continue;
 
         const winnerAddress = winner.wallet_address;
-        const userData = winnerAddress ? userMap.get(winnerAddress.toLowerCase()) : null;
+        const userData = winnerAddress
+          ? userMap.get(winnerAddress.toLowerCase())
+          : null;
 
         // Use FULL wallet address - NO TRUNCATION
-        const walletDisplay = winnerAddress || 'N/A';
+        const walletDisplay = winnerAddress || "N/A";
 
         // For username display, truncate wallet if no username exists
-        const truncatedWallet = winnerAddress && winnerAddress.length > 10
-          ? winnerAddress.substring(0, 8) + '...' + winnerAddress.slice(-4)
-          : winnerAddress || 'N/A';
-        
+        const truncatedWallet =
+          winnerAddress && winnerAddress.length > 10
+            ? winnerAddress.substring(0, 8) + "..." + winnerAddress.slice(-4)
+            : winnerAddress || "N/A";
+
         // Use real username if available, otherwise truncated wallet for username field
         const displayName = userData?.username || truncatedWallet;
 
         // Use won_at date for display, or competition end_date/draw_date as fallback
-        const drawDate = formatDate(winner.won_at || competition?.draw_date || competition?.end_date || winner.created_at);
+        const drawDate = formatDate(
+          winner.won_at ||
+            competition?.draw_date ||
+            competition?.end_date ||
+            winner.created_at,
+        );
 
         mappedWinners.push({
           prize: prizeDisplay,
           username: displayName,
-          country: userData?.country || 'International',
+          country: userData?.country || "International",
           wallet: walletDisplay,
           date: drawDate,
           showInstantWin: false,
           avatarUrl: userData?.avatar_url || getRandomAvatar(),
-          competitionId: winner.competition_id || '',
+          competitionId: winner.competition_id || "",
           // Use optional chaining for distribution_hash which may not exist in some environments
-          txHash: winner?.distribution_hash ?? '',
+          txHash: winner?.distribution_hash ?? "",
         });
       }
 
       return mappedWinners;
     } catch (error) {
-      handleDatabaseError(error, 'getAllWinners - outer catch');
+      handleDatabaseError(error, "getAllWinners - outer catch");
       return [];
     }
   },
-
 
   async getWinners(limit: number = 50): Promise<WinnerCardProps[]> {
     // First, try fetching with distribution_hash column
     let winners: any[] | null = null;
     let error: any = null;
-    
+
     try {
       const result = (await supabase
-        .from('winners')
-        .select(`
+        .from("winners")
+        .select(
+          `
           id,
           wallet_address,
           prize_value,
@@ -656,30 +772,35 @@ export const database = {
             prize_value,
             prize_type
           )
-        `)
-        .not('wallet_address', 'is', null)
-        .order('won_at', { ascending: false, nullsLast: true } as any)
+        `,
+        )
+        .not("wallet_address", "is", null)
+        .order("won_at", { ascending: false, nullsLast: true } as any)
         .limit(150)) as any; // Query more to account for filtered test data
-      
+
       winners = result.data;
       error = result.error;
     } catch (queryError: any) {
       // Check if this is a schema drift error (missing column)
       const errorCode = queryError?.code ?? queryError?.details?.code;
-      const errorMessage = queryError?.message || '';
-      
+      const errorMessage = queryError?.message || "";
+
       // PostgreSQL error code 42703 = column does not exist
       // Also check for similar error messages
       if (
-        errorCode === '42703' || 
-        (errorMessage.includes('column') && errorMessage.includes('does not exist'))
+        errorCode === "42703" ||
+        (errorMessage.includes("column") &&
+          errorMessage.includes("does not exist"))
       ) {
-        console.warn('[Database] distribution_hash column not found in getWinners, retrying query without it');
-        
+        console.warn(
+          "[Database] distribution_hash column not found in getWinners, retrying query without it",
+        );
+
         // Retry query without distribution_hash
         const fallbackResult = (await supabase
-          .from('winners')
-          .select(`
+          .from("winners")
+          .select(
+            `
             id,
             wallet_address,
             prize_value,
@@ -698,11 +819,12 @@ export const database = {
               prize_value,
               prize_type
             )
-          `)
-          .not('wallet_address', 'is', null)
-          .order('won_at', { ascending: false, nullsLast: true } as any)
+          `,
+          )
+          .not("wallet_address", "is", null)
+          .order("won_at", { ascending: false, nullsLast: true } as any)
           .limit(150)) as any;
-        
+
         winners = fallbackResult.data;
         error = fallbackResult.error;
       } else {
@@ -712,7 +834,7 @@ export const database = {
     }
 
     if (error) {
-      console.error('Error fetching winners from winners table:', error);
+      console.error("Error fetching winners from winners table:", error);
       return [];
     }
 
@@ -722,10 +844,11 @@ export const database = {
       const cleanAddr = address.toLowerCase().trim();
       if (/^0x0+$/.test(cleanAddr)) return false;
       if (cleanAddr.length < 10) return false;
-      if (cleanAddr.includes('test') || cleanAddr.includes('fake')) return false;
-      if (cleanAddr.startsWith('did:priv')) return false;
+      if (cleanAddr.includes("test") || cleanAddr.includes("fake"))
+        return false;
+      if (cleanAddr.startsWith("did:priv")) return false;
       // Reject prize:pid patterns which are pseudo-identifiers (not real wallets)
-      if (cleanAddr.startsWith('prize:pid:')) return false;
+      if (cleanAddr.startsWith("prize:pid:")) return false;
       return true;
     };
 
@@ -736,31 +859,49 @@ export const database = {
     });
 
     // Batch fetch user data for winners
-    const winnerAddresses = [...new Set(filteredWinners.slice(0, limit).map(w => w.wallet_address).filter(Boolean))];
-    const { data: usersData } = (winnerAddresses.length > 0
-      ? await supabase
-          .from('canonical_users')
-          .select('username, avatar_url, wallet_address, country')
-          .in('wallet_address', winnerAddresses)
-      : { data: [] }) as any;
+    const winnerAddresses = [
+      ...new Set(
+        filteredWinners
+          .slice(0, limit)
+          .map((w) => w.wallet_address)
+          .filter(Boolean),
+      ),
+    ];
+    const { data: usersData } = (
+      winnerAddresses.length > 0
+        ? await supabase
+            .from("canonical_users")
+            .select("username, avatar_url, wallet_address, country")
+            .in("wallet_address", winnerAddresses)
+        : { data: [] }
+    ) as any;
 
     // Create user lookup map
-    const userMap = new Map<string, { username: string | null; avatar_url: string | null; country: string | null }>();
+    const userMap = new Map<
+      string,
+      {
+        username: string | null;
+        avatar_url: string | null;
+        country: string | null;
+      }
+    >();
     for (const user of usersData || []) {
       if (user.wallet_address) {
         userMap.set(user.wallet_address.toLowerCase(), {
           username: user.username,
           avatar_url: user.avatar_url,
-          country: user.country
+          country: user.country,
         });
       }
     }
 
-    let lastUsedAvatar = '';
+    let lastUsedAvatar = "";
     const getRandomAvatar = () => {
       let avatar;
       do {
-        const randomIndex = Math.floor(Math.random() * VALID_AVATAR_FILENAMES.length);
+        const randomIndex = Math.floor(
+          Math.random() * VALID_AVATAR_FILENAMES.length,
+        );
         avatar = VALID_AVATAR_FILENAMES[randomIndex];
       } while (avatar === lastUsedAvatar && VALID_AVATAR_FILENAMES.length > 1);
 
@@ -770,13 +911,19 @@ export const database = {
 
     // Helper to format date
     const formatDate = (dateStr: string | null): string => {
-      if (!dateStr) return 'Recent';
+      if (!dateStr) return "Recent";
       try {
         const date = new Date(dateStr);
-        if (isNaN(date.getTime())) return 'Recent';
-        return date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '.');
+        if (isNaN(date.getTime())) return "Recent";
+        return date
+          .toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          })
+          .replace(/\//g, ".");
       } catch {
-        return 'Recent';
+        return "Recent";
       }
     };
 
@@ -784,69 +931,91 @@ export const database = {
     for (let i = 0; i < Math.min(filteredWinners.length, limit); i++) {
       const winner = filteredWinners[i];
       const competition = winner.competitions;
-      
+
       // Determine prize display - prioritize prize info over competition title
-      let prizeDisplay = '';
-      
+      let prizeDisplay = "";
+
       // First try: Use prize_description from winner or competition
       if (winner.prize_description) {
         prizeDisplay = winner.prize_description;
       } else if (competition?.prize_description) {
         prizeDisplay = competition.prize_description;
       }
-      
+
       // Second try: Construct from prize_value and prize_type
       if (!prizeDisplay && winner.prize_value) {
-        const prizeType = competition?.prize_type || '';
+        const prizeType = competition?.prize_type || "";
         // Check if prize type indicates crypto currency
-        if (prizeType.toLowerCase().includes('btc') || prizeType.toLowerCase().includes('bitcoin')) {
+        if (
+          prizeType.toLowerCase().includes("btc") ||
+          prizeType.toLowerCase().includes("bitcoin")
+        ) {
           prizeDisplay = `${winner.prize_value} BTC`;
-        } else if (prizeType.toLowerCase().includes('eth') || prizeType.toLowerCase().includes('ethereum')) {
+        } else if (
+          prizeType.toLowerCase().includes("eth") ||
+          prizeType.toLowerCase().includes("ethereum")
+        ) {
           prizeDisplay = `${winner.prize_value} ETH`;
-        } else if (prizeType.toLowerCase().includes('sol') || prizeType.toLowerCase().includes('solana')) {
+        } else if (
+          prizeType.toLowerCase().includes("sol") ||
+          prizeType.toLowerCase().includes("solana")
+        ) {
           prizeDisplay = `${winner.prize_value} SOL`;
-        } else if (prizeType.toLowerCase().includes('crypto') || prizeType.toLowerCase().includes('usdt') || prizeType.toLowerCase().includes('usdc')) {
+        } else if (
+          prizeType.toLowerCase().includes("crypto") ||
+          prizeType.toLowerCase().includes("usdt") ||
+          prizeType.toLowerCase().includes("usdc")
+        ) {
           // For generic crypto or stablecoins, use $ prefix
           prizeDisplay = `$${winner.prize_value} ${prizeType}`;
         } else {
           // Default to $ prefix for monetary prizes
-          prizeDisplay = `$${winner.prize_value}` + (prizeType ? ` ${prizeType}` : '');
+          prizeDisplay =
+            `$${winner.prize_value}` + (prizeType ? ` ${prizeType}` : "");
         }
       }
-      
+
       // Last resort: Use competition title
       if (!prizeDisplay && competition?.title) {
         prizeDisplay = competition.title;
       }
-      
+
       // Skip if we still don't have a prize to display
       if (!prizeDisplay) continue;
 
       const winnerAddress = winner.wallet_address;
-      const userData = winnerAddress ? userMap.get(winnerAddress.toLowerCase()) : null;
+      const userData = winnerAddress
+        ? userMap.get(winnerAddress.toLowerCase())
+        : null;
 
       // Format wallet address for display
-      const walletDisplay = winnerAddress && winnerAddress.length > 10
-        ? winnerAddress.substring(0, 8) + '...' + winnerAddress.slice(-4)
-        : winnerAddress || 'N/A';
+      const walletDisplay =
+        winnerAddress && winnerAddress.length > 10
+          ? winnerAddress.substring(0, 8) + "..." + winnerAddress.slice(-4)
+          : winnerAddress || "N/A";
 
       // Use real username if available, otherwise truncated wallet
       const displayName = userData?.username || walletDisplay;
 
       // Use won_at date for display, or competition end_date/draw_date as fallback
-      const drawDate = formatDate(winner.won_at || competition?.draw_date || competition?.end_date || winner.created_at);
+      const drawDate = formatDate(
+        winner.won_at ||
+          competition?.draw_date ||
+          competition?.end_date ||
+          winner.created_at,
+      );
 
       mappedWinners.push({
         prize: prizeDisplay,
         username: displayName,
-        country: userData?.country || 'International',
+        country: userData?.country || "International",
         wallet: walletDisplay,
         date: drawDate,
         showInstantWin: false,
         avatarUrl: userData?.avatar_url || getRandomAvatar(),
-        competitionId: winner.competition_id || '',
+        competitionId: winner.competition_id || "",
         // Use optional chaining for distribution_hash which may not exist in some environments
-        txHash: winner?.distribution_hash ?? '',
+        txHash: winner?.distribution_hash ?? "",
       });
     }
 
@@ -857,36 +1026,41 @@ export const database = {
     return [
       {
         question: "How do I participate in a competition?",
-        answer: "Simply connect your wallet, select the competition you want to enter, choose your ticket numbers, and complete the purchase using cryptocurrency."
+        answer:
+          "Simply connect your wallet, select the competition you want to enter, choose your ticket numbers, and complete the purchase using cryptocurrency.",
       },
       {
         question: "When are winners announced?",
-        answer: "Winners are announced immediately after each competition ends. You'll be notified if you win, and results are publicly displayed on our Winners page."
+        answer:
+          "Winners are announced immediately after each competition ends. You'll be notified if you win, and results are publicly displayed on our Winners page.",
       },
       {
         question: "How is the winner selected?",
-        answer: "We use a provably fair random number generator (RNG) on the blockchain to ensure complete transparency and fairness in selecting winners."
+        answer:
+          "We use a provably fair random number generator (RNG) on the blockchain to ensure complete transparency and fairness in selecting winners.",
       },
       {
         question: "What payment methods do you accept?",
-        answer: "We accept various cryptocurrencies including Bitcoin, Ethereum, and Solana. Connect your wallet to see all available payment options."
+        answer:
+          "We accept various cryptocurrencies including Bitcoin, Ethereum, and Solana. Connect your wallet to see all available payment options.",
       },
       {
         question: "How do I claim my prize?",
-        answer: "If you win, the prize will be automatically transferred to your wallet address. For physical prizes, our team will contact you to arrange delivery."
-      }
+        answer:
+          "If you win, the prize will be automatically transferred to your wallet address. For physical prizes, our team will contact you to arrange delivery.",
+      },
     ];
   },
 
   async getUserTickets(userId: string): Promise<EntryCard[]> {
     const { data, error }: any = (await supabase
-      .from('v_joincompetition_active')
-      .select('*')
-      .eq('user_id', userId)
-      .order('buytime', { ascending: false })) as any;
+      .from("v_joincompetition_active")
+      .select("*")
+      .eq("user_id", userId)
+      .order("buytime", { ascending: false })) as any;
 
     if (error) {
-      console.error('Error fetching user tickets:', error);
+      console.error("Error fetching user tickets:", error);
       return [];
     }
 
@@ -901,9 +1075,11 @@ export const database = {
 
         // First try direct id match (if it's a valid UUID)
         const { data: byId } = (await supabase
-          .from('competitions')
-          .select('competitionname, competitioninformation, imageurl, uid, winner_address')
-          .eq('id', compId)
+          .from("competitions")
+          .select(
+            "competitionname, competitioninformation, imageurl, uid, winner_address",
+          )
+          .eq("id", compId)
           .maybeSingle()) as any;
 
         if (byId) {
@@ -911,21 +1087,25 @@ export const database = {
         } else {
           // Fallback to uid lookup
           const { data: byUid } = (await supabase
-            .from('competitions')
-            .select('competitionname, competitioninformation, imageurl, uid, winner_address')
-            .eq('uid', compId)
+            .from("competitions")
+            .select(
+              "competitionname, competitioninformation, imageurl, uid, winner_address",
+            )
+            .eq("uid", compId)
             .maybeSingle()) as any;
           comp = byUid;
         }
 
         return {
           id: index + 1,
-          title: comp?.competitionname || 'Unknown Competition',
-          description: comp?.competitioninformation || '',
-          image: getImageUrl(comp?.imageurl || ''),
-          status: (userIdsEqual(comp?.winner_address, userId) ? 'win' : 'loss') as 'win' | 'loss',
+          title: comp?.competitionname || "Unknown Competition",
+          description: comp?.competitioninformation || "",
+          image: getImageUrl(comp?.imageurl || ""),
+          status: (userIdsEqual(comp?.winner_address, userId)
+            ? "win"
+            : "loss") as "win" | "loss",
         };
-      })
+      }),
     );
 
     return tickets;
@@ -933,18 +1113,18 @@ export const database = {
 
   async getUserPurchaseOrders(userId: string): Promise<PurchaseOrder[]> {
     const { data, error }: any = (await supabase
-      .from('v_joincompetition_active')
-      .select('*')
-      .eq('user_id', userId)
-      .order('buytime', { ascending: false })) as any;
+      .from("v_joincompetition_active")
+      .select("*")
+      .eq("user_id", userId)
+      .order("buytime", { ascending: false })) as any;
 
     if (error) {
-      console.error('Error fetching purchase orders:', error);
+      console.error("Error fetching purchase orders:", error);
       return [];
     }
 
     const ordersByTx = data?.reduce((acc: any, ticket: any) => {
-      const txHash = ticket.trxhash || 'no-hash';
+      const txHash = ticket.trxhash || "no-hash";
       if (!acc[txHash]) {
         acc[txHash] = {
           tickets: [],
@@ -957,20 +1137,22 @@ export const database = {
       return acc;
     }, {});
 
-    return (Object.entries(ordersByTx || {}).map(([txHash, order]: [string, any], index: number) => ({
-      id: index + 1,
-      ticketsBought: order.tickets.length,
-      network: order.tickets[0]?.chain || 'Ethereum',
-      txHash: txHash,
-      date: new Date(order.date).toLocaleString('en-US', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
+    return Object.entries(ordersByTx || {}).map(
+      ([txHash, order]: [string, any], index: number) => ({
+        id: index + 1,
+        ticketsBought: order.tickets.length,
+        network: order.tickets[0]?.chain || "Ethereum",
+        txHash: txHash,
+        date: new Date(order.date).toLocaleString("en-US", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        amount: `$${order.amount.toFixed(2)}`,
       }),
-      amount: `$${order.amount.toFixed(2)}`,
-    })) as unknown) as PurchaseOrder[];
+    ) as unknown as PurchaseOrder[];
   },
 
   // async getUserEntries(userId: string): Promise<EntryOrder[]> {
@@ -1020,10 +1202,10 @@ export const database = {
     ticketNumber: string,
     txHash: string,
     _network: string,
-    amountPaid: number
+    amountPaid: number,
   ) {
     const { data, error }: any = (await supabase
-      .from('tickets')
+      .from("tickets")
       .insert({
         competition_id: competitionId,
         user_id: userId,
@@ -1035,7 +1217,7 @@ export const database = {
       .maybeSingle()) as any;
 
     if (error) {
-      console.error('Error creating ticket:', error);
+      console.error("Error creating ticket:", error);
       throw error;
     }
 
@@ -1048,7 +1230,7 @@ export const database = {
     ticketsBought: number,
     _network: string,
     txHash: string,
-    amount: number
+    amount: number,
   ) {
     const tickets = [];
     for (let i = 0; i < ticketsBought; i++) {
@@ -1062,12 +1244,12 @@ export const database = {
     }
 
     const { data, error }: any = (await supabase
-      .from('tickets')
+      .from("tickets")
       .insert(tickets as any)
       .select()) as any;
 
     if (error) {
-      console.error('Error creating purchase order:', error);
+      console.error("Error creating purchase order:", error);
       throw error;
     }
 
@@ -1077,48 +1259,48 @@ export const database = {
   async getUser(userId: string) {
     // 1) Try canonical_user_id (prize:pid:0x...)
     const byCanonical = (await supabase
-      .from('canonical_users')
-      .select('*')
-      .eq('canonical_user_id', userId)
+      .from("canonical_users")
+      .select("*")
+      .eq("canonical_user_id", userId)
       .maybeSingle()) as any;
-    
+
     if (byCanonical.data) return byCanonical.data;
 
     // 2) Fallback: try primary uuid id
     const byUuid = (await supabase
-      .from('canonical_users')
-      .select('*')
-      .eq('id', userId)
+      .from("canonical_users")
+      .select("*")
+      .eq("id", userId)
       .maybeSingle()) as any;
 
     if (byUuid.error) {
-      console.error('Error fetching user:', byUuid.error);
+      console.error("Error fetching user:", byUuid.error);
       return null;
     }
-    
+
     return byUuid.data;
   },
 
   async getUserProfile(userId: string) {
     const byCanonical = (await supabase
-      .from('canonical_users')
-      .select('*')
-      .eq('canonical_user_id', userId)
+      .from("canonical_users")
+      .select("*")
+      .eq("canonical_user_id", userId)
       .maybeSingle()) as any;
-    
+
     if (byCanonical.data) return byCanonical.data;
 
     const byUuid = (await supabase
-      .from('canonical_users')
-      .select('*')
-      .eq('id', userId)
+      .from("canonical_users")
+      .select("*")
+      .eq("id", userId)
       .maybeSingle()) as any;
 
     if (byUuid.error) {
-      console.error('Error fetching user profile:', byUuid.error);
+      console.error("Error fetching user profile:", byUuid.error);
       return null;
     }
-    
+
     return byUuid.data;
   },
 
@@ -1129,22 +1311,20 @@ export const database = {
       email?: string;
       telegram_handle?: string;
       telephone_number?: string;
-    }
+    },
   ) {
     // Prefer canonical_user_id targeting
-    let { data, error }: any = (await (supabase
-      .from('canonical_users') as any)
+    let { data, error }: any = (await (supabase.from("canonical_users") as any)
       .update(profile as any)
-      .eq('canonical_user_id', userId)
+      .eq("canonical_user_id", userId)
       .select()
       .maybeSingle()) as any;
 
     // Fallback to id (uuid) if needed
     if ((!data && error) || (!data && !error)) {
-      const alt = (await (supabase
-        .from('canonical_users') as any)
+      const alt = (await (supabase.from("canonical_users") as any)
         .update(profile as any)
-        .eq('id', userId)
+        .eq("id", userId)
         .select()
         .maybeSingle()) as any;
       data = alt.data;
@@ -1152,31 +1332,33 @@ export const database = {
     }
 
     if (error) {
-      console.error('Error updating user profile:', error);
+      console.error("Error updating user profile:", error);
       throw error;
     }
-    
+
     return data;
   },
 
   async getRecentActivity(limit: number = 20): Promise<TableRow[]> {
     // Fetch all recent entries without date filter
     const { data: entryData, error: entryError } = (await supabase
-      .from('v_joincompetition_active')
-      .select('*')
-      .order('purchasedate', { ascending: false })
+      .from("v_joincompetition_active")
+      .select("*")
+      .order("purchasedate", { ascending: false })
       .limit(limit)) as any;
 
     if (entryError) {
-      console.error('Error fetching recent entries:', entryError);
+      console.error("Error fetching recent entries:", entryError);
       return [];
     }
 
-    let lastUsedAvatar = '';
+    let lastUsedAvatar = "";
     const getRandomAvatar = () => {
       let avatar;
       do {
-        const randomIndex = Math.floor(Math.random() * VALID_AVATAR_FILENAMES.length);
+        const randomIndex = Math.floor(
+          Math.random() * VALID_AVATAR_FILENAMES.length,
+        );
         avatar = VALID_AVATAR_FILENAMES[randomIndex];
       } while (avatar === lastUsedAvatar && VALID_AVATAR_FILENAMES.length > 1);
 
@@ -1185,61 +1367,102 @@ export const database = {
     };
 
     // Default placeholder image when no competition image is available
-    const DEFAULT_COMPETITION_IMAGE = 'https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Competition%20Images/Competition%20Images/Tier%201%20(1).jpg';
+    const DEFAULT_COMPETITION_IMAGE =
+      "https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Competition%20Images/Competition%20Images/Tier%201%20(1).jpg";
 
     // PERFORMANCE FIX: Batch fetch all competitions and users instead of N+1 queries
     // Extract unique IDs for batch fetching
-    const competitionIds = [...new Set((entryData || []).map((t: any) => t.competition_id || t.competitionid).filter(Boolean))];
+    const competitionIds = [
+      ...new Set(
+        (entryData || [])
+          .map((t: any) => t.competition_id || t.competitionid)
+          .filter(Boolean),
+      ),
+    ];
     // Extract both wallet_address AND canonical_user_id - some entries have one but not the other
-    const walletAddresses = [...new Set((entryData || []).map((t: any) => t.wallet_address).filter(Boolean))];
-    const canonicalUserIds = [...new Set((entryData || []).map((t: any) => t.canonical_user_id).filter(Boolean))];
+    const walletAddresses = [
+      ...new Set(
+        (entryData || []).map((t: any) => t.wallet_address).filter(Boolean),
+      ),
+    ];
+    const canonicalUserIds = [
+      ...new Set(
+        (entryData || []).map((t: any) => t.canonical_user_id).filter(Boolean),
+      ),
+    ];
 
     // Batch fetch competitions (single query instead of N queries)
-    const { data: competitionsData } = (competitionIds.length > 0
-      ? await supabase
-          .from('competitions')
-          .select('id, title, image_url, prize_value, end_date, ticket_price')
-          .in('id', competitionIds as string[])
-      : { data: [] }) as any;
+    const { data: competitionsData } = (
+      competitionIds.length > 0
+        ? await supabase
+            .from("competitions")
+            .select("id, title, image_url, prize_value, end_date, ticket_price")
+            .in("id", competitionIds as string[])
+        : { data: [] }
+    ) as any;
 
     // Create competition lookup map for O(1) access
-    const competitionMap = new Map<string, { competitionname: string; uid: string; imageurl: string | null; competitionprize: string | null; end_date: string | null; ticket_price: number | null }>();
+    const competitionMap = new Map<
+      string,
+      {
+        competitionname: string;
+        uid: string;
+        imageurl: string | null;
+        competitionprize: string | null;
+        end_date: string | null;
+        ticket_price: number | null;
+      }
+    >();
     for (const comp of competitionsData || []) {
       competitionMap.set(comp.id, {
-        competitionname: comp.title || '',
+        competitionname: comp.title || "",
         uid: comp.id,
         imageurl: comp.image_url,
-        competitionprize: String(comp.prize_value || ''),
+        competitionprize: String(comp.prize_value || ""),
         end_date: comp.end_date,
-        ticket_price: comp.ticket_price || 1
+        ticket_price: comp.ticket_price || 1,
       });
     }
 
     // Batch fetch users by wallet addresses AND canonical_user_ids (single query instead of N queries)
     // NOTE: wallet_address in joincompetition can be either a plain wallet address OR a canonical_user_id (prize:pid:0x...)
     // Combine both sets of identifiers for the lookup query
-    const allUserIdentifiers = [...new Set([...walletAddresses, ...canonicalUserIds])];
-    const { data: usersData } = (allUserIdentifiers.length > 0
-      ? await supabase
-          .from('canonical_users')
-          .select('username, avatar_url, wallet_address, canonical_user_id')
-          .or(allUserIdentifiers.map(addr => `wallet_address.eq.${addr},canonical_user_id.eq.${addr}`).join(','))
-      : { data: [] }) as any;
+    const allUserIdentifiers = [
+      ...new Set([...walletAddresses, ...canonicalUserIds]),
+    ];
+    const { data: usersData } = (
+      allUserIdentifiers.length > 0
+        ? await supabase
+            .from("canonical_users")
+            .select("username, avatar_url, wallet_address, canonical_user_id")
+            .or(
+              allUserIdentifiers
+                .map(
+                  (addr) =>
+                    `wallet_address.eq.${addr},canonical_user_id.eq.${addr}`,
+                )
+                .join(","),
+            )
+        : { data: [] }
+    ) as any;
 
     // Create user lookup map for O(1) access
     // Map by both wallet_address and canonical_user_id for flexible lookups
-    const userMap = new Map<string, { username: string | null; avatar_url: string | null }>();
+    const userMap = new Map<
+      string,
+      { username: string | null; avatar_url: string | null }
+    >();
     for (const user of usersData || []) {
       const userData = {
         username: user.username,
-        avatar_url: user.avatar_url
+        avatar_url: user.avatar_url,
       };
-      
+
       // Map by wallet_address (lowercase for case-insensitive lookup)
       if (user.wallet_address) {
         userMap.set(user.wallet_address.toLowerCase(), userData);
       }
-      
+
       // Also map by canonical_user_id for entries that store canonical IDs
       if (user.canonical_user_id) {
         userMap.set(user.canonical_user_id.toLowerCase(), userData);
@@ -1249,26 +1472,33 @@ export const database = {
     // Helper function to format time display for winners (relative time)
     const formatTimeDisplay = (date: Date): string => {
       const now = new Date();
-      const diffMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+      const diffMinutes = Math.floor(
+        (now.getTime() - date.getTime()) / (1000 * 60),
+      );
 
-      if (diffMinutes < 1) return 'Just now';
+      if (diffMinutes < 1) return "Just now";
       if (diffMinutes < 60) return `${diffMinutes}m ago`;
       if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
-      return date.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+      return date.toLocaleString("en-US", { month: "short", day: "numeric" });
     };
 
     // Build entries using lookup maps (no more N+1 queries)
     // Skip entries without valid competition data to avoid showing mock/placeholder info
     const entries: TableRow[] = [];
     for (const ticket of entryData || []) {
-      const comp = (ticket.competition_id || ticket.competitionid) ? competitionMap.get(ticket.competition_id || ticket.competitionid) : null;
+      const comp =
+        ticket.competition_id || ticket.competitionid
+          ? competitionMap.get(ticket.competition_id || ticket.competitionid)
+          : null;
 
       // Skip entries where we can't find valid competition data
       if (!comp || !comp.competitionname) continue;
 
       // Look up user data by wallet address OR canonical_user_id (lowercase for case-insensitive match)
       // PRIORITY: 1) username from view (if populated), 2) userData lookup, 3) truncated wallet, 4) Anonymous
-      let userData = ticket.wallet_address ? userMap.get(ticket.wallet_address.toLowerCase()) : null;
+      let userData = ticket.wallet_address
+        ? userMap.get(ticket.wallet_address.toLowerCase())
+        : null;
       if (!userData && ticket.canonical_user_id) {
         userData = userMap.get(ticket.canonical_user_id.toLowerCase());
       }
@@ -1280,31 +1510,42 @@ export const database = {
         const purchaseDate = new Date(ticket.purchasedate);
         timeDisplay = formatTimeDisplay(purchaseDate);
       } else {
-        timeDisplay = 'Recent';
+        timeDisplay = "Recent";
       }
 
       // Priority for display name: view's username > lookup username > truncated wallet > Anonymous
-      const displayName = ticket.username || userData?.username ||
+      const displayName =
+        ticket.username ||
+        userData?.username ||
         (ticket.wallet_address
-          ? ticket.wallet_address.substring(0, 6) + '...' + ticket.wallet_address.slice(-4)
-          : (ticket.canonical_user_id 
-              ? ticket.canonical_user_id.substring(0, 6) + '...' + ticket.canonical_user_id.slice(-4)
-              : 'Anonymous'));
+          ? ticket.wallet_address.substring(0, 6) +
+            "..." +
+            ticket.wallet_address.slice(-4)
+          : ticket.canonical_user_id
+            ? ticket.canonical_user_id.substring(0, 6) +
+              "..." +
+              ticket.canonical_user_id.slice(-4)
+            : "Anonymous");
 
       // Priority for avatar: view's avatar > lookup avatar > random avatar
-      const avatarUrl = ticket.avatar_url || userData?.avatar_url || getRandomAvatar();
+      const avatarUrl =
+        ticket.avatar_url || userData?.avatar_url || getRandomAvatar();
       // Use actual prize from database, skip if no prize value exists
       const prize = comp.competitionprize;
       if (!prize) continue;
 
-      const competitionImage = comp.imageurl ? getImageUrl(comp.imageurl) : DEFAULT_COMPETITION_IMAGE;
+      const competitionImage = comp.imageurl
+        ? getImageUrl(comp.imageurl)
+        : DEFAULT_COMPETITION_IMAGE;
 
       // For Buy actions, show dollar amount spent (ticket_price * number of tickets)
       // Calculate from ticketnumbers if numberoftickets is not available
       let ticketCount = ticket.numberoftickets;
       if (!ticketCount && ticket.ticketnumbers) {
         // Parse comma-separated ticket numbers to get count
-        ticketCount = ticket.ticketnumbers.split(',').filter((t: string) => t.trim()).length;
+        ticketCount = ticket.ticketnumbers
+          .split(",")
+          .filter((t: string) => t.trim()).length;
       }
       ticketCount = ticketCount || 1;
       const ticketPrice = comp.ticket_price || 1;
@@ -1317,7 +1558,7 @@ export const database = {
           name: displayName,
           avatar: avatarUrl,
         },
-        action: 'Buy' as const,
+        action: "Buy" as const,
         amount: amountDisplay,
         time: timeDisplay,
         competitionId: comp.uid,
@@ -1329,8 +1570,9 @@ export const database = {
     // Fetch all winners without date filter
     // Query from winners table with competition data joined
     const { data: winnerData } = (await supabase
-      .from('winners')
-      .select(`
+      .from("winners")
+      .select(
+        `
         wallet_address,
         username,
         won_at,
@@ -1341,9 +1583,10 @@ export const database = {
           prize_value,
           prize_description
         )
-      `)
-      .not('wallet_address', 'is', null as any)
-      .order('won_at', { ascending: false, nullsFirst: false } as any)
+      `,
+      )
+      .not("wallet_address", "is", null as any)
+      .order("won_at", { ascending: false, nullsFirst: false } as any)
       .limit(50)) as any;
 
     // Helper to check if a wallet address looks like test/fake data
@@ -1352,8 +1595,9 @@ export const database = {
       const cleanAddr = address.toLowerCase().trim();
       if (/^0x0+$/.test(cleanAddr)) return false;
       if (cleanAddr.length < 10) return false;
-      if (cleanAddr.includes('test') || cleanAddr.includes('fake')) return false;
-      if (cleanAddr.startsWith('did:priv')) return false;
+      if (cleanAddr.includes("test") || cleanAddr.includes("fake"))
+        return false;
+      if (cleanAddr.startsWith("did:priv")) return false;
       return true;
     };
 
@@ -1363,15 +1607,20 @@ export const database = {
     const filteredWinnerData = (winnerData || []).filter((winner: any) => {
       // First, filter out fake/test wallet addresses
       if (!isValidWinnerAddress(winner.wallet_address)) return false;
-      
+
       // Skip if no competition data
       if (!winner.competitions) return false;
 
-      const prize = String(winner.competitions.prize_value || winner.competitions.prize_description || '');
+      const prize = String(
+        winner.competitions.prize_value ||
+          winner.competitions.prize_description ||
+          "",
+      );
       // Show if prize starts with $
-      const isMonetary = prize.startsWith('$');
+      const isMonetary = prize.startsWith("$");
       // Show if prize contains crypto keywords
-      const isCrypto = /\b(BTC|ETH|SOL|USDT|USDC|BITCOIN|ETHEREUM|SOLANA)\b/i.test(prize);
+      const isCrypto =
+        /\b(BTC|ETH|SOL|USDT|USDC|BITCOIN|ETHEREUM|SOLANA)\b/i.test(prize);
       // Show if prize is a numeric value (stored as number)
       const isNumeric = !isNaN(parseFloat(prize)) && parseFloat(prize) > 0;
       // Show if prize contains any amount indicators
@@ -1380,28 +1629,48 @@ export const database = {
     });
 
     // PERFORMANCE FIX: Batch fetch winner user data instead of N+1 queries
-    const winnerIdentifiers = [...new Set(filteredWinnerData.slice(0, 10).map((w: any) => w.wallet_address).filter(Boolean))];
+    const winnerIdentifiers = [
+      ...new Set(
+        filteredWinnerData
+          .slice(0, 10)
+          .map((w: any) => w.wallet_address)
+          .filter(Boolean),
+      ),
+    ];
 
     // Batch fetch winner users (single query instead of N queries)
     // NOTE: wallet_address can be either a plain wallet address OR a canonical_user_id (prize:pid:0x...)
-    const { data: winnerUsersData } = (winnerIdentifiers.length > 0
-      ? await supabase
-          .from('canonical_users')
-          .select('canonical_user_id, id, username, avatar_url, wallet_address')
-          .or(winnerIdentifiers.map(id => `canonical_user_id.eq.${id},wallet_address.eq.${id}`).join(','))
-      : { data: [] }) as any;
+    const { data: winnerUsersData } = (
+      winnerIdentifiers.length > 0
+        ? await supabase
+            .from("canonical_users")
+            .select(
+              "canonical_user_id, id, username, avatar_url, wallet_address",
+            )
+            .or(
+              winnerIdentifiers
+                .map(
+                  (id) => `canonical_user_id.eq.${id},wallet_address.eq.${id}`,
+                )
+                .join(","),
+            )
+        : { data: [] }
+    ) as any;
 
     // Create winner user lookup map - map by both canonical_user_id and wallet_address
-    const winnerUserMap = new Map<string, { username: string | null; avatar_url: string | null }>();
+    const winnerUserMap = new Map<
+      string,
+      { username: string | null; avatar_url: string | null }
+    >();
     for (const user of winnerUsersData || []) {
       const userData = { username: user.username, avatar_url: user.avatar_url };
-      
+
       // Map by canonical_user_id
       if (user.canonical_user_id) {
         winnerUserMap.set(user.canonical_user_id, userData);
         winnerUserMap.set(user.canonical_user_id.toLowerCase(), userData);
       }
-      
+
       // Map by wallet_address (lowercase for case-insensitive lookup)
       if (user.wallet_address) {
         winnerUserMap.set(user.wallet_address.toLowerCase(), userData);
@@ -1416,7 +1685,8 @@ export const database = {
       if (!winner.competitions || !winner.competitions.title) continue;
 
       const userData = winner.wallet_address
-        ? (winnerUserMap.get(winner.wallet_address) || winnerUserMap.get(winner.wallet_address.toLowerCase()))
+        ? winnerUserMap.get(winner.wallet_address) ||
+          winnerUserMap.get(winner.wallet_address.toLowerCase())
         : null;
 
       // Use actual date from database, not fabricated date
@@ -1425,24 +1695,33 @@ export const database = {
         const drawDate = new Date(winner.won_at);
         timeDisplay = formatTimeDisplay(drawDate);
       } else {
-        timeDisplay = 'Recent';
+        timeDisplay = "Recent";
       }
 
       // Priority for username display:
       // 1. username from winners table (stored directly when winner is declared)
       // 2. username from canonical_users lookup
       // 3. Truncated wallet address as fallback
-      const displayName = winner.username ||
+      const displayName =
+        winner.username ||
         userData?.username ||
         (winner.wallet_address
-          ? winner.wallet_address.substring(0, 6) + '...' + winner.wallet_address.slice(-4)
-          : 'Anonymous');
+          ? winner.wallet_address.substring(0, 6) +
+            "..." +
+            winner.wallet_address.slice(-4)
+          : "Anonymous");
 
       const avatarUrl = userData?.avatar_url || getRandomAvatar();
-      const competitionImage = winner.competitions.image_url ? getImageUrl(winner.competitions.image_url) : DEFAULT_COMPETITION_IMAGE;
-      
+      const competitionImage = winner.competitions.image_url
+        ? getImageUrl(winner.competitions.image_url)
+        : DEFAULT_COMPETITION_IMAGE;
+
       // Use prize_value or prize_description as the prize display
-      const prizeDisplay = String(winner.competitions.prize_value || winner.competitions.prize_description || '');
+      const prizeDisplay = String(
+        winner.competitions.prize_value ||
+          winner.competitions.prize_description ||
+          "",
+      );
 
       winners.push({
         competition: winner.competitions.title,
@@ -1450,10 +1729,10 @@ export const database = {
           name: displayName,
           avatar: avatarUrl,
         },
-        action: 'Win' as const,
+        action: "Win" as const,
         amount: prizeDisplay,
         time: timeDisplay,
-        competitionId: winner.competitions.id || '',
+        competitionId: winner.competitions.id || "",
         competitionImage,
         competitionPrize: prizeDisplay,
       });
@@ -1464,13 +1743,13 @@ export const database = {
 
   async getSiteStats() {
     const { data, error }: any = (await supabase
-      .from('site_stats')
-      .select('*')
-      .eq('is_active', true)
-      .order('display_order', { ascending: true })) as any;
+      .from("site_stats")
+      .select("*")
+      .eq("is_active", true)
+      .order("display_order", { ascending: true })) as any;
 
     if (error) {
-      console.error('Error fetching site stats:', error);
+      console.error("Error fetching site stats:", error);
       return [];
     }
 
@@ -1479,13 +1758,13 @@ export const database = {
 
   async getPartners() {
     const { data, error }: any = (await supabase
-      .from('partners')
-      .select('*')
-      .eq('is_active', true)
-      .order('display_order', { ascending: true })) as any;
+      .from("partners")
+      .select("*")
+      .eq("is_active", true)
+      .order("display_order", { ascending: true })) as any;
 
     if (error) {
-      console.error('Error fetching partners:', error);
+      console.error("Error fetching partners:", error);
       return [];
     }
 
@@ -1494,13 +1773,13 @@ export const database = {
 
   async getTestimonials() {
     const { data, error }: any = (await supabase
-      .from('testimonials')
-      .select('*')
-      .eq('is_active', true)
-      .order('display_order', { ascending: true })) as any;
+      .from("testimonials")
+      .select("*")
+      .eq("is_active", true)
+      .order("display_order", { ascending: true })) as any;
 
     if (error) {
-      console.error('Error fetching testimonials:', error);
+      console.error("Error fetching testimonials:", error);
       return [];
     }
 
@@ -1509,16 +1788,18 @@ export const database = {
 
   async getHeroCompetitions() {
     const { data, error }: any = (await supabase
-      .from('hero_competitions')
-      .select(`
+      .from("hero_competitions")
+      .select(
+        `
         *,
         competition:competitions!hero_competitions_competition_id_fkey(*)
-      `)
-      .eq('is_active', true)
-      .order('display_order', { ascending: true })) as any;
+      `,
+      )
+      .eq("is_active", true)
+      .order("display_order", { ascending: true })) as any;
 
     if (error) {
-      console.error('Error fetching hero competitions:', error);
+      console.error("Error fetching hero competitions:", error);
       return [];
     }
 
@@ -1531,17 +1812,19 @@ export const database = {
     try {
       // First try to get the hero competition with its linked competition
       const { data, error }: any = (await supabase
-        .from('hero_competitions')
-        .select(`
+        .from("hero_competitions")
+        .select(
+          `
           *,
           competition:competitions!hero_competitions_competition_id_fkey(*)
-        `)
-        .eq('slug', slug)
-        .eq('is_active', true)
+        `,
+        )
+        .eq("slug", slug)
+        .eq("is_active", true)
         .maybeSingle()) as any;
 
       if (error) {
-        console.error('Error fetching hero competition by slug:', error);
+        console.error("Error fetching hero competition by slug:", error);
         return null;
       }
 
@@ -1557,7 +1840,9 @@ export const database = {
           heroCompetition: data,
           competition: {
             ...data.competition,
-            image_url: getImageUrl(data.competition.image_url || data.competition.imageurl),
+            image_url: getImageUrl(
+              data.competition.image_url || data.competition.imageurl,
+            ),
           },
         };
       }
@@ -1568,93 +1853,110 @@ export const database = {
         competition: null,
       };
     } catch (error) {
-      console.error('Error in getHeroCompetitionBySlug:', error);
+      console.error("Error in getHeroCompetitionBySlug:", error);
       return null;
     }
   },
 
   async getSoldTicketsForCompetition(competitionId: string): Promise<number[]> {
     // Validate competitionId to prevent 400 errors
-    if (!competitionId || competitionId.trim() === '') {
+    if (!competitionId || competitionId.trim() === "") {
       return [];
     }
 
     // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(competitionId)) {
       return [];
     }
 
     try {
-      return await withRetry(async () => {
-        // Use RPC for accurate sold ticket data - avoids uuid/text type mismatch in OR queries
-        // The RPC properly resolves competition ID and handles both UUID and legacy uid formats
-        const { data: availability, error: rpcError } = (await (supabase.rpc as any)('get_competition_ticket_availability_text', {
-          p_competition_id: competitionId
-        })) as any;
+      return await withRetry(
+        async () => {
+          // Use RPC for accurate sold ticket data - avoids uuid/text type mismatch in OR queries
+          // The RPC properly resolves competition ID and handles both UUID and legacy uid formats
+          const { data: availability, error: rpcError } = (await (
+            supabase.rpc as any
+          )("get_competition_ticket_availability_text", {
+            p_competition_id: competitionId,
+          })) as any;
 
-        // If RPC provides sold_tickets array directly, use it
-        if (!rpcError && availability && availability.sold_tickets) {
-          return Array.isArray(availability.sold_tickets) ? availability.sold_tickets : [];
-        }
+          // If RPC provides sold_tickets array directly, use it
+          if (!rpcError && availability && availability.sold_tickets) {
+            return Array.isArray(availability.sold_tickets)
+              ? availability.sold_tickets
+              : [];
+          }
 
-        // Fallback: Direct query using only the competition ID (not OR)
-        // Use v_joincompetition_active view for stable read interface
-        const { data: soldTicketData, error } = (await supabase
-          .from('v_joincompetition_active')
-          .select('ticket_numbers')
-          .eq('competition_id', competitionId.trim())) as any;
+          // Fallback: Direct query using only the competition ID (not OR)
+          // Use v_joincompetition_active view for stable read interface
+          const { data: soldTicketData, error } = (await supabase
+            .from("v_joincompetition_active")
+            .select("ticket_numbers")
+            .eq("competition_id", competitionId.trim())) as any;
 
-        if (error) {
-          handleDatabaseError(error, 'getSoldTicketsForCompetition');
-          return [];
-        }
+          if (error) {
+            handleDatabaseError(error, "getSoldTicketsForCompetition");
+            return [];
+          }
 
-        // Ensure soldTicketData is an array before processing
-        if (!soldTicketData) {
-          return [];
-        }
+          // Ensure soldTicketData is an array before processing
+          if (!soldTicketData) {
+            return [];
+          }
 
-        // Handle case where query returns a single object instead of an array
-        const dataArray = Array.isArray(soldTicketData) ? soldTicketData : [soldTicketData];
+          // Handle case where query returns a single object instead of an array
+          const dataArray = Array.isArray(soldTicketData)
+            ? soldTicketData
+            : [soldTicketData];
 
-        if (dataArray.length === 0) {
-          return [];
-        }
+          if (dataArray.length === 0) {
+            return [];
+          }
 
-        // ticket_numbers is stored as comma-separated string in joincompetition
-        const soldTickets: number[] = [];
-        dataArray.forEach((row: { ticket_numbers: string | null }) => {
-          const nums = String(row.ticket_numbers || '')
-            .split(',')
-            .map(x => parseInt(x.trim(), 10))
-            .filter(n => Number.isFinite(n) && n > 0);
-          soldTickets.push(...nums);
-        });
+          // ticket_numbers is stored as comma-separated string in joincompetition
+          const soldTickets: number[] = [];
+          dataArray.forEach((row: { ticket_numbers: string | null }) => {
+            const nums = String(row.ticket_numbers || "")
+              .split(",")
+              .map((x) => parseInt(x.trim(), 10))
+              .filter((n) => Number.isFinite(n) && n > 0);
+            soldTickets.push(...nums);
+          });
 
-        return [...new Set(soldTickets)];
-      }, { context: 'getSoldTicketsForCompetition', maxRetries: 2 });
+          return [...new Set(soldTickets)];
+        },
+        { context: "getSoldTicketsForCompetition", maxRetries: 2 },
+      );
     } catch (error) {
-      handleDatabaseError(error, 'getSoldTicketsForCompetition - outer catch');
+      handleDatabaseError(error, "getSoldTicketsForCompetition - outer catch");
       return [];
     }
   },
 
-  async getUnavailableTicketsForCompetition(competitionId: string, excludeUserId?: string): Promise<Set<number>> {
+  async getUnavailableTicketsForCompetition(
+    competitionId: string,
+    excludeUserId?: string,
+  ): Promise<Set<number>> {
     const startTime = Date.now();
-    databaseLogger.group(`getUnavailableTickets: ${competitionId.slice(0, 8)}...`, true);
+    databaseLogger.group(
+      `getUnavailableTickets: ${competitionId.slice(0, 8)}...`,
+      true,
+    );
 
     // Validate competitionId to prevent 400 errors
-    if (!competitionId || competitionId.trim() === '') {
-      databaseLogger.warn('Empty competition ID provided');
+    if (!competitionId || competitionId.trim() === "") {
+      databaseLogger.warn("Empty competition ID provided");
       databaseLogger.groupEnd();
       return new Set();
     }
 
     // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(competitionId)) {
-      databaseLogger.warn('Invalid UUID format', { competitionId });
+      databaseLogger.warn("Invalid UUID format", { competitionId });
       databaseLogger.groupEnd();
       return new Set();
     }
@@ -1665,50 +1967,55 @@ export const database = {
       // Use Supabase RPC to get ALL unavailable tickets (sold + pending) in one call
       // The RPC function get_unavailable_tickets returns distinct ticket numbers that are not available
       // Queries pending_ticket_items.ticket_number (joined with pending_tickets for expires_at/status check)
-      databaseLogger.request('rpc/get_unavailable_tickets', {
-        competition_id: competitionId.slice(0, 8) + '...'
+      databaseLogger.request("rpc/get_unavailable_tickets", {
+        competition_id: competitionId.slice(0, 8) + "...",
       });
 
-      const { data: unavailableTickets, error: rpcError } = (await getUnavailableTickets(supabase, competitionId.trim())) as any;
+      const { data: unavailableTickets, error: rpcError } =
+        (await getUnavailableTickets(supabase, competitionId.trim())) as any;
 
       if (rpcError) {
         // RPC call failed - log error and try direct query fallback
-        databaseLogger.warn('RPC get_unavailable_tickets failed', { error: rpcError.message });
+        databaseLogger.warn("RPC get_unavailable_tickets failed", {
+          error: rpcError.message,
+        });
         showDebugHintOnError();
 
         requestTracker.addRequest({
           timestamp: Date.now(),
-          endpoint: 'rpc/get_unavailable_tickets',
-          method: 'POST',
+          endpoint: "rpc/get_unavailable_tickets",
+          method: "POST",
           success: false,
-          error: rpcError.message || 'Unknown error',
+          error: rpcError.message || "Unknown error",
           errorCode: 500,
-          duration: Date.now() - startTime
+          duration: Date.now() - startTime,
         });
 
         // Fallback: Try to get sold tickets directly (pending tickets may fail due to RLS)
-        databaseLogger.info('Using fallback: direct joincompetition query');
+        databaseLogger.info("Using fallback: direct joincompetition query");
 
         // CRITICAL: Query joincompetition directly, NOT the view!
         // The view v_joincompetition_active filters status='active' which misses status='sold' entries
         // This caused double-selling when RPC failed because 'sold' tickets were invisible
         const { data: soldData } = (await supabase
-          .from('joincompetition')
-          .select('ticketnumbers')
-          .eq('competitionid', competitionId)
-          .in('status', ['active', 'sold'])) as any;
+          .from("joincompetition")
+          .select("ticketnumbers")
+          .eq("competitionid", competitionId)
+          .in("status", ["active", "sold"])) as any;
 
         if (soldData) {
           soldData.forEach((row: { ticketnumbers: string | null }) => {
-            const nums = String(row.ticketnumbers || '')
-              .split(',')
-              .map(x => parseInt(x.trim(), 10))
-              .filter(n => Number.isFinite(n) && n > 0);
-            nums.forEach(n => unavailable.add(n));
+            const nums = String(row.ticketnumbers || "")
+              .split(",")
+              .map((x) => parseInt(x.trim(), 10))
+              .filter((n) => Number.isFinite(n) && n > 0);
+            nums.forEach((n) => unavailable.add(n));
           });
         }
 
-        databaseLogger.successWithTiming('Fallback completed', startTime, { unavailableCount: unavailable.size });
+        databaseLogger.successWithTiming("Fallback completed", startTime, {
+          unavailableCount: unavailable.size,
+        });
         databaseLogger.groupEnd();
         return unavailable;
       }
@@ -1722,69 +2029,87 @@ export const database = {
         });
       }
 
-      databaseLogger.successWithTiming('RPC get_unavailable_tickets completed', startTime, { unavailableCount: unavailable.size });
+      databaseLogger.successWithTiming(
+        "RPC get_unavailable_tickets completed",
+        startTime,
+        { unavailableCount: unavailable.size },
+      );
       requestTracker.addRequest({
         timestamp: Date.now(),
-        endpoint: 'rpc/get_unavailable_tickets',
-        method: 'POST',
+        endpoint: "rpc/get_unavailable_tickets",
+        method: "POST",
         success: true,
-        duration: Date.now() - startTime
+        duration: Date.now() - startTime,
       });
 
       databaseLogger.groupEnd();
       return unavailable;
     } catch (error) {
-      databaseLogger.error('Outer catch error', error);
+      databaseLogger.error("Outer catch error", error);
       showDebugHintOnError();
-      handleDatabaseError(error, 'getUnavailableTicketsForCompetition - outer catch');
+      handleDatabaseError(
+        error,
+        "getUnavailableTicketsForCompetition - outer catch",
+      );
       databaseLogger.groupEnd();
       return new Set();
     }
   },
 
-  async getAvailableTicketsForCompetition(competitionId: string, totalTickets: number, excludeUserId?: string): Promise<number[]> {
+  async getAvailableTicketsForCompetition(
+    competitionId: string,
+    totalTickets: number,
+    excludeUserId?: string,
+  ): Promise<number[]> {
     const startTime = Date.now();
-    databaseLogger.debug('getAvailableTickets called', {
-      competitionId: competitionId.slice(0, 8) + '...',
+    databaseLogger.debug("getAvailableTickets called", {
+      competitionId: competitionId.slice(0, 8) + "...",
       totalTickets,
-      excludeUserId: excludeUserId ? excludeUserId.slice(0, 8) + '...' : null
+      excludeUserId: excludeUserId ? excludeUserId.slice(0, 8) + "..." : null,
     });
 
     try {
-      const unavailable = await this.getUnavailableTicketsForCompetition(competitionId, excludeUserId);
+      const unavailable = await this.getUnavailableTicketsForCompetition(
+        competitionId,
+        excludeUserId,
+      );
       const allTickets = Array.from({ length: totalTickets }, (_, i) => i + 1);
-      const available = allTickets.filter(ticket => !unavailable.has(ticket));
+      const available = allTickets.filter((ticket) => !unavailable.has(ticket));
 
-      databaseLogger.successWithTiming('Available tickets calculated', startTime, {
-        total: totalTickets,
-        unavailable: unavailable.size,
-        available: available.length
-      });
+      databaseLogger.successWithTiming(
+        "Available tickets calculated",
+        startTime,
+        {
+          total: totalTickets,
+          unavailable: unavailable.size,
+          available: available.length,
+        },
+      );
 
       return available;
     } catch (error) {
-      databaseLogger.error('getAvailableTicketsForCompetition error', error);
-      handleDatabaseError(error, 'getAvailableTicketsForCompetition');
+      databaseLogger.error("getAvailableTicketsForCompetition error", error);
+      handleDatabaseError(error, "getAvailableTicketsForCompetition");
       return Array.from({ length: totalTickets }, (_, i) => i + 1);
     }
   },
 
-  async getUserOrders(userId: string){
+  async getUserOrders(userId: string) {
     try {
-      const {data, error} = (await supabase
-        .from('orders')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })) as any;
+      const { data, error } = (await supabase
+        .from("orders")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })) as any;
 
-      if(error){
-        handleDatabaseError(error, 'getUserOrders');
+      if (error) {
+        handleDatabaseError(error, "getUserOrders");
         return [];
       }
 
       return data || [];
     } catch (error) {
-      handleDatabaseError(error, 'getUserOrders - outer catch');
+      handleDatabaseError(error, "getUserOrders - outer catch");
       return [];
     }
   },
@@ -1792,100 +2117,133 @@ export const database = {
   async getUserTransactions(userId: string) {
     try {
       // Use standard RPC function (not bypass_rls) for staging compatibility with anon key
-      console.log('[getUserTransactions] Calling RPC with user_identifier:', userId.substring(0, 20) + '...');
-      const { data, error }: any = (await (supabase
-        .rpc as any)('get_user_transactions', {
-          user_identifier: userId.trim()
-        })) as any;
+      console.log(
+        "[getUserTransactions] Calling RPC with user_identifier:",
+        userId.substring(0, 20) + "...",
+      );
+      const { data, error }: any = (await (supabase.rpc as any)(
+        "get_user_transactions",
+        {
+          user_identifier: userId.trim(),
+        },
+      )) as any;
 
-      console.log('[getUserTransactions] RPC response:', { 
-        dataLength: data?.length, 
+      console.log("[getUserTransactions] RPC response:", {
+        dataLength: data?.length,
         hasError: !!error,
         errorCode: error?.code,
-        errorMessage: error?.message 
+        errorMessage: error?.message,
       });
 
       if (error) {
         // If permission denied or function not found, try fallback direct query
-        if (error.code === '42501' || error.code === '42883' || error.message?.includes('permission denied')) {
-          console.warn('[database] get_user_transactions RPC failed, using fallback:', error.message);
+        if (
+          error.code === "42501" ||
+          error.code === "42883" ||
+          error.message?.includes("permission denied")
+        ) {
+          console.warn(
+            "[database] get_user_transactions RPC failed, using fallback:",
+            error.message,
+          );
           return await this.getUserTransactionsFallback(userId);
         }
-        handleDatabaseError(error, 'getUserTransactions');
+        handleDatabaseError(error, "getUserTransactions");
         return [];
       }
 
       // RPC now returns enriched data with competition_name and competition_image from JOIN
       // No need for separate competition fetch anymore
-      
-      console.log('[getUserTransactions] Processing data:', { 
+
+      console.log("[getUserTransactions] Processing data:", {
         rawDataLength: data?.length,
-        firstItem: data?.[0] ? {
-          id: data[0].id,
-          competition_id: data[0].competition_id,
-          competition_name: data[0].competition_name,
-          amount: data[0].amount,
-          status: data[0].status
-        } : null
+        firstItem: data?.[0]
+          ? {
+              id: data[0].id,
+              competition_id: data[0].competition_id,
+              competition_name: data[0].competition_name,
+              amount: data[0].amount,
+              status: data[0].status,
+            }
+          : null,
       });
-      
+
       // Format transactions for display - DON'T filter here, let the frontend decide
       // The Orders tab needs ALL transactions including pending ones
-      const formattedTransactions = (data || [])
-        .map((tx: any) => {
+      const formattedTransactions = (data || []).map((tx: any) => {
         // Use is_topup flag from RPC if available, otherwise calculate it
         // FIXED: Check type field instead of competition_id to avoid misclassifying base_account entries
-        const isTopUp = tx.is_topup ?? (tx.type === 'topup');
-        
+        const isTopUp = tx.is_topup ?? tx.type === "topup";
+
         return {
           id: tx.id,
           user_id: tx.user_id,
           competition_id: tx.competition_id,
           // Use competition_name and competition_image from RPC (already enriched)
-          competition_name: tx.competition_name || (isTopUp ? 'Wallet Top-Up' : 'Unknown Competition'),
-          competition_image: tx.competition_image ? getImageUrl(tx.competition_image) : null,
+          competition_name:
+            tx.competition_name ||
+            (isTopUp ? "Wallet Top-Up" : "Unknown Competition"),
+          competition_image: tx.competition_image
+            ? getImageUrl(tx.competition_image)
+            : null,
           ticket_count: tx.ticket_count || 0,
           ticket_numbers: tx.ticket_numbers,
           amount: tx.amount || 0,
-          amount_usd: tx.currency === 'usd' || tx.currency === 'USDC' || tx.currency === 'USD'
-            ? `$${Number(tx.amount || 0).toFixed(2)}`
-            : `${tx.amount} ${tx.currency?.toUpperCase() || ''}`,
+          amount_usd:
+            tx.currency === "usd" ||
+            tx.currency === "USDC" ||
+            tx.currency === "USD"
+              ? `$${Number(tx.amount || 0).toFixed(2)}`
+              : `${tx.amount} ${tx.currency?.toUpperCase() || ""}`,
           currency: tx.currency,
-          network: tx.network || tx.payment_provider || 'crypto',
+          network: tx.network || tx.payment_provider || "crypto",
           tx_id: tx.tx_id || tx.transaction_hash || tx.order_id || null,
           status: tx.status,
           payment_status: tx.payment_status,
           created_at: tx.created_at,
           completed_at: tx.completed_at,
           is_topup: isTopUp,
-          transaction_type: isTopUp ? 'topup' : 'entry',
+          transaction_type: isTopUp ? "topup" : "entry",
           // Additional fields for Orders dashboard
           type: tx.type,
           balance_before: tx.balance_before,
           balance_after: tx.balance_after,
-          payment_provider: tx.payment_provider || 'unknown',
+          payment_provider: tx.payment_provider || "unknown",
           metadata: tx.metadata,
           transaction_hash: tx.transaction_hash,
           webhook_ref: tx.webhook_ref,
           order_id: tx.order_id,
           action: (() => {
-            const statusLower = (tx.status || tx.payment_status || '').toLowerCase().trim();
-            if (statusLower === 'completed' || statusLower === 'finished' || statusLower === 'confirmed' || statusLower === 'success') return 'View';
-            if (statusLower === 'pending') return 'Pending';
-            if (statusLower === 'failed' || statusLower === 'cancelled' || statusLower === 'expired') return 'Failed';
-            return 'Processing';
+            const statusLower = (tx.status || tx.payment_status || "")
+              .toLowerCase()
+              .trim();
+            if (
+              statusLower === "completed" ||
+              statusLower === "finished" ||
+              statusLower === "confirmed" ||
+              statusLower === "success"
+            )
+              return "View";
+            if (statusLower === "pending") return "Pending";
+            if (
+              statusLower === "failed" ||
+              statusLower === "cancelled" ||
+              statusLower === "expired"
+            )
+              return "Failed";
+            return "Processing";
           })(),
         };
       });
 
-      console.log('[getUserTransactions] Formatted transactions:', { 
+      console.log("[getUserTransactions] Formatted transactions:", {
         count: formattedTransactions.length,
-        firstFormatted: formattedTransactions[0] || null
+        firstFormatted: formattedTransactions[0] || null,
       });
 
       return formattedTransactions;
     } catch (error) {
-      handleDatabaseError(error, 'getUserTransactions - outer catch');
+      handleDatabaseError(error, "getUserTransactions - outer catch");
       return [];
     }
   },
@@ -1894,97 +2252,131 @@ export const database = {
   async getUserTransactionsFallback(userId: string) {
     try {
       const canonicalId = toPrizePid(userId);
-      const normalizedWallet = isWalletAddress(userId) ? userId.toLowerCase() : userId;
+      const normalizedWallet = isWalletAddress(userId)
+        ? userId.toLowerCase()
+        : userId;
 
       // Direct query to user_transactions table
       // NOTE: user_id is TEXT type, so we can safely use eq/ilike
       // But wallet_address might be UUID, so we use eq for exact match
-      const { data, error} = (await supabase
-        .from('user_transactions')
-        .select('*')
-        .or(`user_id.eq.${normalizedWallet},canonical_user_id.eq.${canonicalId},wallet_address.eq.${normalizedWallet}`)
-        .order('created_at', { ascending: false })
+      const { data, error } = (await supabase
+        .from("user_transactions")
+        .select("*")
+        .or(
+          `user_id.eq.${normalizedWallet},canonical_user_id.eq.${canonicalId},wallet_address.eq.${normalizedWallet}`,
+        )
+        .order("created_at", { ascending: false })
         .limit(50)) as any;
 
       if (error) {
-        handleDatabaseError(error, 'getUserTransactionsFallback');
+        handleDatabaseError(error, "getUserTransactionsFallback");
         return [];
       }
 
       // Get competition details
-      const competitionIds = [...new Set((data || []).map((tx: any) => tx.competition_id).filter(Boolean))];
+      const competitionIds = [
+        ...new Set(
+          (data || []).map((tx: any) => tx.competition_id).filter(Boolean),
+        ),
+      ];
       let competitionsMap: { [key: string]: any } = {};
 
       if (competitionIds.length > 0) {
         const { data: competitions } = (await supabase
-          .from('competitions')
-          .select('id, uid, title, image_url, prize_value')
-          .in('id', competitionIds)) as any;
+          .from("competitions")
+          .select("id, uid, title, image_url, prize_value")
+          .in("id", competitionIds)) as any;
 
         if (competitions) {
-          competitionsMap = competitions.reduce((map: { [key: string]: any }, comp: any) => {
-            map[comp.id] = comp;
-            return map;
-          }, {});
+          competitionsMap = competitions.reduce(
+            (map: { [key: string]: any }, comp: any) => {
+              map[comp.id] = comp;
+              return map;
+            },
+            {},
+          );
         }
       }
 
       // Format transactions
       return (data || [])
         .filter((tx: any) => {
-          const status = (tx.status || '').toLowerCase();
-          return status === 'completed' || status === 'finished' || status === 'confirmed' || status === 'success';
+          const status = (tx.status || "").toLowerCase();
+          return (
+            status === "completed" ||
+            status === "finished" ||
+            status === "confirmed" ||
+            status === "success"
+          );
         })
         .map((tx: any) => {
           const competition = competitionsMap[tx.competition_id];
           // FIXED: Check type field instead of competition_id to avoid misclassifying base_account entries
-          const isTopUp = tx.type === 'topup';
+          const isTopUp = tx.type === "topup";
           return {
             id: tx.id,
             user_id: tx.user_id,
             competition_id: tx.competition_id,
-            competition_name: isTopUp ? 'Wallet Top-Up' : (competition?.title || 'Unknown Competition'),
-            competition_image: competition?.image_url ? getImageUrl(competition.image_url) : null,
+            competition_name: isTopUp
+              ? "Wallet Top-Up"
+              : competition?.title || "Unknown Competition",
+            competition_image: competition?.image_url
+              ? getImageUrl(competition.image_url)
+              : null,
             ticket_count: tx.ticket_count || 0,
             amount: tx.amount || 0,
-            amount_usd: tx.currency === 'usd' || tx.currency === 'USDC' || tx.currency === 'USD'
-              ? `$${Number(tx.amount || 0).toFixed(2)}`
-              : `${tx.amount} ${tx.currency?.toUpperCase() || ''}`,
+            amount_usd:
+              tx.currency === "usd" ||
+              tx.currency === "USDC" ||
+              tx.currency === "USD"
+                ? `$${Number(tx.amount || 0).toFixed(2)}`
+                : `${tx.amount} ${tx.currency?.toUpperCase() || ""}`,
             currency: tx.currency,
-            network: tx.network || tx.payment_provider || 'crypto',
+            network: tx.network || tx.payment_provider || "crypto",
             tx_id: tx.tx_id || tx.transaction_hash || tx.order_id || null,
             status: tx.status,
             payment_status: tx.payment_status,
             created_at: tx.created_at,
             completed_at: tx.completed_at,
             is_topup: isTopUp,
-            transaction_type: isTopUp ? 'topup' : 'entry',
+            transaction_type: isTopUp ? "topup" : "entry",
             // Additional fields for Orders dashboard
             type: tx.type,
             balance_before: tx.balance_before,
             balance_after: tx.balance_after,
-            payment_provider: tx.payment_provider || 'unknown',
+            payment_provider: tx.payment_provider || "unknown",
             metadata: tx.metadata,
             transaction_hash: tx.transaction_hash,
             action: (() => {
-              const statusLower = (tx.status || '').toLowerCase().trim();
-              if (statusLower === 'completed' || statusLower === 'finished' || statusLower === 'confirmed' || statusLower === 'success') return 'View';
-              if (statusLower === 'pending') return 'Pending';
-              if (statusLower === 'failed' || statusLower === 'cancelled' || statusLower === 'expired') return 'Failed';
-              return 'Processing';
+              const statusLower = (tx.status || "").toLowerCase().trim();
+              if (
+                statusLower === "completed" ||
+                statusLower === "finished" ||
+                statusLower === "confirmed" ||
+                statusLower === "success"
+              )
+                return "View";
+              if (statusLower === "pending") return "Pending";
+              if (
+                statusLower === "failed" ||
+                statusLower === "cancelled" ||
+                statusLower === "expired"
+              )
+                return "Failed";
+              return "Processing";
             })(),
           };
         });
     } catch (error) {
-      handleDatabaseError(error, 'getUserTransactionsFallback - outer catch');
+      handleDatabaseError(error, "getUserTransactionsFallback - outer catch");
       return [];
     }
   },
 
-  async getUserEntries(userId: string){
+  async getUserEntries(userId: string) {
     try {
-      if (!userId || userId.trim() === '') {
-        databaseLogger.warn('getUserEntries: No userId provided');
+      if (!userId || userId.trim() === "") {
+        databaseLogger.warn("getUserEntries: No userId provided");
         return [];
       }
 
@@ -1993,13 +2385,21 @@ export const database = {
       const identity = await resolveUserIdentity(userId);
 
       if (!identity) {
-        databaseLogger.warn('getUserEntries: Could not resolve user identity for: ' + userId.substring(0, 10) + '...');
+        databaseLogger.warn(
+          "getUserEntries: Could not resolve user identity for: " +
+            userId.substring(0, 10) +
+            "...",
+        );
         return [];
       }
 
-      databaseLogger.info('getUserEntries: Resolved identity', {
-        primaryIdType: identity.walletAddress ? 'wallet' : identity.privyUserId ? 'privy' : 'legacy',
-        identifierCount: identity.allIdentifiers.length
+      databaseLogger.info("getUserEntries: Resolved identity", {
+        primaryIdType: identity.walletAddress
+          ? "wallet"
+          : identity.privyUserId
+            ? "privy"
+            : "legacy",
+        identifierCount: identity.allIdentifiers.length,
       });
 
       // Try the comprehensive RPC function first
@@ -2011,26 +2411,41 @@ export const database = {
         // - joincompetition table (legacy confirmed entries)
         // - user_transactions table (payment-based entries with "finished" status)
         // - pending_tickets table (reservations awaiting payment confirmation)
-        const { data, error }: any = (await getDashboardEntries(supabase, identity.primaryId)) as any;
+        const { data, error }: any = (await getDashboardEntries(
+          supabase,
+          identity.primaryId,
+        )) as any;
 
         if (error) {
-          databaseLogger.rpcError('get_comprehensive_user_dashboard_entries', error, 'direct query fallback');
+          databaseLogger.rpcError(
+            "get_comprehensive_user_dashboard_entries",
+            error,
+            "direct query fallback",
+          );
           rpcFailed = true;
         } else {
           // Ensure data is always an array - RPC might return a single object in edge cases
-          entries = Array.isArray(data) ? data : (data ? [data] : []);
+          entries = Array.isArray(data) ? data : data ? [data] : [];
           if (entries.length > 0) {
-            databaseLogger.success('getUserEntries RPC succeeded', { entryCount: entries.length });
+            databaseLogger.success("getUserEntries RPC succeeded", {
+              entryCount: entries.length,
+            });
           }
         }
       } catch (rpcError) {
-        databaseLogger.rpcError('get_comprehensive_user_dashboard_entries', rpcError, 'direct query fallback');
+        databaseLogger.rpcError(
+          "get_comprehensive_user_dashboard_entries",
+          rpcError,
+          "direct query fallback",
+        );
         rpcFailed = true;
       }
 
       // Fallback: Query joincompetition table directly using unified identity filter
       if (rpcFailed || entries.length === 0) {
-        databaseLogger.info('getUserEntries: Using direct query fallback with unified identity filter');
+        databaseLogger.info(
+          "getUserEntries: Using direct query fallback with unified identity filter",
+        );
 
         try {
           // FIX: Use identity filter WITHOUT canonical_user_id for v_joincompetition_active
@@ -2039,24 +2454,29 @@ export const database = {
           const identityFilter = buildIdentityFilter(identity, {
             // Skip canonical_user_id by setting it to a non-existent empty column name
             // This effectively removes it from the filter
-            canonicalColumn: '', // Disabled - column doesn't exist in this view
-            walletColumn: 'wallet_address',
-            privyColumn: 'privy_user_id',
-            userIdColumn: 'userid',
+            canonicalColumn: "", // Disabled - column doesn't exist in this view
+            walletColumn: "wallet_address",
+            privyColumn: "privy_user_id",
+            userIdColumn: "userid",
           });
 
           // Log the filter for debugging
-          databaseLogger.debug('getUserEntries identity filter', { filter: identityFilter });
+          databaseLogger.debug("getUserEntries identity filter", {
+            filter: identityFilter,
+          });
 
           // Validate the filter - if it's empty or malformed, try individual queries
           if (!identityFilter || identityFilter.length === 0) {
-            databaseLogger.warn('getUserEntries: Empty identity filter, using direct wallet query');
+            databaseLogger.warn(
+              "getUserEntries: Empty identity filter, using direct wallet query",
+            );
 
             // Fallback to simple direct query by wallet address
             if (identity.walletAddress) {
               const { data: directData, error: directError } = (await supabase
-                .from('v_joincompetition_active')
-                .select(`
+                .from("v_joincompetition_active")
+                .select(
+                  `
                   *,
                   competitions!inner (
                     id,
@@ -2070,21 +2490,31 @@ export const database = {
                     end_date,
                     winner_address
                   )
-                `)
-                .ilike('wallet_address', identity.walletAddress)
-                .order('purchasedate', { ascending: false })) as any;
+                `,
+                )
+                .ilike("wallet_address", identity.walletAddress)
+                .order("purchasedate", { ascending: false })) as any;
 
               if (directError) {
-                databaseLogger.error('getUserEntries direct wallet query error', directError);
+                databaseLogger.error(
+                  "getUserEntries direct wallet query error",
+                  directError,
+                );
               } else if (directData && directData.length > 0) {
-                databaseLogger.success('getUserEntries: Found entries with direct wallet query', { count: directData.length });
-                entries = directData.map((jc: any) => transformJoinCompetitionEntry(jc, identity));
+                databaseLogger.success(
+                  "getUserEntries: Found entries with direct wallet query",
+                  { count: directData.length },
+                );
+                entries = directData.map((jc: any) =>
+                  transformJoinCompetitionEntry(jc, identity),
+                );
               }
             }
           } else {
             const { data: joinData, error: joinError } = (await supabase
-              .from('v_joincompetition_active')
-              .select(`
+              .from("v_joincompetition_active")
+              .select(
+                `
                 *,
                 competitions!inner (
                   id,
@@ -2098,34 +2528,50 @@ export const database = {
                   end_date,
                   winner_address
                 )
-              `)
+              `,
+              )
               .or(identityFilter)
-              .order('purchasedate', { ascending: false })) as any;
+              .order("purchasedate", { ascending: false })) as any;
 
             if (joinError) {
-              databaseLogger.error('getUserEntries unified query error', {
+              databaseLogger.error("getUserEntries unified query error", {
                 error: joinError,
                 code: joinError.code,
                 message: joinError.message,
                 details: joinError.details,
                 hint: joinError.hint,
-                filter: identityFilter
+                filter: identityFilter,
               });
 
               // If OR filter fails (400 error or column doesn't exist), try individual queries as fallback
-              if (joinError.code === 'PGRST100' || joinError.code === '42703' || joinError.message?.includes('400') || joinError.message?.includes('does not exist')) {
-                databaseLogger.info('getUserEntries: OR filter failed, trying individual queries');
+              if (
+                joinError.code === "PGRST100" ||
+                joinError.code === "42703" ||
+                joinError.message?.includes("400") ||
+                joinError.message?.includes("does not exist")
+              ) {
+                databaseLogger.info(
+                  "getUserEntries: OR filter failed, trying individual queries",
+                );
                 entries = await this._getUserEntriesIndividualQueries(identity);
               }
             } else if (joinData && joinData.length > 0) {
-              databaseLogger.success('getUserEntries: Found entries with unified query', { count: joinData.length });
+              databaseLogger.success(
+                "getUserEntries: Found entries with unified query",
+                { count: joinData.length },
+              );
 
-            // Transform joincompetition data to match expected format
-            entries = joinData.map((jc: any) => transformJoinCompetitionEntry(jc, identity));
+              // Transform joincompetition data to match expected format
+              entries = joinData.map((jc: any) =>
+                transformJoinCompetitionEntry(jc, identity),
+              );
             }
           }
         } catch (fallbackError) {
-          databaseLogger.error('getUserEntries unified query exception', fallbackError);
+          databaseLogger.error(
+            "getUserEntries unified query exception",
+            fallbackError,
+          );
           // Don't return early - try individual queries as ultimate fallback
         }
       }
@@ -2133,90 +2579,112 @@ export const database = {
       // CRITICAL FIX: If still no entries found, try individual queries as ultimate fallback
       // This queries multiple sources: joincompetition table, tickets table, user_transactions table
       if (!entries || entries.length === 0) {
-        databaseLogger.info('getUserEntries: No entries from primary sources, trying multi-source fallback');
+        databaseLogger.info(
+          "getUserEntries: No entries from primary sources, trying multi-source fallback",
+        );
         entries = await this._getUserEntriesIndividualQueries(identity);
       }
 
       if (!entries || entries.length === 0) {
-        databaseLogger.info('getUserEntries: No entries found after all fallbacks for user: ' + userId.substring(0, 20) + '...');
+        databaseLogger.info(
+          "getUserEntries: No entries found after all fallbacks for user: " +
+            userId.substring(0, 20) +
+            "...",
+        );
         return [];
       }
 
-      databaseLogger.success(`getUserEntries: Found ${entries.length} entries for user`);
+      databaseLogger.success(
+        `getUserEntries: Found ${entries.length} entries for user`,
+      );
 
-      console.log('[Database.getUserEntries] Raw entries before formatting:', {
+      console.log("[Database.getUserEntries] Raw entries before formatting:", {
         count: entries.length,
-        sampleEntry: entries[0] ? {
-          id: entries[0].id,
-          competition_id: entries[0].competition_id,
-          title: entries[0].title,
-          image: entries[0].image?.substring(0, 50),
-          ticket_numbers: entries[0].ticket_numbers,
-          amount_spent: entries[0].amount_spent || entries[0].total_amount_spent
-        } : null
+        sampleEntry: entries[0]
+          ? {
+              id: entries[0].id,
+              competition_id: entries[0].competition_id,
+              title: entries[0].title,
+              image: entries[0].image?.substring(0, 50),
+              ticket_numbers: entries[0].ticket_numbers,
+              amount_spent:
+                entries[0].amount_spent || entries[0].total_amount_spent,
+            }
+          : null,
       });
 
       // Format entries for display (data already includes competition details from RPC)
-      const formattedEntries = entries.map((entry: any) => {
-        // Filter out entries with missing required data (no id AND no competition_id)
-        // These are phantom entries that shouldn't be displayed
-        if (!entry.competition_id && !entry.id) {
-          databaseLogger.warn('getUserEntries: Filtering out entry with no id and no competition_id');
-          return null;
-        }
+      const formattedEntries = entries
+        .map((entry: any) => {
+          // Filter out entries with missing required data (no id AND no competition_id)
+          // These are phantom entries that shouldn't be displayed
+          if (!entry.competition_id && !entry.id) {
+            databaseLogger.warn(
+              "getUserEntries: Filtering out entry with no id and no competition_id",
+            );
+            return null;
+          }
 
-        // Also filter out entries where competition_id is missing or empty
-        // These are orphaned entries that reference deleted competitions
-        if (!entry.competition_id || entry.competition_id === '' || entry.competition_id === 'null') {
-          databaseLogger.warn(`getUserEntries: Filtering out entry ${entry.id} with missing competition_id`);
-          return null;
-        }
+          // Also filter out entries where competition_id is missing or empty
+          // These are orphaned entries that reference deleted competitions
+          if (
+            !entry.competition_id ||
+            entry.competition_id === "" ||
+            entry.competition_id === "null"
+          ) {
+            databaseLogger.warn(
+              `getUserEntries: Filtering out entry ${entry.id} with missing competition_id`,
+            );
+            return null;
+          }
 
-        // Entry type determines if it's pending or completed
-        const entryType = entry.entry_type || 'completed';
+          // Entry type determines if it's pending or completed
+          const entryType = entry.entry_type || "completed";
 
-        // Status is already mapped by the RPC function:
-        // - 'live' for active competitions (database status = 'active')
-        // - 'completed' for completed competitions (database status = 'completed')
-        // - 'drawn' for drawn competitions (database status = 'drawn')
-        // - 'pending' for pending reservations
-        // - 'cancelled' for cancelled competitions
-        const status = entry.status || 'live';
+          // Status is already mapped by the RPC function:
+          // - 'live' for active competitions (database status = 'active')
+          // - 'completed' for completed competitions (database status = 'completed')
+          // - 'drawn' for drawn competitions (database status = 'drawn')
+          // - 'pending' for pending reservations
+          // - 'cancelled' for cancelled competitions
+          const status = entry.status || "live";
 
-        // Determine if user won this competition (from RPC)
-        const isWinner = entry.is_winner || false;
+          // Determine if user won this competition (from RPC)
+          const isWinner = entry.is_winner || false;
 
-        // Format prize value for display
-        const formattedPrizeValue = entry.prize_value
-          ? `$${Number(entry.prize_value).toLocaleString()}`
-          : null;
+          // Format prize value for display
+          const formattedPrizeValue = entry.prize_value
+            ? `$${Number(entry.prize_value).toLocaleString()}`
+            : null;
 
-        return {
-          id: entry.id,
-          competition_id: entry.competition_id,
-          title: entry.title || 'Unknown Competition',
-          description: entry.description || '',
-          image: getImageUrl(entry.image),
-          status: status,
-          entry_type: entryType,
-          expires_at: entry.expires_at || null,
-          is_winner: isWinner,
-          ticket_numbers: entry.ticket_numbers,
-          number_of_tickets: entry.total_tickets || entry.number_of_tickets || 1,
-          amount_spent: entry.total_amount_spent || entry.amount_spent,
-          purchase_date: entry.purchase_date,
-          wallet_address: entry.wallet_address,
-          transaction_hash: entry.transaction_hash,
-          is_instant_win: entry.is_instant_win || false,
-          prize_value: formattedPrizeValue,
-          competition_status: entry.competition_status || 'active',
-          end_date: entry.end_date,
-        };
-      }).filter((entry: any) => entry !== null);
+          return {
+            id: entry.id,
+            competition_id: entry.competition_id,
+            title: entry.title || "Unknown Competition",
+            description: entry.description || "",
+            image: getImageUrl(entry.image),
+            status: status,
+            entry_type: entryType,
+            expires_at: entry.expires_at || null,
+            is_winner: isWinner,
+            ticket_numbers: entry.ticket_numbers,
+            number_of_tickets:
+              entry.total_tickets || entry.number_of_tickets || 1,
+            amount_spent: entry.total_amount_spent || entry.amount_spent,
+            purchase_date: entry.purchase_date,
+            wallet_address: entry.wallet_address,
+            transaction_hash: entry.transaction_hash,
+            is_instant_win: entry.is_instant_win || false,
+            prize_value: formattedPrizeValue,
+            competition_status: entry.competition_status || "active",
+            end_date: entry.end_date,
+          };
+        })
+        .filter((entry: any) => entry !== null);
 
       return formattedEntries;
     } catch (error) {
-      handleDatabaseError(error, 'getUserEntries - outer catch');
+      handleDatabaseError(error, "getUserEntries - outer catch");
       return [];
     }
   },
@@ -2231,13 +2699,18 @@ export const database = {
    * 3. tickets table
    * 4. user_transactions table (for completed payments)
    */
-  async _getUserEntriesIndividualQueries(identity: ResolvedIdentity): Promise<any[]> {
+  async _getUserEntriesIndividualQueries(
+    identity: ResolvedIdentity,
+  ): Promise<any[]> {
     const allEntries: any[] = [];
     const seenIds = new Set<string>();
 
     // Helper to add entry if not already seen
     const addEntry = (entry: any, source: string) => {
-      const id = entry.id || entry.uid || `${source}-${entry.competition_id || entry.competitionid}-${Date.now()}`;
+      const id =
+        entry.id ||
+        entry.uid ||
+        `${source}-${entry.competition_id || entry.competitionid}-${Date.now()}`;
       if (!seenIds.has(id)) {
         seenIds.add(id);
         allEntries.push(entry);
@@ -2267,22 +2740,29 @@ export const database = {
     if (identity.walletAddress) {
       try {
         const { data, error }: any = (await supabase
-          .from('v_joincompetition_active')
+          .from("v_joincompetition_active")
           .select(viewSelectQuery)
-          .ilike('wallet_address', identity.walletAddress)
-          .order('purchasedate', { ascending: false })) as any;
+          .ilike("wallet_address", identity.walletAddress)
+          .order("purchasedate", { ascending: false })) as any;
 
         if (error) {
-          databaseLogger.warn('View query (wallet) error - will try base table', { code: error.code });
+          databaseLogger.warn(
+            "View query (wallet) error - will try base table",
+            { code: error.code },
+          );
           viewQueryFailed = true;
         } else if (data && data.length > 0) {
           data.forEach((jc: any) => {
-            addEntry(transformJoinCompetitionEntry(jc, identity), 'view');
+            addEntry(transformJoinCompetitionEntry(jc, identity), "view");
           });
-          databaseLogger.debug('View query (wallet) found entries', { count: data.length });
+          databaseLogger.debug("View query (wallet) found entries", {
+            count: data.length,
+          });
         }
       } catch (e) {
-        databaseLogger.warn('View query (wallet) exception - will try base table');
+        databaseLogger.warn(
+          "View query (wallet) exception - will try base table",
+        );
         viewQueryFailed = true;
       }
     }
@@ -2292,38 +2772,58 @@ export const database = {
     // NOTE: We query without join first, then fetch competition data separately
     // This avoids issues with PostgREST not inferring relationships correctly
     if (viewQueryFailed || allEntries.length === 0) {
-      databaseLogger.info('Using base joincompetition table fallback');
+      databaseLogger.info("Using base joincompetition table fallback");
 
       if (identity.walletAddress) {
         try {
           // Query joincompetition WITHOUT join to competitions
           // SCHEMA: joincompetition has: userid, competitionid, ticketnumbers, joinedat, created_at
           const { data, error }: any = (await supabase
-            .from('joincompetition')
-            .select('*')
-            .ilike('userid', identity.walletAddress)
-            .order('joinedat', { ascending: false })) as any;
+            .from("joincompetition")
+            .select("*")
+            .ilike("userid", identity.walletAddress)
+            .order("joinedat", { ascending: false })) as any;
 
           if (!error && data && data.length > 0) {
-            databaseLogger.success('Base joincompetition query (wallet) found entries', { count: data.length });
+            databaseLogger.success(
+              "Base joincompetition query (wallet) found entries",
+              { count: data.length },
+            );
 
             // Fetch competition data separately for all unique competition IDs
-            const competitionIds = [...new Set(data.map((jc: any) => jc.competition_id || jc.competitionid).filter(Boolean))];
+            const competitionIds = [
+              ...new Set(
+                data
+                  .map((jc: any) => jc.competition_id || jc.competitionid)
+                  .filter(Boolean),
+              ),
+            ];
 
             // Fetch competitions by both id (UUID) and uid (legacy text)
             let competitionsMap = new Map<string, any>();
             if (competitionIds.length > 0) {
               try {
                 // Try to fetch by id (UUID format) first
-                const uuidIds = competitionIds.filter((id: any) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id as string)) as string[];
-                const textIds = competitionIds.filter((id: any) => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id as string)) as string[];
+                const uuidIds = competitionIds.filter((id: any) =>
+                  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                    id as string,
+                  ),
+                ) as string[];
+                const textIds = competitionIds.filter(
+                  (id: any) =>
+                    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                      id as string,
+                    ),
+                ) as string[];
 
                 // Fetch UUID-based competitions
                 if (uuidIds.length > 0) {
                   const { data: compData } = (await supabase
-                    .from('competitions')
-                    .select('id, uid, title, description, image_url, status, prize_value, is_instant_win, end_date, winner_address')
-                    .in('id', uuidIds)) as any;
+                    .from("competitions")
+                    .select(
+                      "id, uid, title, description, image_url, status, prize_value, is_instant_win, end_date, winner_address",
+                    )
+                    .in("id", uuidIds)) as any;
                   if (compData) {
                     compData.forEach((c: any) => {
                       competitionsMap.set(c.id, c);
@@ -2334,9 +2834,11 @@ export const database = {
                 // Fetch text UID-based competitions (legacy)
                 if (textIds.length > 0) {
                   const { data: compData } = (await supabase
-                    .from('competitions')
-                    .select('id, uid, title, description, image_url, status, prize_value, is_instant_win, end_date, winner_address')
-                    .in('uid', textIds)) as any;
+                    .from("competitions")
+                    .select(
+                      "id, uid, title, description, image_url, status, prize_value, is_instant_win, end_date, winner_address",
+                    )
+                    .in("uid", textIds)) as any;
                   if (compData) {
                     compData.forEach((c: any) => {
                       competitionsMap.set(c.uid, c);
@@ -2344,26 +2846,40 @@ export const database = {
                   }
                 }
 
-                databaseLogger.debug('Fetched competition data', { found: competitionsMap.size, requested: competitionIds.length });
+                databaseLogger.debug("Fetched competition data", {
+                  found: competitionsMap.size,
+                  requested: competitionIds.length,
+                });
               } catch (compErr) {
-                databaseLogger.warn('Error fetching competition data', compErr);
+                databaseLogger.warn("Error fetching competition data", compErr);
               }
             }
 
             // Transform entries with competition data
             data.forEach((jc: any) => {
               // Try to find competition by competition_id (could be UUID or legacy text uid)
-              const comp = competitionsMap.get(jc.competition_id || jc.competitionid);
+              const comp = competitionsMap.get(
+                jc.competition_id || jc.competitionid,
+              );
 
               // Create synthetic jc.competitions object for transform function
               const jcWithComp = { ...jc, competitions: comp || null };
-              addEntry(transformJoinCompetitionEntry(jcWithComp, identity), 'joincompetition');
+              addEntry(
+                transformJoinCompetitionEntry(jcWithComp, identity),
+                "joincompetition",
+              );
             });
           } else if (error) {
-            databaseLogger.error('Base joincompetition query (wallet) error', error);
+            databaseLogger.error(
+              "Base joincompetition query (wallet) error",
+              error,
+            );
           }
         } catch (e) {
-          databaseLogger.error('Base joincompetition query (wallet) exception', e);
+          databaseLogger.error(
+            "Base joincompetition query (wallet) exception",
+            e,
+          );
         }
       }
 
@@ -2372,50 +2888,85 @@ export const database = {
         try {
           // SCHEMA: joincompetition has: user_id, competition_id, ticket_numbers, joinedat, created_at
           const { data, error }: any = (await supabase
-            .from('joincompetition')
-            .select('*')
-            .eq('user_id', identity.legacyUserId)
-            .order('joinedat', { ascending: false })) as any;
+            .from("joincompetition")
+            .select("*")
+            .eq("user_id", identity.legacyUserId)
+            .order("joinedat", { ascending: false })) as any;
 
           if (!error && data && data.length > 0) {
             // Fetch competition data separately (same logic as above)
-            const competitionIds = [...new Set(data.map((jc: any) => jc.competition_id || jc.competitionid).filter(Boolean))];
+            const competitionIds = [
+              ...new Set(
+                data
+                  .map((jc: any) => jc.competition_id || jc.competitionid)
+                  .filter(Boolean),
+              ),
+            ];
             let competitionsMap = new Map<string, any>();
 
             if (competitionIds.length > 0) {
               try {
-                const uuidIds = competitionIds.filter((id: any) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id as string)) as string[];
-                const textIds = competitionIds.filter((id: any) => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id as string)) as string[];
+                const uuidIds = competitionIds.filter((id: any) =>
+                  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                    id as string,
+                  ),
+                ) as string[];
+                const textIds = competitionIds.filter(
+                  (id: any) =>
+                    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                      id as string,
+                    ),
+                ) as string[];
 
                 if (uuidIds.length > 0) {
                   const { data: compData } = (await supabase
-                    .from('competitions')
-                    .select('id, uid, title, description, image_url, status, prize_value, is_instant_win, end_date, winner_address')
-                    .in('id', uuidIds)) as any;
-                  if (compData) compData.forEach((c: any) => competitionsMap.set(c.id, c));
+                    .from("competitions")
+                    .select(
+                      "id, uid, title, description, image_url, status, prize_value, is_instant_win, end_date, winner_address",
+                    )
+                    .in("id", uuidIds)) as any;
+                  if (compData)
+                    compData.forEach((c: any) => competitionsMap.set(c.id, c));
                 }
 
                 if (textIds.length > 0) {
                   const { data: compData } = (await supabase
-                    .from('competitions')
-                    .select('id, uid, title, description, image_url, status, prize_value, is_instant_win, end_date, winner_address')
-                    .in('uid', textIds)) as any;
-                  if (compData) compData.forEach((c: any) => competitionsMap.set(c.uid, c));
+                    .from("competitions")
+                    .select(
+                      "id, uid, title, description, image_url, status, prize_value, is_instant_win, end_date, winner_address",
+                    )
+                    .in("uid", textIds)) as any;
+                  if (compData)
+                    compData.forEach((c: any) => competitionsMap.set(c.uid, c));
                 }
               } catch (compErr) {
-                databaseLogger.warn('Error fetching competition data (userid)', compErr);
+                databaseLogger.warn(
+                  "Error fetching competition data (userid)",
+                  compErr,
+                );
               }
             }
 
             data.forEach((jc: any) => {
-              const comp = competitionsMap.get(jc.competition_id || jc.competitionid);
+              const comp = competitionsMap.get(
+                jc.competition_id || jc.competitionid,
+              );
               const jcWithComp = { ...jc, competitions: comp || null };
-              addEntry(transformJoinCompetitionEntry(jcWithComp, identity), 'joincompetition-user_id');
+              addEntry(
+                transformJoinCompetitionEntry(jcWithComp, identity),
+                "joincompetition-user_id",
+              );
             });
-            databaseLogger.debug('Base joincompetition query (user_id) found entries', { count: data.length });
+            databaseLogger.debug(
+              "Base joincompetition query (user_id) found entries",
+              { count: data.length },
+            );
           }
         } catch (e) {
-          databaseLogger.error('Base joincompetition query (user_id) exception', e);
+          databaseLogger.error(
+            "Base joincompetition query (user_id) exception",
+            e,
+          );
         }
       }
     }
@@ -2425,8 +2976,9 @@ export const database = {
     if (identity.walletAddress || identity.legacyUserId) {
       try {
         let ticketsQuery = supabase
-          .from('tickets')
-          .select(`
+          .from("tickets")
+          .select(
+            `
             id,
             competition_id,
             user_id,
@@ -2447,8 +2999,9 @@ export const database = {
               end_date,
               winner_address
             )
-          `)
-          .order('purchased_at', { ascending: false });
+          `,
+          )
+          .order("purchased_at", { ascending: false });
 
         // Build OR filter for tickets
         // NOTE: user_id is TEXT type in tickets table, use eq for exact match (case-insensitive handled by LOWER())
@@ -2458,14 +3011,17 @@ export const database = {
           ticketFilters.push(`user_id.eq.${identity.walletAddress}`);
         }
         if (identity.canonicalUserId) {
-          ticketFilters.push(`canonical_user_id.eq.${identity.canonicalUserId}`);
+          ticketFilters.push(
+            `canonical_user_id.eq.${identity.canonicalUserId}`,
+          );
         }
         if (identity.legacyUserId) {
           ticketFilters.push(`user_id.eq.${identity.legacyUserId}`);
         }
 
         if (ticketFilters.length > 0) {
-          const { data: ticketsData, error: ticketsError } = (await ticketsQuery.or(ticketFilters.join(','))) as any;
+          const { data: ticketsData, error: ticketsError } =
+            (await ticketsQuery.or(ticketFilters.join(","))) as any;
 
           if (!ticketsError && ticketsData && ticketsData.length > 0) {
             // Group tickets by competition_id
@@ -2482,18 +3038,26 @@ export const database = {
             ticketsByComp.forEach((tickets, compId) => {
               const firstTicket = tickets[0];
               const comp = firstTicket.competitions;
-              const ticketNumbers = tickets.map((t: any) => t.ticket_number).filter(Boolean).join(',');
-              const totalAmount = tickets.reduce((sum: number, t: any) => sum + (parseFloat(t.purchase_price) || 0), 0);
+              const ticketNumbers = tickets
+                .map((t: any) => t.ticket_number)
+                .filter(Boolean)
+                .join(",");
+              const totalAmount = tickets.reduce(
+                (sum: number, t: any) =>
+                  sum + (parseFloat(t.purchase_price) || 0),
+                0,
+              );
               const isWinner = tickets.some((t: any) => t.is_winner);
 
               const entry = {
-                id: `tickets-${compId}-${identity.walletAddress?.substring(0, 8) || 'user'}`,
+                id: `tickets-${compId}-${identity.walletAddress?.substring(0, 8) || "user"}`,
                 competition_id: compId,
-                title: comp?.title || 'Unknown Competition',
-                description: comp?.description || '',
+                title: comp?.title || "Unknown Competition",
+                description: comp?.description || "",
                 image: comp?.image_url,
-                status: comp?.status === 'active' ? 'live' : (comp?.status || 'live'),
-                entry_type: 'completed',
+                status:
+                  comp?.status === "active" ? "live" : comp?.status || "live",
+                entry_type: "completed",
                 expires_at: null,
                 is_winner: isWinner,
                 ticket_numbers: ticketNumbers,
@@ -2504,25 +3068,34 @@ export const database = {
                 transaction_hash: null,
                 is_instant_win: comp?.is_instant_win || false,
                 prize_value: comp?.prize_value,
-                competition_status: comp?.status || 'active',
+                competition_status: comp?.status || "active",
                 end_date: comp?.end_date,
               };
 
-              addEntry(entry, 'tickets');
+              addEntry(entry, "tickets");
             });
-            databaseLogger.debug('Tickets query found entries', { count: ticketsByComp.size });
+            databaseLogger.debug("Tickets query found entries", {
+              count: ticketsByComp.size,
+            });
           } else if (ticketsError) {
-            databaseLogger.warn('Tickets query error', { code: ticketsError.code, message: ticketsError.message });
+            databaseLogger.warn("Tickets query error", {
+              code: ticketsError.code,
+              message: ticketsError.message,
+            });
           }
         }
       } catch (e) {
-        databaseLogger.warn('Tickets query exception', e);
+        databaseLogger.warn("Tickets query exception", e);
       }
     }
 
     // ===== SOURCE 4: Query user_transactions table =====
     // Completed payments that may not be in joincompetition yet
-    if (identity.walletAddress || identity.legacyUserId || identity.canonicalUserId) {
+    if (
+      identity.walletAddress ||
+      identity.legacyUserId ||
+      identity.canonicalUserId
+    ) {
       try {
         const txFilters: string[] = [];
         if (identity.walletAddress) {
@@ -2538,8 +3111,9 @@ export const database = {
 
         if (txFilters.length > 0) {
           const { data: txData, error: txError } = (await supabase
-            .from('user_transactions')
-            .select(`
+            .from("user_transactions")
+            .select(
+              `
               id,
               competition_id,
               user_id,
@@ -2566,11 +3140,19 @@ export const database = {
                 end_date,
                 winner_address
               )
-            `)
-            .or(txFilters.join(','))
+            `,
+            )
+            .or(txFilters.join(","))
             // Include ALL valid completed statuses (including 'complete', 'success', 'paid')
-            .in('payment_status', ['completed', 'complete', 'finished', 'confirmed', 'success', 'paid'])
-            .order('created_at', { ascending: false })) as any;
+            .in("payment_status", [
+              "completed",
+              "complete",
+              "finished",
+              "confirmed",
+              "success",
+              "paid",
+            ])
+            .order("created_at", { ascending: false })) as any;
 
           if (!txError && txData && txData.length > 0) {
             txData.forEach((tx: any) => {
@@ -2578,41 +3160,57 @@ export const database = {
               const entry = {
                 id: tx.id,
                 competition_id: tx.competition_id,
-                title: comp?.title || 'Unknown Competition',
-                description: comp?.description || '',
+                title: comp?.title || "Unknown Competition",
+                description: comp?.description || "",
                 image: comp?.image_url,
-                status: comp?.status === 'active' ? 'live' : (comp?.status || 'live'),
-                entry_type: 'completed',
+                status:
+                  comp?.status === "active" ? "live" : comp?.status || "live",
+                entry_type: "completed",
                 expires_at: null,
                 is_winner: false,
-                ticket_numbers: '',
+                ticket_numbers: "",
                 number_of_tickets: tx.ticket_count || 1,
                 amount_spent: tx.amount,
                 purchase_date: tx.created_at,
                 wallet_address: tx.wallet_address || identity.walletAddress,
                 // Balance payments won't have tx_id, so generate from charge_id, charge_code, tx_ref, or order_id
-                transaction_hash: tx.tx_id || tx.charge_id || tx.charge_code || tx.tx_ref || tx.order_id || null,
+                transaction_hash:
+                  tx.tx_id ||
+                  tx.charge_id ||
+                  tx.charge_code ||
+                  tx.tx_ref ||
+                  tx.order_id ||
+                  null,
                 is_instant_win: comp?.is_instant_win || false,
                 prize_value: comp?.prize_value,
-                competition_status: comp?.status || 'active',
+                competition_status: comp?.status || "active",
                 end_date: comp?.end_date,
               };
 
-              addEntry(entry, 'user_transactions');
+              addEntry(entry, "user_transactions");
             });
-            databaseLogger.debug('User transactions query found entries', { count: txData.length });
+            databaseLogger.debug("User transactions query found entries", {
+              count: txData.length,
+            });
           } else if (txError) {
-            databaseLogger.warn('User transactions query error', { code: txError.code, message: txError.message });
+            databaseLogger.warn("User transactions query error", {
+              code: txError.code,
+              message: txError.message,
+            });
           }
         }
       } catch (e) {
-        databaseLogger.warn('User transactions query exception', e);
+        databaseLogger.warn("User transactions query exception", e);
       }
     }
 
     // ===== SOURCE 5: Query orders table =====
     // Completed orders that may not be in other tables yet
-    if (identity.walletAddress || identity.legacyUserId || identity.canonicalUserId) {
+    if (
+      identity.walletAddress ||
+      identity.legacyUserId ||
+      identity.canonicalUserId
+    ) {
       try {
         // Orders table uses user_id column which stores the user identifier
         const orderFilters: string[] = [];
@@ -2630,8 +3228,9 @@ export const database = {
           // FIXED: Query orders without JOIN to competitions (relationship doesn't exist)
           // Fetch competition data separately
           const { data: ordersData, error: ordersError } = (await supabase
-            .from('orders')
-            .select(`
+            .from("orders")
+            .select(
+              `
               id,
               competition_id,
               user_id,
@@ -2642,23 +3241,30 @@ export const database = {
               payment_tx_hash,
               created_at,
               completed_at
-            `)
-            .or(orderFilters.join(','))
+            `,
+            )
+            .or(orderFilters.join(","))
             // Include ALL valid completed statuses (including 'success')
-            .in('status', ['completed', 'confirmed', 'paid', 'success'])
-            .not('competition_id', 'is', null)
-            .order('created_at', { ascending: false })) as any;
+            .in("status", ["completed", "confirmed", "paid", "success"])
+            .not("competition_id", "is", null)
+            .order("created_at", { ascending: false })) as any;
 
           if (!ordersError && ordersData && ordersData.length > 0) {
             // Fetch competition data separately for all orders
-            const competitionIds = [...new Set(ordersData.map((o: any) => o.competition_id).filter(Boolean))];
+            const competitionIds = [
+              ...new Set(
+                ordersData.map((o: any) => o.competition_id).filter(Boolean),
+              ),
+            ];
             let competitionsMap = new Map<string, any>();
-            
+
             if (competitionIds.length > 0) {
               const { data: compData } = (await supabase
-                .from('competitions')
-                .select('id, uid, title, description, image_url, status, prize_value, is_instant_win, end_date, winner_address')
-                .in('id', competitionIds)) as any;
+                .from("competitions")
+                .select(
+                  "id, uid, title, description, image_url, status, prize_value, is_instant_win, end_date, winner_address",
+                )
+                .in("id", competitionIds)) as any;
               if (compData) {
                 compData.forEach((c: any) => {
                   competitionsMap.set(c.id, c);
@@ -2671,14 +3277,15 @@ export const database = {
               const entry = {
                 id: order.id,
                 competition_id: order.competition_id,
-                title: comp?.title || 'Unknown Competition',
-                description: comp?.description || '',
+                title: comp?.title || "Unknown Competition",
+                description: comp?.description || "",
                 image: comp?.image_url,
-                status: comp?.status === 'active' ? 'live' : (comp?.status || 'live'),
-                entry_type: 'completed',
+                status:
+                  comp?.status === "active" ? "live" : comp?.status || "live",
+                entry_type: "completed",
                 expires_at: null,
                 is_winner: false,
-                ticket_numbers: '',
+                ticket_numbers: "",
                 number_of_tickets: order.ticket_count || 1,
                 amount_spent: order.amount,
                 purchase_date: order.completed_at || order.created_at,
@@ -2686,19 +3293,24 @@ export const database = {
                 transaction_hash: order.payment_tx_hash || null,
                 is_instant_win: comp?.is_instant_win || false,
                 prize_value: comp?.prize_value,
-                competition_status: comp?.status || 'active',
+                competition_status: comp?.status || "active",
                 end_date: comp?.end_date,
               };
 
-              addEntry(entry, 'orders');
+              addEntry(entry, "orders");
             });
-            databaseLogger.debug('Orders query found entries', { count: ordersData.length });
+            databaseLogger.debug("Orders query found entries", {
+              count: ordersData.length,
+            });
           } else if (ordersError) {
-            databaseLogger.warn('Orders query error', { code: ordersError.code, message: ordersError.message });
+            databaseLogger.warn("Orders query error", {
+              code: ordersError.code,
+              message: ordersError.message,
+            });
           }
         }
       } catch (e) {
-        databaseLogger.warn('Orders query exception', e);
+        databaseLogger.warn("Orders query exception", e);
       }
     }
 
@@ -2709,49 +3321,59 @@ export const database = {
       try {
         // Build filter for canonical_user_id
         const ledgerFilters: string[] = [];
-        
+
         if (identity.canonicalUserId) {
-          ledgerFilters.push(`canonical_user_id.eq.${identity.canonicalUserId}`);
+          ledgerFilters.push(
+            `canonical_user_id.eq.${identity.canonicalUserId}`,
+          );
         }
 
         // Also try looking up by wallet if we don't have canonical ID
         if (!identity.canonicalUserId && identity.walletAddress) {
           // Get canonical_user_id from canonical_users first
           const { data: userData } = (await supabase
-            .from('canonical_users')
-            .select('canonical_user_id')
-            .or(`wallet_address.ilike.${identity.walletAddress},base_wallet_address.ilike.${identity.walletAddress}`)
+            .from("canonical_users")
+            .select("canonical_user_id")
+            .or(
+              `wallet_address.ilike.${identity.walletAddress},base_wallet_address.ilike.${identity.walletAddress}`,
+            )
             .maybeSingle()) as any;
-          
+
           if (userData?.canonical_user_id) {
-            ledgerFilters.push(`canonical_user_id.eq.${userData.canonical_user_id}`);
+            ledgerFilters.push(
+              `canonical_user_id.eq.${userData.canonical_user_id}`,
+            );
           }
         }
 
         if (ledgerFilters.length > 0) {
           const { data: ledgerData, error: ledgerError } = (await supabase
-            .from('balance_ledger')
-            .select('*')
-            .or(ledgerFilters.join(','))
-            .eq('source', 'purchase')
-            .lt('amount', 0) // Purchases are negative (debits)
-            .not('metadata->competition_id', 'is', null)
-            .order('created_at', { ascending: false })) as any;
+            .from("balance_ledger")
+            .select("*")
+            .or(ledgerFilters.join(","))
+            .eq("source", "purchase")
+            .lt("amount", 0) // Purchases are negative (debits)
+            .not("metadata->competition_id", "is", null)
+            .order("created_at", { ascending: false })) as any;
 
           if (!ledgerError && ledgerData && ledgerData.length > 0) {
             // Fetch competition data for all competition IDs
-            const competitionIds = [...new Set(
-              ledgerData
-                .map((bl: any) => bl.metadata?.competition_id)
-                .filter(Boolean)
-            )];
+            const competitionIds = [
+              ...new Set(
+                ledgerData
+                  .map((bl: any) => bl.metadata?.competition_id)
+                  .filter(Boolean),
+              ),
+            ];
 
             let competitionsMap = new Map<string, any>();
             if (competitionIds.length > 0) {
               const { data: compData } = (await supabase
-                .from('competitions')
-                .select('id, title, description, image_url, status, prize_value, is_instant_win, end_date, winner_address')
-                .in('id', competitionIds)) as any;
+                .from("competitions")
+                .select(
+                  "id, title, description, image_url, status, prize_value, is_instant_win, end_date, winner_address",
+                )
+                .in("id", competitionIds)) as any;
               if (compData) {
                 compData.forEach((c: any) => {
                   competitionsMap.set(c.id, c);
@@ -2767,38 +3389,53 @@ export const database = {
               const entry = {
                 id: bl.id,
                 competition_id: compId,
-                title: comp?.title || 'Unknown Competition',
-                description: comp?.description || '',
+                title: comp?.title || "Unknown Competition",
+                description: comp?.description || "",
                 image: comp?.image_url,
-                status: comp?.status === 'active' ? 'live' : (comp?.status || 'live'),
-                entry_type: 'completed',
+                status:
+                  comp?.status === "active" ? "live" : comp?.status || "live",
+                entry_type: "completed",
                 expires_at: null,
                 is_winner: false,
-                ticket_numbers: bl.metadata?.ticket_numbers || '',
+                ticket_numbers: bl.metadata?.ticket_numbers || "",
                 number_of_tickets: bl.metadata?.ticket_count || 1,
                 amount_spent: Math.abs(bl.amount),
                 purchase_date: bl.created_at,
-                wallet_address: bl.metadata?.wallet_address || identity.walletAddress,
-                transaction_hash: bl.transaction_id || bl.metadata?.transaction_hash || bl.metadata?.order_id || null,
+                wallet_address:
+                  bl.metadata?.wallet_address || identity.walletAddress,
+                transaction_hash:
+                  bl.transaction_id ||
+                  bl.metadata?.transaction_hash ||
+                  bl.metadata?.order_id ||
+                  null,
                 is_instant_win: comp?.is_instant_win || false,
                 prize_value: comp?.prize_value,
-                competition_status: comp?.status || 'active',
+                competition_status: comp?.status || "active",
                 end_date: comp?.end_date,
               };
 
-              addEntry(entry, 'balance_ledger');
+              addEntry(entry, "balance_ledger");
             });
-            databaseLogger.debug('Balance ledger query found entries', { count: ledgerData.length });
+            databaseLogger.debug("Balance ledger query found entries", {
+              count: ledgerData.length,
+            });
           } else if (ledgerError) {
-            databaseLogger.warn('Balance ledger query error', { code: ledgerError.code, message: ledgerError.message });
+            databaseLogger.warn("Balance ledger query error", {
+              code: ledgerError.code,
+              message: ledgerError.message,
+            });
           }
         }
       } catch (e) {
-        databaseLogger.warn('Balance ledger query exception', e);
+        databaseLogger.warn("Balance ledger query exception", e);
       }
     }
 
-    databaseLogger.info('Individual queries complete', { totalEntries: allEntries.length, sources: 'view+joincompetition+tickets+transactions+orders+balance_ledger' });
+    databaseLogger.info("Individual queries complete", {
+      totalEntries: allEntries.length,
+      sources:
+        "view+joincompetition+tickets+transactions+orders+balance_ledger",
+    });
     return allEntries;
   },
 
@@ -2814,29 +3451,37 @@ export const database = {
     pending_count: number;
   } | null> {
     // Validate competitionId
-    if (!competitionId || competitionId.trim() === '') {
+    if (!competitionId || competitionId.trim() === "") {
       return null;
     }
 
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(competitionId)) {
       return null;
     }
 
     try {
       // Try the new count-only RPC function first
-      const { data, error }: any = (await (supabase.rpc as any)('get_available_ticket_count_v2', {
-        p_competition_id: competitionId.trim()
-      })) as any;
+      const { data, error }: any = (await (supabase.rpc as any)(
+        "get_available_ticket_count_v2",
+        {
+          p_competition_id: competitionId.trim(),
+        },
+      )) as any;
 
       if (error) {
-        console.warn('RPC get_available_ticket_count_v2 not available, using fallback:', error.message);
+        console.warn(
+          "RPC get_available_ticket_count_v2 not available, using fallback:",
+          error.message,
+        );
         // Fallback to existing method (less efficient but works)
-        const unavailable = await this.getUnavailableTicketsForCompetition(competitionId);
+        const unavailable =
+          await this.getUnavailableTicketsForCompetition(competitionId);
         const { data: competition } = (await supabase
-          .from('competitions')
-          .select('total_tickets')
-          .eq('id', competitionId)
+          .from("competitions")
+          .select("total_tickets")
+          .eq("id", competitionId)
           .maybeSingle()) as any;
 
         const totalTickets = competition?.total_tickets || 1000;
@@ -2846,24 +3491,27 @@ export const database = {
           available_count: availableCount,
           total_tickets: totalTickets,
           sold_count: unavailable.size,
-          pending_count: 0 // Can't determine pending count in fallback
+          pending_count: 0, // Can't determine pending count in fallback
         };
       }
 
-      if (data && typeof data === 'object' && (data as any).success) {
+      if (data && typeof data === "object" && (data as any).success) {
         return {
           available_count: (data as any).available_count || 0,
           total_tickets: (data as any).total_tickets || 0,
           sold_count: (data as any).sold_count || 0,
-          pending_count: (data as any).pending_count || 0
+          pending_count: (data as any).pending_count || 0,
         };
       }
 
       // RPC returned error
-      console.warn('get_available_ticket_count_v2 returned error:', (data as any)?.error);
+      console.warn(
+        "get_available_ticket_count_v2 returned error:",
+        (data as any)?.error,
+      );
       return null;
     } catch (error) {
-      handleDatabaseError(error, 'getAvailableTicketCount');
+      handleDatabaseError(error, "getAvailableTicketCount");
       return null;
     }
   },
@@ -2881,7 +3529,7 @@ export const database = {
     count: number,
     ticketPrice: number = 1,
     holdMinutes: number = 15,
-    sessionId?: string
+    sessionId?: string,
   ): Promise<{
     success: boolean;
     reservation_id?: string;
@@ -2894,44 +3542,55 @@ export const database = {
   }> {
     // For large purchases (>100 tickets), delegate to bulk allocation
     if (count > 100) {
-      return this.allocateBulkLuckyDipTickets(competitionId, userId, count, ticketPrice, holdMinutes, sessionId);
+      return this.allocateBulkLuckyDipTickets(
+        competitionId,
+        userId,
+        count,
+        ticketPrice,
+        holdMinutes,
+        sessionId,
+      );
     }
 
     // Validate inputs
     if (!competitionId || !userId || count < 1) {
       return {
         success: false,
-        error: 'Invalid input parameters'
+        error: "Invalid input parameters",
       };
     }
 
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(competitionId)) {
       return {
         success: false,
-        error: 'Invalid competition ID format'
+        error: "Invalid competition ID format",
       };
     }
 
     try {
-      const { data, error} = (await (supabase.rpc as any)('allocate_lucky_dip_tickets', {
-        p_user_id: userId.trim(),
-        p_competition_id: competitionId.trim(),
-        p_ticket_count: count,
-        p_ticket_price: ticketPrice,
-        p_hold_minutes: holdMinutes,
-        p_session_id: sessionId || null
-      })) as any;
+      const { data, error } = (await (supabase.rpc as any)(
+        "allocate_lucky_dip_tickets",
+        {
+          p_user_id: userId.trim(),
+          p_competition_id: competitionId.trim(),
+          p_ticket_count: count,
+          p_ticket_price: ticketPrice,
+          p_hold_minutes: holdMinutes,
+          p_session_id: sessionId || null,
+        },
+      )) as any;
 
       if (error) {
-        console.error('allocate_lucky_dip_tickets RPC error:', error);
+        console.error("allocate_lucky_dip_tickets RPC error:", error);
         return {
           success: false,
-          error: error.message || 'Failed to allocate tickets'
+          error: error.message || "Failed to allocate tickets",
         };
       }
 
-      if (data && typeof data === 'object') {
+      if (data && typeof data === "object") {
         const rpcData = data as any;
         return {
           success: rpcData.success === true,
@@ -2940,20 +3599,22 @@ export const database = {
           ticket_count: rpcData.ticket_count,
           total_amount: rpcData.total_amount,
           expires_at: rpcData.expires_at,
-          available_count: rpcData.available_count || rpcData.available_count_after,
-          error: rpcData.error
+          available_count:
+            rpcData.available_count || rpcData.available_count_after,
+          error: rpcData.error,
         };
       }
 
       return {
         success: false,
-        error: 'Unexpected response from server'
+        error: "Unexpected response from server",
       };
     } catch (error) {
-      handleDatabaseError(error, 'allocateLuckyDipTickets');
+      handleDatabaseError(error, "allocateLuckyDipTickets");
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to allocate tickets'
+        error:
+          error instanceof Error ? error.message : "Failed to allocate tickets",
       };
     }
   },
@@ -2980,7 +3641,7 @@ export const database = {
     count: number,
     ticketPrice: number = 1,
     holdMinutes: number = 15,
-    sessionId?: string
+    sessionId?: string,
   ): Promise<{
     success: boolean;
     reservation_id?: string;
@@ -2999,44 +3660,57 @@ export const database = {
     const BASE_RETRY_DELAY_MS = 500;
 
     // Validate inputs
-    if (!competitionId || competitionId.trim() === '') {
-      return { success: false, error: 'Competition ID is required' };
+    if (!competitionId || competitionId.trim() === "") {
+      return { success: false, error: "Competition ID is required" };
     }
 
-    if (!userId || userId.trim() === '') {
-      return { success: false, error: 'User ID is required' };
+    if (!userId || userId.trim() === "") {
+      return { success: false, error: "User ID is required" };
     }
 
     if (count < 1) {
-      return { success: false, error: 'Count must be at least 1' };
+      return { success: false, error: "Count must be at least 1" };
     }
 
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(competitionId)) {
-      return { success: false, error: 'Invalid competition ID format' };
+      return { success: false, error: "Invalid competition ID format" };
     }
 
     // Normalize user ID
     const canonicalUserId = toPrizePid(userId.trim());
-    console.log(`[BulkLuckyDip] Starting allocation of ${count} tickets for ${canonicalUserId.slice(0, 20)}...`);
+    console.log(
+      `[BulkLuckyDip] Starting allocation of ${count} tickets for ${canonicalUserId.slice(0, 20)}...`,
+    );
 
     try {
       // Step 1: Fetch all unavailable tickets upfront
       let excludedTickets: number[] = [];
       try {
-        const { data: unavailableData, error: unavailableError } = (await (supabase.rpc as any)(
-          'get_competition_unavailable_tickets',
-          { p_competition_id: competitionId.trim() }
-        )) as any;
+        const { data: unavailableData, error: unavailableError } = (await (
+          supabase.rpc as any
+        )("get_competition_unavailable_tickets", {
+          p_competition_id: competitionId.trim(),
+        })) as any;
 
-        if (!unavailableError && unavailableData && Array.isArray(unavailableData)) {
+        if (
+          !unavailableError &&
+          unavailableData &&
+          Array.isArray(unavailableData)
+        ) {
           excludedTickets = unavailableData
             .filter((row: any) => row.ticket_number != null)
             .map((row: any) => row.ticket_number);
-          console.log(`[BulkLuckyDip] Found ${excludedTickets.length} unavailable tickets`);
+          console.log(
+            `[BulkLuckyDip] Found ${excludedTickets.length} unavailable tickets`,
+          );
         }
       } catch (err) {
-        console.warn('[BulkLuckyDip] Could not fetch unavailable tickets, proceeding anyway:', err);
+        console.warn(
+          "[BulkLuckyDip] Could not fetch unavailable tickets, proceeding anyway:",
+          err,
+        );
       }
 
       // Step 2: Calculate batches
@@ -3060,45 +3734,64 @@ export const database = {
       for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
         const batchSize = batches[batchIndex];
         let batchSuccess = false;
-        let lastBatchError = '';
+        let lastBatchError = "";
 
         // Retry loop for this batch
-        for (let attempt = 0; attempt < MAX_RETRIES && !batchSuccess; attempt++) {
+        for (
+          let attempt = 0;
+          attempt < MAX_RETRIES && !batchSuccess;
+          attempt++
+        ) {
           if (attempt > 0) {
             totalRetries++;
-            const delay = Math.min(BASE_RETRY_DELAY_MS * Math.pow(2, attempt - 1), 5000);
+            const delay = Math.min(
+              BASE_RETRY_DELAY_MS * Math.pow(2, attempt - 1),
+              5000,
+            );
             const jitter = delay * 0.3 * (Math.random() * 2 - 1);
-            await new Promise(resolve => setTimeout(resolve, Math.max(0, delay + jitter)));
-            console.log(`[BulkLuckyDip] Batch ${batchIndex + 1} retry ${attempt}...`);
+            await new Promise((resolve) =>
+              setTimeout(resolve, Math.max(0, delay + jitter)),
+            );
+            console.log(
+              `[BulkLuckyDip] Batch ${batchIndex + 1} retry ${attempt}...`,
+            );
           }
 
           try {
             // Combine pre-existing unavailable + newly allocated from previous batches
             const currentExcluded = [...excludedTickets, ...allTicketNumbers];
 
-            const { data, error }: any = (await (supabase.rpc as any)('allocate_lucky_dip_tickets_batch', {
-              p_user_id: canonicalUserId,
-              p_competition_id: competitionId.trim(),
-              p_count: batchSize,
-              p_ticket_price: ticketPrice,
-              p_hold_minutes: holdMinutes,
-              p_session_id: sessionId || null,
-              p_excluded_tickets: currentExcluded.length > 0 ? currentExcluded : null
-            })) as any;
+            const { data, error }: any = (await (supabase.rpc as any)(
+              "allocate_lucky_dip_tickets_batch",
+              {
+                p_user_id: canonicalUserId,
+                p_competition_id: competitionId.trim(),
+                p_count: batchSize,
+                p_ticket_price: ticketPrice,
+                p_hold_minutes: holdMinutes,
+                p_session_id: sessionId || null,
+                p_excluded_tickets:
+                  currentExcluded.length > 0 ? currentExcluded : null,
+              },
+            )) as any;
 
             if (error) {
               lastBatchError = error.message;
-              console.warn(`[BulkLuckyDip] Batch ${batchIndex + 1} attempt ${attempt + 1} error:`, error.message);
+              console.warn(
+                `[BulkLuckyDip] Batch ${batchIndex + 1} attempt ${attempt + 1} error:`,
+                error.message,
+              );
               continue;
             }
 
-            const result = typeof data === 'string' ? JSON.parse(data) : data;
+            const result = typeof data === "string" ? JSON.parse(data) : data;
 
             if (!result?.success) {
-              lastBatchError = result?.error || 'Unknown error';
-              const isRetryable = result?.retryable === true ||
-                lastBatchError.includes('locked') ||
-                lastBatchError.includes('temporarily');
+              lastBatchError = result?.error || "Unknown error";
+              const isRetryable =
+                result?.retryable === true ||
+                lastBatchError.includes("locked") ||
+                lastBatchError.includes("temporarily");
 
               if (!isRetryable) {
                 // Non-retryable error, break out of retry loop
@@ -3119,17 +3812,24 @@ export const database = {
               lastExpiresAt = result.expires_at;
             }
 
-            console.log(`[BulkLuckyDip] Batch ${batchIndex + 1} succeeded: ${result.ticket_count} tickets`);
-
+            console.log(
+              `[BulkLuckyDip] Batch ${batchIndex + 1} succeeded: ${result.ticket_count} tickets`,
+            );
           } catch (err) {
-            lastBatchError = err instanceof Error ? err.message : 'Unknown error';
-            console.error(`[BulkLuckyDip] Batch ${batchIndex + 1} attempt ${attempt + 1} exception:`, lastBatchError);
+            lastBatchError =
+              err instanceof Error ? err.message : "Unknown error";
+            console.error(
+              `[BulkLuckyDip] Batch ${batchIndex + 1} attempt ${attempt + 1} exception:`,
+              lastBatchError,
+            );
           }
         }
 
         // If batch failed after all retries
         if (!batchSuccess) {
-          console.error(`[BulkLuckyDip] Batch ${batchIndex + 1} failed after ${MAX_RETRIES} attempts`);
+          console.error(
+            `[BulkLuckyDip] Batch ${batchIndex + 1} failed after ${MAX_RETRIES} attempts`,
+          );
 
           // Return partial success if we have some tickets
           if (allTicketNumbers.length > 0) {
@@ -3142,21 +3842,23 @@ export const database = {
               expires_at: lastExpiresAt || undefined,
               error: `Partial allocation: ${allTicketNumbers.length}/${count} tickets reserved. Batch ${batchIndex + 1} failed: ${lastBatchError}`,
               batch_count: batchIndex,
-              retry_attempts: totalRetries
+              retry_attempts: totalRetries,
             };
           }
 
           return {
             success: false,
-            error: lastBatchError || 'Failed to allocate tickets',
+            error: lastBatchError || "Failed to allocate tickets",
             batch_count: 0,
-            retry_attempts: totalRetries
+            retry_attempts: totalRetries,
           };
         }
       }
 
       // All batches succeeded
-      console.log(`[BulkLuckyDip] Successfully allocated ${allTicketNumbers.length} tickets across ${numBatches} batches`);
+      console.log(
+        `[BulkLuckyDip] Successfully allocated ${allTicketNumbers.length} tickets across ${numBatches} batches`,
+      );
 
       return {
         success: true,
@@ -3167,14 +3869,14 @@ export const database = {
         total_amount: allTicketNumbers.length * ticketPrice,
         expires_at: lastExpiresAt || undefined,
         batch_count: numBatches,
-        retry_attempts: totalRetries
+        retry_attempts: totalRetries,
       };
-
     } catch (error) {
-      handleDatabaseError(error, 'allocateBulkLuckyDipTickets');
+      handleDatabaseError(error, "allocateBulkLuckyDipTickets");
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to allocate tickets'
+        error:
+          error instanceof Error ? error.message : "Failed to allocate tickets",
       };
     }
   },
@@ -3189,54 +3891,69 @@ export const database = {
     available_count: number;
   } | null> {
     // Validate competitionId
-    if (!competitionId || competitionId.trim() === '') {
+    if (!competitionId || competitionId.trim() === "") {
       return null;
     }
 
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(competitionId)) {
       return null;
     }
 
     try {
       // Use the text wrapper RPC to avoid uuid = text type errors
-      const { data, error }: any = (await (supabase.rpc as any)('get_competition_ticket_availability_text', {
-        p_competition_id: competitionId.trim()
-      })) as any;
+      const { data, error }: any = (await (supabase.rpc as any)(
+        "get_competition_ticket_availability_text",
+        {
+          p_competition_id: competitionId.trim(),
+        },
+      )) as any;
 
       if (error) {
-        console.warn('RPC get_competition_ticket_availability_text not available, using fallback:', error.message);
+        console.warn(
+          "RPC get_competition_ticket_availability_text not available, using fallback:",
+          error.message,
+        );
         // Fallback to existing method
         return null;
       }
 
       // Parse the JSON response if needed
-      if (data && typeof data === 'object') {
+      if (data && typeof data === "object") {
         const rpcData = data as any;
         // Check for error responses from the RPC function
         // The RPC returns { error: "message" } when competition is not found or invalid
         if (rpcData.error) {
-          console.warn('RPC get_competition_ticket_availability_text returned error:', rpcData.error);
+          console.warn(
+            "RPC get_competition_ticket_availability_text returned error:",
+            rpcData.error,
+          );
           return null;
         }
         return {
           competition_id: rpcData.competition_id || competitionId,
           total_tickets: rpcData.total_tickets || 0,
-          available_tickets: Array.isArray(rpcData.available_tickets) ? rpcData.available_tickets : [],
+          available_tickets: Array.isArray(rpcData.available_tickets)
+            ? rpcData.available_tickets
+            : [],
           sold_count: rpcData.sold_count || 0,
-          available_count: rpcData.available_count || 0
+          available_count: rpcData.available_count || 0,
         };
       }
 
       return null;
     } catch (error) {
-      handleDatabaseError(error, 'getAccurateTicketAvailability');
+      handleDatabaseError(error, "getAccurateTicketAvailability");
       return null;
     }
   },
 
   // Get user's tickets for a specific competition using RPC function (if available)
-  async getUserTicketsForCompetition(userId: string, competitionId: string): Promise<{
+  async getUserTicketsForCompetition(
+    userId: string,
+    competitionId: string,
+  ): Promise<{
     user_id: string;
     competition_id: string;
     tickets: number[];
@@ -3249,31 +3966,44 @@ export const database = {
 
     try {
       // The RPC expects parameters in order: competition_id, user_id (not user_id, competition_id)
-      const { data, error }: any = (await (supabase.rpc as any)('get_user_tickets_for_competition', {
-        competition_id: competitionId.trim(),
-        user_id: userId.trim()
-      })) as any;
+      const { data, error }: any = (await (supabase.rpc as any)(
+        "get_user_tickets_for_competition",
+        {
+          competition_id: competitionId.trim(),
+          user_id: userId.trim(),
+        },
+      )) as any;
 
       if (error) {
-        console.warn('RPC get_user_tickets_for_competition not available:', error.message);
+        console.warn(
+          "RPC get_user_tickets_for_competition not available:",
+          error.message,
+        );
         return null;
       }
 
       // The RPC returns JSONB with format: { success: true, tickets: [{ticket_number: 1, ...}, ...] }
-      if (data && typeof data === 'object' && 'tickets' in data && Array.isArray(data.tickets)) {
+      if (
+        data &&
+        typeof data === "object" &&
+        "tickets" in data &&
+        Array.isArray(data.tickets)
+      ) {
         // Extract just the ticket numbers from the ticket objects
-        const ticketNumbers = data.tickets.map((t: any) => t.ticket_number).filter((n: number) => typeof n === 'number');
+        const ticketNumbers = data.tickets
+          .map((t: any) => t.ticket_number)
+          .filter((n: number) => typeof n === "number");
         return {
           user_id: userId,
           competition_id: competitionId,
           tickets: ticketNumbers,
-          ticket_count: ticketNumbers.length
+          ticket_count: ticketNumbers.length,
         };
       }
 
       return null;
     } catch (error) {
-      handleDatabaseError(error, 'getUserTicketsForCompetition');
+      handleDatabaseError(error, "getUserTicketsForCompetition");
       return null;
     }
   },
@@ -3285,40 +4015,42 @@ export const database = {
   async assignTickets(
     competitionId: string,
     userId: string,
-    selectedTickets: number[] | null = null
+    selectedTickets: number[] | null = null,
   ): Promise<number[]> {
     // PRIORITY: Use user selections first
     if (selectedTickets && selectedTickets.length > 0) {
       // Verify tickets are available
       const availableTickets = await this.getAvailableTicketsForCompetition(
         competitionId,
-        1000 // Max tickets to check
+        1000, // Max tickets to check
       );
       const availableSet = new Set(availableTickets);
-      const unavailable = selectedTickets.filter(t => !availableSet.has(t));
+      const unavailable = selectedTickets.filter((t) => !availableSet.has(t));
 
       if (unavailable.length > 0) {
-        throw new Error(`Tickets ${unavailable.join(', ')} are no longer available`);
+        throw new Error(
+          `Tickets ${unavailable.join(", ")} are no longer available`,
+        );
       }
 
       // Reserve tickets first to prevent race conditions
-      const { error }: any = (await (supabase
-        .from('pending_tickets') as any)
-        .insert({
-          id: crypto.randomUUID(),
-          user_id: userId,
-          competition_id: competitionId,
-          ticket_numbers: selectedTickets,
-          ticket_count: selectedTickets.length,
-          status: 'pending',
-          expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })) as any;
+      const { error }: any = (await (
+        supabase.from("pending_tickets") as any
+      ).insert({
+        id: crypto.randomUUID(),
+        user_id: userId,
+        competition_id: competitionId,
+        ticket_numbers: selectedTickets,
+        ticket_count: selectedTickets.length,
+        status: "pending",
+        expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })) as any;
 
       if (error) {
-        handleDatabaseError(error, 'assignTickets - reserve');
-        throw new Error('Failed to reserve tickets');
+        handleDatabaseError(error, "assignTickets - reserve");
+        throw new Error("Failed to reserve tickets");
       }
 
       return selectedTickets;
@@ -3334,20 +4066,25 @@ export const database = {
   async assignRandomTickets(
     competitionId: string,
     userId: string,
-    ticketCount: number = 1
+    ticketCount: number = 1,
   ): Promise<number[]> {
     try {
       const { data: competition } = (await supabase
-        .from('competitions')
-        .select('total_tickets')
-        .eq('id', competitionId)
+        .from("competitions")
+        .select("total_tickets")
+        .eq("id", competitionId)
         .maybeSingle()) as any;
 
       const totalTickets = competition?.total_tickets || 1000;
-      const availableTickets = await this.getAvailableTicketsForCompetition(competitionId, totalTickets);
+      const availableTickets = await this.getAvailableTicketsForCompetition(
+        competitionId,
+        totalTickets,
+      );
 
       if (availableTickets.length < ticketCount) {
-        throw new Error(`Not enough tickets available. Requested: ${ticketCount}, Available: ${availableTickets.length}`);
+        throw new Error(
+          `Not enough tickets available. Requested: ${ticketCount}, Available: ${availableTickets.length}`,
+        );
       }
 
       // Shuffle and pick random tickets
@@ -3355,28 +4092,28 @@ export const database = {
       const selectedTickets = shuffled.slice(0, ticketCount);
 
       // Reserve the tickets
-      const { error }: any = (await (supabase
-        .from('pending_tickets') as any)
-        .insert({
-          id: crypto.randomUUID(),
-          user_id: userId,
-          competition_id: competitionId,
-          ticket_numbers: selectedTickets,
-          ticket_count: selectedTickets.length,
-          status: 'pending',
-          expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })) as any;
+      const { error }: any = (await (
+        supabase.from("pending_tickets") as any
+      ).insert({
+        id: crypto.randomUUID(),
+        user_id: userId,
+        competition_id: competitionId,
+        ticket_numbers: selectedTickets,
+        ticket_count: selectedTickets.length,
+        status: "pending",
+        expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })) as any;
 
       if (error) {
-        handleDatabaseError(error, 'assignRandomTickets');
-        throw new Error('Failed to reserve random tickets');
+        handleDatabaseError(error, "assignRandomTickets");
+        throw new Error("Failed to reserve random tickets");
       }
 
       return selectedTickets;
     } catch (error) {
-      handleDatabaseError(error, 'assignRandomTickets - outer catch');
+      handleDatabaseError(error, "assignRandomTickets - outer catch");
       throw error;
     }
   },
@@ -3389,97 +4126,123 @@ export const database = {
     competitionId: string,
     ticketNumbers: number[],
     userId: string,
-    timeoutMinutes: number = 10
+    timeoutMinutes: number = 10,
   ): Promise<{ reservationId: string; success: boolean; error?: string }> {
     try {
       const reservationId = crypto.randomUUID();
-      const expiresAt = new Date(Date.now() + timeoutMinutes * 60 * 1000).toISOString();
+      const expiresAt = new Date(
+        Date.now() + timeoutMinutes * 60 * 1000,
+      ).toISOString();
 
       // Use production reserve_tickets RPC for atomic reservation
       // This prevents race conditions by using database-level locking
       try {
-        const { data: rpcResult, error: rpcError } = await (supabase.rpc as any)('reserve_tickets', {
+        const { data: rpcResult, error: rpcError } = await (
+          supabase.rpc as any
+        )("reserve_tickets", {
           p_competition_id: competitionId,
           p_wallet_address: userId, // Note: function expects wallet_address
           p_ticket_count: ticketNumbers.length,
-          p_hold_minutes: timeoutMinutes
+          p_hold_minutes: timeoutMinutes,
         });
 
         if (!rpcError && rpcResult) {
           // Production function returns: { pending_ticket_id, expires_at, ticket_numbers }
-          return { 
-            reservationId: rpcResult.pending_ticket_id || reservationId, 
-            success: true 
+          return {
+            reservationId: rpcResult.pending_ticket_id || reservationId,
+            success: true,
           };
         }
         // If RPC fails, fall back to non-atomic approach
-        console.warn('reserve_tickets RPC failed, using fallback:', rpcError);
+        console.warn("reserve_tickets RPC failed, using fallback:", rpcError);
       } catch (rpcErr) {
-        console.warn('reserve_tickets RPC exception, using fallback:', rpcErr);
+        console.warn("reserve_tickets RPC exception, using fallback:", rpcErr);
       }
 
       // Fallback: non-atomic approach (original implementation)
       // First, verify all tickets are still available (includes user exclusion)
-      const unavailable = await this.getUnavailableTicketsForCompetition(competitionId, userId);
-      const conflicting = ticketNumbers.filter(t => unavailable.has(t));
+      const unavailable = await this.getUnavailableTicketsForCompetition(
+        competitionId,
+        userId,
+      );
+      const conflicting = ticketNumbers.filter((t) => unavailable.has(t));
 
       if (conflicting.length > 0) {
         return {
-          reservationId: '',
+          reservationId: "",
           success: false,
-          error: `Tickets ${conflicting.join(', ')} are no longer available`
+          error: `Tickets ${conflicting.join(", ")} are no longer available`,
         };
       }
 
       // Cancel any existing pending reservations for this user/competition
-      await ((supabase
-        .from('pending_tickets') as any)
-        .update({ status: 'cancelled', updated_at: new Date().toISOString() } as any)
-        .eq('user_id', userId)
-        .eq('competition_id', competitionId)
-        .eq('status', 'pending') as any);
+      await ((supabase.from("pending_tickets") as any)
+        .update({
+          status: "cancelled",
+          updated_at: new Date().toISOString(),
+        } as any)
+        .eq("user_id", userId)
+        .eq("competition_id", competitionId)
+        .eq("status", "pending") as any);
 
       // ISSUE #4 FIX: Double-check availability after cancelling own reservations
       // This narrows the race condition window
-      const recheckUnavailable = await this.getUnavailableTicketsForCompetition(competitionId, userId);
-      const recheckConflicting = ticketNumbers.filter(t => recheckUnavailable.has(t));
+      const recheckUnavailable = await this.getUnavailableTicketsForCompetition(
+        competitionId,
+        userId,
+      );
+      const recheckConflicting = ticketNumbers.filter((t) =>
+        recheckUnavailable.has(t),
+      );
 
       if (recheckConflicting.length > 0) {
         return {
-          reservationId: '',
+          reservationId: "",
           success: false,
-          error: `Tickets ${recheckConflicting.join(', ')} were reserved by another user`
+          error: `Tickets ${recheckConflicting.join(", ")} were reserved by another user`,
         };
       }
 
       // Create new reservation
-      const { error }: any = (await (supabase
-        .from('pending_tickets') as any)
-        .insert({
-          id: reservationId,
-          user_id: userId,
-          competition_id: competitionId,
-          ticket_numbers: ticketNumbers,
-          ticket_count: ticketNumbers.length,
-          status: 'pending',
-          expires_at: expiresAt,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })) as any;
+      const { error }: any = (await (
+        supabase.from("pending_tickets") as any
+      ).insert({
+        id: reservationId,
+        user_id: userId,
+        competition_id: competitionId,
+        ticket_numbers: ticketNumbers,
+        ticket_count: ticketNumbers.length,
+        status: "pending",
+        expires_at: expiresAt,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })) as any;
 
       if (error) {
         // ISSUE #4 FIX: Check if error is a unique constraint violation (another user reserved)
-        if (error.code === '23505' || error.message?.includes('unique') || error.message?.includes('duplicate')) {
-          return { reservationId: '', success: false, error: 'One or more tickets were just reserved by another user' };
+        if (
+          error.code === "23505" ||
+          error.message?.includes("unique") ||
+          error.message?.includes("duplicate")
+        ) {
+          return {
+            reservationId: "",
+            success: false,
+            error: "One or more tickets were just reserved by another user",
+          };
         }
-        handleDatabaseError(error, 'reserveTickets');
-        return { reservationId: '', success: false, error: error.message };
+        handleDatabaseError(error, "reserveTickets");
+        return { reservationId: "", success: false, error: error.message };
       }
 
       return { reservationId, success: true };
     } catch (error) {
-      handleDatabaseError(error, 'reserveTickets - outer catch');
-      return { reservationId: '', success: false, error: 'Failed to reserve tickets' };
+      handleDatabaseError(error, "reserveTickets - outer catch");
+      return {
+        reservationId: "",
+        success: false,
+        error: "Failed to reserve tickets",
+      };
     }
   },
 
@@ -3490,26 +4253,28 @@ export const database = {
     try {
       // Use RPC function to bypass RLS which fails with Privy auth (auth.uid() is null)
       const { data, error: rpcError } = (await (supabase.rpc as any)(
-        'confirm_pending_ticket_reservation' as any,
-        { p_reservation_id: reservationId }
+        "confirm_pending_ticket_reservation" as any,
+        { p_reservation_id: reservationId },
       )) as any;
 
       if (rpcError) {
         // Fallback to direct update if RPC doesn't exist yet
-        console.warn('[confirmReservedTickets] RPC not available, using fallback:', rpcError.message);
+        console.warn(
+          "[confirmReservedTickets] RPC not available, using fallback:",
+          rpcError.message,
+        );
 
-        const { error }: any = (await (supabase
-          .from('pending_tickets') as any)
+        const { error }: any = (await (supabase.from("pending_tickets") as any)
           .update({
-            status: 'confirmed',
+            status: "confirmed",
             confirmed_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           } as any)
-          .eq('id', reservationId)
-          .eq('status', 'pending')) as any;
+          .eq("id", reservationId)
+          .eq("status", "pending")) as any;
 
         if (error) {
-          handleDatabaseError(error, 'confirmReservedTickets');
+          handleDatabaseError(error, "confirmReservedTickets");
           return false;
         }
 
@@ -3518,7 +4283,7 @@ export const database = {
 
       return data === true;
     } catch (error) {
-      handleDatabaseError(error, 'confirmReservedTickets - outer catch');
+      handleDatabaseError(error, "confirmReservedTickets - outer catch");
       return false;
     }
   },
@@ -3533,7 +4298,9 @@ export const database = {
    * The status sync only affects the local display - actual status updates
    * are handled by the server-side competition-lifecycle-checker.mts function.
    */
-  async syncStaleCompetitionStatuses(competitionIds: string[]): Promise<{ updated: string[]; failed: string[] }> {
+  async syncStaleCompetitionStatuses(
+    competitionIds: string[],
+  ): Promise<{ updated: string[]; failed: string[] }> {
     const updated: string[] = [];
     const failed: string[] = [];
 
@@ -3544,14 +4311,17 @@ export const database = {
     try {
       // Get competitions that might be stale (ended but still marked active)
       const { data: competitions, error } = (await supabase
-        .from('competitions')
-        .select('id, status, end_date')
-        .in('id', competitionIds)
-        .eq('status', 'active')
-        .not('end_date', 'is', null)) as any;
+        .from("competitions")
+        .select("id, status, end_date")
+        .in("id", competitionIds)
+        .eq("status", "active")
+        .not("end_date", "is", null)) as any;
 
       if (error) {
-        console.warn('[syncStaleCompetitionStatuses] Error fetching competitions:', error);
+        console.warn(
+          "[syncStaleCompetitionStatuses] Error fetching competitions:",
+          error,
+        );
         return { updated, failed };
       }
 
@@ -3570,7 +4340,9 @@ export const database = {
         return { updated, failed };
       }
 
-      databaseLogger.info(`[syncStaleCompetitionStatuses] Found ${staleCompetitions.length} stale competitions`);
+      databaseLogger.info(
+        `[syncStaleCompetitionStatuses] Found ${staleCompetitions.length} stale competitions`,
+      );
 
       // Try to trigger a status sync via RPC (if available)
       // This will update the database so future loads don't need to sync
@@ -3578,32 +4350,43 @@ export const database = {
         try {
           // Try calling an RPC to sync status (may not exist in all environments)
           // NOTE: competition.id could be either UUID or string - ensure proper format
-          const competitionIdParam = competition.id?.toString() || competition.id;
-          const { error: rpcError } = (await (supabase.rpc as any)('sync_competition_status_if_ended', {
-            p_competition_id: competitionIdParam
-          })) as any;
+          const competitionIdParam =
+            competition.id?.toString() || competition.id;
+          const { error: rpcError } = (await (supabase.rpc as any)(
+            "sync_competition_status_if_ended",
+            {
+              p_competition_id: competitionIdParam,
+            },
+          )) as any;
 
           if (rpcError) {
             // RPC doesn't exist or failed - that's OK, we'll handle it client-side
             // The EntriesList already overrides status based on end_date
-            databaseLogger.debug(`[syncStaleCompetitionStatuses] RPC not available for ${competition.id}: ${rpcError.message}`);
+            databaseLogger.debug(
+              `[syncStaleCompetitionStatuses] RPC not available for ${competition.id}: ${rpcError.message}`,
+            );
             failed.push(competition.id);
           } else {
             updated.push(competition.id);
           }
         } catch (rpcErr) {
-          databaseLogger.warn(`[syncStaleCompetitionStatuses] Error syncing ${competition.id}:`, rpcErr);
+          databaseLogger.warn(
+            `[syncStaleCompetitionStatuses] Error syncing ${competition.id}:`,
+            rpcErr,
+          );
           failed.push(competition.id);
         }
       }
 
       if (updated.length > 0) {
-        databaseLogger.success(`[syncStaleCompetitionStatuses] Updated ${updated.length} competition(s)`);
+        databaseLogger.success(
+          `[syncStaleCompetitionStatuses] Updated ${updated.length} competition(s)`,
+        );
       }
 
       return { updated, failed };
     } catch (error) {
-      handleDatabaseError(error, 'syncStaleCompetitionStatuses');
+      handleDatabaseError(error, "syncStaleCompetitionStatuses");
       return { updated, failed };
     }
   },
@@ -3615,114 +4398,145 @@ export const database = {
    */
   async getUserEntriesFromCompetitionEntries(userId: string) {
     try {
-      if (!userId || userId.trim() === '') {
-        databaseLogger.warn('getUserEntriesFromCompetitionEntries: No userId provided');
+      if (!userId || userId.trim() === "") {
+        databaseLogger.warn(
+          "getUserEntriesFromCompetitionEntries: No userId provided",
+        );
         return [];
       }
 
       // Use the RPC function to get entries with individual_purchases
       // This ensures we get all the fields mentioned in PR #355, including individual_purchases
-      const { data, error }: any = await getUserCompetitionEntries(supabase, userId);
+      const { data, error }: any = await getUserCompetitionEntries(
+        supabase,
+        userId,
+      );
 
       if (error) {
-        databaseLogger.warn('get_user_competition_entries RPC failed, falling back to getUserEntries', error.message);
+        databaseLogger.warn(
+          "get_user_competition_entries RPC failed, falling back to getUserEntries",
+          error.message,
+        );
         // Fallback to the legacy method
         return this.getUserEntries(userId);
       }
 
       if (!data || !Array.isArray(data) || data.length === 0) {
-        databaseLogger.info('getUserEntriesFromCompetitionEntries: No entries in competition_entries, falling back to comprehensive method');
+        databaseLogger.info(
+          "getUserEntriesFromCompetitionEntries: No entries in competition_entries, falling back to comprehensive method",
+        );
         // Fallback to the comprehensive method that queries joincompetition, tickets, user_transactions, and pending_tickets
         return this.getUserEntries(userId);
       }
 
-      databaseLogger.success(`getUserEntriesFromCompetitionEntries: Found ${data.length} entries`);
+      databaseLogger.success(
+        `getUserEntriesFromCompetitionEntries: Found ${data.length} entries`,
+      );
 
-      console.log('[Database.getUserEntriesFromCompetitionEntries] Raw data:', {
+      console.log("[Database.getUserEntriesFromCompetitionEntries] Raw data:", {
         count: data.length,
-        sampleEntry: data[0] ? {
-          id: data[0].id,
-          competition_id: data[0].competition_id,
-          competition_title: data[0].competition_title,
-          tickets_count: data[0].tickets_count,
-          ticket_numbers: data[0].ticket_numbers,
-          amount_spent: data[0].amount_spent,
-          individual_purchases: data[0].individual_purchases,
-          competition_image_url: data[0].competition_image_url,
-          competition_status: data[0].competition_status,
-          competition_end_date: data[0].competition_end_date
-        } : null
+        sampleEntry: data[0]
+          ? {
+              id: data[0].id,
+              competition_id: data[0].competition_id,
+              competition_title: data[0].competition_title,
+              tickets_count: data[0].tickets_count,
+              ticket_numbers: data[0].ticket_numbers,
+              amount_spent: data[0].amount_spent,
+              individual_purchases: data[0].individual_purchases,
+              competition_image_url: data[0].competition_image_url,
+              competition_status: data[0].competition_status,
+              competition_end_date: data[0].competition_end_date,
+            }
+          : null,
       });
 
       // Transform to the format expected by the frontend
       // Exact mapping as specified in PR #355:
       // Use data from RPC function which includes individual_purchases
       const formattedEntries: any[] = [];
-      
+
       // Helper to map status from competitions.status to UI buckets
-      const mapStatus = (raw?: string | null): 'live' | 'completed' | 'drawn' | 'pending' => {
-        switch ((raw || '').toLowerCase()) {
-          case 'drawn':
-          case 'completed':
-          case 'finished':
-          case 'ended':
-            return 'drawn'; // UI treats 'drawn'/'completed' as finished
-          case 'live':
-          case 'active':
-          case 'running':
-            return 'live';
-          case 'pending':
-            return 'pending';
-          case 'upcoming':
+      const mapStatus = (
+        raw?: string | null,
+      ): "live" | "completed" | "drawn" | "pending" => {
+        switch ((raw || "").toLowerCase()) {
+          case "drawn":
+          case "completed":
+          case "finished":
+          case "ended":
+            return "drawn"; // UI treats 'drawn'/'completed' as finished
+          case "live":
+          case "active":
+          case "running":
+            return "live";
+          case "pending":
+            return "pending";
+          case "upcoming":
           default:
             // Per PR #355 spec: choose live for countdown; change if you have a separate "upcoming" tab
-            return 'live';
+            return "live";
         }
       };
 
       // Helper to format amount to 2 decimal places
       // Returns string as per PR #355 spec: amountSpent?: string; // 2-decimal string
       const formatAmount = (n: any) => {
-        const v = parseFloat(String(n ?? '0'));
-        return Number.isFinite(v) ? v.toFixed(2) : '0.00';
+        const v = parseFloat(String(n ?? "0"));
+        return Number.isFinite(v) ? v.toFixed(2) : "0.00";
       };
-      
+
       data.forEach((entry: any) => {
         // SKIP ENTRIES WITH NO VALID TICKETS
         const entryTickets = Array.isArray(entry.ticket_numbers)
           ? entry.ticket_numbers.filter((t: any) => t && t > 0)
-          : String(entry.ticket_numbers || '').split(',').map(t => parseInt(t.trim())).filter(t => !isNaN(t) && t > 0);
-        
+          : String(entry.ticket_numbers || "")
+              .split(",")
+              .map((t) => parseInt(t.trim()))
+              .filter((t) => !isNaN(t) && t > 0);
+
         if (entryTickets.length === 0) {
-          console.log('[Database.getUserEntriesFromCompetitionEntries] Skipping entry with no valid tickets:', entry.id);
+          console.log(
+            "[Database.getUserEntriesFromCompetitionEntries] Skipping entry with no valid tickets:",
+            entry.id,
+          );
           return; // Skip this entry entirely
         }
 
         // RPC function returns flattened data with competition_ prefixes
         const rawCompetitionStatus = entry.competition_status;
         const status = mapStatus(rawCompetitionStatus);
-        
+
         // endDate from RPC
         const endDate = entry.competition_end_date ?? null;
-        
+
         // amountSpent: amount_spent (fallback to amount_paid if null)
         const amountSource = entry.amount_spent ?? entry.amount_paid ?? null;
-        
+
         // Check if individual_purchases exists and has items
         const individualPurchases = entry.individual_purchases || [];
-        
+
         // FILTER OUT INVALID PURCHASES - must have valid ticket_numbers with at least one real ticket
-        const validPurchases = Array.isArray(individualPurchases) 
+        const validPurchases = Array.isArray(individualPurchases)
           ? individualPurchases.filter((purchase: any) => {
-              const tickets = purchase.ticket_numbers || '';
+              const tickets = purchase.ticket_numbers || "";
               // Must have actual ticket numbers (not empty, not just commas, not "0")
-              if (!tickets || tickets === '' || tickets === '0' || tickets.trim() === '') return false;
+              if (
+                !tickets ||
+                tickets === "" ||
+                tickets === "0" ||
+                tickets.trim() === ""
+              )
+                return false;
               // Parse and check if there are real ticket numbers
-              const ticketArray = String(tickets).split(',').map(t => parseInt(t.trim())).filter(t => !isNaN(t) && t > 0);
+              const ticketArray = String(tickets)
+                .split(",")
+                .map((t) => parseInt(t.trim()))
+                .filter((t) => !isNaN(t) && t > 0);
               return ticketArray.length > 0;
             })
           : [];
-        
+
         if (validPurchases.length > 0) {
           // Expand each individual purchase into a separate entry
           validPurchases.forEach((purchase: any) => {
@@ -3730,19 +4544,20 @@ export const database = {
               id: purchase.id || entry.id,
               competition_id: entry.competition_id,
               // title: competition_title from RPC
-              title: entry.competition_title || 'Unknown Competition',
+              title: entry.competition_title || "Unknown Competition",
               // description: competition_description from RPC
-              description: entry.competition_description || '',
+              description: entry.competition_description || "",
               // competitionImage: competition_image_url from RPC
               image: entry.competition_image_url,
               // status: mapped from competition_status
               status: status,
-              entry_type: entry.entry_status === 'pending' ? 'pending' : 'completed',
+              entry_type:
+                entry.entry_status === "pending" ? "pending" : "completed",
               expires_at: null,
               // isWinner: is_winner from RPC
               is_winner: entry.is_winner || false,
               // ticketNumbers: use purchase-specific tickets, not aggregated entry tickets
-              ticket_numbers: purchase.ticket_numbers || '',
+              ticket_numbers: purchase.ticket_numbers || "",
               // numberOfTickets: from individual purchase
               number_of_tickets: purchase.tickets_count || 0,
               // amountSpent: formatted amount_spent from individual purchase
@@ -3754,10 +4569,12 @@ export const database = {
               // isInstantWin: competition_is_instant_win from RPC
               is_instant_win: entry.competition_is_instant_win || false,
               // prizeValue: competition_prize_value from RPC (plain string as per PR #355 spec)
-              prize_value: entry.competition_prize_value !== null && entry.competition_prize_value !== undefined
-                ? String(entry.competition_prize_value)
-                : null,
-              competition_status: rawCompetitionStatus || 'active',
+              prize_value:
+                entry.competition_prize_value !== null &&
+                entry.competition_prize_value !== undefined
+                  ? String(entry.competition_prize_value)
+                  : null,
+              competition_status: rawCompetitionStatus || "active",
               // endDate: competition_end_date from RPC
               end_date: endDate,
               draw_date: entry.draw_date,
@@ -3771,21 +4588,22 @@ export const database = {
             id: entry.id,
             competition_id: entry.competition_id,
             // title: competition_title from RPC
-            title: entry.competition_title || 'Unknown Competition',
+            title: entry.competition_title || "Unknown Competition",
             // description: competition_description from RPC
-            description: entry.competition_description || '',
+            description: entry.competition_description || "",
             // competitionImage: competition_image_url from RPC
             image: entry.competition_image_url,
             // status: mapped from competition_status
             status: status,
-            entry_type: entry.entry_status === 'pending' ? 'pending' : 'completed',
+            entry_type:
+              entry.entry_status === "pending" ? "pending" : "completed",
             expires_at: null,
             // isWinner: is_winner from RPC
             is_winner: entry.is_winner || false,
             // ticketNumbers: ticket_numbers from RPC
             ticket_numbers: Array.isArray(entry.ticket_numbers)
-              ? entry.ticket_numbers.join(',')
-              : entry.ticket_numbers || '',
+              ? entry.ticket_numbers.join(",")
+              : entry.ticket_numbers || "",
             // numberOfTickets: tickets_count from RPC
             number_of_tickets: entry.tickets_count || 0,
             // amountSpent: formatted amount_spent (fallback to amount_paid)
@@ -3797,10 +4615,12 @@ export const database = {
             // isInstantWin: competition_is_instant_win from RPC
             is_instant_win: entry.competition_is_instant_win || false,
             // prizeValue: competition_prize_value from RPC (plain string as per PR #355 spec)
-            prize_value: entry.competition_prize_value !== null && entry.competition_prize_value !== undefined
-              ? String(entry.competition_prize_value)
-              : null,
-            competition_status: rawCompetitionStatus || 'active',
+            prize_value:
+              entry.competition_prize_value !== null &&
+              entry.competition_prize_value !== undefined
+                ? String(entry.competition_prize_value)
+                : null,
+            competition_status: rawCompetitionStatus || "active",
             // endDate: competition_end_date from RPC
             end_date: endDate,
             draw_date: entry.draw_date,
@@ -3810,27 +4630,30 @@ export const database = {
         }
       });
 
-      console.log('[Database.getUserEntriesFromCompetitionEntries] Formatted entries:', {
-        count: formattedEntries.length,
-        sampleFormatted: formattedEntries[0] ? {
-          id: formattedEntries[0].id,
-          competition_id: formattedEntries[0].competition_id,
-          title: formattedEntries[0].title,
-          status: formattedEntries[0].status,
-          competition_status: formattedEntries[0].competition_status,
-          image: formattedEntries[0].image?.substring(0, 50),
-          ticket_numbers: formattedEntries[0].ticket_numbers,
-          amount_spent: formattedEntries[0].amount_spent
-        } : null
-      });
+      console.log(
+        "[Database.getUserEntriesFromCompetitionEntries] Formatted entries:",
+        {
+          count: formattedEntries.length,
+          sampleFormatted: formattedEntries[0]
+            ? {
+                id: formattedEntries[0].id,
+                competition_id: formattedEntries[0].competition_id,
+                title: formattedEntries[0].title,
+                status: formattedEntries[0].status,
+                competition_status: formattedEntries[0].competition_status,
+                image: formattedEntries[0].image?.substring(0, 50),
+                ticket_numbers: formattedEntries[0].ticket_numbers,
+                amount_spent: formattedEntries[0].amount_spent,
+              }
+            : null,
+        },
+      );
 
       return formattedEntries;
     } catch (error) {
-      handleDatabaseError(error, 'getUserEntriesFromCompetitionEntries');
+      handleDatabaseError(error, "getUserEntriesFromCompetitionEntries");
       // Fallback to legacy method on error
       return this.getUserEntries(userId);
     }
-  }
-
-
+  },
 };

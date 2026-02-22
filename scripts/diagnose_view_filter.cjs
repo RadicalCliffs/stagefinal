@@ -1,6 +1,6 @@
 /**
  * FIX: v_joincompetition_active view filtering out 'sold' status entries
- * 
+ *
  * ROOT CAUSE: The view has WHERE jc.status = 'active'
  * But many purchase functions insert with status = 'sold'
  * This hides all recent entries from the landing page!
@@ -11,28 +11,30 @@ require("dotenv").config();
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
-  process.env.VITE_SUPABASE_ANON_KEY
+  process.env.VITE_SUPABASE_ANON_KEY,
 );
 
 async function main() {
   console.log("🔍 Checking joincompetition status distribution...\n");
-  
+
   // Check what statuses exist
-  const { data: statusData, error: statusError } = await supabase
-    .rpc('exec_sql', { 
-      sql: `SELECT status, COUNT(*) as count FROM joincompetition GROUP BY status ORDER BY count DESC` 
-    });
-  
+  const { data: statusData, error: statusError } = await supabase.rpc(
+    "exec_sql",
+    {
+      sql: `SELECT status, COUNT(*) as count FROM joincompetition GROUP BY status ORDER BY count DESC`,
+    },
+  );
+
   if (statusError) {
     // Fallback: query directly
     const { data: entries } = await supabase
-      .from('joincompetition')
-      .select('status')
+      .from("joincompetition")
+      .select("status")
       .limit(1000);
-    
+
     const statusCounts = {};
     for (const e of entries || []) {
-      const s = e.status || 'NULL';
+      const s = e.status || "NULL";
       statusCounts[s] = (statusCounts[s] || 0) + 1;
     }
     console.log("Status distribution (sample):", statusCounts);
@@ -43,32 +45,38 @@ async function main() {
   // Check most recent entries
   console.log("\n🔍 Most recent entries in joincompetition:");
   const { data: recent, error: recentError } = await supabase
-    .from('joincompetition')
-    .select('purchase_date, purchasedate, status, canonical_user_id')
-    .order('purchase_date', { ascending: false, nullsFirst: false })
+    .from("joincompetition")
+    .select("purchase_date, purchasedate, status, canonical_user_id")
+    .order("purchase_date", { ascending: false, nullsFirst: false })
     .limit(5);
-  
+
   if (recentError) {
     console.error("Error:", recentError.message);
   } else {
     for (const r of recent || []) {
-      console.log(`  ${r.purchase_date || r.purchasedate} | status: ${r.status} | user: ${(r.canonical_user_id || '').slice(0, 30)}...`);
+      console.log(
+        `  ${r.purchase_date || r.purchasedate} | status: ${r.status} | user: ${(r.canonical_user_id || "").slice(0, 30)}...`,
+      );
     }
   }
 
   // Check what v_joincompetition_active returns
-  console.log("\n🔍 Most recent entries from v_joincompetition_active (what the landing page sees):");
+  console.log(
+    "\n🔍 Most recent entries from v_joincompetition_active (what the landing page sees):",
+  );
   const { data: viewRecent, error: viewError } = await supabase
-    .from('v_joincompetition_active')
-    .select('purchasedate, status, username')
-    .order('purchasedate', { ascending: false, nullsFirst: false })
+    .from("v_joincompetition_active")
+    .select("purchasedate, status, username")
+    .order("purchasedate", { ascending: false, nullsFirst: false })
     .limit(5);
 
   if (viewError) {
     console.error("Error:", viewError.message);
   } else {
     for (const r of viewRecent || []) {
-      console.log(`  ${r.purchasedate} | status: ${r.status} | user: ${r.username || 'anonymous'}`);
+      console.log(
+        `  ${r.purchasedate} | status: ${r.status} | user: ${r.username || "anonymous"}`,
+      );
     }
   }
 

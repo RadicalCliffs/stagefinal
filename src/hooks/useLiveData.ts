@@ -68,7 +68,10 @@ export function useLiveData<T>({
       .current()
       .then((result) => {
         if (isMountedRef.current) {
-          console.log(`[${channelName}] Data fetched:`, Array.isArray(result) ? `${result.length} items` : result);
+          console.log(
+            `[${channelName}] Data fetched:`,
+            Array.isArray(result) ? `${result.length} items` : result,
+          );
           setData(result);
           setLoading(false);
           initialLoadDoneRef.current = true;
