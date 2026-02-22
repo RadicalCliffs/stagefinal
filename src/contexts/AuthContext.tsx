@@ -330,7 +330,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (entryError) {
         console.error('[AuthContext] Error fetching entry data:', entryError);
       } else {
-        setEntryCount(Number(entryData) || 0);
+        // entryData is array of { competitionid, ticketnumbers[] } - count competitions with active entries
+        const count = Array.isArray(entryData) ? entryData.length : (Number(entryData) || 0);
+        setEntryCount(count);
       }
 
       // Only fetch balance if not skipped - this prevents overwriting balance
