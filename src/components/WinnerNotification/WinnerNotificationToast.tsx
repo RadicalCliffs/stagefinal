@@ -110,7 +110,7 @@ const WinnerNotificationToast: React.FC<WinnerNotificationProps> = ({
     <>
       {/* Overlay */}
       <div
-        className={`fixed inset-0 bg-black/50 z-[9998] transition-opacity duration-300 ${
+        className={`fixed inset-0 bg-black/50 z-9998 transition-opacity duration-300 ${
           isAnimating ? 'opacity-100' : 'opacity-0'
         }`}
         onClick={handleDismiss}
@@ -118,13 +118,13 @@ const WinnerNotificationToast: React.FC<WinnerNotificationProps> = ({
 
       {/* Toast notification */}
       <div
-        className={`fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[9999] transition-all duration-500 ${
+        className={`fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-9999 transition-all duration-500 ${
           isAnimating
             ? 'opacity-100 scale-100'
             : 'opacity-0 scale-75'
         }`}
       >
-        <div className="bg-gradient-to-br from-[#1A1A1A] via-[#252525] to-[#1A1A1A] border-2 border-[#DDE404] rounded-2xl p-6 max-w-md mx-4 shadow-2xl shadow-[#DDE404]/20">
+        <div className="bg-linear-to-br from-[#1A1A1A] via-[#252525] to-[#1A1A1A] border-2 border-[#DDE404] rounded-2xl p-6 max-w-md mx-4 shadow-2xl shadow-[#DDE404]/20">
           {/* Close button */}
           <button
             onClick={handleDismiss}
@@ -136,7 +136,7 @@ const WinnerNotificationToast: React.FC<WinnerNotificationProps> = ({
           {/* Celebration header */}
           <div className="text-center mb-4">
             <div className="relative inline-block">
-              <div className="w-20 h-20 bg-gradient-to-br from-[#DDE404] to-[#B8C700] rounded-full flex items-center justify-center animate-bounce">
+              <div className="w-20 h-20 bg-linear-to-br from-[#DDE404] to-[#B8C700] rounded-full flex items-center justify-center animate-bounce">
                 <Trophy size={40} className="text-black" />
               </div>
               {/* Sparkles */}
@@ -220,10 +220,10 @@ export const WinnerToastSimple: React.FC<{ win: WinData; onDismiss: () => void }
   }, [onDismiss]);
 
   return (
-    <div className="fixed top-4 right-4 z-[9999] animate-slide-in-right">
-      <div className="bg-gradient-to-r from-[#1A1A1A] to-[#252525] border border-[#DDE404] rounded-xl p-4 shadow-lg shadow-[#DDE404]/10 max-w-sm">
+    <div className="fixed top-4 right-4 z-9999 animate-slide-in-right">
+      <div className="bg-linear-to-r from-[#1A1A1A] to-[#252525] border border-[#DDE404] rounded-xl p-4 shadow-lg shadow-[#DDE404]/10 max-w-sm">
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 bg-[#DDE404] rounded-full flex items-center justify-center flex-shrink-0">
+          <div className="w-10 h-10 bg-[#DDE404] rounded-full flex items-center justify-center shrink-0">
             <Trophy size={20} className="text-black" />
           </div>
           <div className="flex-1">

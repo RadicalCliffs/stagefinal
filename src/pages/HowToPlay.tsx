@@ -359,7 +359,7 @@ const HowToPlay = () => {
 
             {/* Luxury Image Banner 1 - Rolex Watch */}
             <div className="relative mb-14 rounded-2xl overflow-hidden">
-              <div className="relative h-48 sm:h-64 bg-gradient-to-r from-[#161616] via-[#1A1A1A] to-[#161616] border border-[#EF008F]/20">
+              <div className="relative h-48 sm:h-64 bg-linear-to-r from-[#161616] via-[#1A1A1A] to-[#161616] border border-[#EF008F]/20">
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="flex items-center gap-8">
                     <img
@@ -373,7 +373,7 @@ const HowToPlay = () => {
                     </div>
                   </div>
                 </div>
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#EF008F]/5 to-transparent pointer-events-none"></div>
+                <div className="absolute inset-0 bg-linear-to-r from-transparent via-[#EF008F]/5 to-transparent pointer-events-none"></div>
               </div>
             </div>
 
@@ -386,7 +386,7 @@ const HowToPlay = () => {
 
             {/* Luxury Image Banner 2 - Lamborghini */}
             <div className="relative mb-14 rounded-2xl overflow-hidden">
-              <div className="relative h-56 sm:h-72 bg-gradient-to-r from-[#161616] via-[#1A1A1A] to-[#161616] border border-[#DDE404]/20">
+              <div className="relative h-56 sm:h-72 bg-linear-to-r from-[#161616] via-[#1A1A1A] to-[#161616] border border-[#DDE404]/20">
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="flex items-center gap-8">
                     <div className="text-right hidden sm:block">
@@ -400,7 +400,7 @@ const HowToPlay = () => {
                     />
                   </div>
                 </div>
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#DDE404]/5 to-transparent pointer-events-none"></div>
+                <div className="absolute inset-0 bg-linear-to-r from-transparent via-[#DDE404]/5 to-transparent pointer-events-none"></div>
               </div>
             </div>
 
@@ -411,7 +411,7 @@ const HowToPlay = () => {
 
             {/* Luxury Image Banner 3 - Bitcoin/Crypto */}
             <div className="relative mb-12 rounded-2xl overflow-hidden">
-              <div className="relative h-48 sm:h-56 bg-gradient-to-r from-[#161616] via-[#1A1A1A] to-[#161616] border border-[#EF008F]/20">
+              <div className="relative h-48 sm:h-56 bg-linear-to-r from-[#161616] via-[#1A1A1A] to-[#161616] border border-[#EF008F]/20">
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="flex items-center gap-8">
                     <img
@@ -425,7 +425,7 @@ const HowToPlay = () => {
                     </div>
                   </div>
                 </div>
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#EF008F]/5 to-transparent pointer-events-none"></div>
+                <div className="absolute inset-0 bg-linear-to-r from-transparent via-[#EF008F]/5 to-transparent pointer-events-none"></div>
               </div>
             </div>
           </div>
@@ -438,7 +438,7 @@ const HowToPlay = () => {
 
             {/* Luxury Image - Mobile (Rolex) */}
             <div className="mt-10 mb-8 rounded-xl overflow-hidden">
-              <div className="relative h-44 bg-gradient-to-r from-[#161616] to-[#1A1A1A] border border-[#EF008F]/20">
+              <div className="relative h-44 bg-linear-to-r from-[#161616] to-[#1A1A1A] border border-[#EF008F]/20">
                 <div className="absolute inset-0 flex items-center justify-center">
                   <img
                     src={rolexWatch}
@@ -457,7 +457,7 @@ const HowToPlay = () => {
 
             {/* Luxury Image - Mobile (Lambo) */}
             <div className="mt-10 mb-8 rounded-xl overflow-hidden">
-              <div className="relative h-44 bg-gradient-to-r from-[#161616] to-[#1A1A1A] border border-[#DDE404]/20">
+              <div className="relative h-44 bg-linear-to-r from-[#161616] to-[#1A1A1A] border border-[#DDE404]/20">
                 <div className="absolute inset-0 flex items-center justify-center">
                   <img
                     src={lamboUrus}
@@ -471,7 +471,7 @@ const HowToPlay = () => {
 
             {/* Luxury Image - Mobile (Bitcoin) */}
             <div className="mt-6 mb-8 rounded-xl overflow-hidden">
-              <div className="relative h-36 bg-gradient-to-r from-[#161616] to-[#1A1A1A] border border-[#EF008F]/20">
+              <div className="relative h-36 bg-linear-to-r from-[#161616] to-[#1A1A1A] border border-[#EF008F]/20">
                 <div className="absolute inset-0 flex items-center justify-center">
                   <img
                     src={bitcoinImage}

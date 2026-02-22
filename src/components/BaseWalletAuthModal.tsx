@@ -1388,7 +1388,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 p-4"
+      className="fixed inset-0 z-9999 flex items-center justify-center bg-black/70 p-4"
       role="dialog"
       aria-modal="true"
     >
@@ -1419,7 +1419,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               onClick={() => setFlowState('wallet-choice')}
               className="w-full bg-[#0052FF] hover:bg-[#0052FF]/90 text-white font-bold py-4 px-6 rounded-lg flex items-center justify-center gap-3 mb-4 shadow-lg shadow-[#0052FF]/20"
             >
-              <Shield size={22} className="flex-shrink-0" />
+              <Shield size={22} className="shrink-0" />
               <div className="flex flex-col items-start">
                 <span className="text-base">Sign in with Base Account</span>
                 <span className="text-xs text-white/70 font-normal">Access all wallets in your account</span>
@@ -1502,8 +1502,8 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
             {emailError && (
               <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg" role="alert">
                 <div className="flex items-start gap-2 text-red-400 text-xs justify-center">
-                  <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
-                  <span className="break-words">{emailError}</span>
+                  <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                  <span className="break-all">{emailError}</span>
                 </div>
               </div>
             )}
@@ -1591,8 +1591,8 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
               {emailError && (
                 <div className="flex items-start gap-2 text-red-400 text-xs justify-center">
-                  <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
-                  <span className="break-words">{emailError}</span>
+                  <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                  <span className="break-all">{emailError}</span>
                 </div>
               )}
             </div>
@@ -1643,7 +1643,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                     {isConnecting && (
                       <div className="p-4 bg-[#0052FF]/10 border border-[#0052FF]/30 rounded-lg text-center">
                         <div className="flex items-center justify-center gap-2 text-[#0052FF] mb-2">
-                          <Loader2 size={20} className="animate-spin flex-shrink-0" />
+                          <Loader2 size={20} className="animate-spin shrink-0" />
                           <span className="font-semibold">Connecting wallet...</span>
                         </div>
                         <p className="text-white/60 text-xs">
@@ -1656,7 +1656,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                     {connectionTimedOut && !isConnecting && (
                       <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-center">
                         <div className="flex items-center justify-center gap-2 text-yellow-400 mb-2">
-                          <AlertCircle size={20} className="flex-shrink-0" />
+                          <AlertCircle size={20} className="shrink-0" />
                           <span className="font-semibold">Connection timed out</span>
                         </div>
                         <p className="text-white/60 text-xs mb-3">
@@ -1694,7 +1694,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                           disabled={isConnecting}
                           className="w-full bg-[#0052FF] hover:bg-[#0052FF]/90 text-white font-bold py-4 px-6 rounded-lg flex items-center justify-center gap-3 disabled:opacity-50 shadow-lg shadow-[#0052FF]/20"
                         >
-                          <Shield size={22} className="flex-shrink-0" />
+                          <Shield size={22} className="shrink-0" />
                           <div className="flex flex-col items-start">
                             <span className="text-base">
                               {options?.isReturningUser
@@ -1727,7 +1727,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                               disabled={true}
                               className="bg-[#E8821E] hover:bg-[#E8821E]/90 text-white font-semibold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 disabled:opacity-50 text-sm pointer-events-none"
                             >
-                              <Wallet size={18} className="flex-shrink-0" />
+                              <Wallet size={18} className="shrink-0" />
                               <span>MetaMask</span>
                             </button>
 
@@ -1745,7 +1745,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                               disabled={true}
                               className="bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 text-sm disabled:opacity-50 pointer-events-none"
                             >
-                              <Wallet size={18} className="flex-shrink-0" />
+                              <Wallet size={18} className="shrink-0" />
                               <span>Other Wallet</span>
                             </button>
                           </div>
@@ -1765,7 +1765,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
               ) : (
                 <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg text-center">
                   <div className="flex items-center justify-center gap-2 text-green-400 mb-2">
-                    <CheckCircle size={20} className="flex-shrink-0" />
+                    <CheckCircle size={20} className="shrink-0" />
                     <span className="font-semibold">Wallet Connected!</span>
                   </div>
                   <p className="text-white/70 text-sm break-all">
@@ -1777,8 +1777,8 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
             {emailError && (
               <div className="flex items-start gap-2 text-red-400 text-xs justify-center mb-4">
-                <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
-                <span className="break-words">{emailError}</span>
+                <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                <span className="break-all">{emailError}</span>
               </div>
             )}
 
@@ -1796,7 +1796,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
         {flowState === 'logged-in-success' && (
           <div className="flex flex-col items-center">
-            <div className="w-20 h-20 bg-gradient-to-br from-[#0052FF] to-[#DDE404] rounded-full flex items-center justify-center mb-4">
+            <div className="w-20 h-20 bg-linear-to-br from-[#0052FF] to-[#DDE404] rounded-full flex items-center justify-center mb-4">
               <CheckCircle size={40} className="text-white" />
             </div>
 
@@ -1810,7 +1810,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-white/70 text-xs">Your Wallet Address</span>
                   <button onClick={handleCopy} className="flex items-center gap-1 text-[#0052FF] text-xs">
-                    {copied ? <Check size={12} className="flex-shrink-0" /> : <Copy size={12} className="flex-shrink-0" />}
+                    {copied ? <Check size={12} className="shrink-0" /> : <Copy size={12} className="shrink-0" />}
                     <span>{copied ? 'Copied!' : 'Copy'}</span>
                   </button>
                 </div>
@@ -1843,7 +1843,7 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
                 rel="noopener noreferrer"
                 className="flex items-center justify-center gap-1 text-white/30 text-xs mt-3 hover:text-white/50"
               >
-                View on BaseScan <ExternalLink size={10} className="flex-shrink-0" />
+                View on BaseScan <ExternalLink size={10} className="shrink-0" />
               </a>
             )}
           </div>

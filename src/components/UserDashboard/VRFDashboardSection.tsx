@@ -83,7 +83,7 @@ export function VRFStatsCard() {
   }
 
   return (
-    <div className="bg-gradient-to-br from-purple-500/10 to-blue-500/10 border border-purple-500/30 rounded-lg p-6">
+    <div className="bg-linear-to-br from-purple-500/10 to-blue-500/10 border border-purple-500/30 rounded-lg p-6">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2 text-purple-400">
           <Zap className="w-5 h-5" />
@@ -166,7 +166,7 @@ export function VRFDashboardSection({ className = '' }: { className?: string }) 
       {/* Info Banner */}
       <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
         <div className="flex items-start gap-3">
-          <TrendingUp className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+          <TrendingUp className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
           <div className="flex-1">
             <h4 className="text-white sequel-75 text-sm mb-1">
               Verifiable Random Function (VRF)

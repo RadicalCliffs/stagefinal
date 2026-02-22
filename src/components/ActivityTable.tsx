@@ -103,12 +103,12 @@ export default function ActivityTable({ data }: { data: TableRow[] }) {
                 <AvatarImg
                   src={row.user.avatar}
                   alt={row.user.name}
-                  className="w-6 h-6 rounded-md object-contain flex-shrink-0"
+                  className="w-6 h-6 rounded-md object-contain shrink-0"
                 />
                 <span className="sequel-75 truncate">{row.user.name}</span>
               </div>
 
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center gap-2 shrink-0">
                 <span className="sequel-75 whitespace-nowrap">{row.amount}</span>
                 <span
                   className={`uppercase sequel-75 whitespace-nowrap ${
@@ -126,7 +126,7 @@ export default function ActivityTable({ data }: { data: TableRow[] }) {
             {/* Bottom row: competition & time */}
             <div className="flex justify-between items-center gap-2 text-[11px] text-[#bdbdbd]">
               <span className="uppercase truncate flex-1">{row.competition}</span>
-              <span className="flex-shrink-0 whitespace-nowrap">{row.time}</span>
+              <span className="shrink-0 whitespace-nowrap">{row.time}</span>
             </div>
           </div>
         ))}

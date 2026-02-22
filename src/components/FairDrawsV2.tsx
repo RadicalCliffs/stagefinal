@@ -32,7 +32,7 @@ const FairDrawsV2 = () => {
             <h1 className="sequel-75 sm:text-2xl text-xl mb-4">
               Transparent <br /> Entry System
             </h1>
-            <div className="w-6/12 mx-auto h-[1px] bg-white my-4"></div>
+            <div className="w-6/12 mx-auto h-px bg-white my-4"></div>
             <p className="sequel-45 text-sm leading-loose">
               Each entry links directly to your crypto wallet, displayed on the
               competition page for full verification.
@@ -49,7 +49,7 @@ const FairDrawsV2 = () => {
             <h1 className="sequel-75 sm:text-2xl text-xl mb-4">
               Tamper-Proof <br /> Prize Draws
             </h1>
-            <div className="w-6/12 mx-auto h-[1px] bg-white my-4"></div>
+            <div className="w-6/12 mx-auto h-px bg-white my-4"></div>
             <p className="sequel-45 text-sm leading-loose">
               Competitions use Chainlink's secure VRF to generate a truly random
               winner automatically.
@@ -66,7 +66,7 @@ const FairDrawsV2 = () => {
             <h1 className="sequel-75 sm:text-2xl text-xl">
               Instant & <br /> Verified Payouts
             </h1>
-            <div className="w-6/12 mx-auto h-[1px] bg-white my-4"></div>
+            <div className="w-6/12 mx-auto h-px bg-white my-4"></div>
             <p className="sequel-45 text-sm leading-loose">
               Prizes are instantly sent to winners' wallets. All results and
               transactions are verifiable on the blockchain.

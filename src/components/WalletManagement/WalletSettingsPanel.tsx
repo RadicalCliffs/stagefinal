@@ -95,7 +95,7 @@ export const WalletSettingsPanel: React.FC<WalletSettingsPanelProps> = ({ onClos
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4">
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-9999 p-4">
       <div className="bg-[#101010] border border-white/10 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 bg-[#101010] border-b border-white/10 p-6 flex items-center justify-between">
@@ -118,14 +118,14 @@ export const WalletSettingsPanel: React.FC<WalletSettingsPanelProps> = ({ onClos
           {/* Status Messages */}
           {error && (
             <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 flex items-start gap-2">
-              <AlertCircle size={16} className="text-red-400 mt-0.5 flex-shrink-0" />
+              <AlertCircle size={16} className="text-red-400 mt-0.5 shrink-0" />
               <p className="text-red-400 sequel-45 text-sm">{error}</p>
             </div>
           )}
           
           {success && (
             <div className="bg-green-500/10 border border-green-500/30 rounded-lg px-4 py-3 flex items-start gap-2">
-              <CheckCircle size={16} className="text-green-400 mt-0.5 flex-shrink-0" />
+              <CheckCircle size={16} className="text-green-400 mt-0.5 shrink-0" />
               <p className="text-green-400 sequel-45 text-sm">{success}</p>
             </div>
           )}
@@ -330,7 +330,7 @@ export const WalletSettingsPanel: React.FC<WalletSettingsPanelProps> = ({ onClos
           {/* Information Panel */}
           <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
             <div className="flex items-start gap-3">
-              <Shield size={20} className="text-blue-400 mt-0.5 flex-shrink-0" />
+              <Shield size={20} className="text-blue-400 mt-0.5 shrink-0" />
               <div>
                 <p className="text-blue-400 sequel-75 text-sm mb-1">About Wallet Management</p>
                 <p className="text-blue-300/70 sequel-45 text-xs">

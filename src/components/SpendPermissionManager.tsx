@@ -155,7 +155,7 @@ export function SpendPermissionManager({ compact = false, className = '' }: Spen
       {/* Error Message */}
       {(error || operationError) && (
         <div className="mb-4 p-3 bg-red-900/20 border border-red-500/50 rounded-lg flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
+          <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
           <p className="text-sm text-red-400">{error || operationError}</p>
         </div>
       )}
@@ -163,7 +163,7 @@ export function SpendPermissionManager({ compact = false, className = '' }: Spen
       {/* Success Message */}
       {operationSuccess && (
         <div className="mb-4 p-3 bg-green-900/20 border border-green-500/50 rounded-lg flex items-start gap-2">
-          <Check className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
+          <Check className="w-4 h-4 text-green-400 mt-0.5 shrink-0" />
           <p className="text-sm text-green-400">{operationSuccess}</p>
         </div>
       )}
@@ -178,7 +178,7 @@ export function SpendPermissionManager({ compact = false, className = '' }: Spen
           <button
             onClick={handleRequestPermission}
             disabled={isRequesting || isLoading}
-            className="w-full bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-linear-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isRequesting ? (
               <>
@@ -240,7 +240,7 @@ export function SpendPermissionManager({ compact = false, className = '' }: Spen
                 </div>
                 <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-[#DDE404] to-[#C5CC03] transition-all duration-300"
+                    className="h-full bg-linear-to-r from-[#DDE404] to-[#C5CC03] transition-all duration-300"
                     style={{
                       // Use safe BigInt arithmetic to calculate percentage
                       // Multiply by 100 first, then divide to maintain precision

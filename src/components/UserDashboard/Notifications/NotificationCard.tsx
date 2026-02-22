@@ -18,7 +18,7 @@ const NotificationCard = ({ notification, onMarkAsRead, onDelete }: Notification
         return {
           gradient: 'from-yellow-500/20 via-amber-500/10 to-orange-500/20',
           borderColor: 'border-yellow-400/50',
-          iconBg: 'bg-gradient-to-br from-yellow-400 to-orange-500',
+          iconBg: 'bg-linear-to-br from-yellow-400 to-orange-500',
           icon: <Trophy className="text-black" size={28} />,
           badge: 'bg-yellow-400 text-black',
           glow: 'shadow-[0_0_30px_rgba(234,179,8,0.3)]',
@@ -28,7 +28,7 @@ const NotificationCard = ({ notification, onMarkAsRead, onDelete }: Notification
         return {
           gradient: 'from-purple-500/20 via-pink-500/10 to-fuchsia-500/20',
           borderColor: 'border-purple-400/50',
-          iconBg: 'bg-gradient-to-br from-purple-500 to-pink-600',
+          iconBg: 'bg-linear-to-br from-purple-500 to-pink-600',
           icon: <Gift className="text-white" size={28} />,
           badge: 'bg-purple-500 text-white',
           glow: 'shadow-[0_0_30px_rgba(168,85,247,0.3)]',
@@ -38,7 +38,7 @@ const NotificationCard = ({ notification, onMarkAsRead, onDelete }: Notification
         return {
           gradient: 'from-blue-500/20 via-cyan-500/10 to-sky-500/20',
           borderColor: 'border-blue-400/50',
-          iconBg: 'bg-gradient-to-br from-blue-500 to-cyan-600',
+          iconBg: 'bg-linear-to-br from-blue-500 to-cyan-600',
           icon: <AlertCircle className="text-white" size={28} />,
           badge: 'bg-blue-500 text-white',
           glow: 'shadow-[0_0_30px_rgba(59,130,246,0.3)]',
@@ -48,7 +48,7 @@ const NotificationCard = ({ notification, onMarkAsRead, onDelete }: Notification
         return {
           gradient: 'from-white/10 via-gray-500/5 to-white/10',
           borderColor: 'border-white/50',
-          iconBg: 'bg-gradient-to-br from-gray-100 to-white',
+          iconBg: 'bg-linear-to-br from-gray-100 to-white',
           icon: <Megaphone className="text-black" size={28} />,
           badge: 'bg-white text-black',
           glow: 'shadow-[0_0_30px_rgba(255,255,255,0.2)]',
@@ -58,7 +58,7 @@ const NotificationCard = ({ notification, onMarkAsRead, onDelete }: Notification
         return {
           gradient: 'from-green-500/20 via-emerald-500/10 to-teal-500/20',
           borderColor: 'border-green-400/50',
-          iconBg: 'bg-gradient-to-br from-green-500 to-emerald-600',
+          iconBg: 'bg-linear-to-br from-green-500 to-emerald-600',
           icon: <CreditCard className="text-white" size={28} />,
           badge: 'bg-green-500 text-white',
           glow: 'shadow-[0_0_30px_rgba(34,197,94,0.3)]',
@@ -68,7 +68,7 @@ const NotificationCard = ({ notification, onMarkAsRead, onDelete }: Notification
         return {
           gradient: 'from-yellow-500/20 via-lime-500/10 to-green-500/20',
           borderColor: 'border-[#DDE404]/50',
-          iconBg: 'bg-gradient-to-br from-[#DDE404] to-[#B8BE04]',
+          iconBg: 'bg-linear-to-br from-[#DDE404] to-[#B8BE04]',
           icon: <Wallet className="text-black" size={28} />,
           badge: 'bg-[#DDE404] text-black',
           glow: 'shadow-[0_0_30px_rgba(221,228,4,0.3)]',
@@ -78,7 +78,7 @@ const NotificationCard = ({ notification, onMarkAsRead, onDelete }: Notification
         return {
           gradient: 'from-pink-500/20 via-rose-500/10 to-red-500/20',
           borderColor: 'border-[#EF008F]/50',
-          iconBg: 'bg-gradient-to-br from-[#EF008F] to-[#C7006E]',
+          iconBg: 'bg-linear-to-br from-[#EF008F] to-[#C7006E]',
           icon: <Ticket className="text-white" size={28} />,
           badge: 'bg-[#EF008F] text-white',
           glow: 'shadow-[0_0_30px_rgba(239,0,143,0.3)]',
@@ -88,7 +88,7 @@ const NotificationCard = ({ notification, onMarkAsRead, onDelete }: Notification
         return {
           gradient: 'from-gray-500/20 via-gray-600/10 to-gray-700/20',
           borderColor: 'border-white/20',
-          iconBg: 'bg-gradient-to-br from-gray-500 to-gray-700',
+          iconBg: 'bg-linear-to-br from-gray-500 to-gray-700',
           icon: <Bell className="text-white" size={28} />,
           badge: 'bg-gray-500 text-white',
           glow: 'shadow-[0_0_20px_rgba(107,114,128,0.2)]',
@@ -122,7 +122,7 @@ const NotificationCard = ({ notification, onMarkAsRead, onDelete }: Notification
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Gradient Background */}
-      <div className={`absolute inset-0 bg-gradient-to-br ${style.gradient} opacity-50`} />
+      <div className={`absolute inset-0 bg-linear-to-br ${style.gradient} opacity-50`} />
       
       {/* Animated glow effect for unread */}
       {!notification.read && (
@@ -142,7 +142,7 @@ const NotificationCard = ({ notification, onMarkAsRead, onDelete }: Notification
 
         <div className="flex items-start gap-4">
           {/* Icon with gradient background */}
-          <div className={`flex-shrink-0 ${style.iconBg} p-3 rounded-xl ${!notification.read ? 'animate-bounce' : ''}`}>
+          <div className={`shrink-0 ${style.iconBg} p-3 rounded-xl ${!notification.read ? 'animate-bounce' : ''}`}>
             {style.icon}
           </div>
 
@@ -154,7 +154,7 @@ const NotificationCard = ({ notification, onMarkAsRead, onDelete }: Notification
                 {formatType(notification.type)}
               </span>
               {!notification.read && (
-                <span className="flex-shrink-0 w-2 h-2 bg-[#DDE404] rounded-full mt-1.5 animate-pulse" />
+                <span className="shrink-0 w-2 h-2 bg-[#DDE404] rounded-full mt-1.5 animate-pulse" />
               )}
             </div>
 
@@ -198,7 +198,7 @@ const NotificationCard = ({ notification, onMarkAsRead, onDelete }: Notification
           </div>
 
           {/* Action buttons */}
-          <div className="flex flex-col gap-2 flex-shrink-0">
+          <div className="flex flex-col gap-2 shrink-0">
             {!notification.read && (
               <button
                 onClick={() => onMarkAsRead(notification.id)}

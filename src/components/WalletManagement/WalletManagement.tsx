@@ -511,7 +511,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
       )}
 
       {/* Account Balance Section */}
-      <div className="bg-gradient-to-r from-[#DDE404]/10 to-[#DDE404]/5 border border-[#DDE404]/30 rounded-xl p-4 sm:p-6">
+      <div className="bg-linear-to-r from-[#DDE404]/10 to-[#DDE404]/5 border border-[#DDE404]/30 rounded-xl p-4 sm:p-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
           <div className="min-w-0">
             <p className="text-white/60 sequel-45 text-sm uppercase">Top Up Balance</p>
@@ -525,7 +525,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
           <div className="flex flex-row sm:flex-col gap-3 shrink-0">
             <button
               onClick={() => setShowTopUpModal(true)}
-              className="bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 px-6 py-3 rounded-xl flex items-center justify-center gap-2 transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98] flex-1 sm:flex-auto whitespace-nowrap"
+              className="bg-linear-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 px-6 py-3 rounded-xl flex items-center justify-center gap-2 transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98] flex-1 sm:flex-auto whitespace-nowrap"
             >
               <Plus size={18} />
               <span className="text-sm font-semibold">Top Up</span>
@@ -559,14 +559,14 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <button
               onClick={() => setShowSendModal(true)}
-              className="bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 py-4 px-6 rounded-xl flex items-center justify-center gap-3 transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98]"
+              className="bg-linear-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 py-4 px-6 rounded-xl flex items-center justify-center gap-3 transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98]"
             >
               <Send size={22} />
               <span className="text-base">Send Crypto</span>
             </button>
             <button
               onClick={() => setShowSwapModal(true)}
-              className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-600 text-white sequel-75 py-4 px-6 rounded-xl flex items-center justify-center gap-3 transition-all duration-300 shadow-lg shadow-purple-600/20 hover:shadow-purple-600/30 hover:scale-[1.02] active:scale-[0.98]"
+              className="bg-linear-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-600 text-white sequel-75 py-4 px-6 rounded-xl flex items-center justify-center gap-3 transition-all duration-300 shadow-lg shadow-purple-600/20 hover:shadow-purple-600/30 hover:scale-[1.02] active:scale-[0.98]"
             >
               <Repeat size={22} />
               <span className="text-base">Swap Tokens</span>
@@ -612,14 +612,14 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
 
         {linkError && (
           <div className="mb-4 bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 flex items-start gap-2">
-            <AlertCircle size={16} className="text-red-400 mt-0.5 flex-shrink-0" />
+            <AlertCircle size={16} className="text-red-400 mt-0.5 shrink-0" />
             <p className="text-red-400 sequel-45 text-sm">{linkError}</p>
           </div>
         )}
 
         {linkSuccess && (
           <div className="mb-4 bg-green-500/10 border border-green-500/30 rounded-lg px-4 py-3 flex items-start gap-2">
-            <Check size={16} className="text-green-400 mt-0.5 flex-shrink-0" />
+            <Check size={16} className="text-green-400 mt-0.5 shrink-0" />
             <p className="text-green-400 sequel-45 text-sm">{linkSuccess}</p>
           </div>
         )}
@@ -640,7 +640,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-3 min-w-0 flex-1">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
                       wallet.is_primary
                         ? 'bg-[#DDE404]/20'
                         : wallet.type === 'external'
@@ -699,12 +699,12 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
                           </>
                         )}
                         {wallet.is_primary && (
-                          <span className="bg-[#DDE404] text-black sequel-75 text-[10px] px-2 py-0.5 rounded flex-shrink-0">
+                          <span className="bg-[#DDE404] text-black sequel-75 text-[10px] px-2 py-0.5 rounded shrink-0">
                             PRIMARY
                           </span>
                         )}
                         {wallet.type === 'external' && !wallet.is_primary && (
-                          <span className="bg-[#0052FF] text-white sequel-75 text-[10px] px-2 py-0.5 rounded flex-shrink-0">
+                          <span className="bg-[#0052FF] text-white sequel-75 text-[10px] px-2 py-0.5 rounded shrink-0">
                             CONNECTED
                           </span>
                         )}
@@ -718,7 +718,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 flex-shrink-0">
+                  <div className="flex items-center gap-3 shrink-0">
                     {/* Use as Primary button - only show for non-primary wallets */}
                     {!wallet.is_primary && (
                       <button
@@ -786,7 +786,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-3 min-w-0 flex-1">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
                       wallet.isEmbeddedWallet || (wallet.isBaseAccount && !wallet.isExternalWallet)
                         ? 'bg-[#DDE404]/20'
                         : wallet.isExternalWallet || wallet.walletClient === 'external'
@@ -799,12 +799,12 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-white sequel-75 text-sm truncate">{getWalletTypeLabel(wallet)}</p>
                         {(wallet.isEmbeddedWallet || (wallet.isBaseAccount && !wallet.isExternalWallet)) && (
-                          <span className="bg-[#DDE404] text-black sequel-75 text-[10px] px-2 py-0.5 rounded flex-shrink-0">
+                          <span className="bg-[#DDE404] text-black sequel-75 text-[10px] px-2 py-0.5 rounded shrink-0">
                             PRIMARY
                           </span>
                         )}
                         {(wallet.isExternalWallet || wallet.walletClient === 'external') && (
-                          <span className="bg-purple-500 text-white sequel-75 text-[10px] px-2 py-0.5 rounded flex-shrink-0">
+                          <span className="bg-purple-500 text-white sequel-75 text-[10px] px-2 py-0.5 rounded shrink-0">
                             EXTERNAL
                           </span>
                         )}
@@ -818,7 +818,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1 flex-shrink-0">
+                  <div className="flex items-center gap-1 shrink-0">
                     <button
                       onClick={() => handleCopyAddress(wallet.address)}
                       className="p-2 hover:bg-white/10 rounded-lg transition-colors"
@@ -848,7 +848,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
             <div className="rounded-lg p-4 bg-purple-500/10 border border-purple-500/30 transition-colors">
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-3 min-w-0 flex-1">
-                  <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-purple-500/20 flex-shrink-0">
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-purple-500/20 shrink-0">
                     <Link size={20} className="text-purple-400" />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -991,9 +991,9 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
                   return (
                     <div key={networkName} className="space-y-2">
                       <div className="flex items-center gap-2 mb-2">
-                        <div className="h-[1px] flex-1 bg-white/10"></div>
+                        <div className="h-px flex-1 bg-white/10"></div>
                         <span className="text-white/60 sequel-75 text-xs uppercase">{networkName}</span>
-                        <div className="h-[1px] flex-1 bg-white/10"></div>
+                        <div className="h-px flex-1 bg-white/10"></div>
                       </div>
                       {networkTokens.map((token) => (
                         <div
@@ -1205,7 +1205,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
       {/* Base Network Info */}
       <div className="bg-blue-500 border border-blue-500 rounded-lg px-4 py-3">
         <div className="flex items-start gap-3">
-          <Shield size={20} className="text-white mt-0.5 flex-shrink-0" />
+          <Shield size={20} className="text-white mt-0.5 shrink-0" />
           <div>
             <p className="text-white sequel-75 text-sm">Base Network Powered by Coinbase</p>
             <p className="text-white/90 sequel-45 text-xs mt-1">

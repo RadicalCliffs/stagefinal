@@ -2978,7 +2978,7 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
                 {button.hasDependencies && button.dependencies && (
                   <div className="mb-3 p-3 bg-orange-500/10 border border-orange-500/30 rounded">
                     <div className="flex items-start gap-2">
-                      <AlertCircle size={16} className="text-orange-400 flex-shrink-0 mt-0.5" />
+                      <AlertCircle size={16} className="text-orange-400 shrink-0 mt-0.5" />
                       <div>
                         <p className="text-orange-400 text-xs font-medium mb-1">⚠️ Dependencies</p>
                         <ul className="text-orange-400/80 text-xs space-y-0.5 list-disc list-inside">
@@ -3159,7 +3159,7 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
         )}
 
         {/* Header with Actions */}
-        <div className="p-4 bg-gradient-to-r from-[#DDE404]/10 to-purple-500/10 border border-[#DDE404]/30 rounded-lg">
+        <div className="p-4 bg-linear-to-r from-[#DDE404]/10 to-purple-500/10 border border-[#DDE404]/30 rounded-lg">
           <div className="flex items-start justify-between mb-3">
             <div>
               <h3 className="text-white font-semibold mb-2 flex items-center gap-2">
@@ -3456,9 +3456,9 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
         )}
 
         {/* Info Box */}
-        <div className="mt-6 p-4 bg-gradient-to-r from-[#DDE404]/10 to-purple-500/10 border border-[#DDE404]/30 rounded-lg">
+        <div className="mt-6 p-4 bg-linear-to-r from-[#DDE404]/10 to-purple-500/10 border border-[#DDE404]/30 rounded-lg">
           <div className="flex items-start gap-3">
-            <AlertCircle size={20} className="text-[#DDE404] flex-shrink-0 mt-0.5" />
+            <AlertCircle size={20} className="text-[#DDE404] shrink-0 mt-0.5" />
             <div>
               <p className="text-[#DDE404] text-sm font-semibold mb-2">⚠️ Site-Wide Changes</p>
               <p className="text-white/70 text-xs mb-2">
@@ -3503,7 +3503,7 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
         )}
 
         {/* Header */}
-        <div className="p-4 bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/30 rounded-lg">
+        <div className="p-4 bg-linear-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/30 rounded-lg">
           <div className="flex items-start justify-between mb-3">
             <div>
               <h3 className="text-white font-semibold mb-2 flex items-center gap-2">
@@ -3629,7 +3629,7 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
 
             {/* Analysis Results */}
             {backendState.showAnalysis && backendState.analysisResults && (
-              <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-lg p-4">
+              <div className="bg-linear-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h5 className="text-white font-semibold flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400">
@@ -3672,7 +3672,7 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
                   {backendState.analysisResults.securityIssues.filter((i: any) => i.severity === 'critical').map((issue: any, idx: number) => (
                     <div key={`crit-${idx}`} className="bg-red-500/10 border border-red-500/30 rounded p-3">
                       <div className="flex items-start gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-400 flex-shrink-0 mt-0.5">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-400 shrink-0 mt-0.5">
                           <circle cx="12" cy="12" r="10"></circle>
                           <line x1="12" y1="8" x2="12" y2="12"></line>
                           <line x1="12" y1="16" x2="12.01" y2="16"></line>
@@ -3696,7 +3696,7 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
                   ].map((issue: any, idx: number) => (
                     <div key={`warn-${idx}`} className="bg-yellow-500/10 border border-yellow-500/30 rounded p-3">
                       <div className="flex items-start gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-400 flex-shrink-0 mt-0.5">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-400 shrink-0 mt-0.5">
                           <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
                           <line x1="12" y1="9" x2="12" y2="13"></line>
                           <line x1="12" y1="17" x2="12.01" y2="17"></line>
@@ -3717,7 +3717,7 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
                   ].map((issue: any, idx: number) => (
                     <div key={`sugg-${idx}`} className="bg-blue-500/10 border border-blue-500/30 rounded p-3">
                       <div className="flex items-start gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400 flex-shrink-0 mt-0.5">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400 shrink-0 mt-0.5">
                           <circle cx="12" cy="12" r="10"></circle>
                           <line x1="12" y1="16" x2="12" y2="12"></line>
                           <line x1="12" y1="8" x2="12.01" y2="8"></line>
@@ -4161,9 +4161,9 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
         )}
 
         {/* Info Box */}
-        <div className="mt-6 p-4 bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/30 rounded-lg">
+        <div className="mt-6 p-4 bg-linear-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/30 rounded-lg">
           <div className="flex items-start gap-3">
-            <AlertCircle size={20} className="text-purple-400 flex-shrink-0 mt-0.5" />
+            <AlertCircle size={20} className="text-purple-400 shrink-0 mt-0.5" />
             <div>
               <p className="text-purple-400 text-sm font-semibold mb-2">⚠️ Backend Infrastructure Management</p>
               <p className="text-white/70 text-xs mb-2">
@@ -4506,7 +4506,7 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
         >
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-3 flex-1">
-              <div className={`flex items-center justify-center w-8 h-8 rounded-full flex-shrink-0 ${
+              <div className={`flex items-center justify-center w-8 h-8 rounded-full shrink-0 ${
                 step.required ? 'bg-[#0052FF]/20 text-[#0052FF]' : 'bg-white/5 text-white/40'
               }`}>
                 <span className="font-bold text-sm">{step.order}</span>
@@ -4558,7 +4558,7 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
 
       <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
         <div className="flex items-start gap-2">
-          <AlertCircle size={16} className="text-yellow-400 flex-shrink-0 mt-0.5" />
+          <AlertCircle size={16} className="text-yellow-400 shrink-0 mt-0.5" />
           <div>
             <p className="text-yellow-400 text-sm font-medium mb-1">Important Notes</p>
             <ul className="text-yellow-400/80 text-xs space-y-1 list-disc list-inside">
@@ -4971,9 +4971,9 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
               saveStatus === 'success' ? 'bg-green-500/10 border border-green-500/30' : 'bg-red-500/10 border border-red-500/30'
             }`}>
               {saveStatus === 'success' ? (
-                <CheckCircle size={18} className="text-green-400 flex-shrink-0 mt-0.5" />
+                <CheckCircle size={18} className="text-green-400 shrink-0 mt-0.5" />
               ) : (
-                <AlertCircle size={18} className="text-red-400 flex-shrink-0 mt-0.5" />
+                <AlertCircle size={18} className="text-red-400 shrink-0 mt-0.5" />
               )}
               <p className={`text-sm ${saveStatus === 'success' ? 'text-green-400' : 'text-red-400'}`}>
                 {saveMessage}
@@ -5044,7 +5044,7 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
               {state.flowSteps.length > 0 && (
                 <button
                   onClick={() => setActiveTab('flow')}
-                  className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors flex-shrink-0 ${
+                  className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors shrink-0 ${
                     activeTab === 'flow' 
                       ? 'border-[#0052FF] text-white' 
                       : 'border-transparent text-white/50 hover:text-white/70'
@@ -5089,7 +5089,7 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
               </button>
               <button
                 onClick={() => setActiveTab('images')}
-                className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors flex-shrink-0 ${
+                className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors shrink-0 ${
                   activeTab === 'images' 
                     ? 'border-[#0052FF] text-white' 
                     : 'border-transparent text-white/50 hover:text-white/70'
@@ -5101,7 +5101,7 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
               {state.buttons.length > 0 && (
                 <button
                   onClick={() => setActiveTab('buttons')}
-                  className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors flex-shrink-0 ${
+                  className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors shrink-0 ${
                     activeTab === 'buttons' 
                       ? 'border-[#0052FF] text-white' 
                       : 'border-transparent text-white/50 hover:text-white/70'
@@ -5116,7 +5116,7 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
               {(state.selectedModal === 'PaymentModal' || state.selectedModal === 'TopUpWalletModal') && (
                 <button
                   onClick={() => setActiveTab('sections')}
-                  className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors flex-shrink-0 ${
+                  className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors shrink-0 ${
                     activeTab === 'sections' 
                       ? 'border-purple-500 text-white' 
                       : 'border-transparent text-white/50 hover:text-white/70'
@@ -5130,7 +5130,7 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
               {/* Site-Wide Tab - NEW */}
               <button
                 onClick={() => setActiveTab('site-wide')}
-                className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors flex-shrink-0 ${
+                className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors shrink-0 ${
                   activeTab === 'site-wide' 
                     ? 'border-[#DDE404] text-white' 
                     : 'border-transparent text-white/50 hover:text-white/70'
@@ -5147,7 +5147,7 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
               {/* Backend Tab - NEW */}
               <button
                 onClick={() => setActiveTab('backend')}
-                className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors flex-shrink-0 ${
+                className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors shrink-0 ${
                   activeTab === 'backend' 
                     ? 'border-purple-500 text-white' 
                     : 'border-transparent text-white/50 hover:text-white/70'
@@ -5164,7 +5164,7 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
               {/* Presets Tab */}
               <button
                 onClick={() => setActiveTab('presets')}
-                className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors flex-shrink-0 ${
+                className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors shrink-0 ${
                   activeTab === 'presets' 
                     ? 'border-blue-500 text-white' 
                     : 'border-transparent text-white/50 hover:text-white/70'
@@ -5190,9 +5190,9 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
             </div>
 
             {/* Info Box */}
-            <div className="mt-6 p-4 bg-gradient-to-r from-green-500/10 to-blue-500/10 border border-green-500/30 rounded-lg shadow-lg">
+            <div className="mt-6 p-4 bg-linear-to-r from-green-500/10 to-blue-500/10 border border-green-500/30 rounded-lg shadow-lg">
               <div className="flex items-start gap-3">
-                <Eye size={20} className="text-green-400 flex-shrink-0 mt-0.5" />
+                <Eye size={20} className="text-green-400 shrink-0 mt-0.5" />
                 <div>
                   <p className="text-green-400 text-sm font-semibold mb-2">✨ LIVE Preview - Changes Apply Instantly!</p>
                   <p className="text-green-400/80 text-xs mb-2">
@@ -5211,7 +5211,7 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
 
             <div className="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
               <div className="flex items-start gap-2">
-                <Download size={16} className="text-yellow-400 flex-shrink-0 mt-0.5" />
+                <Download size={16} className="text-yellow-400 shrink-0 mt-0.5" />
                 <div>
                   <p className="text-yellow-400 text-sm font-medium mb-1">File Download</p>
                   <p className="text-yellow-400/80 text-xs">
@@ -5226,7 +5226,7 @@ export type CompetitionPageConfig = typeof competitionPageConfig;
             {state.buttons.length > 0 && (
               <div className="mt-4 p-4 bg-orange-500/10 border border-orange-500/30 rounded-lg">
                 <div className="flex items-start gap-2">
-                  <AlertCircle size={16} className="text-orange-400 flex-shrink-0 mt-0.5" />
+                  <AlertCircle size={16} className="text-orange-400 shrink-0 mt-0.5" />
                   <div>
                     <p className="text-orange-400 text-sm font-medium mb-1">Button Dependencies</p>
                     <p className="text-orange-400/80 text-xs">

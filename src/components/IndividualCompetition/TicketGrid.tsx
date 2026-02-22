@@ -157,7 +157,7 @@ const TicketGrid: React.FC<TicketGridProps> = ({
                 <div className="absolute top-0.5 right-0.5 w-2 h-2 bg-emerald-400 rounded-full"></div>
               )}
               {!isAvailable && !isOwned && (
-                <div className="absolute w-6/12 bg-white/20 h-[1px] left-1/2 top-1/2 -translate-y-1/2 -rotate-12 -translate-x-1/2"></div>
+                <div className="absolute w-6/12 bg-white/20 h-px left-1/2 top-1/2 -translate-y-1/2 -rotate-12 -translate-x-1/2"></div>
               )}
             </button>
           );

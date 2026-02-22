@@ -553,7 +553,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[200] p-4">
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-200 p-4">
       <div className="bg-[#2B2B2B] rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-gray-700">
           <div className="flex items-center gap-3">
@@ -572,7 +572,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
           {/* First Top-Up Bonus Banner - only show if user hasn't used bonus */}
           {!hasUsedBonus && step !== 'success' && step !== 'error' && (
             <div className="mb-6 bg-[#DDE404]/15 border border-[#DDE404]/40 rounded-lg p-4 flex items-start gap-3">
-              <Gift size={24} className="text-[#DDE404] flex-shrink-0 mt-0.5" />
+              <Gift size={24} className="text-[#DDE404] shrink-0 mt-0.5" />
               <div>
                 <p className="text-[#DDE404] sequel-75 text-sm">50% First Deposit Bonus</p>
               </div>
@@ -588,10 +588,10 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                   {/* Separated from entry purchases to ensure clear transaction tracking */}
                   <button
                     onClick={() => handleMethodSelect('commerce')}
-                    className="w-full h-[72px] flex items-center justify-between px-4 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
+                    className="w-full h-18 flex items-center justify-between px-4 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+                      <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
                         <Coins size={22} className="text-white" />
                       </div>
                       <div className="text-left">
@@ -616,7 +616,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                     className="flex items-center justify-between gap-3 p-3 rounded-xl w-full bg-[#3A3A3A] border-2 border-gray-600/30 opacity-50 cursor-not-allowed"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-gray-600/30 flex items-center justify-center flex-shrink-0">
+                      <div className="w-10 h-10 rounded-lg bg-gray-600/30 flex items-center justify-center shrink-0">
                         <CreditCard size={20} className="text-gray-500" />
                       </div>
                       <div className="text-left">
@@ -624,7 +624,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                         <p className="text-gray-500 sequel-45 text-xs">Soon</p>
                       </div>
                     </div>
-                    <ChevronRight size={18} className="text-gray-600 flex-shrink-0" />
+                    <ChevronRight size={18} className="text-gray-600 shrink-0" />
                   </button> */}
                 </div>
               </div>
@@ -705,7 +705,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                 disabled={
                   (paymentMethod === 'crypto' && !TOP_UP_CHECKOUT_URLS[amount])
                 }
-                className="w-full h-[56px] flex items-center justify-center px-6 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
+                className="w-full h-14 flex items-center justify-center px-6 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
               >
                 <span className="text-white sequel-75 text-sm uppercase">
                   {paymentMethod === 'offramp'
@@ -750,7 +750,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                 Fund ${amount} via Coinbase
               </p>
 
-              <div className="bg-gradient-to-br from-blue-900/40 to-blue-800/30 rounded-lg p-6 text-center border border-blue-500/30">
+              <div className="bg-linear-to-br from-blue-900/40 to-blue-800/30 rounded-lg p-6 text-center border border-blue-500/30">
                 <p className="text-blue-300 sequel-45 text-sm mb-4">
                   Click the button below to fund your wallet:
                 </p>
@@ -783,7 +783,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                     refreshUserData();
                     onSuccess?.();
                   }}
-                  className="w-full h-[56px] flex items-center justify-center px-6 bg-[#0052FF] rounded-xl transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
+                  className="w-full h-14 flex items-center justify-center px-6 bg-[#0052FF] rounded-xl transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
                 >
                   <span className="text-white sequel-75 text-sm uppercase">Top Up Complete</span>
                 </button>
@@ -859,7 +859,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                   href={checkoutUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2 h-[56px] px-10 bg-[#0052FF] text-white sequel-75 uppercase rounded-xl transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
+                  className="inline-flex items-center justify-center gap-2 h-14 px-10 bg-[#0052FF] text-white sequel-75 uppercase rounded-xl transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
                 >
                   <ExternalLink size={18} />
                   <span className="text-sm">Top Up via Coinbase</span>
@@ -891,7 +891,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
               <div className="border-t border-gray-700 pt-4 mt-4">
                 <button
                   onClick={onClose}
-                  className="w-full h-[56px] flex items-center justify-center px-6 bg-[#0052FF] rounded-xl transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
+                  className="w-full h-14 flex items-center justify-center px-6 bg-[#0052FF] rounded-xl transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
                 >
                   <span className="text-white sequel-75 text-sm uppercase">Head Back to Site</span>
                 </button>
@@ -944,7 +944,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                   href={checkoutUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2 h-[56px] px-10 bg-[#0052FF] text-white sequel-75 uppercase rounded-xl transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
+                  className="inline-flex items-center justify-center gap-2 h-14 px-10 bg-[#0052FF] text-white sequel-75 uppercase rounded-xl transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
                 >
                   <ExternalLink size={18} />
                   <span className="text-sm">Complete Cash Out</span>
@@ -973,7 +973,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
               <p className="text-gray-400 sequel-45 mb-6">Your balance has been updated.</p>
               <button
                 onClick={onClose}
-                className="h-[56px] px-10 flex items-center justify-center mx-auto bg-[#0052FF] rounded-xl transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
+                className="h-14 px-10 flex items-center justify-center mx-auto bg-[#0052FF] rounded-xl transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
               >
                 <span className="text-white sequel-75 text-base uppercase">Done</span>
               </button>
@@ -991,7 +991,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
               <p className="text-gray-400 sequel-45 mb-6">{error || 'Something went wrong. Please try again.'}</p>
               <button
                 onClick={() => setStep('method')}
-                className="h-[56px] px-10 flex items-center justify-center mx-auto bg-[#0052FF] rounded-xl transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
+                className="h-14 px-10 flex items-center justify-center mx-auto bg-[#0052FF] rounded-xl transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
               >
                 <span className="text-white sequel-75 text-base uppercase">Try Again</span>
               </button>

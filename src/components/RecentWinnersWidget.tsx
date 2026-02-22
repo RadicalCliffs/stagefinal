@@ -168,11 +168,11 @@ export function RecentWinnersWidget({ limit = 10, className = '' }: RecentWinner
               <div className="flex-1 min-w-0">
                 {/* Winner Info */}
                 <div className="flex items-center gap-2 mb-1">
-                  <Zap className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                  <Zap className="w-4 h-4 text-purple-400 shrink-0" />
                   <span className="text-white sequel-45 text-sm truncate">
                     {winner.canonical_users?.username || 'Anonymous'}
                   </span>
-                  <span className="text-white/50 sequel-45 text-xs flex-shrink-0">
+                  <span className="text-white/50 sequel-45 text-xs shrink-0">
                     • #{winner.ticket_number}
                   </span>
                 </div>
@@ -194,7 +194,7 @@ export function RecentWinnersWidget({ limit = 10, className = '' }: RecentWinner
                   href={vrfMonitor.getTransactionUrl(winner.competitions.vrf_tx_hash)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-shrink-0 text-purple-400 hover:text-purple-300 p-2 hover:bg-purple-500/10 rounded transition-colors"
+                  className="shrink-0 text-purple-400 hover:text-purple-300 p-2 hover:bg-purple-500/10 rounded transition-colors"
                   title="View VRF Draw on BaseScan"
                 >
                   <ExternalLink className="w-4 h-4" />

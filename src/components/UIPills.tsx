@@ -27,7 +27,7 @@ const Tabs: React.FC<TabsProps> = ({ tabs, onTabChange, tabContainerClasses, tab
           <button
             key={tab.id}
             onClick={() => handleClick(tab.id)}
-            className={`pb-3 cursor-pointer uppercase whitespace-nowrap flex-shrink-0 ${
+            className={`pb-3 cursor-pointer uppercase whitespace-nowrap shrink-0 ${
               activeTab === tab.id
                 ? `text-white sequel-75 border-b-4 border-[#DDE404] ${activeTabClasses || ''}`
                 : "text-white"

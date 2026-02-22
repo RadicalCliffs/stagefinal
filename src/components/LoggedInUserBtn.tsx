@@ -201,7 +201,7 @@ const LoggedInUserBtn = ({ fullWidth = false }: LoggedInUserBtnProps) => {
         onClick={() => setShowDropdown(!showDropdown)}
       >
         {unreadCount > 0 && (
-          <div className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full min-w-[18px] h-[18px] sm:min-w-[20px] sm:h-[20px] flex items-center justify-center text-[10px] sm:text-xs sequel-75 px-1 z-10 border-2 border-[#1A1A1A]">
+          <div className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full min-w-4.5 h-4.5 sm:min-w-5 sm:h-5 flex items-center justify-center text-[10px] sm:text-xs sequel-75 px-1 z-10 border-2 border-[#1A1A1A]">
             {unreadCount > 99 ? '99+' : unreadCount}
           </div>
         )}
@@ -211,11 +211,11 @@ const LoggedInUserBtn = ({ fullWidth = false }: LoggedInUserBtnProps) => {
           </div>
           <div className={`flex flex-col justify-center px-2 sm:px-3 py-1 sm:py-1.5 ${fullWidth ? 'flex-1' : ''}`}>
             <div className="flex items-center gap-1 sm:gap-1.5">
-              <span className={`sequel-75 text-[#1A1A1A] text-[10px] sm:text-xs truncate ${fullWidth ? 'max-w-none' : 'max-w-[80px] sm:max-w-none'}`}>{displayName}</span>
-              <ChevronRight size={12} className={`text-[#1A1A1A] transition-transform flex-shrink-0 sm:w-[14px] sm:h-[14px] ${showDropdown ? 'rotate-90' : ''}`} />
+              <span className={`sequel-75 text-[#1A1A1A] text-[10px] sm:text-xs truncate ${fullWidth ? 'max-w-none' : 'max-w-20 sm:max-w-none'}`}>{displayName}</span>
+              <ChevronRight size={12} className={`text-[#1A1A1A] transition-transform shrink-0 sm:w-3.5 sm:h-3.5 ${showDropdown ? 'rotate-90' : ''}`} />
             </div>
             <div className="flex items-center gap-1 sm:gap-1.5 mt-0.5">
-              <WalletCards size={12} className="text-[#1A1A1A] flex-shrink-0 sm:w-[14px] sm:h-[14px]" />
+              <WalletCards size={12} className="text-[#1A1A1A] shrink-0 sm:w-3.5 sm:h-3.5" />
               <span className="sequel-95 text-[#1A1A1A] text-xs sm:text-sm">${realTimeLoading ? '...' : realTimeBalance.toFixed(2)}</span>
             </div>
           </div>
@@ -226,18 +226,18 @@ const LoggedInUserBtn = ({ fullWidth = false }: LoggedInUserBtnProps) => {
       {showDropdown && (
         <>
           {/* Mobile overlay backdrop */}
-          <div className="fixed inset-0 bg-black/50 z-[99] sm:hidden" onClick={() => setShowDropdown(false)} />
+          <div className="fixed inset-0 bg-black/50 z-99 sm:hidden" onClick={() => setShowDropdown(false)} />
 
-          <div className="fixed sm:absolute inset-x-0 sm:inset-x-auto bottom-0 sm:bottom-auto sm:top-full sm:right-0 sm:mt-2 bg-[#1A1A1A] rounded-t-2xl sm:rounded-xl shadow-2xl z-[100] w-full sm:w-[340px] md:w-[380px] lg:w-[420px] border border-[#2A2A2A] overflow-hidden max-h-[90vh] sm:max-h-[80vh] flex flex-col safe-area-inset-bottom">
+          <div className="fixed sm:absolute inset-x-0 sm:inset-x-auto bottom-0 sm:bottom-auto sm:top-full sm:right-0 sm:mt-2 bg-[#1A1A1A] rounded-t-2xl sm:rounded-xl shadow-2xl z-100 w-full sm:w-85 md:w-95 lg:w-105 border border-[#2A2A2A] overflow-hidden max-h-[90vh] sm:max-h-[80vh] flex flex-col safe-area-inset-bottom">
           {/* Mobile drag handle */}
           <div className="sm:hidden w-full py-3 flex justify-center touch-pan-y">
             <div className="w-12 h-1.5 bg-white/30 rounded-full"></div>
           </div>
 
           {/* Header - responsive padding and avatar sizes */}
-          <div className="bg-gradient-to-r from-[#2A2A2A] to-[#232323] p-3 sm:p-4 flex items-center justify-between">
+          <div className="bg-linear-to-r from-[#2A2A2A] to-[#232323] p-3 sm:p-4 flex items-center justify-between">
             <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-              <img src={avatarUrl} alt="avatar" className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover border-2 border-[#DDE404] flex-shrink-0" crossOrigin="anonymous" referrerPolicy="no-referrer" onError={() => setAvatarError(true)} />
+              <img src={avatarUrl} alt="avatar" className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover border-2 border-[#DDE404] shrink-0" crossOrigin="anonymous" referrerPolicy="no-referrer" onError={() => setAvatarError(true)} />
               <div className="flex-1 min-w-0">
                 <p className="sequel-95 text-white text-xs sm:text-sm truncate">{displayName}</p>
                 <p className="sequel-45 text-white/60 text-[10px] sm:text-xs mt-0.5 truncate">{primaryEmail || truncateString(primaryWallet?.address, 12)}</p>
@@ -252,7 +252,7 @@ const LoggedInUserBtn = ({ fullWidth = false }: LoggedInUserBtnProps) => {
               className="text-gray-400 hover:text-white p-2 sm:p-1.5 hover:bg-white/10 rounded-lg transition-colors -mr-1 sm:mr-0"
               aria-label="Close menu"
             >
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="sm:w-[18px] sm:h-[18px]">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="sm:w-4.5 sm:h-4.5">
                 <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
               </svg>
             </button>
@@ -270,7 +270,7 @@ const LoggedInUserBtn = ({ fullWidth = false }: LoggedInUserBtnProps) => {
                   e.stopPropagation();
                   setShowTopUpModal(true);
                 }}
-                className="bg-[#DDE404] hover:bg-[#DDE404]/90 text-[#1A1A1A] sequel-75 text-xs sm:text-sm px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg transition-colors flex items-center gap-1.5 sm:gap-2 flex-shrink-0"
+                className="bg-[#DDE404] hover:bg-[#DDE404]/90 text-[#1A1A1A] sequel-75 text-xs sm:text-sm px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg transition-colors flex items-center gap-1.5 sm:gap-2 shrink-0"
               >
                 <Plus size={14} className="sm:w-4 sm:h-4" />
                 <span>Top Up</span>
@@ -302,7 +302,7 @@ const LoggedInUserBtn = ({ fullWidth = false }: LoggedInUserBtnProps) => {
               <Bell size={18} className="text-[#DDE404]" />
               <span className="sequel-75 text-white text-[11px] sm:text-xs">Notifications</span>
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center text-[10px] sequel-75">
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full min-w-4.5 h-4.5 flex items-center justify-center text-[10px] sequel-75">
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               )}
@@ -334,7 +334,7 @@ const LoggedInUserBtn = ({ fullWidth = false }: LoggedInUserBtnProps) => {
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
                             isPrimary ? 'bg-[#DDE404]' : 'bg-[#404040]'
                           }`}>
                             <WalletCards size={16} className={isPrimary ? 'text-[#1A1A1A]' : 'text-white'} />
@@ -345,7 +345,7 @@ const LoggedInUserBtn = ({ fullWidth = false }: LoggedInUserBtnProps) => {
                                 {getWalletLabel(walletAccount)}
                               </p>
                               {isPrimary && (
-                                <span className="bg-[#DDE404] text-[#1A1A1A] sequel-75 text-[10px] px-1.5 py-0.5 rounded flex-shrink-0">
+                                <span className="bg-[#DDE404] text-[#1A1A1A] sequel-75 text-[10px] px-1.5 py-0.5 rounded shrink-0">
                                   WALLET
                                 </span>
                               )}
@@ -355,7 +355,7 @@ const LoggedInUserBtn = ({ fullWidth = false }: LoggedInUserBtnProps) => {
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1 flex-shrink-0">
+                        <div className="flex items-center gap-1 shrink-0">
                           <button
                             onClick={(e) => handleCopyAddress(walletAccount.address || '', e)}
                             className="p-1.5 hover:bg-white/10 rounded-md transition-colors"

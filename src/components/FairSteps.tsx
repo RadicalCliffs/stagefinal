@@ -47,7 +47,7 @@ const FairSteps = ({
                 {step.title}
               </h1>
               {
-                showSeparator && <div className="w-6/12 mx-auto h-[1px] bg-white my-4"></div>
+                showSeparator && <div className="w-6/12 mx-auto h-px bg-white my-4"></div>
               }
               <p className={`sequel-45 text-sm leading-loose ${descriptionClasses}`}>{step.description}</p>
 

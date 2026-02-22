@@ -242,7 +242,7 @@ const OrdersTable: FC<OrdersTableProps> = ({ activeTab, data }) => {
                           {(item.tx_id || item.transaction_hash) && (
                             <button
                               onClick={() => handleCopyTxHash(item.tx_id || item.transaction_hash, item.id)}
-                              className="text-white/60 hover:text-[#DDE404] transition-colors flex-shrink-0"
+                              className="text-white/60 hover:text-[#DDE404] transition-colors shrink-0"
                               title="Copy BaseScan URL"
                             >
                               {copiedId === item.id ? (

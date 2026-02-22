@@ -257,7 +257,7 @@ const WinnersPage = () => {
           </section>
 
           <section className="relative overflow-hidden rounded-2xl sm:rounded-3xl sm:w-auto w-11/12 mx-auto sm:mt-12 mt-9">
-            {/* <div className="absolute inset-0 bg-gradient-to-br from-[#EF008F] via-[#8B008B] to-[#1A1A1A] opacity-90"></div> */}
+            {/* <div className="absolute inset-0 bg-linear-to-br from-[#EF008F] via-[#8B008B] to-[#1A1A1A] opacity-90"></div> */}
             <img
               src={dominoImg}
               alt="domino-img"

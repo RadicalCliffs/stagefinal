@@ -121,7 +121,7 @@ export default function Account() {
             <Heading text='My Account' classes='text-white sequel-95' />
             <div className='bg-[#151515]  lg:py-14 lg:px-18 px-4 py-8 rounded-lg my-8 w-full'>
                 <AccountAvatarSection />
-                <div className='bg-[#DDE404] h-[2px] w-full sm:mt-14 mt-8'></div>
+                <div className='bg-[#DDE404] h-0.5 w-full sm:mt-14 mt-8'></div>
 
                 {/* Authorized Wallet - Read Only */}
                 <div className="mt-10 mb-4">

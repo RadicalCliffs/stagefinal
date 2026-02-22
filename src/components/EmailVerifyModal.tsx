@@ -151,7 +151,7 @@ export const EmailVerifyModal: React.FC<EmailVerifyModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70">
+    <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/70">
       <div className="bg-[#101010] border border-white/10 rounded-2xl p-6 w-full max-w-md relative">
         <button
           className="absolute right-4 top-4 text-white/60 hover:text-white"

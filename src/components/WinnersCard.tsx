@@ -28,14 +28,14 @@ export const WinnerCard = ({
     <div className="w-full bg-[#1A1A1A] text-white rounded-xl overflow-hidden border-[3px] border-white hover:border-[#DDE404] transition-colors flex flex-col max-w-[260px] mx-auto cursor-pointer">
       {/* Prize header */}
       <div className="bg-black px-3 py-2 text-center">
-        <h5 className="sequel-95 uppercase text-white text-sm mb-0 break-words leading-tight">{prize}</h5>
+        <h5 className="sequel-95 uppercase text-white text-sm mb-0 break-all leading-tight">{prize}</h5>
         <p className="sequel-75 text-[11px] text-white/90">WINNER</p>
       </div>
 
       {/* Main content: Avatar on left, info on right */}
       <div className="flex p-2.5 gap-2.5 flex-1">
         {/* Avatar - takes full height on left */}
-        <div className="flex-shrink-0 relative w-20">
+        <div className="shrink-0 relative w-20">
           <img
             src={imgError ? avatar : (avatarUrl || avatar)}
             alt="Winner"

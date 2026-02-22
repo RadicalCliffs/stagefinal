@@ -614,8 +614,8 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
 
             {error && (
               <div className="flex items-start gap-2 text-red-400 text-sm">
-                <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
-                <span className="break-words">{error}</span>
+                <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                <span className="break-all">{error}</span>
               </div>
             )}
 
@@ -626,13 +626,13 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="animate-spin flex-shrink-0" size={20} />
+                  <Loader2 className="animate-spin shrink-0" size={20} />
                   <span>Checking...</span>
                 </>
               ) : (
                 <>
                   <span>Continue</span>
-                  <ArrowRight size={20} className="flex-shrink-0" />
+                  <ArrowRight size={20} className="shrink-0" />
                 </>
               )}
             </button>
@@ -768,8 +768,8 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
 
             {error && (
               <div className="flex items-start gap-2 text-red-400 text-sm">
-                <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
-                <span className="break-words">{error}</span>
+                <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                <span className="break-all">{error}</span>
               </div>
             )}
 
@@ -780,13 +780,13 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="animate-spin flex-shrink-0" size={20} />
+                  <Loader2 className="animate-spin shrink-0" size={20} />
                   <span>Processing...</span>
                 </>
               ) : (
                 <>
                   <span>Create account</span>
-                  <ArrowRight size={20} className="flex-shrink-0" />
+                  <ArrowRight size={20} className="shrink-0" />
                 </>
               )}
             </button>
@@ -802,7 +802,7 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
           <div className="space-y-6">
             <div className="text-center">
               <h2 className="text-2xl font-bold text-white mb-2">Check your email</h2>
-              <p className="text-white/70 break-words">
+              <p className="text-white/70 break-all">
                 Enter the 6-digit code we sent to {profileData.email}
               </p>
             </div>
@@ -828,8 +828,8 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
 
             {error && (
               <div className="flex items-start gap-2 text-red-400 text-sm justify-center">
-                <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
-                <span className="break-words">{error}</span>
+                <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                <span className="break-all">{error}</span>
               </div>
             )}
 
@@ -840,13 +840,13 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="animate-spin flex-shrink-0" size={20} />
+                  <Loader2 className="animate-spin shrink-0" size={20} />
                   <span>Verifying...</span>
                 </>
               ) : (
                 <>
                   <span>Verify & continue</span>
-                  <CheckCircle size={20} className="flex-shrink-0" />
+                  <CheckCircle size={20} className="shrink-0" />
                 </>
               )}
             </button>
@@ -891,7 +891,7 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
                 <AlertCircle size={32} className="text-yellow-400" />
               </div>
               <h2 className="text-2xl font-bold text-white mb-2">Account already exists</h2>
-              <p className="text-white/70 break-words">
+              <p className="text-white/70 break-all">
                 {existingAccountInfo?.type === 'email' && (
                   <>This email is already registered with username <strong className="text-white break-all">{existingAccountInfo.existingUsername}</strong>.</>
                 )}
@@ -910,7 +910,7 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
                 onClick={handleLoginWithExistingAccount}
                 className="w-full py-3 bg-[#0052FF] hover:bg-[#0041CC] text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
               >
-                <User size={20} className="flex-shrink-0" />
+                <User size={20} className="shrink-0" />
                 <span>Login with existing account</span>
               </button>
 
@@ -920,7 +920,7 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
                   onClick={() => setStep('username-recovery')}
                   className="w-full py-3 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 text-sm"
                 >
-                  <Mail size={20} className="flex-shrink-0" />
+                  <Mail size={20} className="shrink-0" />
                   <span>Forgot your username? Get a reminder</span>
                 </button>
               )}
@@ -938,8 +938,8 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
 
             {error && (
               <div className="flex items-start gap-2 text-red-400 text-sm justify-center">
-                <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
-                <span className="break-words">{error}</span>
+                <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                <span className="break-all">{error}</span>
               </div>
             )}
 
@@ -965,7 +965,7 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
               <h2 className="text-2xl font-bold text-white mb-2">
                 {recoveryEmailSent ? 'Email sent!' : 'Send username reminder'}
               </h2>
-              <p className="text-white/70 break-words">
+              <p className="text-white/70 break-all">
                 {recoveryEmailSent ? (
                   <>We've sent your username to <strong className="text-white break-all">{existingAccountInfo?.maskedEmail}</strong>. Check your inbox.</>
                 ) : (
@@ -982,12 +982,12 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
               >
                 {isLoading ? (
                   <>
-                    <Loader2 className="animate-spin flex-shrink-0" size={20} />
+                    <Loader2 className="animate-spin shrink-0" size={20} />
                     <span>Sending...</span>
                   </>
                 ) : (
                   <>
-                    <Mail size={20} className="flex-shrink-0" />
+                    <Mail size={20} className="shrink-0" />
                     <span>Send reminder email</span>
                   </>
                 )}
@@ -997,15 +997,15 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
                 onClick={handleLoginWithExistingAccount}
                 className="w-full py-3 bg-[#0052FF] hover:bg-[#0041CC] text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
               >
-                <ArrowRight size={20} className="flex-shrink-0" />
+                <ArrowRight size={20} className="shrink-0" />
                 <span>Continue to login</span>
               </button>
             )}
 
             {error && (
               <div className="flex items-start gap-2 text-red-400 text-sm justify-center">
-                <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
-                <span className="break-words">{error}</span>
+                <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                <span className="break-all">{error}</span>
               </div>
             )}
 
@@ -1029,7 +1029,7 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
                 <AlertCircle size={32} className="text-red-400" />
               </div>
               <h2 className="text-2xl font-bold text-white mb-2">Create new account</h2>
-              <p className="text-white/70 break-words">
+              <p className="text-white/70 break-all">
                 If you've lost access to the email <strong className="text-white break-all">{existingAccountInfo?.maskedEmail}</strong>,
                 we can remove it from your old account so you can create a new one.
               </p>
@@ -1050,7 +1050,7 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
               >
                 {isLoading ? (
                   <>
-                    <Loader2 className="animate-spin flex-shrink-0" size={20} />
+                    <Loader2 className="animate-spin shrink-0" size={20} />
                     <span>Processing...</span>
                   </>
                 ) : (
@@ -1068,8 +1068,8 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
 
             {error && (
               <div className="flex items-start gap-2 text-red-400 text-sm justify-center">
-                <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
-                <span className="break-words">{error}</span>
+                <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                <span className="break-all">{error}</span>
               </div>
             )}
           </div>
@@ -1081,7 +1081,7 @@ export default function NewAuthModal({ isOpen, onClose, textOverrides }: NewAuth
   };
 
   return (
-    <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-9998 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
       <div className="w-full max-w-md bg-[#0A0A0F] border border-white/10 rounded-2xl shadow-2xl relative">
         <button
           onClick={onClose}

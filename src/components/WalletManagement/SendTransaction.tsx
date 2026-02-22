@@ -270,7 +270,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
     return (
       <div className="bg-[#1E1E1E] rounded-xl p-6 border border-red-500/30">
         <div className="flex items-start gap-3">
-          <AlertCircle size={24} className="text-red-400 flex-shrink-0 mt-1" />
+          <AlertCircle size={24} className="text-red-400 shrink-0 mt-1" />
           <div>
             <h3 className="text-white sequel-75 text-lg mb-2">Wallet Not Found</h3>
             <p className="text-white/60 sequel-45 text-sm">
@@ -286,7 +286,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
     return (
       <div className="bg-[#1E1E1E] rounded-xl p-6 border border-white/10">
         <div className="flex items-start gap-3 mb-6">
-          <div className="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center flex-shrink-0">
+          <div className="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center shrink-0">
             <CheckCircle size={24} className="text-green-400" />
           </div>
           <div>
@@ -337,7 +337,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
   return (
     <div className="bg-[#1E1E1E] rounded-xl p-6 border border-white/10">
       <div className="flex items-start gap-3 mb-6">
-        <div className="w-12 h-12 bg-[#DDE404]/20 rounded-full flex items-center justify-center flex-shrink-0">
+        <div className="w-12 h-12 bg-[#DDE404]/20 rounded-full flex items-center justify-center shrink-0">
           <Send size={24} className="text-[#DDE404]" />
         </div>
         <div>
@@ -350,7 +350,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
 
       {error && (
         <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-4 flex items-start gap-2">
-          <AlertCircle size={18} className="text-red-400 flex-shrink-0 mt-0.5" />
+          <AlertCircle size={18} className="text-red-400 shrink-0 mt-0.5" />
           <div>
             <p className="text-red-400 sequel-75 text-sm mb-1">Transaction Failed</p>
             <p className="text-red-300/70 sequel-45 text-xs">{error}</p>
@@ -426,7 +426,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
 
       <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mb-6">
         <div className="flex items-start gap-2">
-          <AlertCircle size={16} className="text-blue-400 flex-shrink-0 mt-0.5" />
+          <AlertCircle size={16} className="text-blue-400 shrink-0 mt-0.5" />
           <div>
             <p className="text-blue-400 sequel-75 text-xs mb-1">Important</p>
             <ul className="text-blue-300/70 sequel-45 text-xs space-y-1">

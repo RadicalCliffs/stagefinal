@@ -141,7 +141,7 @@ const Header: React.FC = () => {
           
 
           <Activity mode={isMenuOpen ? "visible" : "hidden"}>
-            <nav className="absolute left-0 right-0 top-12 py-6 bg-[#232323] z-[60] max-h-[calc(100vh-5rem)] overflow-y-auto">
+            <nav className="absolute left-0 right-0 top-12 py-6 bg-[#232323] z-60 max-h-[calc(100vh-5rem)] overflow-y-auto">
               <ul className="flex flex-col sequel-45 text-white sm:items-center sm:pl-0 pl-8 items-start space-y-2 uppercase">
                 {navItems.map(({ label, path }) => (
                   <li key={path}>
@@ -215,7 +215,7 @@ const Header: React.FC = () => {
 
         {/* Desktop header - constrained to match hero section width (max-w-7xl = 80rem = 1280px) */}
         <div className="relative max-w-7xl mx-auto xl:block hidden w-full">
-          <div className="absolute z-[10] left-0 xl:block hidden">
+          <div className="absolute z-10 left-0 xl:block hidden">
             <svg
               width="20"
               height="70"
@@ -233,7 +233,7 @@ const Header: React.FC = () => {
           </div>
 
           <div className="bg-[#1A1A1A] flex items-center gap-18 min-h-[70px] rounded-tr-lg rounded-br-lg w-[calc(100%-20px)] ml-[20px] pr-4">
-            <Link to="/" className="ml-4 flex-shrink-0">
+            <Link to="/" className="ml-4 shrink-0">
               <img src={logo} alt="PrizeIO logo" />
             </Link>
             <nav className="flex-1">
@@ -256,7 +256,7 @@ const Header: React.FC = () => {
               </ul>
             </nav>
 
-            <div className="flex items-center gap-4 flex-shrink-0">
+            <div className="flex items-center gap-4 shrink-0">
               <div className="relative" ref={dropdownRef}  onClick={() => setShowSocialDropdown(prev => !prev)}>
                 <img
                   src={iconsDropdown}

@@ -201,8 +201,8 @@ const LiveTicketCounter: React.FC<LiveTicketCounterProps> = ({
               isSoldOut
                 ? 'bg-red-500'
                 : isAlmostSoldOut
-                ? 'bg-gradient-to-r from-orange-500 to-red-500'
-                : 'bg-gradient-to-r from-[#DDE404] to-[#B8C700]'
+                ? 'bg-linear-to-r from-orange-500 to-red-500'
+                : 'bg-linear-to-r from-[#DDE404] to-[#B8C700]'
             } ${isAnimating ? 'animate-pulse' : ''}`}
             style={{ width: `${Math.max(Math.min(displayPercentage, 100), 5)}%` }}
           />

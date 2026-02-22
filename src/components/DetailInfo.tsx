@@ -64,7 +64,7 @@ const DetailInfo = ({ title, subtitle, fields, backTo }: DetailInfoProps) => {
               key={i}
               className="flex justify-between items-center gap-4"
             >
-              <p className="text-white/60 uppercase flex-shrink-0">{field.label}</p>
+              <p className="text-white/60 uppercase shrink-0">{field.label}</p>
               <p className="text-white truncate text-right min-w-0">{field.value}</p>
             </div>
           ))}

@@ -16,7 +16,7 @@ const InstantWinTabs = () => {
       {/* Scrollable wrapper */}
       <div id='ui-pills' className='flex items-baseline custom-scrollbar justify-normal lg:justify-center gap-6 sm:gap-12 overflow-x-auto whitespace-nowrap'>
         {/* Tabs */}
-        <div className='flex-shrink-0'>
+        <div className='shrink-0'>
           <Tabs
             tabs={tabList}
             onTabChange={handleTabChange}
@@ -26,7 +26,7 @@ const InstantWinTabs = () => {
         </div>
 
         {/* Buy Tickets Button */}
-        <div className='flex-shrink-0'>
+        <div className='shrink-0'>
           <button className='border border-white cursor-pointer hover:bg-[#DDE404]/90 text-lg bg-[#DDE404] text-[#2D2022] sequel-95 rounded-md py-2 px-4 custom-box-shadow uppercase whitespace-nowrap'>
             Buy Tickets
           </button>

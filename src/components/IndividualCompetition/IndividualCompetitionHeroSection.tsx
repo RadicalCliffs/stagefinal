@@ -395,7 +395,7 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
                     style={{ width: `${progressPercent}%` }}
                   ></div>
                 </div>
-                <p className="text-white/60 md:block hidden  border border-[#4e4e4e] px-2 pt-4 pb-3 relative -top-3 z-[1] rounded-b-xl border-t-0 text-xs sequel-45 text-center">
+                <p className="text-white/60 md:block hidden  border border-[#4e4e4e] px-2 pt-4 pb-3 relative -top-3 z-1 rounded-b-xl border-t-0 text-xs sequel-45 text-center">
                   Prize: {competition.prize_value || "1 BTC"}
                 </p>
               </div>

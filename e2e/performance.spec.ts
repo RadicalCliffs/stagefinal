@@ -72,21 +72,17 @@ test.describe('Page Load Performance', () => {
 
 test.describe('Resource Loading', () => {
   test('should load critical resources first', async ({ page }) => {
-    const resourceTiming: { name: string; duration: number }[] = [];
+    const resourceUrls: string[] = [];
     
     page.on('response', response => {
-      const timing = response.timing();
-      resourceTiming.push({
-        name: response.url(),
-        duration: timing ? timing.responseEnd : 0
-      });
+      resourceUrls.push(response.url());
     });
 
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
     // Should have loaded resources
-    expect(resourceTiming.length).toBeGreaterThan(0);
+    expect(resourceUrls.length).toBeGreaterThan(0);
   });
 
   test('should not have excessive network requests', async ({ page }) => {

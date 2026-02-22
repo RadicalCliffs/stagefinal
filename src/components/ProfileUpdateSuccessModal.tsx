@@ -152,7 +152,7 @@ const ProfileUpdateSuccessModal: React.FC<ProfileUpdateSuccessModalProps> = ({
         </div>
 
         {/* Divider */}
-        <div className="h-[1px] bg-gradient-to-r from-transparent via-[#DDE404] to-transparent mx-8" />
+        <div className="h-px bg-linear-to-r from-transparent via-[#DDE404] to-transparent mx-8" />
 
         {/* Live competitions carousel section */}
         <div className="p-8 pt-6">
@@ -194,7 +194,7 @@ const ProfileUpdateSuccessModal: React.FC<ProfileUpdateSuccessModalProps> = ({
                     key={comp.id}
                     to={`/competitions/${comp.id}`}
                     onClick={onClose}
-                    className="flex-shrink-0 w-[220px] sm:w-[260px] bg-[#1A1A1A] rounded-xl border border-white/10 hover:border-[#DDE404] transition-all overflow-hidden group"
+                    className="shrink-0 w-[220px] sm:w-[260px] bg-[#1A1A1A] rounded-xl border border-white/10 hover:border-[#DDE404] transition-all overflow-hidden group"
                   >
                     {/* Competition image */}
                     <div className="relative h-[130px] sm:h-[150px] overflow-hidden">
@@ -237,7 +237,7 @@ const ProfileUpdateSuccessModal: React.FC<ProfileUpdateSuccessModalProps> = ({
                       <div className="mt-2">
                         <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-gradient-to-r from-[#DDE404] to-[#00FF88] rounded-full transition-all"
+                            className="h-full bg-linear-to-r from-[#DDE404] to-[#00FF88] rounded-full transition-all"
                             style={{
                               width: `${Math.min(100, Math.max(5, comp.progressPercent || ((comp.tickets_sold || 0) / (comp.max_tickets || 1000) * 100)))}%`
                             }}

@@ -247,7 +247,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           <p className="text-red-400 font-mono break-all mb-4">{String(competitionId)}</p>
           <p className="text-red-100 text-sm mb-6">This is a critical bug. Please refresh the page, and if the problem persists, contact support with this error message.</p>
           <button
-            className="py-3 px-8 bg-gradient-to-r from-red-500 to-red-700 text-white rounded-xl font-bold text-lg hover:from-red-700 hover:to-red-500 transition-all duration-300"
+            className="py-3 px-8 bg-linear-to-r from-red-500 to-red-700 text-white rounded-xl font-bold text-lg hover:from-red-700 hover:to-red-500 transition-all duration-300"
             onClick={() => window.location.reload()}
           >
             Reload Page
@@ -1485,14 +1485,14 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
              paymentStep === 'success' ? (textOverrides?.successMessage || 'Payment Successful') :
              hasPaymentParams ? 'Payment Status' : (textOverrides?.modalTitle || 'Complete Payment')}
           </h1>
-          <div className="h-[2px] w-full bg-white mb-3 sm:mb-4"></div>
+          <div className="h-0.5 w-full bg-white mb-3 sm:mb-4"></div>
 
           {/* Initial payment selection */}
           {showInitialPayment && paymentStep === 'initial' && ticketCount > 0 && (
             <div className="space-y-4">
               {/* Premium Order Summary Card with integrated timer */}
               <div className="relative overflow-hidden rounded-xl bg-gray-900 border border-white/10 p-4">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#DDE404] via-[#0052FF] to-[#EF008F]"></div>
+                <div className="absolute top-0 left-0 w-full h-1 bg-linear-to-r from-[#DDE404] via-[#0052FF] to-[#EF008F]"></div>
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-full bg-[#DDE404]/20 flex items-center justify-center">
@@ -1552,7 +1552,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
               {/* Inline Error Message - replaces browser alert() dialogs */}
               {errorMessage && (
                 <div className="bg-red-500/10 border border-red-500/40 rounded-lg px-4 py-3 flex items-start gap-3">
-                  <CircleX size={20} className="text-red-400 flex-shrink-0 mt-0.5" />
+                  <CircleX size={20} className="text-red-400 shrink-0 mt-0.5" />
                   <div className="flex-1">
                     <p className="text-red-400 sequel-75 text-sm">{errorMessage}</p>
                     <button
@@ -1572,10 +1572,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                   <button
                     onClick={handleBalancePayment}
                     disabled={balanceLoading || loadingBalance}
-                    className="w-full h-[72px] flex items-center justify-between px-4 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
+                    className="w-full h-18 flex items-center justify-between px-4 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+                      <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
                         <DollarSign className="text-white" size={22} />
                       </div>
                       <div className="text-left">
@@ -1597,10 +1597,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                   <button
                     onClick={handleBaseAccountPayment}
                     disabled={baseAccountLoading}
-                    className="w-full h-[72px] flex items-center justify-between px-4 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
+                    className="w-full h-18 flex items-center justify-between px-4 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+                      <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
                         <svg className="w-6 h-6 text-white" viewBox="0 0 111 111" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <path d="M54.921 110.034C85.359 110.034 110.034 85.402 110.034 55.017C110.034 24.6319 85.359 0 54.921 0C26.0432 0 2.35281 22.1714 0 50.3923H72.8467V59.6416H3.9565e-07C2.35281 87.8625 26.0432 110.034 54.921 110.034Z" fill="currentColor"/>
                         </svg>
@@ -1618,10 +1618,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                 {/* <button
                   onClick={handleCommercePayment}
                   disabled={commerceLoading}
-                  className="w-full h-[72px] flex items-center justify-between px-4 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
+                  className="w-full h-18 flex items-center justify-between px-4 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
                       <Coins className="text-white" size={22} />
                     </div>
                     <div className="text-left">
@@ -1635,10 +1635,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                 {/* E. Pay With Card - Coming Soon - HIDDEN */}
                 {/* <button
                   disabled
-                  className="w-full h-[72px] flex items-center justify-between px-4 bg-gray-600 rounded-xl cursor-not-allowed"
+                  className="w-full h-18 flex items-center justify-between px-4 bg-gray-600 rounded-xl cursor-not-allowed"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
                       <CreditCard className="text-gray-400" size={22} />
                     </div>
                     <div className="text-left">
@@ -1676,7 +1676,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
               </p>
               <button
                 onClick={handleCloseModal}
-                className="py-4 px-10 bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98]"
+                className="py-4 px-10 bg-linear-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98]"
               >
                 Select Tickets
               </button>
@@ -1750,7 +1750,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                   href={commerceCheckoutUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 py-4 px-10 bg-gradient-to-r from-purple-600 to-violet-600 hover:from-violet-600 hover:to-purple-600 text-white sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-purple-600/30 hover:shadow-purple-600/40 hover:scale-[1.02] active:scale-[0.98]"
+                  className="inline-flex items-center gap-2 py-4 px-10 bg-linear-to-r from-purple-600 to-violet-600 hover:from-violet-600 hover:to-purple-600 text-white sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-purple-600/30 hover:shadow-purple-600/40 hover:scale-[1.02] active:scale-[0.98]"
                 >
                   <ExternalLink size={18} />
                   Pay via Coinbase
@@ -1856,7 +1856,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
               <button
                 onClick={handleViewEntries}
-                className="py-4 px-10 bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98]"
+                className="py-4 px-10 bg-linear-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98]"
               >
                 View My Entries
               </button>
@@ -1888,7 +1888,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
               {errorInfo?.guidance && !paymentSucceededButAllocationPending && (
                 <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg px-4 py-3 mb-4 mx-auto max-w-md">
                   <div className="flex items-start gap-2">
-                    <AlertTriangle size={18} className="text-amber-400 flex-shrink-0 mt-0.5" />
+                    <AlertTriangle size={18} className="text-amber-400 shrink-0 mt-0.5" />
                     <p className="text-amber-400/90 sequel-45 text-sm text-left">
                       {errorInfo.guidance}
                     </p>
@@ -1904,7 +1904,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                 {!paymentSucceededButAllocationPending && errorInfo?.retryable !== false && (
                   <button
                     onClick={handleReturn}
-                    className="py-4 px-10 bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98]"
+                    className="py-4 px-10 bg-linear-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98]"
                   >
                     Try Again
                   </button>
@@ -1912,7 +1912,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                 {paymentSucceededButAllocationPending && (
                   <button
                     onClick={handleCloseModal}
-                    className="py-4 px-10 bg-gradient-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98]"
+                    className="py-4 px-10 bg-linear-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98]"
                   >
                     Close
                   </button>

@@ -65,7 +65,7 @@ const VRFVerificationCard: React.FC<VRFVerificationCardProps> = ({
               <p className="sequel-45 text-white font-mono text-sm break-all">{seedDisplay}</p>
             </div>
             <div
-              className="ml-4 cursor-pointer hover:scale-110 transition-transform flex-shrink-0"
+              className="ml-4 cursor-pointer hover:scale-110 transition-transform shrink-0"
               onClick={() => handleCopy(0, vrfSeed, setCopiedIndex)}
             >
               {copiedIndex === 0 ? (

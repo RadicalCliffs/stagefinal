@@ -96,11 +96,11 @@ const NotificationsLayout = () => {
     <div className="max-w-5xl mx-auto">
       {/* Header with gradient and animated background */}
       <div className="relative mb-8 overflow-hidden rounded-2xl">
-        <div className="absolute inset-0 bg-gradient-to-r from-[#DDE404]/20 via-purple-500/10 to-[#EF008F]/20 animate-pulse" />
+        <div className="absolute inset-0 bg-linear-to-r from-[#DDE404]/20 via-purple-500/10 to-[#EF008F]/20 animate-pulse" />
         <div className="relative bg-[#181818]/90 backdrop-blur-sm border-2 border-white/20 rounded-2xl p-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div className="flex items-center gap-4">
-              <div className="bg-gradient-to-br from-[#DDE404] to-[#B8BE04] p-3 rounded-xl">
+              <div className="bg-linear-to-br from-[#DDE404] to-[#B8BE04] p-3 rounded-xl">
                 {unreadCount > 0 ? (
                   <Sparkles className="text-black" size={32} />
                 ) : (
@@ -136,9 +136,9 @@ const NotificationsLayout = () => {
 
       {notifications.length === 0 ? (
         <div className="relative overflow-hidden rounded-2xl">
-          <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-white/5" />
+          <div className="absolute inset-0 bg-linear-to-br from-white/5 via-transparent to-white/5" />
           <div className="relative bg-[#181818]/90 backdrop-blur-sm border-2 border-white/20 rounded-2xl p-12 text-center">
-            <div className="inline-block p-6 bg-gradient-to-br from-white/10 to-transparent rounded-full mb-6">
+            <div className="inline-block p-6 bg-linear-to-br from-white/10 to-transparent rounded-full mb-6">
               <Bell className="text-white/30" size={64} />
             </div>
             <h3 className="text-white sequel-75 text-xl mb-2">No notifications yet</h3>
@@ -151,7 +151,7 @@ const NotificationsLayout = () => {
             <button
               onClick={handleBackfill}
               disabled={backfilling}
-              className="bg-gradient-to-r from-[#DDE404] to-[#B8BE04] hover:from-[#B8BE04] hover:to-[#DDE404] text-black sequel-75 uppercase px-6 py-3 rounded-xl transition-all hover:scale-105 active:scale-95 text-sm flex items-center gap-2 mx-auto disabled:opacity-50 shadow-lg shadow-[#DDE404]/30"
+              className="bg-linear-to-r from-[#DDE404] to-[#B8BE04] hover:from-[#B8BE04] hover:to-[#DDE404] text-black sequel-75 uppercase px-6 py-3 rounded-xl transition-all hover:scale-105 active:scale-95 text-sm flex items-center gap-2 mx-auto disabled:opacity-50 shadow-lg shadow-[#DDE404]/30"
             >
               <RefreshCw size={18} className={backfilling ? 'animate-spin' : ''} />
               {backfilling ? 'Loading...' : 'Load Activity History'}

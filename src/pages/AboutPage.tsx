@@ -84,7 +84,7 @@ const AboutPage = () => {
             </div>
 
             {/* Part 4: Carousel - joined to part 3 with reduced spacing to carousel */}
-            <div className="w-full py-[1.14rem] bg-gradient-to-br from-pink-600 via-purple-700 to-[#1A1A1A] overflow-hidden">
+            <div className="w-full py-[1.14rem] bg-linear-to-br from-pink-600 via-purple-700 to-[#1A1A1A] overflow-hidden">
               <Swiper
                 modules={[Navigation, Pagination, A11y]}
                 spaceBetween={20}
@@ -98,7 +98,7 @@ const AboutPage = () => {
                       <img
                         src={image}
                         alt={`SafeSmash screen ${index + 1}`}
-                        className="w-full max-w-[280px] rounded-lg object-contain"
+                        className="w-full max-w-70 rounded-lg object-contain"
                         style={{ imageRendering: 'auto' }}
                       />
                     </div>

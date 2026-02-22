@@ -37,7 +37,7 @@ export function FieldFeedback({ error, success, hint, className = '' }: FieldFee
   if (error) {
     return (
       <div className={`flex items-center gap-1.5 mt-1.5 text-red-400 ${className}`} role="alert">
-        <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
         <span className="text-xs sequel-45">{error}</span>
       </div>
     );
@@ -46,7 +46,7 @@ export function FieldFeedback({ error, success, hint, className = '' }: FieldFee
   if (success) {
     return (
       <div className={`flex items-center gap-1.5 mt-1.5 text-green-400 ${className}`}>
-        <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" />
+        <CheckCircle className="w-3.5 h-3.5 shrink-0" />
         <span className="text-xs sequel-45">Looks good!</span>
       </div>
     );
@@ -133,7 +133,7 @@ export function FormErrorSummary({ errors, title = 'Please fix the following err
       aria-live="polite"
     >
       <div className="flex items-start gap-2">
-        <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+        <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
         <div>
           <p className="text-red-400 sequel-75 text-sm">{title}</p>
           <ul className="mt-2 space-y-1">

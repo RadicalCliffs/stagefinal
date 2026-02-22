@@ -37,8 +37,8 @@ const VRFChargeMeter: React.FC<VRFChargeMeterProps> = ({
           <div
             className={`h-full transition-all duration-300 ease-out rounded-full ${
               isFullyCharged
-                ? 'bg-gradient-to-r from-green-500 to-green-400 animate-pulse'
-                : 'bg-gradient-to-r from-amber-600 to-amber-400'
+                ? 'bg-linear-to-r from-green-500 to-green-400 animate-pulse'
+                : 'bg-linear-to-r from-amber-600 to-amber-400'
             }`}
             style={{ width: `${chargePercentage}%` }}
           />

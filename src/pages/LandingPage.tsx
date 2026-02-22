@@ -32,10 +32,10 @@ const LandingPage = () => {
             text="Live Competitions"
             classes="text-[#DDE404] md:text-[2.1rem] max-[600px]:text-2xl sm:mb-0 mb-9 sm:px-0 px-2"
           />
-          <div className="text-center mt-9 mb-[calc(0.75rem+8px)] sm:block hidden">
+          <div className="text-center mt-9 mb-5 sm:block hidden">
             <Link
               to={"/competitions"}
-              className="uppercase mb-3 inline-block border border-white py-3 px-10 rounded-lg sequel-45 hover:bg-[#DDE404] text-[0.85rem] cursor-pointer bg-transparent text-[#fff] hover:text-[#280508] custom-box-shadow hover:font-bold"
+              className="uppercase mb-3 inline-block border border-white py-3 px-10 rounded-lg sequel-45 hover:bg-[#DDE404] text-[0.85rem] cursor-pointer bg-transparent text-white hover:text-[#280508] custom-box-shadow hover:font-bold"
             >
               View All Competitions
             </Link>

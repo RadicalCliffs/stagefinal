@@ -40,7 +40,7 @@ const WinnerHashCard: React.FC<WinnerHashCardProps> = ({
                                     className="sequel-95 text-white md:text-xl sm:text-lg mt-1 uppercase hover:text-[#DDE404] transition-colors flex items-center gap-2"
                                 >
                                     {field.value}
-                                    <ExternalLinkIcon className="w-5 h-5 flex-shrink-0" />
+                                    <ExternalLinkIcon className="w-5 h-5 shrink-0" />
                                 </a>
                             ) : (
                                 <p className="sequel-95 text-white md:text-xl sm:text-lg mt-1 uppercase">{field.value}</p>

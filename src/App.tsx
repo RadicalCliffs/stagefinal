@@ -22,7 +22,7 @@ function App() {
             <DiscountBanner />
             <Header />
           </div>
-          <div className='h-[104px] xl:h-[122px]'></div>
+          <div className='h-26 xl:h-30.5'></div>
           <ScrollRestoration />
           <ErrorBoundary>
             <Outlet />

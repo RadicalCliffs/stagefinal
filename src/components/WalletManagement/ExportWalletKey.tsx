@@ -43,7 +43,7 @@ export const ExportWalletKey: React.FC<ExportWalletKeyProps> = ({ onClose }) => 
     return (
       <div className="bg-[#1E1E1E] rounded-xl p-6 border border-red-500/30">
         <div className="flex items-start gap-3">
-          <AlertCircle size={24} className="text-red-400 flex-shrink-0 mt-1" />
+          <AlertCircle size={24} className="text-red-400 shrink-0 mt-1" />
           <div>
             <h3 className="text-white sequel-75 text-lg mb-2">Wallet Not Found</h3>
             <p className="text-white/60 sequel-45 text-sm">
@@ -60,7 +60,7 @@ export const ExportWalletKey: React.FC<ExportWalletKeyProps> = ({ onClose }) => 
       {showWarning ? (
         <>
           <div className="flex items-start gap-3 mb-6">
-            <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center flex-shrink-0">
+            <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center shrink-0">
               <Shield size={24} className="text-red-400" />
             </div>
             <div>
@@ -73,7 +73,7 @@ export const ExportWalletKey: React.FC<ExportWalletKeyProps> = ({ onClose }) => 
 
           <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-6">
             <div className="flex items-start gap-2 mb-3">
-              <AlertCircle size={18} className="text-red-400 flex-shrink-0 mt-0.5" />
+              <AlertCircle size={18} className="text-red-400 shrink-0 mt-0.5" />
               <p className="text-red-400 sequel-75 text-sm">Security Warning</p>
             </div>
             <ul className="space-y-2 text-red-300/80 sequel-45 text-xs ml-6">
@@ -128,7 +128,7 @@ export const ExportWalletKey: React.FC<ExportWalletKeyProps> = ({ onClose }) => 
       ) : (
         <>
           <div className="flex items-start gap-3 mb-6">
-            <div className="w-12 h-12 bg-[#DDE404]/20 rounded-full flex items-center justify-center flex-shrink-0">
+            <div className="w-12 h-12 bg-[#DDE404]/20 rounded-full flex items-center justify-center shrink-0">
               <Download size={24} className="text-[#DDE404]" />
             </div>
             <div>
@@ -152,7 +152,7 @@ export const ExportWalletKey: React.FC<ExportWalletKeyProps> = ({ onClose }) => 
 
           {status && String(status) === 'copied' && (
             <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-4 flex items-start gap-2">
-              <Check size={18} className="text-green-400 flex-shrink-0 mt-0.5" />
+              <Check size={18} className="text-green-400 shrink-0 mt-0.5" />
               <div>
                 <p className="text-green-400 sequel-75 text-sm mb-1">Private Key Copied!</p>
                 <p className="text-green-300/70 sequel-45 text-xs">
@@ -164,7 +164,7 @@ export const ExportWalletKey: React.FC<ExportWalletKeyProps> = ({ onClose }) => 
 
           <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 mb-6">
             <div className="flex items-start gap-2">
-              <AlertCircle size={16} className="text-yellow-400 flex-shrink-0 mt-0.5" />
+              <AlertCircle size={16} className="text-yellow-400 shrink-0 mt-0.5" />
               <div>
                 <p className="text-yellow-400 sequel-75 text-xs mb-1">Security Reminder</p>
                 <p className="text-yellow-300/70 sequel-45 text-xs">

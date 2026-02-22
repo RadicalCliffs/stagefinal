@@ -105,7 +105,7 @@ export function CompetitionDebugger() {
           <button
             type="submit"
             disabled={loading || !inputId}
-            className="px-6 py-3 bg-gradient-to-r from-[#6366f1] to-[#8b5cf6] text-white font-medium rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+            className="px-6 py-3 bg-linear-to-r from-[#6366f1] to-[#8b5cf6] text-white font-medium rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
           >
             {loading ? 'Checking...' : 'Debug'}
           </button>
@@ -240,7 +240,7 @@ export function CompetitionDebugger() {
                 type="button"
                 onClick={handleTriggerDraw}
                 disabled={triggerLoading}
-                className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-medium rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                className="px-6 py-3 bg-linear-to-r from-green-500 to-emerald-600 text-white font-medium rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
               >
                 {triggerLoading ? 'Triggering Draw...' : 'Trigger VRF Draw'}
               </button>
@@ -293,7 +293,7 @@ export function CompetitionDebugger() {
                 type="button"
                 onClick={handleSyncResults}
                 disabled={syncLoading}
-                className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-medium rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                className="px-6 py-3 bg-linear-to-r from-blue-500 to-indigo-600 text-white font-medium rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
               >
                 {syncLoading ? 'Syncing...' : 'Sync Results'}
               </button>

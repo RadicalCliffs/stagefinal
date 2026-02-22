@@ -152,7 +152,7 @@ const WinnerResultsTable = ({ competitionId }: WinnerResultsTableProps) => {
       </div>
 
       {/* Divider line for desktop */}
-      <div className="hidden md:block h-[2px] w-full bg-[#DDE404] mb-6"></div>
+      <div className="hidden md:block h-0.5 w-full bg-[#DDE404] mb-6"></div>
 
       {/* Rows */}
       <div className="space-y-4">

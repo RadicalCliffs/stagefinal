@@ -73,7 +73,7 @@ const UserMiniProfile = () => {
   if (isLoading) {
     return (
       <div className='flex items-center gap-4 sm:gap-5 animate-pulse'>
-        <div className='w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-lg bg-[#3A3A3A] flex-shrink-0' />
+        <div className='w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-lg bg-[#3A3A3A] shrink-0' />
         <div className='flex-1 min-w-0'>
           <div className='h-5 bg-[#3A3A3A] rounded w-28 sm:w-36 mb-2' />
           <div className='h-4 bg-[#3A3A3A] rounded w-36 sm:w-52' />
@@ -106,7 +106,7 @@ const UserMiniProfile = () => {
   return (
     <>
       <div className='flex items-center gap-4 sm:gap-5'>
-          <div className='relative group flex-shrink-0'>
+          <div className='relative group shrink-0'>
             <img
               src={avatarUrl}
               alt="user-avatar"
@@ -132,7 +132,7 @@ const UserMiniProfile = () => {
                         {formatPid(canonicalUserId)}
                       </p>
                     </div>
-                    <button onClick={handleCopyPid} className='flex-shrink-0 p-0.5' title='Copy Account ID'>
+                    <button onClick={handleCopyPid} className='shrink-0 p-0.5' title='Copy Account ID'>
                       {copiedPid ? (
                         <CheckIcon size={14} className='cursor-pointer text-[#DDE404]' />
                       ) : (
@@ -150,7 +150,7 @@ const UserMiniProfile = () => {
                         {walletAddress.slice(0, 8)}...{walletAddress.slice(-4)}
                       </p>
                     </div>
-                    <button onClick={handleCopyWallet} className='flex-shrink-0 p-0.5' title='Copy Wallet Address'>
+                    <button onClick={handleCopyWallet} className='shrink-0 p-0.5' title='Copy Wallet Address'>
                       {copiedWallet ? (
                         <CheckIcon size={14} className='cursor-pointer text-[#DDE404]' />
                       ) : (

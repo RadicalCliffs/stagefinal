@@ -119,7 +119,7 @@ const EntriesTable: React.FC<EntriesTableProps> = ({ entries, itemsPerPage = 20 
                     </a>
                     <button
                         onClick={(e) => handleCopyHash(txHash, e)}
-                        className="text-white/40 hover:text-[#DDE404] transition-colors flex-shrink-0"
+                        className="text-white/40 hover:text-[#DDE404] transition-colors shrink-0"
                         title="Copy BaseScan URL"
                     >
                         {copiedHash === txHash ? (
@@ -138,7 +138,7 @@ const EntriesTable: React.FC<EntriesTableProps> = ({ entries, itemsPerPage = 20 
                 <p className="text-white/60 truncate max-w-[100px] font-mono text-sm">{displayHash}</p>
                 <button
                     onClick={(e) => handleCopyHash(txHash, e)}
-                    className="text-white/40 hover:text-[#DDE404] transition-colors flex-shrink-0"
+                    className="text-white/40 hover:text-[#DDE404] transition-colors shrink-0"
                     title="Copy Hash"
                 >
                     {copiedHash === txHash ? (

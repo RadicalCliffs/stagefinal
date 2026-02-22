@@ -56,7 +56,7 @@ const PrizesDetails: React.FC<PrizesDetailsProps> = ({
               {ticket.number}
             </span>
             {ticket.isWinner && (
-              <div className="absolute w-8/12 bg-white/30 h-[1px] left-1/2 top-1/2 -translate-y-1/2 -rotate-12 -translate-x-1/2"></div>
+              <div className="absolute w-8/12 bg-white/30 h-px left-1/2 top-1/2 -translate-y-1/2 -rotate-12 -translate-x-1/2"></div>
             )}
           </div>
         ))}

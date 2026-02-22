@@ -186,7 +186,7 @@ const UserInfoModal: React.FC<UserInfoModalProps> = ({
             {ticketCount} {ticketCount > 1 ? 'entries' : 'entry'} for ${totalAmount?.toFixed(2) ?? '0.00'}
           </p>
 
-          <div className="h-[2px] w-full bg-white mb-6"></div>
+          <div className="h-0.5 w-full bg-white mb-6"></div>
 
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -302,9 +302,9 @@ const UserInfoModal: React.FC<UserInfoModalProps> = ({
             {onPayWithCard && (
               <>
                 <div className="flex items-center gap-4 my-2">
-                  <div className="flex-1 h-[1px] bg-white/20"></div>
+                  <div className="flex-1 h-px bg-white/20"></div>
                   <span className="text-white/50 sequel-45 text-xs">OR</span>
-                  <div className="flex-1 h-[1px] bg-white/20"></div>
+                  <div className="flex-1 h-px bg-white/20"></div>
                 </div>
                 <button
                   onClick={handlePayWithCard}

@@ -140,7 +140,7 @@ const EntriesCard = ({
         )}
 
         {/* Image */}
-        <div className={`${isDetailed ? "w-full" : "w-16 h-16 sm:w-24 sm:h-24 md:w-32 md:h-24 flex-shrink-0 overflow-hidden rounded-sm"}`}>
+        <div className={`${isDetailed ? "w-full" : "w-16 h-16 sm:w-24 sm:h-24 md:w-32 md:h-24 shrink-0 overflow-hidden rounded-sm"}`}>
           <img
             src={competitionImage || monkeyNftV3}
             alt={title || "competition"}
@@ -165,7 +165,7 @@ const EntriesCard = ({
               </h2>
               <div
                 className={`bg-[#EF008F] mt-2 ${
-                  isDetailed ? "lg:w-6/12 h-[4px]" : "w-full max-w-[80px] sm:max-w-[120px] h-[2px] sm:h-[3px]"
+                  isDetailed ? "lg:w-6/12 h-[4px]" : "w-full max-w-20 sm:max-w-[120px] h-0.5 sm:h-[3px]"
                 }`}
               ></div>
               <p
@@ -276,9 +276,9 @@ const EntriesCard = ({
             {/* Chevron (only compact) */}
             {!isDetailed && (
               <div
-                className={`flex-shrink-0 ${background} w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-md`}
+                className={`shrink-0 ${background} w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-md`}
               >
-                <ChevronRight color="#393939" size={14} className="sm:w-[18px] sm:h-[18px]" />
+                <ChevronRight color="#393939" size={14} className="sm:w-4.5 sm:h-4.5" />
               </div>
             )}
           </div>
@@ -335,7 +335,7 @@ const EntriesCard = ({
       {
         isPromoCard && <div className="mt-7 flex flex-col sm:flex-row justify-between gap-3 sm:gap-4">
         <input className="bg-white/25 text-black sm:text-base text-sm w-full rounded-md sequel-45 px-3 sm:pl-4 py-2.5 sm:py-3 placeholder:text-white/70" placeholder="Enter Promotional Code..."/>
-        <button className="sequel-95 bg-[#DDE404] sm:text-base text-sm cursor-pointer text-[#000] uppercase px-4 py-2.5 sm:py-3 rounded-md flex-shrink-0">Enter</button>
+        <button className="sequel-95 bg-[#DDE404] sm:text-base text-sm cursor-pointer text-[#000] uppercase px-4 py-2.5 sm:py-3 rounded-md shrink-0">Enter</button>
       </div>
       }
 

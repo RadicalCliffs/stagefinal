@@ -90,7 +90,7 @@ const LiveCompetitionCard: React.FC<CompetitionCardProps> = ({
       <button
         className={`sequel-95 text-white uppercase md:pt-[13px] md:pb-3.5 pt-2.5 pb-2 md:text-xl text-xs md:rounded-xl rounded-md w-full ${
           isSoldOut
-            ? 'bg-gradient-to-r from-red-600 via-white via-red-600 to-white bg-[length:20px_100%] animate-pulse'
+            ? 'bg-linear-to-r from-red-600 via-white via-red-600 to-white bg-[length:20px_100%] animate-pulse'
             : 'bg-[#161616] opacity-60'
         }`}
         style={isSoldOut ? {
