@@ -78,16 +78,7 @@ BEGIN
       NEW.confirmed_at,
       NEW.confirmed_at
     )
-    ON CONFLICT (canonical_user_id, competitionid) 
-    DO UPDATE SET
-      ticket_numbers = CASE 
-        WHEN joincompetition.ticket_numbers IS NULL OR joincompetition.ticket_numbers = '' 
-        THEN EXCLUDED.ticket_numbers
-        ELSE joincompetition.ticket_numbers || ',' || EXCLUDED.ticket_numbers
-      END,
-      amount_spent = COALESCE(joincompetition.amount_spent, 0) + EXCLUDED.amount_spent,
-      purchase_date = EXCLUDED.purchase_date,
-      updated_at = EXCLUDED.updated_at;
+    ON CONFLICT DO NOTHING;
     
     RAISE NOTICE 'trg_fn_confirm_pending_tickets: Created % tickets AND joincompetition entry for competition %', 
       v_ticket_count, v_competition_uuid;
@@ -150,16 +141,7 @@ BEGIN
       v_total,
       rec.confirmed_at,
       rec.confirmed_at
-    )
-    ON CONFLICT (canonical_user_id, competitionid) DO UPDATE SET
-      ticket_numbers = CASE 
-        WHEN joincompetition.ticket_numbers IS NULL OR joincompetition.ticket_numbers = '' 
-        THEN EXCLUDED.ticket_numbers
-        ELSE joincompetition.ticket_numbers || ',' || EXCLUDED.ticket_numbers
-      END,
-      amount_spent = COALESCE(joincompetition.amount_spent, 0) + EXCLUDED.amount_spent,
-      purchase_date = EXCLUDED.purchase_date,
-      updated_at = now();
+    );
     
     RAISE NOTICE 'Backfilled joincompetition for pending_ticket %', rec.id;
   END LOOP;
