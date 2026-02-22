@@ -79,7 +79,7 @@ BEGIN
       NEW.confirmed_at,
       NEW.confirmed_at
     )
-    ON CONFLICT ON CONSTRAINT uq_jc_user_competition DO UPDATE
+    ON CONFLICT (canonical_user_id, competition_id) DO UPDATE
     SET ticket_numbers = (
           -- Merge existing tickets with new tickets
           SELECT string_agg(DISTINCT t::text, ',' ORDER BY t::text)
