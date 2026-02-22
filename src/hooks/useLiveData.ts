@@ -8,7 +8,7 @@
  * - Debouncing to prevent hammering the database
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { supabase } from "../lib/supabase";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
@@ -42,43 +42,61 @@ export function useLiveData<T>({
   const [loading, setLoading] = useState(true);
   const lastFetchRef = useRef<number>(0);
   const initialLoadDoneRef = useRef<boolean>(false);
+  const fetchFnRef = useRef(fetchFn);
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const isMountedRef = useRef(true);
 
-  const fetchData = useCallback(
-    async (force = false) => {
-      const now = Date.now();
-      if (!force && now - lastFetchRef.current < debounceMs) {
-        return;
-      }
-      lastFetchRef.current = now;
+  // Keep fetchFn ref up to date
+  fetchFnRef.current = fetchFn;
 
-      if (!initialLoadDoneRef.current) {
-        setLoading(true);
-      }
+  // Stable table key for dependency
+  const tablesKey = useMemo(() => tables.sort().join(","), [tables]);
 
-      try {
-        const result = await fetchFn();
-        setData(result);
-      } catch (error) {
+  // Fetch function that uses refs (stable, no dependencies)
+  const fetchData = (force = false) => {
+    const now = Date.now();
+    if (!force && now - lastFetchRef.current < debounceMs) {
+      return;
+    }
+    lastFetchRef.current = now;
+
+    if (!initialLoadDoneRef.current) {
+      setLoading(true);
+    }
+
+    fetchFnRef.current()
+      .then((result) => {
+        if (isMountedRef.current) {
+          setData(result);
+          setLoading(false);
+          initialLoadDoneRef.current = true;
+        }
+      })
+      .catch((error) => {
         console.error(`[${channelName}] Fetch error:`, error);
-      } finally {
-        setLoading(false);
-        initialLoadDoneRef.current = true;
-      }
-    },
-    [fetchFn, debounceMs, channelName],
-  );
+        if (isMountedRef.current) {
+          setLoading(false);
+          initialLoadDoneRef.current = true;
+        }
+      });
+  };
 
   useEffect(() => {
+    isMountedRef.current = true;
+
     // Initial fetch
     fetchData(true);
 
-    // Set up realtime subscriptions for all tables
-    let channel: RealtimeChannel = supabase.channel(
-      `${channelName}-${Date.now()}`,
-    );
+    // Clean up any existing channel
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+    }
+
+    // Set up realtime subscription ONCE
+    const channel = supabase.channel(`${channelName}-${Date.now()}`);
 
     tables.forEach((table) => {
-      channel = channel.on(
+      channel.on(
         "postgres_changes",
         { event: "*", schema: "public", table },
         (payload) => {
@@ -92,21 +110,28 @@ export function useLiveData<T>({
       console.log(`[${channelName}] Realtime status:`, status);
     });
 
+    channelRef.current = channel;
+
     // Polling fallback
     const pollTimer = setInterval(() => {
-      console.log(`[${channelName}] Polling refresh`);
       fetchData();
     }, pollInterval);
 
     return () => {
-      supabase.removeChannel(channel);
+      isMountedRef.current = false;
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
       clearInterval(pollTimer);
     };
-  }, [fetchData, tables, pollInterval, channelName]);
+    // Only re-subscribe if tables actually change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tablesKey, channelName, pollInterval]);
 
-  const refresh = useCallback(() => {
+  const refresh = () => {
     fetchData(true);
-  }, [fetchData]);
+  };
 
   return { data, loading, refresh };
 }
