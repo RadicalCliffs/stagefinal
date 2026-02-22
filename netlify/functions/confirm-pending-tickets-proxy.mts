@@ -513,22 +513,22 @@ export default async (req: Request, _context: Context): Promise<Response> => {
         );
       }
 
-      // Reservation is being processed, return in-progress response
-      const resTicketNumbers = (reservation.ticket_numbers || []).map((n: any) => Number(n));
-      console.log(`[Confirm Tickets] Reservation ${reservationId} in progress, returning pending success`);
-      return json(
-        {
-          success: true,
-          reservationId: reservation.id,
-          ticketNumbers: resTicketNumbers,
-          ticketCount: resTicketNumbers.length,
-          totalAmount: reservation.total_amount,
-          message: `Confirmation in progress for ${resTicketNumbers.length} tickets.`,
-          confirmationInProgress: true,
-        },
-        200,
-        origin
-      );
+      // FIX: If reservation is "confirming" but no joincompetition entry exists,
+      // the previous confirmation attempt failed. Continue processing instead of
+      // returning early with "confirmationInProgress" which leaves tickets stuck.
+      console.log(`[Confirm Tickets] Reservation ${reservationId} stuck in confirming without joincompetition entry, recovering...`);
+      
+      // Refresh the lock timestamp so we can continue processing
+      await supabase
+        .from("pending_tickets")
+        .update({
+          status: "confirming",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", reservation.id);
+      
+      // Mark that we've recovered the lock - PATH B will skip lock acquisition
+      (reservation as any)._lockRecovered = true;
     }
 
     // ----------------------
@@ -1045,21 +1045,35 @@ function isValidUserId(userId: string): boolean {
     // Generate stable transaction hash for idempotency
     const finalTransactionHash = transactionHash || reservation.id;
 
+    // FIX: Skip lock acquisition if we already recovered a stuck "confirming" reservation
+    const lockAlreadyRecovered = (reservation as any)._lockRecovered === true;
+    
     // SAFEGUARD 1: Atomically update reservation status to 'confirming' FIRST
     // This prevents race conditions where multiple requests try to confirm the same reservation
     // Only proceed if we successfully update from 'pending' to 'confirming'
     // ISSUE #3 FIX: Add lock_acquired_at timestamp to detect stale locks
     const lockAcquiredAt = new Date().toISOString();
-    const { data: lockResult, error: lockError } = await supabase
-      .from("pending_tickets")
-      .update({
-        status: "confirming",
-        updated_at: lockAcquiredAt,
-      })
-      .eq("id", reservation.id)
-      .eq("status", "pending") // Only update if still pending (atomic lock)
-      .select("id")
-      .maybeSingle();
+    let lockResult: any = null;
+    let lockError: any = null;
+    
+    if (lockAlreadyRecovered) {
+      // We already refreshed the lock when recovering from stuck "confirming" state
+      console.log(`[Confirm Tickets] PATH B: Lock already recovered for reservation ${reservation.id}, skipping acquisition`);
+      lockResult = { id: reservation.id };
+    } else {
+      const result = await supabase
+        .from("pending_tickets")
+        .update({
+          status: "confirming",
+          updated_at: lockAcquiredAt,
+        })
+        .eq("id", reservation.id)
+        .eq("status", "pending") // Only update if still pending (atomic lock)
+        .select("id")
+        .maybeSingle();
+      lockResult = result.data;
+      lockError = result.error;
+    }
 
     if (lockError || !lockResult) {
       // Another request already started confirming this reservation

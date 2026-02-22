@@ -56,8 +56,9 @@ BEGIN
     v_total_amount := COALESCE(NEW.total_amount, 0);
     v_join_id := gen_random_uuid();
     
-    -- CREATE JOINCOMPETITION ENTRY (this is what was missing!)
+    -- CREATE OR UPDATE JOINCOMPETITION ENTRY
     -- NOTE: competitionid, ticketnumbers, numberoftickets are GENERATED columns
+    -- Uses ON CONFLICT to merge tickets when user makes additional purchases
     INSERT INTO public.joincompetition (
       id, user_id, competition_id, ticket_numbers, purchase_date,
       canonical_user_id, privy_user_id, wallet_address, status,
@@ -73,12 +74,24 @@ BEGIN
       COALESCE(NEW.wallet_address,
                (SELECT cu.wallet_address FROM public.canonical_users cu
                 WHERE cu.canonical_user_id = NEW.canonical_user_id)),
-      'active',
+      'sold',
       v_total_amount,
       NEW.confirmed_at,
       NEW.confirmed_at
     )
-    ON CONFLICT DO NOTHING;
+    ON CONFLICT ON CONSTRAINT uq_jc_user_competition DO UPDATE
+    SET ticket_numbers = (
+          -- Merge existing tickets with new tickets
+          SELECT string_agg(DISTINCT t::text, ',' ORDER BY t::text)
+          FROM (
+            SELECT unnest(string_to_array(joincompetition.ticket_numbers, ','))::int AS t
+            UNION
+            SELECT unnest(string_to_array(EXCLUDED.ticket_numbers, ','))::int
+          ) merged
+        ),
+        amount_spent = joincompetition.amount_spent + EXCLUDED.amount_spent,
+        purchase_date = EXCLUDED.purchase_date,
+        updated_at = EXCLUDED.updated_at;
     
     RAISE NOTICE 'trg_fn_confirm_pending_tickets: Created % tickets AND joincompetition entry for competition %', 
       v_ticket_count, v_competition_uuid;
@@ -147,13 +160,14 @@ BEGIN
   END LOOP;
 END $$;
 
--- Verify: Check joincompetition entries from today
+-- Verify: Check joincompetition entries from today (using view to show username)
 SELECT 
-  purchase_date, 
-  canonical_user_id, 
-  status,
-  numberoftickets
-FROM joincompetition 
-WHERE purchase_date >= '2026-02-22'::date
-ORDER BY purchase_date DESC
+  jc.purchase_date, 
+  cu.username,
+  jc.status,
+  jc.numberoftickets
+FROM joincompetition jc
+LEFT JOIN canonical_users cu ON cu.canonical_user_id = jc.canonical_user_id
+WHERE jc.purchase_date >= '2026-02-22'::date
+ORDER BY jc.purchase_date DESC
 LIMIT 10;
