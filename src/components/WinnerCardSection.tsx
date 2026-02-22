@@ -4,28 +4,45 @@ import "swiper/swiper-bundle.css";
 import { SwiperNavButtons } from "./SwiperCustomNav";
 import { WinnerCard } from "./WinnersCard";
 import { useIsMobile } from "../hooks/useIsMobile";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { database } from "../lib/database";
 import { supabase } from "../lib/supabase";
 import type { WinnerCardProps } from "../models/models";
 import { useSectionTracking } from "../hooks/useSectionTracking";
+
+// Polling interval as fallback (30 seconds)
+const POLLING_INTERVAL_MS = 30000;
 
 const WinnersV2 = () => {
   const isMobile = useIsMobile();
   const sectionRef = useSectionTracking('winners_section');
   const [winners, setWinners] = useState<WinnerCardProps[]>([]);
   const [loading, setLoading] = useState(true);
+  const initialLoadDoneRef = useRef<boolean>(false);
+  const lastFetchRef = useRef<number>(0);
 
-  // Function to fetch winners
-  const fetchWinners = useCallback(async () => {
-    setLoading(true);
+  // Function to fetch winners with debouncing
+  const fetchWinners = useCallback(async (force = false) => {
+    // Debounce rapid calls (within 2 seconds) unless forced
+    const now = Date.now();
+    if (!force && now - lastFetchRef.current < 2000) {
+      return;
+    }
+    lastFetchRef.current = now;
+
+    // Only show loading on initial load
+    if (!initialLoadDoneRef.current) {
+      setLoading(true);
+    }
+    
     const data = await database.getAllWinners();
     setWinners(data);
     setLoading(false);
+    initialLoadDoneRef.current = true;
   }, []);
 
   useEffect(() => {
-    fetchWinners();
+    fetchWinners(true);
 
     // Set up real-time subscription for new winners
     const channel = supabase
@@ -56,10 +73,19 @@ const WinnersV2 = () => {
           fetchWinners();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('[WinnersV2] Realtime subscription status:', status);
+      });
+
+    // Polling fallback - realtime can silently disconnect
+    const pollInterval = setInterval(() => {
+      console.log('[WinnersV2] Polling fallback - refreshing winners');
+      fetchWinners();
+    }, POLLING_INTERVAL_MS);
 
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(pollInterval);
     };
   }, [fetchWinners]);
 
