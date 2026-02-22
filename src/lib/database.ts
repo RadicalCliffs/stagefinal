@@ -1340,11 +1340,14 @@ export const database = {
   },
 
   async getRecentActivity(limit: number = 20): Promise<TableRow[]> {
-    // Fetch all recent entries without date filter
+    // Fetch individual purchase sessions from pending_tickets (NOT aggregated joincompetition)
+    // This shows each purchase as a separate entry: "jerry bought 1 ticket" not "jerry has 1299 total"
     const { data: entryData, error: entryError } = (await supabase
-      .from("v_joincompetition_active")
-      .select("*")
-      .order("purchasedate", { ascending: false })
+      .from("pending_tickets")
+      .select("*, canonical_users(username, avatar_url)")
+      .eq("status", "confirmed")
+      .not("confirmed_at", "is", null as any)
+      .order("confirmed_at", { ascending: false })
       .limit(limit)) as any;
 
     if (entryError) {
@@ -1503,19 +1506,19 @@ export const database = {
         userData = userMap.get(ticket.canonical_user_id.toLowerCase());
       }
 
-      // For the TIME column on Entry actions, show when the activity happened (purchase date)
+      // For the TIME column on Entry actions, show when the activity happened (confirmed_at from pending_tickets)
       // not the competition end date - users want to see when the entry was made
       let timeDisplay: string;
-      if (ticket.purchasedate) {
-        const purchaseDate = new Date(ticket.purchasedate);
+      if (ticket.confirmed_at) {
+        const purchaseDate = new Date(ticket.confirmed_at);
         timeDisplay = formatTimeDisplay(purchaseDate);
       } else {
         timeDisplay = "Recent";
       }
 
-      // Priority for display name: view's username > lookup username > truncated wallet > Anonymous
+      // Priority for display name: joined canonical_users username > lookup username > truncated wallet > Anonymous
       const displayName =
-        ticket.username ||
+        ticket.canonical_users?.username ||
         userData?.username ||
         (ticket.wallet_address
           ? ticket.wallet_address.substring(0, 6) +
@@ -1527,9 +1530,9 @@ export const database = {
               ticket.canonical_user_id.slice(-4)
             : "Anonymous");
 
-      // Priority for avatar: view's avatar > lookup avatar > random avatar
+      // Priority for avatar: joined canonical_users avatar > lookup avatar > random avatar
       const avatarUrl =
-        ticket.avatar_url || userData?.avatar_url || getRandomAvatar();
+        ticket.canonical_users?.avatar_url || userData?.avatar_url || getRandomAvatar();
       // Use actual prize from database, skip if no prize value exists
       const prize = comp.competitionprize;
       if (!prize) continue;
@@ -1539,13 +1542,10 @@ export const database = {
         : DEFAULT_COMPETITION_IMAGE;
 
       // For Buy actions, show dollar amount spent (ticket_price * number of tickets)
-      // Calculate from ticketnumbers if numberoftickets is not available
-      let ticketCount = ticket.numberoftickets;
-      if (!ticketCount && ticket.ticketnumbers) {
-        // Parse comma-separated ticket numbers to get count
-        ticketCount = ticket.ticketnumbers
-          .split(",")
-          .filter((t: string) => t.trim()).length;
+      // pending_tickets has ticket_numbers as int[] array, or ticket_count field
+      let ticketCount = ticket.ticket_count;
+      if (!ticketCount && ticket.ticket_numbers && Array.isArray(ticket.ticket_numbers)) {
+        ticketCount = ticket.ticket_numbers.length;
       }
       ticketCount = ticketCount || 1;
       const ticketPrice = comp.ticket_price || 1;

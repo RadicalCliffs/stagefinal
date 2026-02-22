@@ -13,7 +13,7 @@ const OPTIONS = [
 ];
 
 // Tables that affect live activity data
-const ACTIVITY_TABLES = ["joincompetition", "competition_entries", "winners"];
+const ACTIVITY_TABLES = ["pending_tickets", "winners"];
 
 const TableWithFilters = () => {
   const sectionRef = useSectionTracking("live_activity_section");
