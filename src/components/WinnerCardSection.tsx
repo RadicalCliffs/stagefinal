@@ -4,92 +4,24 @@ import "swiper/swiper-bundle.css";
 import { SwiperNavButtons } from "./SwiperCustomNav";
 import { WinnerCard } from "./WinnersCard";
 import { useIsMobile } from "../hooks/useIsMobile";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useMemo } from "react";
 import { database } from "../lib/database";
-import { supabase } from "../lib/supabase";
 import type { WinnerCardProps } from "../models/models";
 import { useSectionTracking } from "../hooks/useSectionTracking";
-
-// Polling interval as fallback (30 seconds)
-const POLLING_INTERVAL_MS = 30000;
+import { useLiveData } from "../hooks/useLiveData";
 
 const WinnersV2 = () => {
   const isMobile = useIsMobile();
   const sectionRef = useSectionTracking("winners_section");
-  const [winners, setWinners] = useState<WinnerCardProps[]>([]);
-  const [loading, setLoading] = useState(true);
-  const initialLoadDoneRef = useRef<boolean>(false);
-  const lastFetchRef = useRef<number>(0);
 
-  // Function to fetch winners with debouncing
-  const fetchWinners = useCallback(async (force = false) => {
-    // Debounce rapid calls (within 2 seconds) unless forced
-    const now = Date.now();
-    if (!force && now - lastFetchRef.current < 2000) {
-      return;
-    }
-    lastFetchRef.current = now;
+  // Fetch winners with realtime updates
+  const { data: winners, loading } = useLiveData<WinnerCardProps[]>({
+    fetchFn: () => database.getAllWinners(),
+    tables: ["winners"],
+    channelName: "home-winners",
+  });
 
-    // Only show loading on initial load
-    if (!initialLoadDoneRef.current) {
-      setLoading(true);
-    }
-
-    const data = await database.getAllWinners();
-    setWinners(data);
-    setLoading(false);
-    initialLoadDoneRef.current = true;
-  }, []);
-
-  useEffect(() => {
-    fetchWinners(true);
-
-    // Set up real-time subscription for new winners
-    const channel = supabase
-      .channel("home-winners-updates")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "winners",
-        },
-        (payload) => {
-          console.log("[WinnersV2] New winner detected:", payload.new);
-          // Refresh winners list when new winner is added
-          fetchWinners();
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "winners",
-        },
-        (payload) => {
-          console.log("[WinnersV2] Winner updated:", payload.new);
-          // Refresh on updates (e.g., claimed status change)
-          fetchWinners();
-        },
-      )
-      .subscribe((status) => {
-        console.log("[WinnersV2] Realtime subscription status:", status);
-      });
-
-    // Polling fallback - realtime can silently disconnect
-    const pollInterval = setInterval(() => {
-      console.log("[WinnersV2] Polling fallback - refreshing winners");
-      fetchWinners();
-    }, POLLING_INTERVAL_MS);
-
-    return () => {
-      supabase.removeChannel(channel);
-      clearInterval(pollInterval);
-    };
-  }, [fetchWinners]);
-
-  const displayedWinners = winners.slice(0, 9);
+  const displayedWinners = useMemo(() => (winners || []).slice(0, 9), [winners]);
 
   if (loading) {
     return (
