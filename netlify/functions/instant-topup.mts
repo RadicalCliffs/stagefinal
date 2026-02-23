@@ -460,6 +460,7 @@ export default async (request: Request, context: Context): Promise<Response> => 
       console.log(`[VERBOSE][instant-topup] Balance should be visible in sub_account_balances table`);
       
       // Mark transaction as wallet_credited with verification status
+      // CRITICAL: Set BOTH flags to prevent commerce-webhook from double-crediting
       const updateNotes = constructTransactionNotes(
         verification.verified,
         bonusApplied,
@@ -470,6 +471,9 @@ export default async (request: Request, context: Context): Promise<Response> => 
         .from("user_transactions")
         .update({
           wallet_credited: true,
+          posted_to_balance: true,
+          status: "completed",
+          payment_status: "completed",
           notes: updateNotes,
         })
         .eq("id", transactionId);
@@ -543,6 +547,7 @@ export default async (request: Request, context: Context): Promise<Response> => 
     }
 
     // Mark transaction as credited with verification status
+    // CRITICAL: Set BOTH flags to prevent commerce-webhook from double-crediting
     const fallbackNotes = constructTransactionNotes(
       verification.verified,
       false, // No bonus in fallback path
@@ -553,7 +558,9 @@ export default async (request: Request, context: Context): Promise<Response> => 
       .from("user_transactions")
       .update({
         wallet_credited: true,
-        status: "finished",
+        posted_to_balance: true,
+        status: "completed",
+        payment_status: "completed",
         notes: fallbackNotes,
         updated_at: new Date().toISOString(),
       })

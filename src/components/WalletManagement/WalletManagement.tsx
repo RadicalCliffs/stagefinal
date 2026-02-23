@@ -252,7 +252,19 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
 
       const result = data as { success: boolean; wallets?: any[]; primary_wallet?: string; error?: string };
       if (result?.success && result?.wallets) {
-        setAllUserWallets(result.wallets);
+        // DEDUP: Remove duplicate wallets (case-insensitive comparison)
+        // This handles cases where database returns both checksummed and lowercase versions
+        const seenAddresses = new Set<string>();
+        const dedupedWallets = result.wallets.filter((wallet: any) => {
+          const normalizedAddress = (wallet.address || wallet.wallet_address || '').toLowerCase();
+          if (seenAddresses.has(normalizedAddress)) {
+            console.log('[WalletManagement] Filtering duplicate wallet:', normalizedAddress);
+            return false;
+          }
+          seenAddresses.add(normalizedAddress);
+          return true;
+        });
+        setAllUserWallets(dedupedWallets);
       }
     } catch (err) {
       console.error('[WalletManagement] Error fetching user wallets:', err);

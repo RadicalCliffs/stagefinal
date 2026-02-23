@@ -711,9 +711,15 @@ Deno.serve(async (req: Request) => {
         const topUpAmount = Number(transaction.amount) || 0;
 
         if (topUpAmount > 0 && transaction.user_id) {
-          // Check if this top-up was already credited (idempotency)
-          if (transaction.posted_to_balance === true) {
-            console.log(`[commerce-webhook][${requestId}] Top-up already credited, skipping balance update`);
+          // BULLETPROOF IDEMPOTENCY: Check ALL possible flags that indicate already credited
+          // This prevents double-crediting when instant-topup already credited the balance
+          const alreadyCredited = 
+            transaction.posted_to_balance === true ||
+            transaction.wallet_credited === true ||
+            (transaction.status && ['completed', 'finished', 'confirmed', 'success'].includes(transaction.status.toLowerCase()));
+          
+          if (alreadyCredited) {
+            console.log(`[commerce-webhook][${requestId}] ⚠️ Top-up already credited (posted_to_balance=${transaction.posted_to_balance}, wallet_credited=${transaction.wallet_credited}, status=${transaction.status}), skipping balance update`);
           } else {
             // ROBUST CREDITING: Retry up to 3 times with exponential backoff
             let creditSuccess = false;
@@ -727,6 +733,12 @@ Deno.serve(async (req: Request) => {
               try {
                 console.log(`[commerce-webhook][${requestId}] Credit attempt ${attempt}/3 for user ${transaction.user_id}`);
 
+                // CRITICAL: Use tx_id (blockchain hash) as reference_id if available
+                // This ensures idempotency with instant-topup which also uses tx_id
+                // Fallback to charge_id, then transaction.id
+                const referenceId = transaction.tx_id || eventData.id || transaction.id;
+                console.log(`[commerce-webhook][${requestId}] Using reference_id for idempotency: ${referenceId}`);
+
                 // Use credit_balance_with_first_deposit_bonus for modern fidelity
                 // This matches the instant-topup flow and ensures consistent bonus application
                 const { data: creditResult, error: rpcError } = await supabase.rpc(
@@ -735,12 +747,20 @@ Deno.serve(async (req: Request) => {
                     p_canonical_user_id: transaction.user_id,
                     p_amount: topUpAmount,
                     p_reason: 'commerce_topup',
-                    p_reference_id: eventData.id || transaction.id
+                    p_reference_id: referenceId
                   }
                 );
 
                 if (rpcError) {
                   throw new Error(`RPC error: ${rpcError.message}`);
+                }
+
+                // Check if already credited (idempotency response from RPC)
+                if (creditResult?.already_credited) {
+                  console.log(`[commerce-webhook][${requestId}] ✅ Credit already applied (idempotent): ${creditResult?.idempotency_note}`);
+                  creditSuccess = true;
+                  newBalance = creditResult?.new_balance ?? 0;
+                  break;
                 }
 
                 // Extract bonus information from response

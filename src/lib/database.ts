@@ -1532,7 +1532,9 @@ export const database = {
 
       // Priority for avatar: joined canonical_users avatar > lookup avatar > random avatar
       const avatarUrl =
-        ticket.canonical_users?.avatar_url || userData?.avatar_url || getRandomAvatar();
+        ticket.canonical_users?.avatar_url ||
+        userData?.avatar_url ||
+        getRandomAvatar();
       // Use actual prize from database, skip if no prize value exists
       const prize = comp.competitionprize;
       if (!prize) continue;
@@ -1544,7 +1546,11 @@ export const database = {
       // For Buy actions, show dollar amount spent (ticket_price * number of tickets)
       // pending_tickets has ticket_numbers as int[] array, or ticket_count field
       let ticketCount = ticket.ticket_count;
-      if (!ticketCount && ticket.ticket_numbers && Array.isArray(ticket.ticket_numbers)) {
+      if (
+        !ticketCount &&
+        ticket.ticket_numbers &&
+        Array.isArray(ticket.ticket_numbers)
+      ) {
         ticketCount = ticket.ticket_numbers.length;
       }
       ticketCount = ticketCount || 1;
