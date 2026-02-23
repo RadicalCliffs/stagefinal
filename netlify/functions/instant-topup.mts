@@ -38,7 +38,7 @@ const VERIFICATION_STATUS = {
 /**
  * Construct transaction notes with verification status and bonus information.
  * Used to create consistent audit trail messages across different code paths.
- * 
+ *
  * @param isVerified - Whether the transaction has been verified on blockchain
  * @param bonusApplied - Whether a first-deposit bonus was applied
  * @param bonusAmount - The amount of bonus credited (if any)
@@ -47,14 +47,16 @@ const VERIFICATION_STATUS = {
 function constructTransactionNotes(
   isVerified: boolean,
   bonusApplied: boolean,
-  bonusAmount: number
+  bonusAmount: number,
 ): string {
-  const verificationLabel = isVerified ? "[Verified]" : "[Pending Verification]";
-  
+  const verificationLabel = isVerified
+    ? "[Verified]"
+    : "[Pending Verification]";
+
   if (bonusApplied) {
     return `Wallet topup completed with 50% bonus (+$${bonusAmount.toFixed(2)}) ${verificationLabel}`;
   }
-  
+
   return `Wallet topup completed ${verificationLabel}`;
 }
 
@@ -77,7 +79,8 @@ function errorResponse(message: string, status: number = 400): Response {
 
 // Get Supabase clients
 function getSupabaseClient() {
-  const supabaseUrl = Netlify.env.get("VITE_SUPABASE_URL") || Netlify.env.get("SUPABASE_URL");
+  const supabaseUrl =
+    Netlify.env.get("VITE_SUPABASE_URL") || Netlify.env.get("SUPABASE_URL");
   const supabaseServiceKey = Netlify.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
   if (!supabaseUrl || !supabaseServiceKey) {
@@ -95,7 +98,7 @@ function getSupabaseClient() {
 // Verify wallet address token
 async function verifyWalletToken(
   token: string,
-  supabase: ReturnType<typeof createClient>
+  supabase: ReturnType<typeof createClient>,
 ): Promise<{ userId: string; canonicalUserId: string } | null> {
   if (!token.startsWith("wallet:")) {
     return null;
@@ -113,7 +116,7 @@ async function verifyWalletToken(
     .from("canonical_users")
     .select("id, privy_user_id, canonical_user_id, wallet_address")
     .or(
-      `wallet_address.ilike.${normalizedAddress},base_wallet_address.ilike.${normalizedAddress}`
+      `wallet_address.ilike.${normalizedAddress},base_wallet_address.ilike.${normalizedAddress}`,
     )
     .maybeSingle();
 
@@ -124,14 +127,15 @@ async function verifyWalletToken(
 
   return {
     userId: userConnection.id,
-    canonicalUserId: userConnection.canonical_user_id || toPrizePid(normalizedAddress),
+    canonicalUserId:
+      userConnection.canonical_user_id || toPrizePid(normalizedAddress),
   };
 }
 
 // Get authenticated user from request
 async function getAuthenticatedUser(
   request: Request,
-  supabase: ReturnType<typeof createClient>
+  supabase: ReturnType<typeof createClient>,
 ): Promise<{ userId: string; canonicalUserId: string } | null> {
   const authHeader = request.headers.get("Authorization");
 
@@ -149,12 +153,18 @@ async function getAuthenticatedUser(
 
   // Try Supabase token
   try {
-    const anonKey = Netlify.env.get("VITE_SUPABASE_ANON_KEY") || Netlify.env.get("SUPABASE_ANON_KEY");
-    const url = Netlify.env.get("VITE_SUPABASE_URL") || Netlify.env.get("SUPABASE_URL");
+    const anonKey =
+      Netlify.env.get("VITE_SUPABASE_ANON_KEY") ||
+      Netlify.env.get("SUPABASE_ANON_KEY");
+    const url =
+      Netlify.env.get("VITE_SUPABASE_URL") || Netlify.env.get("SUPABASE_URL");
     if (!anonKey || !url) return null;
 
     const anonClient = createClient(url, anonKey);
-    const { data: { user }, error } = await anonClient.auth.getUser(token);
+    const {
+      data: { user },
+      error,
+    } = await anonClient.auth.getUser(token);
 
     if (error || !user) return null;
 
@@ -172,16 +182,19 @@ async function verifyTransaction(
   txHash: string,
   expectedRecipient: string,
   expectedAmount: number,
-  senderAddress: string
+  senderAddress: string,
 ): Promise<{ verified: boolean; actualAmount?: number; error?: string }> {
   const isMainnet = Netlify.env.get("VITE_BASE_MAINNET") === "true";
-  const rpcUrl = isMainnet ? "https://mainnet.base.org" : "https://sepolia.base.org";
+  const rpcUrl = isMainnet
+    ? "https://mainnet.base.org"
+    : "https://sepolia.base.org";
 
   // USDC contract addresses
   const USDC_MAINNET = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
   const USDC_TESTNET = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
   const USDC_ADDRESS = (
-    Netlify.env.get("VITE_USDC_CONTRACT_ADDRESS") || (isMainnet ? USDC_MAINNET : USDC_TESTNET)
+    Netlify.env.get("VITE_USDC_CONTRACT_ADDRESS") ||
+    (isMainnet ? USDC_MAINNET : USDC_TESTNET)
   ).toLowerCase();
 
   try {
@@ -201,7 +214,11 @@ async function verifyTransaction(
     const receipt = receiptData.result;
 
     if (!receipt) {
-      return { verified: false, error: "Transaction not found or not yet confirmed on the blockchain. Please wait a few moments and try again." };
+      return {
+        verified: false,
+        error:
+          "Transaction not found or not yet confirmed on the blockchain. Please wait a few moments and try again.",
+      };
     }
 
     // Check if transaction was successful
@@ -215,16 +232,20 @@ async function verifyTransaction(
 
     // Parse logs to find the Transfer event
     // Transfer event signature: Transfer(address indexed from, address indexed to, uint256 value)
-    const transferTopic = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+    const transferTopic =
+      "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 
     const transferLog = receipt.logs?.find(
       (log: any) =>
         log.topics?.[0] === transferTopic &&
-        log.address?.toLowerCase() === USDC_ADDRESS
+        log.address?.toLowerCase() === USDC_ADDRESS,
     );
 
     if (!transferLog) {
-      return { verified: false, error: "No USDC transfer event found in transaction" };
+      return {
+        verified: false,
+        error: "No USDC transfer event found in transaction",
+      };
     }
 
     // Extract from, to, and amount from the log
@@ -264,12 +285,16 @@ async function verifyTransaction(
     console.error("Error verifying transaction:", error);
     return {
       verified: false,
-      error: error instanceof Error ? error.message : "Failed to verify transaction",
+      error:
+        error instanceof Error ? error.message : "Failed to verify transaction",
     };
   }
 }
 
-export default async (request: Request, context: Context): Promise<Response> => {
+export default async (
+  request: Request,
+  context: Context,
+): Promise<Response> => {
   // Handle CORS preflight
   if (request.method === "OPTIONS") {
     return new Response(null, {
@@ -320,16 +345,24 @@ export default async (request: Request, context: Context): Promise<Response> => 
     const treasuryAddress = Netlify.env.get("VITE_TREASURY_ADDRESS");
 
     console.log(`[VERBOSE][instant-topup] Validating transaction details`);
-    console.log(`[VERBOSE][instant-topup] User wallet (normalized): ${normalizedWallet}`);
-    console.log(`[VERBOSE][instant-topup] Treasury address (from env): ${treasuryAddress}`);
-    console.log(`[VERBOSE][instant-topup] Transaction hash: ${transactionHash}`);
+    console.log(
+      `[VERBOSE][instant-topup] User wallet (normalized): ${normalizedWallet}`,
+    );
+    console.log(
+      `[VERBOSE][instant-topup] Treasury address (from env): ${treasuryAddress}`,
+    );
+    console.log(
+      `[VERBOSE][instant-topup] Transaction hash: ${transactionHash}`,
+    );
     console.log(`[VERBOSE][instant-topup] Amount: ${amount} USDC`);
 
     if (!treasuryAddress) {
-      console.error(`[VERBOSE][instant-topup] ❌ Treasury address not configured in environment!`);
+      console.error(
+        `[VERBOSE][instant-topup] ❌ Treasury address not configured in environment!`,
+      );
       return errorResponse("Service configuration error", 500);
     }
-    
+
     console.log(`[VERBOSE][instant-topup] ✅ Treasury address validated`);
 
     // Check for duplicate transaction (idempotency)
@@ -349,7 +382,9 @@ export default async (request: Request, context: Context): Promise<Response> => 
         });
       }
       // Transaction exists but not credited - will reprocess
-      console.log(`Reprocessing transaction ${transactionHash} that wasn't credited`);
+      console.log(
+        `Reprocessing transaction ${transactionHash} that wasn't credited`,
+      );
     }
 
     // Try to verify the transaction on-chain, but don't block crediting if verification fails
@@ -357,33 +392,47 @@ export default async (request: Request, context: Context): Promise<Response> => 
     // The idempotency check on tx_id prevents double-crediting if user retries.
     // Any fraudulent transactions can be identified later via the verification status
     // and reversed through manual reconciliation.
-    console.log(`[VERBOSE][instant-topup] Attempting to verify transaction on-chain...`);
+    console.log(
+      `[VERBOSE][instant-topup] Attempting to verify transaction on-chain...`,
+    );
     console.log(`[VERBOSE][instant-topup] Verifying against:`);
-    console.log(`[VERBOSE][instant-topup]   - Expected recipient: ${treasuryAddress}`);
+    console.log(
+      `[VERBOSE][instant-topup]   - Expected recipient: ${treasuryAddress}`,
+    );
     console.log(`[VERBOSE][instant-topup]   - Expected amount: ${amount} USDC`);
-    console.log(`[VERBOSE][instant-topup]   - Expected sender: ${walletAddress}`);
-    
+    console.log(
+      `[VERBOSE][instant-topup]   - Expected sender: ${walletAddress}`,
+    );
+
     const verification = await verifyTransaction(
       transactionHash,
       treasuryAddress,
       amount,
-      walletAddress
+      walletAddress,
     );
 
     console.log(`[VERBOSE][instant-topup] Verification result:`, verification);
-    
+
     let verificationStatus = VERIFICATION_STATUS.PENDING;
     let creditAmount = amount;
-    
+
     if (verification.verified) {
-      console.log(`[VERBOSE][instant-topup] ✅ Transaction verified successfully!`);
-      console.log(`[VERBOSE][instant-topup] Actual amount transferred: ${verification.actualAmount} USDC`);
+      console.log(
+        `[VERBOSE][instant-topup] ✅ Transaction verified successfully!`,
+      );
+      console.log(
+        `[VERBOSE][instant-topup] Actual amount transferred: ${verification.actualAmount} USDC`,
+      );
       verificationStatus = VERIFICATION_STATUS.VERIFIED;
       creditAmount = verification.actualAmount || amount;
     } else {
-      console.warn(`[VERBOSE][instant-topup] ⚠️  Transaction not yet confirmed on blockchain`);
+      console.warn(
+        `[VERBOSE][instant-topup] ⚠️  Transaction not yet confirmed on blockchain`,
+      );
       console.warn(`[VERBOSE][instant-topup] Error: ${verification.error}`);
-      console.warn(`[VERBOSE][instant-topup] Crediting balance anyway - verification will happen in background`);
+      console.warn(
+        `[VERBOSE][instant-topup] Crediting balance anyway - verification will happen in background`,
+      );
       // Continue with crediting - don't block user experience
     }
 
@@ -423,12 +472,22 @@ export default async (request: Request, context: Context): Promise<Response> => 
 
     // Credit user's balance using the bonus-aware function for first deposit
     // This applies 50% bonus on the first topup automatically
-    console.log(`[VERBOSE][instant-topup] Crediting user balance with bonus check`);
-    console.log(`[VERBOSE][instant-topup] User canonical ID: ${user.canonicalUserId}`);
-    console.log(`[VERBOSE][instant-topup] Amount to credit: ${creditAmount} USDC`);
-    console.log(`[VERBOSE][instant-topup] Transaction hash: ${transactionHash}`);
-    console.log(`[VERBOSE][instant-topup] Treasury address used: ${treasuryAddress}`);
-    
+    console.log(
+      `[VERBOSE][instant-topup] Crediting user balance with bonus check`,
+    );
+    console.log(
+      `[VERBOSE][instant-topup] User canonical ID: ${user.canonicalUserId}`,
+    );
+    console.log(
+      `[VERBOSE][instant-topup] Amount to credit: ${creditAmount} USDC`,
+    );
+    console.log(
+      `[VERBOSE][instant-topup] Transaction hash: ${transactionHash}`,
+    );
+    console.log(
+      `[VERBOSE][instant-topup] Treasury address used: ${treasuryAddress}`,
+    );
+
     const { data: creditResult, error: creditError } = await supabase.rpc(
       "credit_balance_with_first_deposit_bonus",
       {
@@ -436,12 +495,15 @@ export default async (request: Request, context: Context): Promise<Response> => 
         p_amount: creditAmount,
         p_reason: "wallet_topup",
         p_reference_id: transactionHash,
-      }
+      },
     );
 
     console.log(`[VERBOSE][instant-topup] Credit RPC result:`, creditResult);
     if (creditError) {
-      console.error(`[VERBOSE][instant-topup] ❌ Credit RPC error:`, creditError);
+      console.error(
+        `[VERBOSE][instant-topup] ❌ Credit RPC error:`,
+        creditError,
+      );
     }
 
     // Check if bonus function succeeded
@@ -449,24 +511,30 @@ export default async (request: Request, context: Context): Promise<Response> => 
       const bonusAmount = creditResult.bonus_amount || 0;
       const bonusApplied = creditResult.bonus_applied || false;
       const newBalance = creditResult.new_balance;
-      
+
       console.log(`[VERBOSE][instant-topup] ✅ Balance credit successful!`);
       console.log(`[VERBOSE][instant-topup] Credited amount: ${creditAmount}`);
       console.log(`[VERBOSE][instant-topup] Bonus applied: ${bonusApplied}`);
       console.log(`[VERBOSE][instant-topup] Bonus amount: ${bonusAmount}`);
-      console.log(`[VERBOSE][instant-topup] Total credited: ${creditResult.total_credited}`);
+      console.log(
+        `[VERBOSE][instant-topup] Total credited: ${creditResult.total_credited}`,
+      );
       console.log(`[VERBOSE][instant-topup] New balance: ${newBalance}`);
-      console.log(`[VERBOSE][instant-topup] User ID (canonical): ${user.canonicalUserId.substring(0, 20)}...`);
-      console.log(`[VERBOSE][instant-topup] Balance should be visible in sub_account_balances table`);
-      
+      console.log(
+        `[VERBOSE][instant-topup] User ID (canonical): ${user.canonicalUserId.substring(0, 20)}...`,
+      );
+      console.log(
+        `[VERBOSE][instant-topup] Balance should be visible in sub_account_balances table`,
+      );
+
       // Mark transaction as wallet_credited with verification status
       // CRITICAL: Set BOTH flags to prevent commerce-webhook from double-crediting
       const updateNotes = constructTransactionNotes(
         verification.verified,
         bonusApplied,
-        bonusAmount || 0
+        bonusAmount || 0,
       );
-      
+
       await supabase
         .from("user_transactions")
         .update({
@@ -478,7 +546,9 @@ export default async (request: Request, context: Context): Promise<Response> => 
         })
         .eq("id", transactionId);
 
-      console.log(`[VERBOSE][instant-topup] Transaction marked as wallet_credited`);
+      console.log(
+        `[VERBOSE][instant-topup] Transaction marked as wallet_credited`,
+      );
 
       return jsonResponse({
         success: true,
@@ -495,7 +565,10 @@ export default async (request: Request, context: Context): Promise<Response> => 
 
     // If bonus function fails, fall back to standard credit
     if (creditError) {
-      console.warn("[instant-topup] Bonus credit failed, falling back to standard credit:", creditError.message);
+      console.warn(
+        "[instant-topup] Bonus credit failed, falling back to standard credit:",
+        creditError.message,
+      );
     }
 
     // Fallback: Use standard credit_sub_account_balance RPC function
@@ -505,11 +578,14 @@ export default async (request: Request, context: Context): Promise<Response> => 
         p_canonical_user_id: user.canonicalUserId,
         p_amount: creditAmount,
         p_currency: "USD",
-      }
+      },
     );
 
     if (fallbackError) {
-      console.error("Error crediting balance via sub_account_balances:", fallbackError);
+      console.error(
+        "Error crediting balance via sub_account_balances:",
+        fallbackError,
+      );
 
       // Update transaction with error
       await supabase
@@ -521,7 +597,7 @@ export default async (request: Request, context: Context): Promise<Response> => 
 
       return errorResponse(
         "Transaction verified but balance credit failed. Please contact support.",
-        500
+        500,
       );
     }
 
@@ -530,7 +606,8 @@ export default async (request: Request, context: Context): Promise<Response> => 
     const creditSuccess = fallbackResult?.[0]?.success ?? false;
 
     if (!creditSuccess) {
-      const errorMsg = fallbackResult?.[0]?.error_message || "Unknown error crediting balance";
+      const errorMsg =
+        fallbackResult?.[0]?.error_message || "Unknown error crediting balance";
       console.error("Balance credit returned failure:", errorMsg);
 
       await supabase
@@ -542,7 +619,7 @@ export default async (request: Request, context: Context): Promise<Response> => 
 
       return errorResponse(
         "Transaction verified but balance credit failed. Please contact support.",
-        500
+        500,
       );
     }
 
@@ -551,9 +628,9 @@ export default async (request: Request, context: Context): Promise<Response> => 
     const fallbackNotes = constructTransactionNotes(
       verification.verified,
       false, // No bonus in fallback path
-      0
+      0,
     );
-      
+
     await supabase
       .from("user_transactions")
       .update({
@@ -567,7 +644,7 @@ export default async (request: Request, context: Context): Promise<Response> => 
       .eq("id", transactionId);
 
     console.log(
-      `Instant top-up complete: ${creditAmount} USDC credited to ${user.canonicalUserId}. New balance: ${newBalance}`
+      `Instant top-up complete: ${creditAmount} USDC credited to ${user.canonicalUserId}. New balance: ${newBalance}`,
     );
 
     return jsonResponse({
@@ -582,7 +659,7 @@ export default async (request: Request, context: Context): Promise<Response> => 
     console.error("Instant top-up error:", error);
     return errorResponse(
       error instanceof Error ? error.message : "Internal server error",
-      500
+      500,
     );
   }
 };

@@ -1,11 +1,14 @@
--- DIAGNOSE: Why did yammy's top-up go in twice?
+-- DIAGNOSE: Why did yammy's top-up show $6 instead of $4.50?
 -- User: yammy
--- Wallet: 0xc344b1...26dd (full: 0xc344b1xxxxxxxxxxxx26dd)
--- Account ID: prize:pid:0xc344...26dd
--- Run in Supabase SQL Editor
-
--- The wallet address partial is: 0xc344b1...26dd
--- Let's find the full canonical_user_id
+-- Wallet: 0xc344b1...26dd
+-- Expected: $3 + 50% bonus = $4.50
+-- Actual: $6
+--
+-- POSSIBLE CAUSES:
+-- A) $3 credited twice (no bonus) = $6
+-- B) $3 + $1.50 + $1.50 (bonus applied twice) = $6
+--
+-- Run in Supabase SQL Editor to find out which one
 
 -- ============================================================================
 -- STEP 1: Find yammy's canonical_user_id
@@ -46,12 +49,13 @@ ORDER BY created_at DESC
 LIMIT 20;
 
 -- ============================================================================
--- STEP 3: Check balance_ledger for any duplicate credits
+-- STEP 3: THE ANSWER - Check balance_ledger for any duplicate credits
+-- THIS WILL TELL US EXACTLY WHAT HAPPENED
 -- ============================================================================
 SELECT 
   id,
   canonical_user_id,
-  transaction_type,
+  transaction_type,  -- 'credit' vs 'bonus_credit' - THIS IS KEY
   amount,
   reference_id,
   description,
@@ -60,8 +64,12 @@ SELECT
   created_at
 FROM balance_ledger
 WHERE canonical_user_id ILIKE '%0xc344%'
-ORDER BY created_at DESC
-LIMIT 20;
+ORDER BY created_at ASC;
+
+-- INTERPRETATION:
+-- If you see TWO 'credit' entries of $3 each = Scenario A (base credited twice)
+-- If you see ONE 'credit' $3 + TWO 'bonus_credit' $1.50 = Scenario B (bonus twice)
+-- If you see ONE 'credit' $3 + ONE 'bonus_credit' + ONE 'credit' $1.50 = Mixed
 
 -- ============================================================================
 -- STEP 4: Check sub_account_balances (current balance)
@@ -154,34 +162,29 @@ GROUP BY t.amount
 ORDER BY t.amount DESC;
 
 -- ============================================================================
--- STEP 8: Timeline of ALL balance changes
+-- STEP 8: CHECK ACTIVE TRIGGERS (THE ROOT CAUSE)
+-- Multiple triggers were crediting balances causing duplicates!
 -- ============================================================================
-SELECT 
-  'user_transaction' as source,
-  id::text as record_id,
-  amount,
-  status,
-  type as transaction_type,
-  posted_to_balance as credited,
-  created_at,
-  completed_at
-FROM user_transactions
-WHERE (canonical_user_id ILIKE '%0xc344%' OR user_id ILIKE '%0xc344%')
-  AND type = 'topup'
 
-UNION ALL
+SELECT trigger_name, event_manipulation, action_timing
+FROM information_schema.triggers
+WHERE event_object_table = 'user_transactions'
+  AND (
+    trigger_name ILIKE '%credit%'
+    OR trigger_name ILIKE '%topup%' 
+    OR trigger_name ILIKE '%bonus%'
+    OR trigger_name ILIKE '%commerce_post%'
+    OR trigger_name ILIKE '%wallet%'
+  )
+ORDER BY trigger_name;
 
-SELECT 
-  'balance_ledger' as source,
-  id::text as record_id,
-  amount,
-  NULL as status,
-  transaction_type,
-  true as credited,
-  created_at,
-  NULL as completed_at
-FROM balance_ledger
-WHERE canonical_user_id ILIKE '%0xc344%'
-  AND transaction_type IN ('deposit', 'credit', 'topup')
+-- Known problematic triggers that can cause double-crediting:
+-- - trg_user_tx_commerce_post → credits $amount (no bonus)
+-- - trg_apply_topup_and_welcome_bonus → credits $amount + 50% 
+-- - trg_optimistic_topup_credit → credits $amount + 50%
+-- - trg_credit_sub_account_on_instant_wallet_topup → credits $amount
+-- - trg_auto_credit_on_external_topup → credits $amount
 
-ORDER BY created_at DESC;
+-- FIX: Run debug/DISABLE_ALL_CREDIT_TRIGGERS.sql to disable all trigger-based
+-- crediting and let ONLY webhook code handle it with proper idempotency.
+
