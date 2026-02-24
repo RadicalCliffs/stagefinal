@@ -6,7 +6,10 @@ import EntriesCard from "./EntriesCard";
 import EntriesTickets from "./EntriesTickets";
 import EntriesWinnerSection from "./EntriesWinnerSection";
 import { database } from "../../../lib/database";
-import { fetchCompetitionPurchaseSessions, type PurchaseGroup } from "../../../lib/purchase-dashboard";
+import {
+  fetchCompetitionPurchaseSessions,
+  type PurchaseGroup,
+} from "../../../lib/purchase-dashboard";
 import Loader from "../../Loader";
 
 interface EntryData {
@@ -15,12 +18,13 @@ interface EntryData {
   title: string;
   description: string;
   image: string;
-  status: "live" | "drawn" | "pending" | "completed";  // Added pending and completed
+  status: "live" | "drawn" | "pending" | "completed"; // Added pending and completed
   entry_type: string;
   is_winner: boolean;
   ticket_numbers?: string | null;
   number_of_tickets?: number | null;
-  amount_spent?: string | number | null;  // Can be string or number from different sources
+  amount_spent?: string | number | null; // Can be string or number from different sources
+  ticket_price?: number | null; // Price per ticket from competition
   purchase_date?: string | null;
   wallet_address?: string | null;
   transaction_hash?: string | null;
@@ -62,7 +66,9 @@ const CompetitionEntryDetails = () => {
   const { competitionId } = useParams<{ competitionId: string }>();
   const { baseUser, canonicalUserId } = useAuthUser();
   const [entries, setEntries] = useState<EntryData[]>([]);
-  const [purchaseGroups, setPurchaseGroups] = useState<Array<PurchaseGroup & { competition_title: string | null }>>([]);
+  const [purchaseGroups, setPurchaseGroups] = useState<
+    Array<PurchaseGroup & { competition_title: string | null }>
+  >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,7 +76,9 @@ const CompetitionEntryDetails = () => {
   const location = useLocation();
 
   // Get status and isWinner from location state as fallback
-  const stateStatus = (location.state as { status?: "live" | "drawn" | "pending" | "completed" })?.status;
+  const stateStatus = (
+    location.state as { status?: "live" | "drawn" | "pending" | "completed" }
+  )?.status;
   const stateIsWinner = (location.state as { is_winner?: boolean })?.is_winner;
 
   useEffect(() => {
@@ -87,9 +95,14 @@ const CompetitionEntryDetails = () => {
       try {
         // FIXED: Use the same data source as EntriesList to ensure consistency
         // getUserEntriesFromCompetitionEntries uses the new RPC that returns proper data
-        const allEntries = await database.getUserEntriesFromCompetitionEntries(canonicalUserId);
+        const allEntries =
+          await database.getUserEntriesFromCompetitionEntries(canonicalUserId);
         const competitionEntries = (allEntries || []).filter(
-          (e: any): e is EntryData => e !== null && typeof e === 'object' && 'competition_id' in e && e.competition_id === competitionId
+          (e: any): e is EntryData =>
+            e !== null &&
+            typeof e === "object" &&
+            "competition_id" in e &&
+            e.competition_id === competitionId,
         ) as EntryData[];
 
         if (competitionEntries && competitionEntries.length > 0) {
@@ -106,7 +119,10 @@ const CompetitionEntryDetails = () => {
           });
           setPurchaseGroups(groups);
         } catch (groupErr) {
-          console.warn("Failed to fetch purchase groups, falling back to individual entries:", groupErr);
+          console.warn(
+            "Failed to fetch purchase groups, falling back to individual entries:",
+            groupErr,
+          );
           // Don't set error here - we can still show the page with individual entries
         }
       } catch (err) {
@@ -128,20 +144,29 @@ const CompetitionEntryDetails = () => {
     // so we're guaranteed no collisions. This replaces the old heuristic-based
     // deduplication that was too aggressive and merged distinct purchases.
     const seen = new Set<string>();
-    return entriesList.filter(entry => {
+    return entriesList.filter((entry) => {
       if (seen.has(entry.id)) {
         return false;
       }
       // FILTER OUT INVALID ENTRIES - must have actual ticket numbers
       const tickets = entry.ticket_numbers;
-      if (!tickets || tickets.trim() === '' || tickets === '0') {
-        console.log('[CompetitionEntryDetails] Filtering out invalid entry with no tickets:', entry.id);
+      if (!tickets || tickets.trim() === "" || tickets === "0") {
+        console.log(
+          "[CompetitionEntryDetails] Filtering out invalid entry with no tickets:",
+          entry.id,
+        );
         return false;
       }
       // Parse and verify tickets are real numbers > 0
-      const ticketArray = tickets.split(',').map(t => parseInt(t.trim())).filter(t => !isNaN(t) && t > 0);
+      const ticketArray = tickets
+        .split(",")
+        .map((t) => parseInt(t.trim()))
+        .filter((t) => !isNaN(t) && t > 0);
       if (ticketArray.length === 0) {
-        console.log('[CompetitionEntryDetails] Filtering out entry with no valid ticket numbers:', entry.id);
+        console.log(
+          "[CompetitionEntryDetails] Filtering out entry with no valid ticket numbers:",
+          entry.id,
+        );
         return false;
       }
       seen.add(entry.id);
@@ -158,25 +183,28 @@ const CompetitionEntryDetails = () => {
 
     const firstEntry = entries[0];
 
-    // Collect all ticket numbers and dedupe
+    // Collect all ticket numbers and dedupe - THIS IS THE SOURCE OF TRUTH
     const allTickets: string[] = [];
     uniqueEntries.forEach((entry) => {
       if (entry.ticket_numbers) {
-        const tickets = entry.ticket_numbers.split(",").map((t) => t.trim());
+        const tickets = entry.ticket_numbers
+          .split(",")
+          .map((t) => t.trim())
+          .filter((t) => t && t !== "0");
         allTickets.push(...tickets);
       }
     });
     const uniqueTickets = [...new Set(allTickets)];
 
-    // Sum total tickets and amount from deduplicated entries
-    const totalTickets = uniqueEntries.reduce(
-      (sum, e) => sum + (e.number_of_tickets || 0),
-      0
-    );
-    const totalAmount = uniqueEntries.reduce(
-      (sum, e) => sum + (parseFloat(String(e.amount_spent || '0')) || 0),
-      0
-    );
+    // FIXED: Use actual unique ticket count, NOT the stored number_of_tickets field
+    // The number_of_tickets field can be out of sync with actual ticket_numbers
+    const totalTickets = uniqueTickets.length;
+
+    // Get ticket price from entry data (from competition), default to $1
+    const ticketPrice = Number(firstEntry.ticket_price) || 1;
+
+    // Calculate total amount based on ticket count * price per ticket
+    const totalAmount = totalTickets * ticketPrice;
 
     // Check if any entry is a winner
     const isWinner = entries.some((e) => e.is_winner);
@@ -185,20 +213,24 @@ const CompetitionEntryDetails = () => {
     const sortedByDate = [...entries].sort(
       (a, b) =>
         new Date(a.purchase_date || 0).getTime() -
-        new Date(b.purchase_date || 0).getTime()
+        new Date(b.purchase_date || 0).getTime(),
     );
     const firstPurchaseDate = sortedByDate[0]?.purchase_date;
-    const lastPurchaseDate = sortedByDate[sortedByDate.length - 1]?.purchase_date;
+    const lastPurchaseDate =
+      sortedByDate[sortedByDate.length - 1]?.purchase_date;
 
     // Collect unique transaction hashes from all entries
     const transactionHashes = entries
       .map((e) => e.transaction_hash)
-      .filter((hash): hash is string => hash !== null && hash !== undefined && hash !== "no-hash");
+      .filter(
+        (hash): hash is string =>
+          hash !== null && hash !== undefined && hash !== "no-hash",
+      );
     const uniqueHashes = [...new Set(transactionHashes)];
 
     // Check if pending
     const isPending = entries.some(
-      (e) => e.entry_type === "pending" || e.status === "pending"
+      (e) => e.entry_type === "pending" || e.status === "pending",
     );
 
     // Find earliest expiration
@@ -239,11 +271,11 @@ const CompetitionEntryDetails = () => {
   // Helper function to map status for EntriesWinnerSection component
   // Determines the display status based on competition state and VRF data
   const getWinnerSectionStatus = (
-    currentStatus: "live" | "drawn" | "pending" | "completed"
+    currentStatus: "live" | "drawn" | "pending" | "completed",
   ): "live" | "drawn" | "completed" | "tbd" => {
     if (currentStatus === "pending") return "live";
     if (currentStatus === "live") return "live";
-    
+
     // For finished competitions, determine if it's:
     // - "tbd" if no draw date and no VRF (yellow)
     // - "drawn" if ended but VRF not yet processed (orange)
@@ -252,7 +284,7 @@ const CompetitionEntryDetails = () => {
       // Competition ended, waiting for VRF draw
       return aggregatedEntry?.vrf_tx_hash ? "completed" : "drawn";
     }
-    
+
     if (currentStatus === "completed") {
       // Check if we have VRF data
       if (aggregatedEntry?.vrf_tx_hash) {
@@ -261,7 +293,7 @@ const CompetitionEntryDetails = () => {
       // No VRF data yet - show as TBD
       return "tbd";
     }
-    
+
     return currentStatus;
   };
 
@@ -270,15 +302,16 @@ const CompetitionEntryDetails = () => {
     ? [
         {
           label: "Competition Status",
-          value: status === "live" 
-            ? "Active" 
-            : status === "drawn"
-              ? "Drawing" // Orange status - ended but not drawn yet
-              : status === "completed"
-                ? "Completed" // Actually finished with draw
-                : status === "pending"
-                  ? "Pending"
-                  : "Drawing",
+          value:
+            status === "live"
+              ? "Active"
+              : status === "drawn"
+                ? "Drawing" // Orange status - ended but not drawn yet
+                : status === "completed"
+                  ? "Completed" // Actually finished with draw
+                  : status === "pending"
+                    ? "Pending"
+                    : "Drawing",
           copyable: false,
         },
         ...(status !== "live" && (status === "drawn" || status === "completed")
@@ -314,22 +347,28 @@ const CompetitionEntryDetails = () => {
         },
         {
           label: "Purchase History",
-          value: aggregatedEntry.individual_entries.length === 1
-            ? "1 purchase"
-            : `${aggregatedEntry.individual_entries.length} purchases`,
+          value:
+            aggregatedEntry.individual_entries.length === 1
+              ? "1 purchase"
+              : `${aggregatedEntry.individual_entries.length} purchases`,
           copyable: false,
         },
         ...(aggregatedEntry.transaction_hashes.length > 0
           ? [
               {
                 label: "Latest Transaction",
-                value: aggregatedEntry.transaction_hashes[aggregatedEntry.transaction_hashes.length - 1],
+                value:
+                  aggregatedEntry.transaction_hashes[
+                    aggregatedEntry.transaction_hashes.length - 1
+                  ],
                 copyable: true,
               },
             ]
           : []),
         // Show VRF link for lost competitions that have been drawn
-        ...(!isWinner && aggregatedEntry.vrf_tx_hash && aggregatedEntry.draw_date
+        ...(!isWinner &&
+        aggregatedEntry.vrf_tx_hash &&
+        aggregatedEntry.draw_date
           ? [
               {
                 label: "VRF Transaction",
@@ -405,7 +444,9 @@ const CompetitionEntryDetails = () => {
         purchaseDate={aggregatedEntry.last_purchase_date}
         transactionHash={
           aggregatedEntry.transaction_hashes.length > 0
-            ? aggregatedEntry.transaction_hashes[aggregatedEntry.transaction_hashes.length - 1]
+            ? aggregatedEntry.transaction_hashes[
+                aggregatedEntry.transaction_hashes.length - 1
+              ]
             : undefined
         }
         individualEntries={aggregatedEntry.individual_entries}
@@ -418,7 +459,9 @@ const CompetitionEntryDetails = () => {
         status={getWinnerSectionStatus(status)}
         isWinner={isWinner}
         vrfTxHash={aggregatedEntry.vrf_tx_hash || null}
-        winnerWalletAddress={isWinner ? baseUser?.wallet?.address || null : null}
+        winnerWalletAddress={
+          isWinner ? baseUser?.wallet?.address || null : null
+        }
       />
     </div>
   );

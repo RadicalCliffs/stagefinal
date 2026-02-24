@@ -4572,6 +4572,8 @@ export const database = {
               number_of_tickets: purchase.tickets_count || 0,
               // amountSpent: formatted amount_spent from individual purchase
               amount_spent: formatAmount(purchase.amount_spent || 0),
+              // ticketPrice: from competition
+              ticket_price: entry.competition_ticket_price || 1,
               // purchaseDate: from individual purchase
               purchase_date: purchase.purchased_at || purchase.created_at,
               wallet_address: entry.wallet_address,
@@ -4618,6 +4620,8 @@ export const database = {
             number_of_tickets: entry.tickets_count || 0,
             // amountSpent: formatted amount_spent (fallback to amount_paid)
             amount_spent: formatAmount(amountSource),
+            // ticketPrice: from competition
+            ticket_price: entry.competition_ticket_price || 1,
             // purchaseDate: latest_purchase_at from RPC
             purchase_date: entry.latest_purchase_at || entry.created_at,
             wallet_address: entry.wallet_address,

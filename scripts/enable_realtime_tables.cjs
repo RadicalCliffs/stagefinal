@@ -9,131 +9,95 @@
  * Run with: node scripts/enable_realtime_tables.cjs
  */
 
-require("dotenv").config();
-const { Client } = require("pg");
+require("dotenv/config");
+const { createClient } = require("@supabase/supabase-js");
+
+const supabase = createClient(
+  process.env.PUBLIC_SUPABASE_URL || "https://mthwfldcjvpxjtmrqkqm.supabase.co",
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im10aHdmbGRjanZweGp0bXJxa3FtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTcyOTE2NCwiZXhwIjoyMDgxMzA1MTY0fQ.nJzthe4gN1tLY4S6Ukqb14_MLjmPRqpC4e7a--DSPIY",
+);
 
 async function enableRealtime() {
-  const connectionString =
-    process.env.SUPABASE_DB_URL || process.env.DATABASE_URL;
+  // Tables that need realtime enabled
+  const tables = [
+    "joincompetition",
+    "winners",
+    "competition_entries",
+    "competitions",
+    "canonical_users",
+  ];
 
-  if (!connectionString) {
-    console.error(
-      "❌ Missing SUPABASE_DB_URL or DATABASE_URL environment variable",
-    );
-    console.log(
-      "Set it to your Supabase database connection string (found in Settings > Database)",
-    );
-    process.exit(1);
-  }
+  console.log("📋 Checking realtime configuration...\n");
 
-  const client = new Client({ connectionString });
+  // Check which tables exist and have data
+  for (const table of tables) {
+    try {
+      const { count, error } = await supabase
+        .from(table)
+        .select("*", { count: "exact", head: true });
 
-  try {
-    await client.connect();
-    console.log("✅ Connected to database\n");
-
-    // Tables that need realtime enabled
-    const tables = [
-      "joincompetition",
-      "winners",
-      "competition_entries",
-      "competitions",
-      "canonical_users",
-    ];
-
-    // Check current realtime publication
-    console.log("📋 Checking current realtime configuration...\n");
-
-    const currentTables = await client.query(`
-      SELECT tablename 
-      FROM pg_publication_tables 
-      WHERE pubname = 'supabase_realtime'
-      ORDER BY tablename
-    `);
-
-    console.log("Currently enabled tables:");
-    if (currentTables.rows.length === 0) {
-      console.log("  (none)");
-    } else {
-      currentTables.rows.forEach((row) => console.log(`  - ${row.tablename}`));
-    }
-    console.log("");
-
-    // Enable realtime for each table
-    for (const table of tables) {
-      const isEnabled = currentTables.rows.some((r) => r.tablename === table);
-
-      if (isEnabled) {
-        console.log(`✅ ${table} - already enabled`);
+      if (error) {
+        console.log(`⚠️  ${table} - ${error.message}`);
       } else {
-        try {
-          await client.query(`
-            ALTER PUBLICATION supabase_realtime ADD TABLE public.${table}
-          `);
-          console.log(`🔄 ${table} - ENABLED`);
-        } catch (err) {
-          if (err.message.includes("already member")) {
-            console.log(`✅ ${table} - already enabled`);
-          } else if (err.message.includes("does not exist")) {
-            console.log(`⚠️  ${table} - table does not exist, skipping`);
-          } else {
-            console.error(`❌ ${table} - error: ${err.message}`);
-          }
-        }
+        console.log(`✅ ${table} - exists (${count || 0} rows)`);
       }
+    } catch (err) {
+      console.log(`❌ ${table} - error: ${err.message}`);
     }
-
-    // Set replica identity FULL for better realtime (includes old values in updates)
-    console.log("\n📋 Setting replica identity for update tracking...\n");
-
-    for (const table of tables) {
-      try {
-        // Check if table exists first
-        const tableExists = await client.query(
-          `
-          SELECT EXISTS (
-            SELECT FROM information_schema.tables 
-            WHERE table_schema = 'public' AND table_name = $1
-          )
-        `,
-          [table],
-        );
-
-        if (tableExists.rows[0].exists) {
-          await client.query(
-            `ALTER TABLE public.${table} REPLICA IDENTITY FULL`,
-          );
-          console.log(`✅ ${table} - replica identity set to FULL`);
-        }
-      } catch (err) {
-        console.log(
-          `⚠️  ${table} - could not set replica identity: ${err.message}`,
-        );
-      }
-    }
-
-    // Verify final configuration
-    console.log("\n📋 Final realtime configuration:\n");
-
-    const finalTables = await client.query(`
-      SELECT tablename 
-      FROM pg_publication_tables 
-      WHERE pubname = 'supabase_realtime'
-      ORDER BY tablename
-    `);
-
-    finalTables.rows.forEach((row) => console.log(`  ✅ ${row.tablename}`));
-
-    console.log("\n✅ Done! Realtime should now work for the landing page.");
-    console.log(
-      "Note: You may need to restart your Supabase project for changes to take effect.",
-    );
-  } catch (err) {
-    console.error("❌ Error:", err.message);
-    process.exit(1);
-  } finally {
-    await client.end();
   }
+
+  console.log("");
+
+  // Try to enable realtime via RPC (create the function if needed)
+  const enableRealtimeSQL = `
+    DO $$
+    DECLARE
+      tbl TEXT;
+      tables_to_enable TEXT[] := ARRAY['joincompetition', 'winners', 'competition_entries', 'competitions', 'canonical_users'];
+    BEGIN
+      FOREACH tbl IN ARRAY tables_to_enable
+      LOOP
+        BEGIN
+          EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', tbl);
+          RAISE NOTICE 'Enabled realtime for %', tbl;
+        EXCEPTION
+          WHEN duplicate_object THEN
+            RAISE NOTICE 'Table % already in publication', tbl;
+          WHEN undefined_table THEN
+            RAISE NOTICE 'Table % does not exist', tbl;
+        END;
+      END LOOP;
+    END $$;
+  `;
+
+  console.log("🔄 Enabling realtime via SQL...\n");
+
+  const { error } = await supabase.rpc("exec_sql", { sql: enableRealtimeSQL });
+
+  if (error) {
+    // exec_sql RPC doesn't exist, provide manual instructions
+    console.log("ℹ️  Cannot enable realtime programmatically.\n");
+    console.log("To enable realtime, go to the Supabase Dashboard:");
+    console.log("1. Open your project: https://supabase.com/dashboard");
+    console.log("2. Go to Database > Replication");
+    console.log(
+      "3. Under 'Supabase Realtime', click 'Source' and enable these tables:",
+    );
+    tables.forEach((t) => console.log(`   - ${t}`));
+    console.log("\nOr run this SQL in the SQL Editor:");
+    console.log(`
+ALTER PUBLICATION supabase_realtime ADD TABLE public.joincompetition;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.winners;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.competition_entries;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.competitions;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.canonical_users;
+    `);
+  } else {
+    console.log("✅ Realtime enabled for all tables!");
+  }
+
+  console.log("\n✅ Done checking realtime configuration.");
 }
 
-enableRealtime();
+enableRealtime().catch(console.error);
