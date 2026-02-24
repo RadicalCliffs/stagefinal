@@ -1,10 +1,15 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '../lib/supabase';
-import { useAuthUser } from '../contexts/AuthContext';
-import { toPrizePid, userIdsEqual, isWalletAddress, normalizeWalletAddress } from '../utils/userId';
-import { parseBalanceResponse } from '../utils/balanceParser';
-import { callRPC } from '../lib/supabase-helpers';
-import type { Row } from '../lib/supabase-helpers';
+import { useState, useEffect, useCallback, useRef } from "react";
+import { supabase } from "../lib/supabase";
+import { useAuthUser } from "../contexts/AuthContext";
+import {
+  toPrizePid,
+  userIdsEqual,
+  isWalletAddress,
+  normalizeWalletAddress,
+} from "../utils/userId";
+import { parseBalanceResponse } from "../utils/balanceParser";
+import { callRPC } from "../lib/supabase-helpers";
+import type { Row } from "../lib/supabase-helpers";
 
 interface PendingTopUp {
   amount: number;
@@ -14,8 +19,8 @@ interface PendingTopUp {
 
 interface RealTimeBalanceState {
   balance: number;
-  bonusBalance: number;  // Keep for backward compatibility, but always 0
-  totalBalance: number;  // Same as balance
+  bonusBalance: number; // Keep for backward compatibility, but always 0
+  totalBalance: number; // Same as balance
   pendingBalance: number;
   hasUsedBonus: boolean;
   isLoading: boolean;
@@ -60,180 +65,216 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
   const EVENT_COOLDOWN_MS = 10000;
   // Debounce delay for real-time events (prevents rapid-fire balance updates)
   const FETCH_DEBOUNCE_MS = 2000;
-  
+
   // Optimistic UI state for pending top-ups
-  const [optimisticBalance, setOptimisticBalance] = useState<number | null>(null);
+  const [optimisticBalance, setOptimisticBalance] = useState<number | null>(
+    null,
+  );
   const [pendingTopUps, setPendingTopUps] = useState<PendingTopUp[]>([]);
 
   const userId = baseUser?.id;
-  
+
   // Calculate display balance (optimistic if pending, otherwise actual)
   const displayBalance = optimisticBalance ?? balance;
 
-  const fetchBalance = useCallback(async (options?: { bypassCooldown?: boolean }) => {
-    if (!userId) {
-      setIsLoading(false);
-      return;
-    }
+  const fetchBalance = useCallback(
+    async (options?: { bypassCooldown?: boolean }) => {
+      if (!userId) {
+        setIsLoading(false);
+        return;
+      }
 
-    // Check if we're within the cooldown period after an event update
-    // This prevents stale DB data from overwriting the correct balance from payment events
-    // The DB may have replication lag, so we trust the server's immediate response instead
-    const timeSinceEvent = Date.now() - lastEventUpdateRef.current;
-    if (!options?.bypassCooldown && timeSinceEvent < EVENT_COOLDOWN_MS) {
-      console.log('[RealTimeBalance] Skipping DB fetch during cooldown period, time remaining:', EVENT_COOLDOWN_MS - timeSinceEvent, 'ms');
-      setIsLoading(false);
-      return;
-    }
+      // Check if we're within the cooldown period after an event update
+      // This prevents stale DB data from overwriting the correct balance from payment events
+      // The DB may have replication lag, so we trust the server's immediate response instead
+      const timeSinceEvent = Date.now() - lastEventUpdateRef.current;
+      if (!options?.bypassCooldown && timeSinceEvent < EVENT_COOLDOWN_MS) {
+        console.log(
+          "[RealTimeBalance] Skipping DB fetch during cooldown period, time remaining:",
+          EVENT_COOLDOWN_MS - timeSinceEvent,
+          "ms",
+        );
+        setIsLoading(false);
+        return;
+      }
 
-    try {
-      // Use get_user_balance RPC for consistent balance lookups
-      // This now reads from sub_account_balances.available_balance as the source of truth
-      // IMPORTANT: Always use canonical_user_id (prize:pid: format) for RPC lookups
-      const canonicalUserId = toPrizePid(userId);
+      try {
+        // Use get_user_balance RPC for consistent balance lookups
+        // This now reads from sub_account_balances.available_balance as the source of truth
+        // IMPORTANT: Always use canonical_user_id (prize:pid: format) for RPC lookups
+        const canonicalUserId = toPrizePid(userId);
 
-      console.log('[RealTimeBalance] Fetching balance for:', {
-        originalUserId: userId?.substring(0, 20) + '...',
-        canonicalUserId: canonicalUserId.substring(0, 30) + '...',
-      });
+        console.log("[RealTimeBalance] Fetching balance for:", {
+          originalUserId: userId?.substring(0, 20) + "...",
+          canonicalUserId: canonicalUserId.substring(0, 30) + "...",
+        });
 
-      // Primary: Use get_user_balance RPC function (reads from sub_account_balances)
-      // The RPC filters on canonical_user_id with case-insensitive LOWER() matching
-      const { data: rpcBalance, error: rpcError } = await callRPC(
-        supabase,
-        'get_user_balance',
-        { p_canonical_user_id: canonicalUserId }
-      );
+        // Primary: Use get_user_balance RPC function (reads from sub_account_balances)
+        // The RPC filters on canonical_user_id with case-insensitive LOWER() matching
+        const { data: rpcBalance, error: rpcError } = await callRPC(
+          supabase,
+          "get_user_balance",
+          { p_canonical_user_id: canonicalUserId },
+        );
 
-      // Check for type mismatch error (can occur if database migration not applied)
-      const isTypeMismatchError = rpcError?.message?.includes('operator does not exist') ||
-        rpcError?.message?.includes('type cast') ||
-        rpcError?.code === '42883' ||
-        rpcError?.code === '42846';
+        // Check for type mismatch error (can occur if database migration not applied)
+        const isTypeMismatchError =
+          rpcError?.message?.includes("operator does not exist") ||
+          rpcError?.message?.includes("type cast") ||
+          rpcError?.code === "42883" ||
+          rpcError?.code === "42846";
 
-      if (!rpcError && rpcBalance !== null) {
-        // get_user_balance returns JSONB object: { success, balance, bonus_balance, total_balance }
-        // NOTE: bonus_balance is now always 0 - the 50% bonus is added to main balance
-        const balanceData = parseBalanceResponse(rpcBalance);
-        
-        setBalance(balanceData.balance ?? 0);
-        // bonusBalance no longer tracked - always 0
-        setLastUpdate(new Date());
-        setError(null);
-        console.log('[RealTimeBalance] Balance fetched via RPC from sub_account_balances:', balanceData.balance);
+        if (!rpcError && rpcBalance !== null) {
+          // get_user_balance returns JSONB object: { success, balance, bonus_balance, total_balance }
+          // NOTE: bonus_balance is now always 0 - the 50% bonus is added to main balance
+          const balanceData = parseBalanceResponse(rpcBalance);
 
-        // Also fetch pending balance and user metadata from sub_account_balances
-        const { data: subAccountData } = await supabase
-          .from('sub_account_balances')
-          .select('id, user_id, pending_balance, privy_user_id')
-          .eq('currency', 'USD')
+          setBalance(balanceData.balance ?? 0);
+          // bonusBalance no longer tracked - always 0
+          setLastUpdate(new Date());
+          setError(null);
+          console.log(
+            "[RealTimeBalance] Balance fetched via RPC from sub_account_balances:",
+            balanceData.balance,
+          );
+
+          // Also fetch pending balance and user metadata from sub_account_balances
+          const { data: subAccountData } = await supabase
+            .from("sub_account_balances")
+            .select("id, user_id, pending_balance, privy_user_id")
+            .eq("currency", "USD")
+            .or(`user_id.eq.${canonicalUserId},privy_user_id.eq.${userId}`)
+            .limit(1);
+
+          if (subAccountData && subAccountData.length > 0) {
+            const record = subAccountData[0];
+            if (record.user_id) {
+              userUidRef.current = record.user_id;
+            }
+            setPendingBalance(Number(record.pending_balance ?? 0) || 0);
+          }
+
+          // Fetch bonus status from canonical_users (still stored there)
+          const { data: userData } = await supabase
+            .from("canonical_users")
+            .select("uid, has_used_new_user_bonus, canonical_user_id")
+            .or(
+              `canonical_user_id.eq.${canonicalUserId},privy_user_id.eq.${userId}`,
+            )
+            .limit(1);
+
+          if (userData && userData.length > 0) {
+            const user = userData[0];
+            if (user.uid && !userUidRef.current) {
+              userUidRef.current = user.uid;
+            }
+            setHasUsedBonus(user.has_used_new_user_bonus || false);
+          }
+          return;
+        }
+
+        // Fallback: Direct query to sub_account_balances if RPC fails
+        if (isTypeMismatchError) {
+          console.warn(
+            "[RealTimeBalance] RPC type mismatch error - database migration may need to be applied. Falling back to direct query.",
+          );
+        } else {
+          console.log(
+            "[RealTimeBalance] RPC failed, falling back to direct query:",
+            rpcError?.message,
+          );
+        }
+
+        const userIsWallet = isWalletAddress(userId);
+        const normalizedUserId = userIsWallet
+          ? normalizeWalletAddress(userId) || userId.toLowerCase()
+          : userId;
+        // Also try lowercase version of canonical ID for case-insensitive matching
+        const canonicalUserIdLower = canonicalUserId.toLowerCase();
+
+        // Try sub_account_balances directly with case-insensitive matching
+        // Use eq for canonical_user_id (TEXT type in sub_account_balances)
+        const { data: subAccountData, error: subAccountError } = await supabase
+          .from("sub_account_balances")
+          .select(
+            "id, user_id, available_balance, pending_balance, privy_user_id",
+          )
+          .eq("currency", "USD")
           .or(`user_id.eq.${canonicalUserId},privy_user_id.eq.${userId}`)
           .limit(1);
 
-        if (subAccountData && subAccountData.length > 0) {
-          const record: Row<'sub_account_balances'> = subAccountData[0];
+        if (subAccountData && subAccountData.length > 0 && !subAccountError) {
+          const record = subAccountData[0];
           if (record.user_id) {
             userUidRef.current = record.user_id;
           }
-          setPendingBalance(Number(record.pending_balance ?? 0) || 0);
+          const balanceValue = Number(record.available_balance) || 0;
+          setBalance(balanceValue);
+          // bonusBalance no longer tracked
+          setPendingBalance(Number(record.pending_balance) || 0);
+          setLastUpdate(new Date());
+          setError(null);
+          console.log(
+            "[RealTimeBalance] Balance fetched from sub_account_balances:",
+            balanceValue,
+          );
+
+          // Fetch bonus status from canonical_users
+          const { data: userData } = await supabase
+            .from("canonical_users")
+            .select("has_used_new_user_bonus")
+            .or(
+              `canonical_user_id.eq.${canonicalUserId},privy_user_id.eq.${userId}`,
+            )
+            .limit(1);
+          if (userData && userData.length > 0) {
+            const user = userData[0];
+            setHasUsedBonus(user.has_used_new_user_bonus || false);
+          }
+          return;
         }
 
-        // Fetch bonus status from canonical_users (still stored there)
+        // If we get here, no balance record was found
+        // Set balance to 0 - the user may need to create an account or top up
+        console.log(
+          "[RealTimeBalance] No balance record found for user:",
+          canonicalUserId.substring(0, 25) + "...",
+        );
+        console.log(
+          "[RealTimeBalance] User may need to top up their wallet to create a balance record",
+        );
+
+        // Try to get bonus status from canonical_users (still stored there)
         const { data: userData } = await supabase
-          .from('canonical_users')
-          .select('uid, has_used_new_user_bonus, canonical_user_id')
-          .or(`canonical_user_id.eq.${canonicalUserId},privy_user_id.eq.${userId}`)
+          .from("canonical_users")
+          .select("uid, has_used_new_user_bonus")
+          .eq("canonical_user_id", canonicalUserId)
           .limit(1);
 
         if (userData && userData.length > 0) {
-          const user: Row<'canonical_users'> = userData[0];
-          if (user.uid && !userUidRef.current) {
+          const user = userData[0];
+          if (user.uid) {
             userUidRef.current = user.uid;
           }
           setHasUsedBonus(user.has_used_new_user_bonus || false);
         }
-        return;
-      }
 
-      // Fallback: Direct query to sub_account_balances if RPC fails
-      if (isTypeMismatchError) {
-        console.warn('[RealTimeBalance] RPC type mismatch error - database migration may need to be applied. Falling back to direct query.');
-      } else {
-        console.log('[RealTimeBalance] RPC failed, falling back to direct query:', rpcError?.message);
-      }
-
-      const userIsWallet = isWalletAddress(userId);
-      const normalizedUserId = userIsWallet ? normalizeWalletAddress(userId) || userId.toLowerCase() : userId;
-      // Also try lowercase version of canonical ID for case-insensitive matching
-      const canonicalUserIdLower = canonicalUserId.toLowerCase();
-
-      // Try sub_account_balances directly with case-insensitive matching
-      // Use eq for canonical_user_id (TEXT type in sub_account_balances)
-      const { data: subAccountData, error: subAccountError } = await supabase
-        .from('sub_account_balances')
-        .select('id, user_id, available_balance, pending_balance, privy_user_id')
-        .eq('currency', 'USD')
-        .or(`user_id.eq.${canonicalUserId},privy_user_id.eq.${userId}`)
-        .limit(1);
-
-      if (subAccountData && subAccountData.length > 0 && !subAccountError) {
-        const record: Row<'sub_account_balances'> = subAccountData[0];
-        if (record.user_id) {
-          userUidRef.current = record.user_id;
-        }
-        const balanceValue = Number(record.available_balance) || 0;
-        setBalance(balanceValue);
-        // bonusBalance no longer tracked
-        setPendingBalance(Number(record.pending_balance) || 0);
+        // Set balance to 0 - no errors, just no balance yet
+        setBalance(0);
+        setPendingBalance(0);
         setLastUpdate(new Date());
         setError(null);
-        console.log('[RealTimeBalance] Balance fetched from sub_account_balances:', balanceValue);
-
-        // Fetch bonus status from canonical_users
-        const { data: userData } = await supabase
-          .from('canonical_users')
-          .select('has_used_new_user_bonus')
-          .or(`canonical_user_id.eq.${canonicalUserId},privy_user_id.eq.${userId}`)
-          .limit(1);
-        if (userData && userData.length > 0) {
-          const user: Row<'canonical_users'> = userData[0];
-          setHasUsedBonus(user.has_used_new_user_bonus || false);
-        }
-        return;
+      } catch (err) {
+        console.error("Error fetching balance:", err);
+        setError(
+          err instanceof Error ? err.message : "Failed to fetch balance",
+        );
+      } finally {
+        setIsLoading(false);
       }
-
-      // If we get here, no balance record was found
-      // Set balance to 0 - the user may need to create an account or top up
-      console.log('[RealTimeBalance] No balance record found for user:', canonicalUserId.substring(0, 25) + '...');
-      console.log('[RealTimeBalance] User may need to top up their wallet to create a balance record');
-
-      // Try to get bonus status from canonical_users (still stored there)
-      const { data: userData } = await supabase
-        .from('canonical_users')
-        .select('uid, has_used_new_user_bonus')
-        .eq('canonical_user_id', canonicalUserId)
-        .limit(1);
-
-      if (userData && userData.length > 0) {
-        const user: Row<'canonical_users'> = userData[0];
-        if (user.uid) {
-          userUidRef.current = user.uid;
-        }
-        setHasUsedBonus(user.has_used_new_user_bonus || false);
-      }
-
-      // Set balance to 0 - no errors, just no balance yet
-      setBalance(0);
-      setPendingBalance(0);
-      setLastUpdate(new Date());
-      setError(null);
-    } catch (err) {
-      console.error('Error fetching balance:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch balance');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [userId]);
+    },
+    [userId],
+  );
 
   // Debounced version of fetchBalance for real-time events
   // Prevents rapid-fire balance updates that cause the UI to jump
@@ -255,7 +296,9 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
     // Determine filter strategy based on identifier type
     const userIsWallet = isWalletAddress(userId);
     // Normalize wallet address to lowercase for consistent matching
-    const normalizedUserId = userIsWallet ? normalizeWalletAddress(userId) || userId.toLowerCase() : userId;
+    const normalizedUserId = userIsWallet
+      ? normalizeWalletAddress(userId) || userId.toLowerCase()
+      : userId;
     // Convert to canonical format for channel naming
     const canonicalUserId = toPrizePid(userId);
 
@@ -266,11 +309,11 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
       .channel(`user-balance-${canonicalUserId}`)
       // PRIMARY: Listen for balance updates on sub_account_balances (source of truth)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
-          table: 'sub_account_balances',
+          event: "*",
+          schema: "public",
+          table: "sub_account_balances",
         },
         (payload) => {
           // Filter in callback to handle case-insensitive matching
@@ -284,28 +327,34 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
           };
 
           // Only process USD currency records
-          if (record.currency && record.currency !== 'USD') {
+          if (record.currency && record.currency !== "USD") {
             return;
           }
 
           // Check if this update is for the current user
           const matchesUserId = userIdsEqual(record.user_id, userId);
-          const matchesCanonical = userIdsEqual(record.canonical_user_id, canonicalUserId);
+          const matchesCanonical = userIdsEqual(
+            record.canonical_user_id,
+            canonicalUserId,
+          );
           const matchesPrivyId = userIdsEqual(record.privy_user_id, userId);
 
           if (matchesUserId || matchesCanonical || matchesPrivyId) {
-            console.log('[RealTimeBalance] sub_account_balances update detected:', payload.eventType);
+            console.log(
+              "[RealTimeBalance] sub_account_balances update detected:",
+              payload.eventType,
+            );
             debouncedFetchBalance();
           }
-        }
+        },
       )
       // LEGACY: Listen for balance updates on canonical_users (fallback for older records)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
-          table: 'canonical_users',
+          event: "*",
+          schema: "public",
+          table: "canonical_users",
         },
         (payload) => {
           // Filter in callback to handle case-insensitive wallet address matching
@@ -318,25 +367,41 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
           };
 
           // Check if this update is for the current user using userIdsEqual for case-insensitive comparison
-          const matchesUid = userUidRef.current && record.uid === userUidRef.current;
+          const matchesUid =
+            userUidRef.current && record.uid === userUidRef.current;
           const matchesWallet = userIdsEqual(record.wallet_address, userId);
-          const matchesBaseWallet = userIdsEqual(record.base_wallet_address, userId);
+          const matchesBaseWallet = userIdsEqual(
+            record.base_wallet_address,
+            userId,
+          );
           const matchesPrivyId = userIdsEqual(record.privy_user_id, userId);
-          const matchesCanonical = userIdsEqual(record.canonical_user_id, canonicalUserId);
+          const matchesCanonical = userIdsEqual(
+            record.canonical_user_id,
+            canonicalUserId,
+          );
 
-          if (matchesUid || matchesWallet || matchesBaseWallet || matchesPrivyId || matchesCanonical) {
-            console.log('[RealTimeBalance] canonical_users update detected:', payload.eventType);
+          if (
+            matchesUid ||
+            matchesWallet ||
+            matchesBaseWallet ||
+            matchesPrivyId ||
+            matchesCanonical
+          ) {
+            console.log(
+              "[RealTimeBalance] canonical_users update detected:",
+              payload.eventType,
+            );
             debouncedFetchBalance();
           }
-        }
+        },
       )
       // SECONDARY: Listen for balance updates on wallet_balances (created for RLS support, important for Base users)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
-          table: 'wallet_balances',
+          event: "*",
+          schema: "public",
+          table: "wallet_balances",
         },
         (payload) => {
           // Filter in callback to handle case-insensitive wallet address matching
@@ -349,24 +414,39 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
           };
 
           // Check if this update is for the current user
-          const matchesUserId = userUidRef.current && record.user_id === userUidRef.current;
-          const matchesCanonical = userIdsEqual(record.canonical_user_id, canonicalUserId);
+          const matchesUserId =
+            userUidRef.current && record.user_id === userUidRef.current;
+          const matchesCanonical = userIdsEqual(
+            record.canonical_user_id,
+            canonicalUserId,
+          );
           const matchesWallet = userIdsEqual(record.wallet_address, userId);
-          const matchesBaseWallet = userIdsEqual(record.base_wallet_address, userId);
+          const matchesBaseWallet = userIdsEqual(
+            record.base_wallet_address,
+            userId,
+          );
 
-          if (matchesUserId || matchesCanonical || matchesWallet || matchesBaseWallet) {
-            console.log('[RealTimeBalance] wallet_balances update detected:', payload.eventType);
+          if (
+            matchesUserId ||
+            matchesCanonical ||
+            matchesWallet ||
+            matchesBaseWallet
+          ) {
+            console.log(
+              "[RealTimeBalance] wallet_balances update detected:",
+              payload.eventType,
+            );
             debouncedFetchBalance();
           }
-        }
+        },
       )
       // Listen for balance_ledger inserts (captures both credits AND debits)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'balance_ledger',
+          event: "INSERT",
+          schema: "public",
+          table: "balance_ledger",
         },
         (payload) => {
           // Filter by user_id matching userUidRef or wallet address
@@ -380,22 +460,27 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
           // Check if this ledger entry is for the current user
           // user_id in balance_ledger is the uid from canonical_users
           // Also check wallet_address as a fallback
-          const matchesUid = userUidRef.current && record.user_id === userUidRef.current;
+          const matchesUid =
+            userUidRef.current && record.user_id === userUidRef.current;
           const matchesWallet = userIdsEqual(record.wallet_address, userId);
 
           if (matchesUid || matchesWallet) {
-            console.log('[RealTimeBalance] Balance ledger entry detected:', record.source, record.amount);
+            console.log(
+              "[RealTimeBalance] Balance ledger entry detected:",
+              record.source,
+              record.amount,
+            );
             debouncedFetchBalance();
           }
-        }
+        },
       )
       // Listen for transaction changes that might affect balance
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
-          table: 'user_transactions',
+          event: "*",
+          schema: "public",
+          table: "user_transactions",
         },
         (payload) => {
           // Filter in callback for case-insensitive matching using userIdsEqual
@@ -411,32 +496,47 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
           const matchesWallet = userIdsEqual(record.wallet_address, userId);
 
           if (matchesUserId || matchesWallet) {
-            const statusLower = (record.status || '').toLowerCase().trim();
+            const statusLower = (record.status || "").toLowerCase().trim();
             const isTopUp = !record.competition_id; // Top-ups don't have competition_id
-            
+
             // Refresh on:
             // 1. Completed transactions (all types)
             // 2. New pending top-up transactions (for immediate UI feedback)
-            const isCompleted = statusLower === 'finished' || statusLower === 'completed' || statusLower === 'confirmed' || statusLower === 'success' || statusLower === 'paid';
-            const isPendingTopUp = (statusLower === 'pending' || statusLower === 'pending_payment' || statusLower === 'waiting' || statusLower === 'processing') && isTopUp && payload.eventType === 'INSERT';
-            
+            const isCompleted =
+              statusLower === "finished" ||
+              statusLower === "completed" ||
+              statusLower === "confirmed" ||
+              statusLower === "success" ||
+              statusLower === "paid";
+            const isPendingTopUp =
+              (statusLower === "pending" ||
+                statusLower === "pending_payment" ||
+                statusLower === "waiting" ||
+                statusLower === "processing") &&
+              isTopUp &&
+              payload.eventType === "INSERT";
+
             if (isCompleted) {
-              console.log('[RealTimeBalance] Transaction completed, refreshing balance');
+              console.log(
+                "[RealTimeBalance] Transaction completed, refreshing balance",
+              );
               debouncedFetchBalance();
             } else if (isPendingTopUp) {
-              console.log('[RealTimeBalance] New pending top-up transaction created, refreshing for UI update');
+              console.log(
+                "[RealTimeBalance] New pending top-up transaction created, refreshing for UI update",
+              );
               debouncedFetchBalance();
             }
           }
-        }
+        },
       )
       // Listen for ticket purchases (balance deductions)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'v_joincompetition_active',
+          event: "INSERT",
+          schema: "public",
+          table: "v_joincompetition_active",
         },
         (payload) => {
           // Filter in callback for case-insensitive matching using userIdsEqual
@@ -453,17 +553,19 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
           const matchesUserId = userIdsEqual(record.userid, userId);
 
           if (matchesWallet || matchesUserId) {
-            console.log('[RealTimeBalance] New entry, refreshing balance');
+            console.log("[RealTimeBalance] New entry, refreshing balance");
             debouncedFetchBalance();
           }
-        }
+        },
       )
       .subscribe((status) => {
         // Log subscription status for debugging
-        if (status === 'CHANNEL_ERROR') {
-          console.warn('[RealTimeBalance] Subscription error, will use polling fallback');
-        } else if (status === 'SUBSCRIBED') {
-          console.log('[RealTimeBalance] Subscription active');
+        if (status === "CHANNEL_ERROR") {
+          console.warn(
+            "[RealTimeBalance] Subscription error, will use polling fallback",
+          );
+        } else if (status === "SUBSCRIBED") {
+          console.log("[RealTimeBalance] Subscription active");
         }
       });
 
@@ -472,11 +574,17 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
     // Channel format: user:{canonical_user_id}:wallet
     const walletBroadcastChannel = supabase
       .channel(`user:${canonicalUserId}:wallet`)
-      .on('broadcast', { event: 'wallet_balance_changed' }, (payload) => {
-        console.log('[RealTimeBalance] wallet_balance_changed broadcast received:', payload);
+      .on("broadcast", { event: "wallet_balance_changed" }, (payload) => {
+        console.log(
+          "[RealTimeBalance] wallet_balance_changed broadcast received:",
+          payload,
+        );
         const newBalance = payload.payload?.new_balance;
         if (newBalance !== undefined && newBalance !== null) {
-          console.log('[RealTimeBalance] Updating balance from broadcast:', newBalance);
+          console.log(
+            "[RealTimeBalance] Updating balance from broadcast:",
+            newBalance,
+          );
           setBalance(Number(newBalance));
           setLastUpdate(new Date());
           // Set cooldown to prevent DB reads from overwriting the broadcast value
@@ -487,10 +595,10 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
         }
       })
       .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('[RealTimeBalance] Wallet broadcast channel subscribed');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.warn('[RealTimeBalance] Wallet broadcast channel error');
+        if (status === "SUBSCRIBED") {
+          console.log("[RealTimeBalance] Wallet broadcast channel subscribed");
+        } else if (status === "CHANNEL_ERROR") {
+          console.warn("[RealTimeBalance] Wallet broadcast channel error");
         }
       });
 
@@ -502,9 +610,17 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
 
     // Listen for balance-updated events from PaymentModal
     // This provides immediate balance updates without waiting for DB replication
-    const handleBalanceUpdated = (event: CustomEvent<{ newBalance?: number }>) => {
-      if (event.detail?.newBalance !== undefined && event.detail.newBalance !== null) {
-        console.log('[RealTimeBalance] Immediate balance update from event:', event.detail.newBalance);
+    const handleBalanceUpdated = (
+      event: CustomEvent<{ newBalance?: number }>,
+    ) => {
+      if (
+        event.detail?.newBalance !== undefined &&
+        event.detail.newBalance !== null
+      ) {
+        console.log(
+          "[RealTimeBalance] Immediate balance update from event:",
+          event.detail.newBalance,
+        );
         setBalance(event.detail.newBalance);
         setLastUpdate(new Date());
         // Set the cooldown timestamp to prevent DB queries from overwriting this value
@@ -513,13 +629,19 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
       }
     };
 
-    window.addEventListener('balance-updated', handleBalanceUpdated as EventListener);
+    window.addEventListener(
+      "balance-updated",
+      handleBalanceUpdated as EventListener,
+    );
 
     return () => {
       clearInterval(pollingInterval);
       supabase.removeChannel(channel);
       supabase.removeChannel(walletBroadcastChannel);
-      window.removeEventListener('balance-updated', handleBalanceUpdated as EventListener);
+      window.removeEventListener(
+        "balance-updated",
+        handleBalanceUpdated as EventListener,
+      );
     };
   }, [userId, fetchBalance]);
 
@@ -530,37 +652,53 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
   }, [fetchBalance]);
 
   // Add pending top-up to optimistic state
-  const addPendingTopUp = useCallback((amount: number, id: string) => {
-    const newPending: PendingTopUp = {
-      amount,
-      timestamp: Date.now(),
-      id,
-    };
-    setPendingTopUps(prev => [...prev, newPending]);
-    setOptimisticBalance(prev => (prev ?? balance) + amount);
-    console.log('[RealTimeBalance] Added optimistic top-up:', amount, 'new optimistic balance:', (optimisticBalance ?? balance) + amount);
-  }, [balance, optimisticBalance]);
+  const addPendingTopUp = useCallback(
+    (amount: number, id: string) => {
+      const newPending: PendingTopUp = {
+        amount,
+        timestamp: Date.now(),
+        id,
+      };
+      setPendingTopUps((prev) => [...prev, newPending]);
+      setOptimisticBalance((prev) => (prev ?? balance) + amount);
+      console.log(
+        "[RealTimeBalance] Added optimistic top-up:",
+        amount,
+        "new optimistic balance:",
+        (optimisticBalance ?? balance) + amount,
+      );
+    },
+    [balance, optimisticBalance],
+  );
 
   // Remove pending top-up (on confirmation or rollback)
-  const removePendingTopUp = useCallback((id: string) => {
-    setPendingTopUps(prev => {
-      const filtered = prev.filter(p => p.id !== id);
-      const totalPending = filtered.reduce((sum, p) => sum + p.amount, 0);
-      setOptimisticBalance(totalPending > 0 ? balance + totalPending : null);
-      return filtered;
-    });
-    console.log('[RealTimeBalance] Removed pending top-up:', id);
-  }, [balance]);
+  const removePendingTopUp = useCallback(
+    (id: string) => {
+      setPendingTopUps((prev) => {
+        const filtered = prev.filter((p) => p.id !== id);
+        const totalPending = filtered.reduce((sum, p) => sum + p.amount, 0);
+        setOptimisticBalance(totalPending > 0 ? balance + totalPending : null);
+        return filtered;
+      });
+      console.log("[RealTimeBalance] Removed pending top-up:", id);
+    },
+    [balance],
+  );
 
   // Clear optimistic state when balance is confirmed
   useEffect(() => {
     if (balance > 0 && pendingTopUps.length > 0) {
       // Check if any pending top-ups should be cleared (older than 60 seconds)
       const now = Date.now();
-      const stale = pendingTopUps.filter(p => now - p.timestamp > 60000);
+      const stale = pendingTopUps.filter((p) => now - p.timestamp > 60000);
       if (stale.length > 0) {
-        console.log('[RealTimeBalance] Clearing stale pending top-ups:', stale.length);
-        setPendingTopUps(prev => prev.filter(p => now - p.timestamp <= 60000));
+        console.log(
+          "[RealTimeBalance] Clearing stale pending top-ups:",
+          stale.length,
+        );
+        setPendingTopUps((prev) =>
+          prev.filter((p) => now - p.timestamp <= 60000),
+        );
         setOptimisticBalance(null);
       }
     }
@@ -568,8 +706,8 @@ export function useRealTimeBalance(): RealTimeBalanceState & {
 
   return {
     balance,
-    bonusBalance: 0,  // Always 0 - bonus is in main balance (kept for compatibility)
-    totalBalance: balance,  // Same as balance (no separate bonus)
+    bonusBalance: 0, // Always 0 - bonus is in main balance (kept for compatibility)
+    totalBalance: balance, // Same as balance (no separate bonus)
     pendingBalance,
     hasUsedBonus,
     isLoading,
@@ -604,18 +742,22 @@ export function useWinnerNotifications(onWin?: (prize: any) => void) {
     const channel = supabase
       .channel(`winner-notifications-${canonicalUserId}`)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'Prize_Instantprizes',
+          event: "UPDATE",
+          schema: "public",
+          table: "Prize_Instantprizes",
         },
         async (payload) => {
-          const newData = payload.new as { winningWalletAddress?: string; prize?: string; competitionId?: string };
+          const newData = payload.new as {
+            winningWalletAddress?: string;
+            prize?: string;
+            competitionId?: string;
+          };
 
           // Check if this user won using userIdsEqual for case-insensitive comparison
           if (userIdsEqual(newData?.winningWalletAddress, userId)) {
-            console.log('[WinnerNotifications] You won!', newData);
+            console.log("[WinnerNotifications] You won!", newData);
 
             const winData = {
               prize: newData.prize,
@@ -623,14 +765,14 @@ export function useWinnerNotifications(onWin?: (prize: any) => void) {
               timestamp: new Date(),
             };
 
-            setWins(prev => [...prev, winData]);
+            setWins((prev) => [...prev, winData]);
             setHasNewWin(true);
 
             if (onWin) {
               onWin(winData);
             }
           }
-        }
+        },
       )
       .subscribe();
 

@@ -1,7 +1,12 @@
-import { supabase } from '../lib/supabase';
-import { toPrizePid, isPrizePid } from '../utils/userId';
-import { VALID_AVATAR_FILENAMES, SUPABASE_AVATAR_BASE_URL, getAvatarUrl, getRandomAvatarUrl } from '../lib/avatarConstants';
-import { parseBalanceResponse } from '../utils/balanceParser';
+import { supabase } from "../lib/supabase";
+import { toPrizePid, isPrizePid } from "../utils/userId";
+import {
+  VALID_AVATAR_FILENAMES,
+  SUPABASE_AVATAR_BASE_URL,
+  getAvatarUrl,
+  getRandomAvatarUrl,
+} from "../lib/avatarConstants";
+import { parseBalanceResponse } from "../utils/balanceParser";
 
 export interface UserDataAggregation {
   totalTickets: number;
@@ -18,7 +23,7 @@ export interface AvatarOption {
 }
 
 // Cache key for persisting avatar URL across page navigations
-const AVATAR_CACHE_KEY = 'user_avatar_cache';
+const AVATAR_CACHE_KEY = "user_avatar_cache";
 
 export const userDataService = {
   // Get avatar URL from Supabase storage - using the shared constants module
@@ -29,7 +34,7 @@ export const userDataService = {
   // Cache the avatar URL to localStorage to prevent visual swapping during navigation
   // This ensures the avatar persists across page transitions while profile data reloads
   cacheAvatarUrl(avatarUrl: string): void {
-    if (typeof window !== 'undefined' && avatarUrl) {
+    if (typeof window !== "undefined" && avatarUrl) {
       try {
         localStorage.setItem(AVATAR_CACHE_KEY, avatarUrl);
       } catch (e) {
@@ -41,7 +46,7 @@ export const userDataService = {
   // Get the cached avatar URL from localStorage
   // Returns null if no cached avatar exists
   getCachedAvatarUrl(): string | null {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       try {
         return localStorage.getItem(AVATAR_CACHE_KEY);
       } catch (e) {
@@ -54,7 +59,7 @@ export const userDataService = {
 
   // Clear the cached avatar (e.g., on logout)
   clearCachedAvatarUrl(): void {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       try {
         localStorage.removeItem(AVATAR_CACHE_KEY);
       } catch (e) {
@@ -98,7 +103,7 @@ export const userDataService = {
   // - Wallet addresses (0x followed by 40 hex chars)
   // - Legacy Privy DIDs (did:privy:xxxxx format)
   isValidUserIdentifier(identifier: string): boolean {
-    if (!identifier || typeof identifier !== 'string') {
+    if (!identifier || typeof identifier !== "string") {
       return false;
     }
     // Canonical prize:pid: format
@@ -114,7 +119,7 @@ export const userDataService = {
 
   // Check if identifier is a wallet address
   isWalletAddress(identifier: string): boolean {
-    if (!identifier || typeof identifier !== 'string') {
+    if (!identifier || typeof identifier !== "string") {
       return false;
     }
     const walletRegex = /^0x[a-fA-F0-9]{40}$/;
@@ -133,56 +138,73 @@ export const userDataService = {
     try {
       // Convert to canonical format
       const canonicalUserId = toPrizePid(userId);
-      console.log('[userDataService] Updating avatar for user:', canonicalUserId);
+      console.log(
+        "[userDataService] Updating avatar for user:",
+        canonicalUserId,
+      );
 
       // Validate user identifier format
       if (!this.isValidUserIdentifier(userId) && !isPrizePid(userId)) {
-        console.error('[userDataService] Invalid user identifier format:', userId);
+        console.error(
+          "[userDataService] Invalid user identifier format:",
+          userId,
+        );
         return false;
       }
 
       // Use RPC function to bypass RLS - handles case-insensitive matching
-      const { data, error } = await (supabase.rpc as any)('update_user_avatar', {
-        user_identifier: canonicalUserId,
-        new_avatar_url: avatarUrl
-      });
+      const { data, error } = await (supabase.rpc as any)(
+        "update_user_avatar",
+        {
+          user_identifier: canonicalUserId,
+          new_avatar_url: avatarUrl,
+        },
+      );
 
       if (error) {
-        console.error('[userDataService] Error updating user avatar:', error);
+        console.error("[userDataService] Error updating user avatar:", error);
         return false;
       }
 
       // Check the result from the RPC function
-      if (data && typeof data === 'object' && 'success' in data) {
+      if (data && typeof data === "object" && "success" in data) {
         const typedData = data as { success?: boolean; error?: string };
         if (typedData.success) {
-          console.log('[userDataService] Avatar updated successfully:', data);
+          console.log("[userDataService] Avatar updated successfully:", data);
           return true;
         } else {
-          console.error('[userDataService] Avatar update failed:', typedData.error);
+          console.error(
+            "[userDataService] Avatar update failed:",
+            typedData.error,
+          );
           return false;
         }
       }
 
       // CRITICAL FIX: Don't assume success if response doesn't have explicit success field
       // The RPC might return empty data or an unexpected format
-      console.warn('[userDataService] Avatar update returned no success confirmation:', data);
+      console.warn(
+        "[userDataService] Avatar update returned no success confirmation:",
+        data,
+      );
       return false; // Changed from true to false - require explicit success
     } catch (error) {
-      console.error('[userDataService] Error in updateUserAvatar:', error);
+      console.error("[userDataService] Error in updateUserAvatar:", error);
       return false;
     }
   },
 
   async getUserAggregatedData(
     userId: string,
-    walletAddress?: string
+    walletAddress?: string,
   ): Promise<UserDataAggregation> {
-    const inputIdentifier = userId || walletAddress || '';
+    const inputIdentifier = userId || walletAddress || "";
     // Convert to canonical format
     const canonicalId = toPrizePid(inputIdentifier);
     // Normalize wallet for case-insensitive matching
-    const normalizedWallet = this.isWalletAddress(inputIdentifier) ? inputIdentifier.toLowerCase() : inputIdentifier;
+    const normalizedWallet = this.isWalletAddress(inputIdentifier)
+      ? inputIdentifier.toLowerCase()
+      : inputIdentifier;
 
     try {
       // Get user tickets using direct query (staging compatible, no bypass_rls)
@@ -190,8 +212,8 @@ export const userDataService = {
       try {
         // First try the standard RPC (if EXECUTE granted to anon)
         const { data: rpcData, error: rpcError } = await (supabase.rpc as any)(
-          'get_user_tickets', 
-          { user_identifier: canonicalId }
+          "get_user_tickets",
+          { user_identifier: canonicalId },
         );
 
         if (!rpcError && rpcData) {
@@ -200,33 +222,41 @@ export const userDataService = {
           // Fallback: Direct query to joincompetition table
           // Note: Using v_joincompetition_active view for stable read interface
           // Supabase client library handles parameter escaping to prevent SQL injection
-          console.log('[userDataService] get_user_tickets RPC unavailable, using direct query');
+          console.log(
+            "[userDataService] get_user_tickets RPC unavailable, using direct query",
+          );
           const { data: directData, error: directError } = await supabase
-            .from('v_joincompetition_active')
-            .select('*')
-            .or(`wallet_address.ilike.${normalizedWallet},userid.eq.${canonicalId}`)
-            .order('purchasedate', { ascending: false });
+            .from("v_joincompetition_active")
+            .select("*")
+            .or(
+              `wallet_address.ilike.${normalizedWallet},userid.eq.${canonicalId}`,
+            )
+            .order("purchasedate", { ascending: false });
 
           if (!directError && directData) {
             tickets = directData;
           } else if (directError) {
-            console.error('Error fetching user tickets (direct):', directError);
+            console.error("Error fetching user tickets (direct):", directError);
           }
         }
       } catch (ticketsErr) {
-        console.error('Error fetching user tickets:', ticketsErr);
+        console.error("Error fetching user tickets:", ticketsErr);
       }
 
       // Get user balance using get_user_balance RPC for consistent lookups
-      const { data: rpcBalance, error: rpcError } = await (supabase.rpc as any)('get_user_balance', {
-        p_canonical_user_id: canonicalId
-      });
+      const { data: rpcBalance, error: rpcError } = await (supabase.rpc as any)(
+        "get_user_balance",
+        {
+          p_canonical_user_id: canonicalId,
+        },
+      );
 
       // Check for type mismatch error (can occur if database migration not applied)
-      const isTypeMismatchError = rpcError?.message?.includes('operator does not exist') ||
-        rpcError?.message?.includes('type cast') ||
-        rpcError?.code === '42883' ||
-        rpcError?.code === '42846';
+      const isTypeMismatchError =
+        rpcError?.message?.includes("operator does not exist") ||
+        rpcError?.message?.includes("type cast") ||
+        rpcError?.code === "42883" ||
+        rpcError?.code === "42846";
 
       let walletBalance = 0;
       if (!rpcError && rpcBalance !== null) {
@@ -235,19 +265,24 @@ export const userDataService = {
         walletBalance = balanceData.balance ?? 0;
       } else {
         if (isTypeMismatchError) {
-          console.warn('[userDataService] RPC type mismatch error - database migration may need to be applied. Falling back to direct query.');
+          console.warn(
+            "[userDataService] RPC type mismatch error - database migration may need to be applied. Falling back to direct query.",
+          );
         }
         // Fallback: Direct query to wallet_balances view
-        const { data: userBalance, error: balanceError } = await supabase
-          .from('wallet_balances')
-          .select('balance')
-          .eq('canonical_user_id', canonicalId)
-          .single<{ balance?: number | null }>();
+        const { data: userBalance, error: balanceError } = await (
+          supabase as any
+        )
+          .from("wallet_balances")
+          .select("balance")
+          .eq("canonical_user_id", canonicalId)
+          .single();
 
         if (balanceError) {
-          console.error('Error fetching user balance:', balanceError);
+          console.error("Error fetching user balance:", balanceError);
         }
-        const balance = userBalance?.balance ?? 0;
+        const balance =
+          (userBalance as { balance?: number | null } | null)?.balance ?? 0;
         walletBalance = Number(balance || 0);
       }
 
@@ -255,53 +290,58 @@ export const userDataService = {
       let recentEntries = 0;
       try {
         // First try standard RPC (if available)
-        const { data: rpcRecentData, error: rpcRecentError } = await (supabase.rpc as any)(
-          'get_recent_entries_count', 
-          { user_identifier: canonicalId }
-        );
+        const { data: rpcRecentData, error: rpcRecentError } = await (
+          supabase.rpc as any
+        )("get_recent_entries_count", { user_identifier: canonicalId });
 
         if (!rpcRecentError && rpcRecentData !== null) {
           recentEntries = Number(rpcRecentData || 0);
         } else {
           // Fallback: Direct count query on joincompetition
-          console.log('[userDataService] get_recent_entries_count RPC unavailable, using direct count');
+          console.log(
+            "[userDataService] get_recent_entries_count RPC unavailable, using direct count",
+          );
           const thirtyDaysAgo = new Date();
           thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
           // Note: Using v_joincompetition_active view for stable read interface
           // Supabase client library handles parameter escaping to prevent SQL injection
           const { count, error: countError } = await supabase
-            .from('v_joincompetition_active')
-            .select('*', { count: 'exact', head: true })
-            .or(`wallet_address.ilike.${normalizedWallet},userid.eq.${canonicalId}`)
-            .gte('purchasedate', thirtyDaysAgo.toISOString());
+            .from("v_joincompetition_active")
+            .select("*", { count: "exact", head: true })
+            .or(
+              `wallet_address.ilike.${normalizedWallet},userid.eq.${canonicalId}`,
+            )
+            .gte("purchasedate", thirtyDaysAgo.toISOString());
 
           if (!countError) {
             recentEntries = count || 0;
           }
         }
       } catch (recentErr) {
-        console.error('Error fetching recent entries count:', recentErr);
+        console.error("Error fetching recent entries count:", recentErr);
       }
 
       // Calculate aggregation
       const ticketsData = tickets || [];
       const totalTickets = ticketsData.length;
-      const activeTickets = ticketsData.filter((t: any) => t.is_active !== false).length;
+      const activeTickets = ticketsData.filter(
+        (t: any) => t.is_active !== false,
+      ).length;
 
       return {
         totalTickets,
         activeTickets,
         walletBalance,
-        recentEntries
+        recentEntries,
       };
     } catch (error) {
-      console.error('Error in getUserAggregatedData:', error);
+      console.error("Error in getUserAggregatedData:", error);
       return {
         totalTickets: 0,
         activeTickets: 0,
         walletBalance: 0,
-        recentEntries: 0
+        recentEntries: 0,
       };
     }
   },
@@ -310,12 +350,14 @@ export const userDataService = {
   async getUserTicketCount(userId: string): Promise<number> {
     try {
       const canonicalId = toPrizePid(userId);
-      const normalizedWallet = this.isWalletAddress(userId) ? userId.toLowerCase() : userId;
+      const normalizedWallet = this.isWalletAddress(userId)
+        ? userId.toLowerCase()
+        : userId;
 
       // Try standard RPC first
       const { data: rpcData, error: rpcError } = await (supabase.rpc as any)(
-        'get_user_tickets', 
-        { user_identifier: canonicalId }
+        "get_user_tickets",
+        { user_identifier: canonicalId },
       );
 
       if (!rpcError && rpcData) {
@@ -324,20 +366,24 @@ export const userDataService = {
       }
 
       // Fallback: Direct query
-      console.log('[userDataService] get_user_tickets RPC unavailable for count, using direct query');
+      console.log(
+        "[userDataService] get_user_tickets RPC unavailable for count, using direct query",
+      );
       const { count, error } = await supabase
-        .from('v_joincompetition_active')
-        .select('*', { count: 'exact', head: true })
-        .or(`wallet_address.ilike.${normalizedWallet},userid.eq.${canonicalId}`);
+        .from("v_joincompetition_active")
+        .select("*", { count: "exact", head: true })
+        .or(
+          `wallet_address.ilike.${normalizedWallet},userid.eq.${canonicalId}`,
+        );
 
       if (error) {
-        console.error('Error fetching user ticket count:', error);
+        console.error("Error fetching user ticket count:", error);
         return 0;
       }
 
       return count || 0;
     } catch (error) {
-      console.error('Error in getUserTicketCount:', error);
+      console.error("Error in getUserTicketCount:", error);
       return 0;
     }
   },
@@ -346,12 +392,14 @@ export const userDataService = {
   async getUserActiveTicketsCount(userId: string): Promise<number> {
     try {
       const canonicalId = toPrizePid(userId);
-      const normalizedWallet = this.isWalletAddress(userId) ? userId.toLowerCase() : userId;
+      const normalizedWallet = this.isWalletAddress(userId)
+        ? userId.toLowerCase()
+        : userId;
 
       // Try standard RPC first
       const { data: rpcData, error: rpcError } = await (supabase.rpc as any)(
-        'get_user_tickets', 
-        { user_identifier: canonicalId }
+        "get_user_tickets",
+        { user_identifier: canonicalId },
       );
 
       if (!rpcError && rpcData) {
@@ -360,20 +408,24 @@ export const userDataService = {
       }
 
       // Fallback: Direct query - uses v_joincompetition_active which only includes active entries
-      console.log('[userDataService] get_user_tickets RPC unavailable for active count, using direct query');
+      console.log(
+        "[userDataService] get_user_tickets RPC unavailable for active count, using direct query",
+      );
       const { count, error } = await supabase
-        .from('v_joincompetition_active')
-        .select('*', { count: 'exact', head: true })
-        .or(`wallet_address.ilike.${normalizedWallet},userid.eq.${canonicalId}`);
+        .from("v_joincompetition_active")
+        .select("*", { count: "exact", head: true })
+        .or(
+          `wallet_address.ilike.${normalizedWallet},userid.eq.${canonicalId}`,
+        );
 
       if (error) {
-        console.error('Error fetching user active tickets:', error);
+        console.error("Error fetching user active tickets:", error);
         return 0;
       }
 
       return count || 0;
     } catch (error) {
-      console.error('Error in getUserActiveTicketsCount:', error);
+      console.error("Error in getUserActiveTicketsCount:", error);
       return 0;
     }
   },
@@ -391,68 +443,96 @@ export const userDataService = {
       country?: string;
       telegram_handle?: string;
       telephone_number?: string;
-    }
+    },
   ): Promise<boolean> {
     try {
       const canonicalId = toPrizePid(userId);
-      console.log('[userDataService] Updating profile for user:', canonicalId, profile);
+      console.log(
+        "[userDataService] Updating profile for user:",
+        canonicalId,
+        profile,
+      );
 
       // Validate user identifier format
       if (!this.isValidUserIdentifier(userId) && !isPrizePid(userId)) {
-        console.error('[userDataService] Invalid user identifier format:', userId);
+        console.error(
+          "[userDataService] Invalid user identifier format:",
+          userId,
+        );
         return false;
       }
 
       // Log fields that cannot be saved (legacy fields)
       const unsupportedFields = [];
-      if (profile.first_name !== undefined) unsupportedFields.push('first_name');
-      if (profile.last_name !== undefined) unsupportedFields.push('last_name');
+      if (profile.first_name !== undefined)
+        unsupportedFields.push("first_name");
+      if (profile.last_name !== undefined) unsupportedFields.push("last_name");
 
       if (unsupportedFields.length > 0) {
-        console.warn('[userDataService] These legacy fields are not stored in the database and will be ignored:', unsupportedFields);
+        console.warn(
+          "[userDataService] These legacy fields are not stored in the database and will be ignored:",
+          unsupportedFields,
+        );
       }
 
       // Use RPC function to bypass RLS
-      const { data, error } = await (supabase.rpc as any)('update_user_profile_by_identifier', {
-        user_identifier: canonicalId,
-        new_username: profile.username ?? null,
-        new_email: profile.email ?? null,
-        new_telegram_handle: profile.telegram_handle ?? null,
-        new_country: profile.country ?? null,
-        new_telephone_number: profile.telephone_number ?? null,
-      });
+      const { data, error } = await (supabase.rpc as any)(
+        "update_user_profile_by_identifier",
+        {
+          user_identifier: canonicalId,
+          new_username: profile.username ?? null,
+          new_email: profile.email ?? null,
+          new_telegram_handle: profile.telegram_handle ?? null,
+          new_country: profile.country ?? null,
+          new_telephone_number: profile.telephone_number ?? null,
+        },
+      );
 
       if (error) {
         // Provide more detailed error logging
         const errorMessage = error.message || JSON.stringify(error);
-        console.error('[userDataService] Profile update failed:', errorMessage);
+        console.error("[userDataService] Profile update failed:", errorMessage);
 
         // Check for specific error types and provide helpful messages
-        if (errorMessage.includes('column') && errorMessage.includes('does not exist')) {
-          console.error('[userDataService] Database schema mismatch - migration may need to be applied');
+        if (
+          errorMessage.includes("column") &&
+          errorMessage.includes("does not exist")
+        ) {
+          console.error(
+            "[userDataService] Database schema mismatch - migration may need to be applied",
+          );
         }
 
         return false;
       }
 
       // Check the result from the RPC function
-      if (data && typeof data === 'object' && 'success' in data) {
+      if (data && typeof data === "object" && "success" in data) {
         if (data.success) {
-          console.log('[userDataService] Profile updated successfully:', data);
+          console.log("[userDataService] Profile updated successfully:", data);
           return true;
         } else {
-          console.error('[userDataService] Profile update failed:', data.error || 'Unknown error');
+          console.error(
+            "[userDataService] Profile update failed:",
+            data.error || "Unknown error",
+          );
           return false;
         }
       }
 
       // Check for new format: {status: 'ok', canonical_user_id: '...'}
-      if (data && typeof data === 'object' && 'status' in data) {
-        if (data.status === 'ok' || data.status === 'success') {
-          console.log('[userDataService] Profile updated successfully (new format):', data);
+      if (data && typeof data === "object" && "status" in data) {
+        if (data.status === "ok" || data.status === "success") {
+          console.log(
+            "[userDataService] Profile updated successfully (new format):",
+            data,
+          );
           return true;
         } else {
-          console.error('[userDataService] Profile update failed (new format):', data);
+          console.error(
+            "[userDataService] Profile update failed (new format):",
+            data,
+          );
           return false;
         }
       }
@@ -460,25 +540,38 @@ export const userDataService = {
       // If data is null/undefined or doesn't have a success field, the RPC likely failed
       // Don't assume success - log and return false to avoid misleading the user
       if (!data) {
-        console.error('[userDataService] Profile update returned no data - RPC may have failed');
+        console.error(
+          "[userDataService] Profile update returned no data - RPC may have failed",
+        );
         return false;
       }
 
       // For backwards compatibility: if data is returned but has no success field,
       // check if it looks like a valid response (has rows_affected or similar)
-      if (typeof data === 'object' && data !== null && ('rows_affected' in data || 'updated' in data)) {
-        const rowsAffected = (data as any).rows_affected ?? (data as any).updated ?? 0;
-        if (typeof rowsAffected === 'number' && rowsAffected > 0) {
-          console.log('[userDataService] Profile update completed (legacy format):', data);
+      if (
+        typeof data === "object" &&
+        data !== null &&
+        ("rows_affected" in data || "updated" in data)
+      ) {
+        const rowsAffected =
+          (data as any).rows_affected ?? (data as any).updated ?? 0;
+        if (typeof rowsAffected === "number" && rowsAffected > 0) {
+          console.log(
+            "[userDataService] Profile update completed (legacy format):",
+            data,
+          );
           return true;
         }
       }
 
-      console.error('[userDataService] Profile update returned unexpected response:', data);
+      console.error(
+        "[userDataService] Profile update returned unexpected response:",
+        data,
+      );
       return false;
     } catch (error) {
-      console.error('[userDataService] Error in updateUserProfile:', error);
+      console.error("[userDataService] Error in updateUserProfile:", error);
       return false;
     }
-  }
+  },
 };

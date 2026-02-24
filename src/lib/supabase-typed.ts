@@ -1,18 +1,18 @@
 /**
  * Type-safe Supabase API wrappers
- * 
+ *
  * This module provides fully typed wrappers for Supabase views and RPC functions.
  * All functions use the generated Database types for compile-time safety.
- * 
+ *
  * Environment setup (Vite + React + Netlify):
  * - Local: Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env
  * - Netlify: Add same variables in Site settings → Environment variables
  * - Restart dev server after .env changes
  */
 
-import { supabase } from '@/lib/supabase';
-import type { Database } from '../../supabase/types';
-import { getUnavailableTickets as getUnavailableTicketsRPC } from './supabase-rpc-helpers';
+import { supabase } from "@/lib/supabase";
+import type { Database } from "../../supabase/types";
+import { getUnavailableTickets as getUnavailableTicketsRPC } from "./supabase-rpc-helpers";
 
 // ============================================================================
 // Type Aliases for Better Ergonomics
@@ -22,34 +22,44 @@ import { getUnavailableTickets as getUnavailableTicketsRPC } from './supabase-rp
 export type ActiveEntry = any; // Database['public']['Views']['v_joincompetition_active']['Row'];
 
 /** Arguments for reserve_tickets RPC */
-export type ReserveTicketsArgs = Database['public']['Functions']['reserve_tickets']['Args'];
+export type ReserveTicketsArgs =
+  Database["public"]["Functions"]["reserve_tickets"]["Args"];
 
 /** Return type for reserve_tickets RPC */
-export type ReserveTicketsReturn = Database['public']['Functions']['reserve_tickets']['Returns'];
+export type ReserveTicketsReturn =
+  Database["public"]["Functions"]["reserve_tickets"]["Returns"];
 
 /** Arguments for finalize_order RPC */
-export type FinalizeOrderArgs = Database['public']['Functions']['finalize_order']['Args'];
+export type FinalizeOrderArgs =
+  Database["public"]["Functions"]["finalize_order"]["Args"];
 
 /** Return type for finalize_order RPC */
-export type FinalizeOrderReturn = Database['public']['Functions']['finalize_order']['Returns'];
+export type FinalizeOrderReturn =
+  Database["public"]["Functions"]["finalize_order"]["Returns"];
 
 /** Arguments for release_reservation RPC */
-export type ReleaseReservationArgs = Database['public']['Functions']['release_reservation']['Args'];
+export type ReleaseReservationArgs =
+  Database["public"]["Functions"]["release_reservation"]["Args"];
 
 /** Return type for release_reservation RPC */
-export type ReleaseReservationReturn = Database['public']['Functions']['release_reservation']['Returns'];
+export type ReleaseReservationReturn =
+  Database["public"]["Functions"]["release_reservation"]["Returns"];
 
 /** Arguments for get_unavailable_tickets RPC */
-export type GetUnavailableTicketsArgs = Database['public']['Functions']['get_unavailable_tickets']['Args'];
+export type GetUnavailableTicketsArgs =
+  Database["public"]["Functions"]["get_unavailable_tickets"]["Args"];
 
 /** Return type for get_unavailable_tickets RPC */
-export type GetUnavailableTicketsReturn = Database['public']['Functions']['get_unavailable_tickets']['Returns'];
+export type GetUnavailableTicketsReturn =
+  Database["public"]["Functions"]["get_unavailable_tickets"]["Returns"];
 
 /** Arguments for get_user_tickets_for_competition RPC */
-export type GetUserTicketsArgs = Database['public']['Functions']['get_user_tickets_for_competition']['Args'];
+export type GetUserTicketsArgs =
+  Database["public"]["Functions"]["get_user_tickets_for_competition"]["Args"];
 
 /** Return type for get_user_tickets_for_competition RPC */
-export type GetUserTicketsReturn = Database['public']['Functions']['get_user_tickets_for_competition']['Returns'];
+export type GetUserTicketsReturn =
+  Database["public"]["Functions"]["get_user_tickets_for_competition"]["Returns"];
 
 // ============================================================================
 // Detailed Return Type Interfaces
@@ -94,22 +104,26 @@ export interface ReleaseReservationResponse {
 
 /**
  * Fetch active competition entries by user identifier
- * 
+ *
  * @param userIdentifier - Can be canonical_user_id (prize:pid:0x...) or wallet address (0x...)
  * @returns Array of active entries for the user
  * @throws Error if the query fails
  */
-export async function getActiveEntriesByUser(userIdentifier: string): Promise<ActiveEntry[]> {
+export async function getActiveEntriesByUser(
+  userIdentifier: string,
+): Promise<ActiveEntry[]> {
   // Validate user identifier to prevent injection
-  if (!userIdentifier || typeof userIdentifier !== 'string') {
-    throw new Error('Invalid user identifier');
+  if (!userIdentifier || typeof userIdentifier !== "string") {
+    throw new Error("Invalid user identifier");
   }
 
   const { data, error } = await supabase
-    .from('v_joincompetition_active')
-    .select('*')
-    .or(`userid.eq."${userIdentifier.replace(/"/g, '""')}",wallet_address.eq."${userIdentifier.replace(/"/g, '""')}"`)
-    .order('purchasedate', { ascending: false } as any);
+    .from("v_joincompetition_active")
+    .select("*")
+    .or(
+      `userid.eq."${userIdentifier.replace(/"/g, '""')}",wallet_address.eq."${userIdentifier.replace(/"/g, '""')}"`,
+    )
+    .order("purchasedate", { ascending: false } as any);
 
   if (error) throw error;
   return (data ?? []) as ActiveEntry[];
@@ -117,17 +131,19 @@ export async function getActiveEntriesByUser(userIdentifier: string): Promise<Ac
 
 /**
  * Fetch active competition entries by competition UID
- * 
+ *
  * @param competitionUid - The competition's unique identifier
  * @returns Array of active entries for the competition
  * @throws Error if the query fails
  */
-export async function getActiveEntriesByCompetition(competitionUid: string): Promise<ActiveEntry[]> {
+export async function getActiveEntriesByCompetition(
+  competitionUid: string,
+): Promise<ActiveEntry[]> {
   const { data, error } = await supabase
-    .from('v_joincompetition_active')
-    .select('*')
-    .eq('competition_id', competitionUid)
-    .order('purchasedate', { ascending: false } as any);
+    .from("v_joincompetition_active")
+    .select("*")
+    .eq("competition_id", competitionUid)
+    .order("purchasedate", { ascending: false } as any);
 
   if (error) throw error;
   return (data ?? []) as ActiveEntry[];
@@ -139,11 +155,11 @@ export async function getActiveEntriesByCompetition(competitionUid: string): Pro
 
 /**
  * Reserve tickets for a competition
- * 
+ *
  * Creates a temporary reservation that holds the specified ticket numbers
  * for a limited time (holdMinutes). The reservation must be finalized with
  * finalize_order() before it expires.
- * 
+ *
  * @param params - Reservation parameters
  * @param params.competitionId - Competition UUID
  * @param params.ticketNumbers - Array of ticket numbers to reserve
@@ -158,12 +174,12 @@ export async function reserveTickets(params: {
   userIdentifier: string;
   holdMinutes?: number;
 }): Promise<ReserveTicketsResponse> {
-  const { data, error } = await (supabase.rpc as any)('reserve_tickets', {
+  const { data, error } = await (supabase.rpc as any)("reserve_tickets", {
     p_competition_id: params.competitionId,
     p_ticket_numbers: params.ticketNumbers,
     p_user_id: params.userIdentifier,
     p_hold_minutes: params.holdMinutes ?? 15,
-  } satisfies ReserveTicketsArgs);
+  });
 
   if (error) throw error;
   return (data ?? {}) as ReserveTicketsResponse;
@@ -175,14 +191,14 @@ export async function reserveTickets(params: {
 
 /**
  * Finalize a ticket reservation
- * 
+ *
  * Atomically:
  * 1. Verifies the reservation is valid and not expired
  * 2. Calculates total amount (unitPrice × ticket count)
  * 3. Deducts balance from user's wallet
  * 4. Creates order, tickets, and transaction records
  * 5. Marks reservation as confirmed
- * 
+ *
  * @param params - Order finalization parameters
  * @param params.reservationId - The reservation ID from reserve_tickets()
  * @param params.userIdentifier - User's canonical ID or wallet address
@@ -197,7 +213,7 @@ export async function finalizeOrder(params: {
   competitionId: string;
   unitPrice: number;
 }): Promise<FinalizeOrderResponse> {
-  const { data, error } = await (supabase.rpc as any)('finalize_order', {
+  const { data, error } = await (supabase.rpc as any)("finalize_order", {
     p_reservation_id: params.reservationId,
     p_user_id: params.userIdentifier,
     p_competition_id: params.competitionId,
@@ -214,10 +230,10 @@ export async function finalizeOrder(params: {
 
 /**
  * Cancel a pending ticket reservation
- * 
+ *
  * Releases a pending reservation so the tickets become available again.
  * Only works on reservations in 'pending' status.
- * 
+ *
  * @param params - Cancellation parameters
  * @param params.reservationId - The reservation ID to cancel
  * @param params.userIdentifier - User's canonical ID or wallet address
@@ -228,7 +244,7 @@ export async function releaseReservation(params: {
   reservationId: string;
   userIdentifier: string;
 }): Promise<ReleaseReservationResponse> {
-  const { data, error } = await (supabase.rpc as any)('release_reservation', {
+  const { data, error } = await (supabase.rpc as any)("release_reservation", {
     p_reservation_id: params.reservationId,
     p_user_id: params.userIdentifier,
   } satisfies ReleaseReservationArgs);
@@ -243,16 +259,21 @@ export async function releaseReservation(params: {
 
 /**
  * Get unavailable ticket numbers for a competition
- * 
+ *
  * Returns an array of ticket numbers that are already sold, reserved, or
  * otherwise unavailable for purchase.
- * 
+ *
  * @param competitionId - Competition UUID or UID
  * @returns Array of unavailable ticket numbers
  * @throws Error if the RPC call fails
  */
-export async function getUnavailableTickets(competitionId: string): Promise<number[]> {
-  const { data, error } = await getUnavailableTicketsRPC(supabase, competitionId);
+export async function getUnavailableTickets(
+  competitionId: string,
+): Promise<number[]> {
+  const { data, error } = await getUnavailableTicketsRPC(
+    supabase,
+    competitionId,
+  );
 
   if (error) throw error;
   return data ?? [];
@@ -264,10 +285,10 @@ export async function getUnavailableTickets(competitionId: string): Promise<numb
 
 /**
  * Get user's tickets for a specific competition
- * 
+ *
  * Returns detailed information about all tickets the user owns for a competition,
  * including ticket numbers, purchase source, timestamps, and wallet addresses.
- * 
+ *
  * @param competitionId - Competition UUID or UID
  * @param userIdentifier - User's canonical ID or wallet address
  * @returns Array of ticket details
@@ -275,12 +296,15 @@ export async function getUnavailableTickets(competitionId: string): Promise<numb
  */
 export async function getUserTicketsForCompetition(
   competitionId: string,
-  userIdentifier: string
+  userIdentifier: string,
 ): Promise<GetUserTicketsReturn> {
-  const { data, error } = await (supabase.rpc as any)('get_user_tickets_for_competition', {
-    competition_id: competitionId,
-    user_id: userIdentifier,
-  } satisfies GetUserTicketsArgs);
+  const { data, error } = await (supabase.rpc as any)(
+    "get_user_tickets_for_competition",
+    {
+      competition_id: competitionId,
+      user_id: userIdentifier,
+    } satisfies GetUserTicketsArgs,
+  );
 
   if (error) throw error;
   return data ?? [];
@@ -292,16 +316,16 @@ export async function getUserTicketsForCompetition(
 
 /**
  * Complete end-to-end ticket purchase with wallet balance
- * 
+ *
  * This is a convenience function that combines reserve → finalize in one call.
  * It handles the full purchase flow:
  * 1. Reserves the specified tickets
  * 2. Finalizes the order (deducts balance, creates records)
  * 3. Returns the result
- * 
+ *
  * If finalization fails, you may want to call releaseReservation() to free
  * the tickets, depending on your business logic.
- * 
+ *
  * @param params - Purchase parameters
  * @param params.competitionId - Competition UUID
  * @param params.ticketNumbers - Array of ticket numbers to purchase
@@ -309,7 +333,7 @@ export async function getUserTicketsForCompetition(
  * @param params.userIdentifier - User's canonical ID or wallet address
  * @returns Finalization result with order details
  * @throws Error if reservation or finalization fails
- * 
+ *
  * @example
  * ```typescript
  * try {
@@ -319,7 +343,7 @@ export async function getUserTicketsForCompetition(
  *     unitPrice: 5.0,
  *     userIdentifier: 'prize:pid:0xabc...'
  *   });
- *   
+ *
  *   if (result.success) {
  *     console.log('Order ID:', result.order_id);
  *   }
@@ -344,7 +368,7 @@ export async function purchaseTicketsWithBalance(params: {
 
   // Check if reservation succeeded
   if (!reservation.reservation_id) {
-    throw new Error(reservation.error || 'Failed to reserve tickets');
+    throw new Error(reservation.error || "Failed to reserve tickets");
   }
 
   // Step 2: Finalize the order
@@ -362,8 +386,8 @@ export async function purchaseTicketsWithBalance(params: {
     //   reservationId: reservation.reservation_id,
     //   userIdentifier: params.userIdentifier
     // });
-    
-    throw new Error(result.error || 'Failed to finalize order');
+
+    throw new Error(result.error || "Failed to finalize order");
   }
 
   return result;

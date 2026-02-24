@@ -2,29 +2,29 @@
  * FIX: Disable all competing balance-credit triggers
  * This fixes the double-crediting issue where multiple triggers
  * all credit the balance on the same topup transaction.
- * 
+ *
  * Run: node scripts/fix_disable_credit_triggers.cjs
  */
 
-const { Client } = require('pg');
+const { Client } = require("pg");
 
 async function fixTriggers() {
   // Use same connection config as run_migration.cjs
   const client = new Client({
-    host: 'aws-1-ap-south-1.pooler.supabase.com',
+    host: "aws-1-ap-south-1.pooler.supabase.com",
     port: 5432,
-    database: 'postgres',
-    user: 'postgres.mthwfldcjvpxjtmrqkqm',
-    password: 'LetsF4ckenGo!',
-    ssl: { rejectUnauthorized: false }
+    database: "postgres",
+    user: "postgres.mthwfldcjvpxjtmrqkqm",
+    password: "LetsF4ckenGo!",
+    ssl: { rejectUnauthorized: false },
   });
 
   try {
     await client.connect();
-    console.log('✅ Connected to database\n');
+    console.log("✅ Connected to database\n");
 
     // Step 1: List current triggers that could cause double-crediting
-    console.log('=== CURRENT PROBLEMATIC TRIGGERS ===');
+    console.log("=== CURRENT PROBLEMATIC TRIGGERS ===");
     const beforeResult = await client.query(`
       SELECT trigger_name, event_manipulation, action_timing
       FROM information_schema.triggers
@@ -37,34 +37,38 @@ async function fixTriggers() {
         )
       ORDER BY trigger_name
     `);
-    
+
     if (beforeResult.rows.length === 0) {
-      console.log('No problematic triggers found - may already be fixed!\n');
+      console.log("No problematic triggers found - may already be fixed!\n");
     } else {
       console.log(`Found ${beforeResult.rows.length} triggers to disable:`);
-      beforeResult.rows.forEach(row => {
-        console.log(`  - ${row.trigger_name} (${row.event_manipulation} ${row.action_timing})`);
+      beforeResult.rows.forEach((row) => {
+        console.log(
+          `  - ${row.trigger_name} (${row.event_manipulation} ${row.action_timing})`,
+        );
       });
-      console.log('');
+      console.log("");
     }
 
     // Step 2: Disable all competing triggers
-    console.log('=== DISABLING TRIGGERS ===');
-    
+    console.log("=== DISABLING TRIGGERS ===");
+
     const triggersToDisable = [
-      'trg_user_tx_commerce_post',
-      'trg_apply_topup_and_welcome_bonus',
-      'trg_optimistic_topup_credit',
-      'trg_credit_sub_account_on_instant_wallet_topup',
-      'trg_auto_credit_on_external_topup',
-      'trg_user_transactions_post_to_wallet',
-      'trg_complete_topup_on_webhook_ref_ins',
-      'trg_complete_topup_on_webhook_ref_upd',
+      "trg_user_tx_commerce_post",
+      "trg_apply_topup_and_welcome_bonus",
+      "trg_optimistic_topup_credit",
+      "trg_credit_sub_account_on_instant_wallet_topup",
+      "trg_auto_credit_on_external_topup",
+      "trg_user_transactions_post_to_wallet",
+      "trg_complete_topup_on_webhook_ref_ins",
+      "trg_complete_topup_on_webhook_ref_upd",
     ];
 
     for (const trigger of triggersToDisable) {
       try {
-        await client.query(`DROP TRIGGER IF EXISTS ${trigger} ON user_transactions`);
+        await client.query(
+          `DROP TRIGGER IF EXISTS ${trigger} ON user_transactions`,
+        );
         console.log(`  ✅ Dropped ${trigger}`);
       } catch (err) {
         console.log(`  ⚠️ Could not drop ${trigger}: ${err.message}`);
@@ -72,8 +76,8 @@ async function fixTriggers() {
     }
 
     // Step 3: Create/update the bulletproof credit function with idempotency
-    console.log('\n=== UPDATING CREDIT FUNCTION WITH IDEMPOTENCY ===');
-    
+    console.log("\n=== UPDATING CREDIT FUNCTION WITH IDEMPOTENCY ===");
+
     await client.query(`
       CREATE OR REPLACE FUNCTION credit_balance_with_first_deposit_bonus(
         p_canonical_user_id TEXT,
@@ -251,7 +255,9 @@ async function fixTriggers() {
       END;
       $$;
     `);
-    console.log('✅ Updated credit_balance_with_first_deposit_bonus with idempotency');
+    console.log(
+      "✅ Updated credit_balance_with_first_deposit_bonus with idempotency",
+    );
 
     // Grant permissions
     await client.query(`
@@ -259,11 +265,11 @@ async function fixTriggers() {
       GRANT EXECUTE ON FUNCTION credit_balance_with_first_deposit_bonus(TEXT, NUMERIC, TEXT, TEXT) TO service_role;
       GRANT EXECUTE ON FUNCTION credit_balance_with_first_deposit_bonus(TEXT, NUMERIC, TEXT, TEXT) TO authenticated;
     `);
-    console.log('✅ Granted permissions on credit function');
+    console.log("✅ Granted permissions on credit function");
 
     // Step 4: Update get_user_wallets to deduplicate
-    console.log('\n=== UPDATING WALLET FUNCTION TO DEDUPLICATE ===');
-    
+    console.log("\n=== UPDATING WALLET FUNCTION TO DEDUPLICATE ===");
+
     await client.query(`
       CREATE OR REPLACE FUNCTION public.get_user_wallets(user_identifier text)
       RETURNS jsonb
@@ -343,7 +349,7 @@ async function fixTriggers() {
       END;
       $$;
     `);
-    console.log('✅ Updated get_user_wallets to deduplicate by lowercase');
+    console.log("✅ Updated get_user_wallets to deduplicate by lowercase");
 
     // Grant permissions
     await client.query(`
@@ -352,10 +358,10 @@ async function fixTriggers() {
       GRANT EXECUTE ON FUNCTION get_user_wallets(TEXT) TO authenticated;
       GRANT EXECUTE ON FUNCTION get_user_wallets(TEXT) TO anon;
     `);
-    console.log('✅ Granted permissions on wallet function');
+    console.log("✅ Granted permissions on wallet function");
 
     // Step 5: Verify triggers are gone
-    console.log('\n=== VERIFICATION ===');
+    console.log("\n=== VERIFICATION ===");
     const afterResult = await client.query(`
       SELECT trigger_name, event_manipulation
       FROM information_schema.triggers
@@ -368,25 +374,30 @@ async function fixTriggers() {
         )
       ORDER BY trigger_name
     `);
-    
+
     if (afterResult.rows.length === 0) {
-      console.log('✅ SUCCESS: All problematic credit triggers have been disabled!');
+      console.log(
+        "✅ SUCCESS: All problematic credit triggers have been disabled!",
+      );
     } else {
-      console.log(`⚠️ WARNING: ${afterResult.rows.length} triggers still exist:`);
-      afterResult.rows.forEach(row => {
+      console.log(
+        `⚠️ WARNING: ${afterResult.rows.length} triggers still exist:`,
+      );
+      afterResult.rows.forEach((row) => {
         console.log(`  - ${row.trigger_name}`);
       });
     }
 
-    console.log('\n=== FIX COMPLETE ===');
-    console.log('Balance credits are now handled ONLY by:');
-    console.log('  - commerce-webhook/index.ts');
-    console.log('  - instant-topup.mts');
-    console.log('Both use credit_balance_with_first_deposit_bonus() with idempotency.');
-    console.log('\nWallet display now deduplicates by lowercase address.');
-
+    console.log("\n=== FIX COMPLETE ===");
+    console.log("Balance credits are now handled ONLY by:");
+    console.log("  - commerce-webhook/index.ts");
+    console.log("  - instant-topup.mts");
+    console.log(
+      "Both use credit_balance_with_first_deposit_bonus() with idempotency.",
+    );
+    console.log("\nWallet display now deduplicates by lowercase address.");
   } catch (err) {
-    console.error('❌ Error:', err.message);
+    console.error("❌ Error:", err.message);
     console.error(err.stack);
   } finally {
     await client.end();

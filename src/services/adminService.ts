@@ -1,10 +1,10 @@
 /**
  * Admin Service
- * 
+ *
  * Service methods for administrative operations including VRF winner management
  */
 
-import { supabase } from '../lib/supabase';
+import { supabase } from "../lib/supabase";
 
 // ============================================================================
 // VRF Winner Management
@@ -29,11 +29,14 @@ export interface WinnerEntry {
  * @param competitionId - The competition UUID
  * @returns Array of winner entries with user details
  */
-export async function getCompetitionWinners(competitionId: string): Promise<WinnerEntry[]> {
+export async function getCompetitionWinners(
+  competitionId: string,
+): Promise<WinnerEntry[]> {
   try {
     const { data, error } = await supabase
-      .from('winners')
-      .select(`
+      .from("winners")
+      .select(
+        `
         *,
         canonical_users (
           privy_user_id,
@@ -41,19 +44,26 @@ export async function getCompetitionWinners(competitionId: string): Promise<Winn
           email,
           wallet_address
         )
-      `)
-      .eq('competition_id', competitionId)
-      .eq('is_winner', true)
-      .order('won_at', { ascending: true } as any);
+      `,
+      )
+      .eq("competition_id", competitionId)
+      .eq("is_winner", true)
+      .order("won_at", { ascending: true } as any);
 
     if (error) {
-      console.error('[AdminService] Error fetching competition winners:', error);
+      console.error(
+        "[AdminService] Error fetching competition winners:",
+        error,
+      );
       throw error;
     }
 
-    return data || [];
+    return (data as unknown as WinnerEntry[]) || [];
   } catch (error) {
-    console.error('[AdminService] Unexpected error in getCompetitionWinners:', error);
+    console.error(
+      "[AdminService] Unexpected error in getCompetitionWinners:",
+      error,
+    );
     throw error;
   }
 }
@@ -66,25 +76,29 @@ export async function getCompetitionWinners(competitionId: string): Promise<Winn
  */
 export async function checkUserWinner(
   userId: string,
-  competitionId: string
-): Promise<{ is_winner: boolean; won_at: string | null; ticket_number: number | null } | null> {
+  competitionId: string,
+): Promise<{
+  is_winner: boolean;
+  won_at: string | null;
+  ticket_number: number | null;
+} | null> {
   try {
-    const { data, error } = await supabase
-      .from('winners')
-      .select('is_winner, won_at, ticket_number')
-      .eq('canonical_user_id', userId)
-      .eq('competition_id', competitionId)
-      .eq('is_winner', true)
-      .maybeSingle() as any;
+    const { data, error } = (await supabase
+      .from("winners")
+      .select("is_winner, won_at, ticket_number")
+      .eq("canonical_user_id", userId)
+      .eq("competition_id", competitionId)
+      .eq("is_winner", true)
+      .maybeSingle()) as any;
 
     if (error) {
-      console.error('[AdminService] Error checking user winner status:', error);
+      console.error("[AdminService] Error checking user winner status:", error);
       throw error;
     }
 
     return data;
   } catch (error) {
-    console.error('[AdminService] Unexpected error in checkUserWinner:', error);
+    console.error("[AdminService] Unexpected error in checkUserWinner:", error);
     throw error;
   }
 }
@@ -96,18 +110,24 @@ export async function checkUserWinner(
 export async function getTotalWinnersCount(): Promise<number> {
   try {
     const { count, error } = await supabase
-      .from('winners')
-      .select('*', { count: 'exact', head: true })
-      .eq('is_winner', true);
+      .from("winners")
+      .select("*", { count: "exact", head: true })
+      .eq("is_winner", true);
 
     if (error) {
-      console.error('[AdminService] Error fetching total winners count:', error);
+      console.error(
+        "[AdminService] Error fetching total winners count:",
+        error,
+      );
       throw error;
     }
 
     return count || 0;
   } catch (error) {
-    console.error('[AdminService] Unexpected error in getTotalWinnersCount:', error);
+    console.error(
+      "[AdminService] Unexpected error in getTotalWinnersCount:",
+      error,
+    );
     throw error;
   }
 }
@@ -117,28 +137,33 @@ export async function getTotalWinnersCount(): Promise<number> {
  * Uses optimized query to avoid N+1 problem
  * @returns Array of competitions with winner counts and latest win times
  */
-export async function getWinnersByCompetition(): Promise<Array<{
-  competition_id: string;
-  competition_title: string | null;
-  vrf_tx_hash: string | null;
-  winner_count: number;
-  latest_win: string | null;
-}>> {
+export async function getWinnersByCompetition(): Promise<
+  Array<{
+    competition_id: string;
+    competition_title: string | null;
+    vrf_tx_hash: string | null;
+    winner_count: number;
+    latest_win: string | null;
+  }>
+> {
   try {
     // Fetch all winners and competitions in one query using a join
-    const { data: winners, error: winnersError } = await supabase
-      .from('winners')
-      .select('competition_id, won_at, competitions(id, title, vrf_tx_hash)')
-      .eq('is_winner', true) as any;
+    const { data: winners, error: winnersError } = (await supabase
+      .from("winners")
+      .select("competition_id, won_at, competitions(id, title, vrf_tx_hash)")
+      .eq("is_winner", true)) as any;
 
     if (winnersError) throw winnersError;
 
     // Group winners by competition
-    const competitionMap = new Map<string, {
-      title: string | null;
-      vrf_tx_hash: string | null;
-      winners: Array<{ won_at: string | null }>;
-    }>();
+    const competitionMap = new Map<
+      string,
+      {
+        title: string | null;
+        vrf_tx_hash: string | null;
+        winners: Array<{ won_at: string | null }>;
+      }
+    >();
 
     for (const winner of winners || []) {
       const compId = winner.competition_id;
@@ -153,22 +178,27 @@ export async function getWinnersByCompetition(): Promise<Array<{
     }
 
     // Convert to result format
-    const results = Array.from(competitionMap.entries()).map(([compId, data]) => {
-      const latestWin = data.winners.reduce((latest, w) => {
-        if (!latest || (w.won_at && w.won_at > latest)) {
-          return w.won_at;
-        }
-        return latest;
-      }, null as string | null);
+    const results = Array.from(competitionMap.entries()).map(
+      ([compId, data]) => {
+        const latestWin = data.winners.reduce(
+          (latest, w) => {
+            if (!latest || (w.won_at && w.won_at > latest)) {
+              return w.won_at;
+            }
+            return latest;
+          },
+          null as string | null,
+        );
 
-      return {
-        competition_id: compId,
-        competition_title: data.title,
-        vrf_tx_hash: data.vrf_tx_hash,
-        winner_count: data.winners.length,
-        latest_win: latestWin,
-      };
-    });
+        return {
+          competition_id: compId,
+          competition_title: data.title,
+          vrf_tx_hash: data.vrf_tx_hash,
+          winner_count: data.winners.length,
+          latest_win: latestWin,
+        };
+      },
+    );
 
     // Sort by latest win (most recent first)
     return results.sort((a, b) => {
@@ -177,7 +207,10 @@ export async function getWinnersByCompetition(): Promise<Array<{
       return b.latest_win.localeCompare(a.latest_win);
     });
   } catch (error) {
-    console.error('[AdminService] Unexpected error in getWinnersByCompetition:', error);
+    console.error(
+      "[AdminService] Unexpected error in getWinnersByCompetition:",
+      error,
+    );
     throw error;
   }
 }

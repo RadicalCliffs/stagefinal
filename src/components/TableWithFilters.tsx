@@ -13,7 +13,13 @@ const OPTIONS = [
 ];
 
 // Tables that affect live activity data
-const ACTIVITY_TABLES = ["pending_tickets", "winners"];
+// Include all tables that can trigger new entries/wins
+const ACTIVITY_TABLES = [
+  "pending_tickets",
+  "winners",
+  "competition_entries",
+  "joincompetition",
+];
 
 const TableWithFilters = () => {
   const sectionRef = useSectionTracking("live_activity_section");

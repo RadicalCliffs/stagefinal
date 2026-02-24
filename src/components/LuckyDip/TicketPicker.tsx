@@ -21,29 +21,40 @@
  * ```
  */
 
-import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
-import type { Hash } from 'viem';
-import { useAuthUser } from '../../contexts/AuthContext';
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  lazy,
+  Suspense,
+} from "react";
+import type { Hash } from "viem";
+import { useAuthUser } from "../../contexts/AuthContext";
 import {
   getCompetitionDetails,
   getTicketOwner,
   useCompetitionEvents,
   type CompetitionDetails,
-  type PurchaseResult
-} from '../../lib/luckyDip';
-import type { TicketsPurchasedEvent } from '../../lib/competitionEvents';
-import { supabase } from '../../lib/supabase';
-import { reserveTicketsWithRedundancy } from '../../lib/reserve-tickets-redundant';
-import { parseReservationErrorAsync, getUserFriendlyErrorMessage, SupabaseFunctionError } from '../../lib/error-handler';
-import CaptchaModal from '../CaptchaModal';
-import UserInfoModal from '../UserInfoModal';
-import type { UserInfo } from '../UserInfoModal';
+  type PurchaseResult,
+} from "../../lib/luckyDip";
+import type { TicketsPurchasedEvent } from "../../lib/competitionEvents";
+import { supabase } from "../../lib/supabase";
+import { reserveTicketsWithRedundancy } from "../../lib/reserve-tickets-redundant";
+import {
+  parseReservationErrorAsync,
+  getUserFriendlyErrorMessage,
+  SupabaseFunctionError,
+} from "../../lib/error-handler";
+import CaptchaModal from "../CaptchaModal";
+import UserInfoModal from "../UserInfoModal";
+import type { UserInfo } from "../UserInfoModal";
 
 // Lazy load PaymentModal - only loaded when user initiates payment
-const PaymentModal = lazy(() => import('../PaymentModal'));
+const PaymentModal = lazy(() => import("../PaymentModal"));
 
 // Constants
-const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const DEFAULT_TICKET_PRICE = 1;
 
 interface TicketPickerProps {
@@ -68,33 +79,39 @@ export default function TicketPicker({
   competitionId,
   onSuccess,
   onError,
-  className = '',
-  ticketsPerPage = 100
+  className = "",
+  ticketsPerPage = 100,
 }: TicketPickerProps) {
   const { authenticated, ready, login, baseUser } = useAuthUser();
 
-  const [selectedTickets, setSelectedTickets] = useState<Set<number>>(new Set());
+  const [selectedTickets, setSelectedTickets] = useState<Set<number>>(
+    new Set(),
+  );
   const [soldTickets, setSoldTickets] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(false);
   const [loadingSold, setLoadingSold] = useState(true);
-  const [competition, setCompetition] = useState<CompetitionDetails | null>(null);
+  const [competition, setCompetition] = useState<CompetitionDetails | null>(
+    null,
+  );
   const [competitionLoading, setCompetitionLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<SuccessState | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
-  
+
   // Modal states
   const [showCaptchaModal, setShowCaptchaModal] = useState(false);
   const [showUserInfoModal, setShowUserInfoModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [userInfo, setUserInfo] = useState<UserInfo | undefined>();
-  
+
   // Reservation states
   const [reservationId, setReservationId] = useState<string | null>(null);
   const [reserving, setReserving] = useState(false);
   const [reservationError, setReservationError] = useState<string | null>(null);
-  const [reservationSuccess, setReservationSuccess] = useState<string | null>(null);
-  
+  const [reservationSuccess, setReservationSuccess] = useState<string | null>(
+    null,
+  );
+
   // Database competition ID (mapped from on-chain ID)
   const [dbCompetitionId, setDbCompetitionId] = useState<string | null>(null);
   const [ticketPrice, setTicketPrice] = useState<number>(DEFAULT_TICKET_PRICE);
@@ -104,26 +121,30 @@ export default function TicketPicker({
     try {
       const details = await getCompetitionDetails(competitionId);
       setCompetition(details);
-      
+
       // Map on-chain competition ID to database competition ID
-      const { data: dbCompetition, error: dbError } = await supabase
-        .from('competitions')
-        .select('id, ticket_price')
-        .eq('onchain_competition_id', competitionId)
-        .maybeSingle() as any;
-      
+      const { data: dbCompetition, error: dbError } = (await supabase
+        .from("competitions")
+        .select("id, ticket_price")
+        .eq("onchain_competition_id", competitionId as any)
+        .maybeSingle()) as any;
+
       if (dbError) {
-        console.error('Error loading database competition:', dbError);
+        console.error("Error loading database competition:", dbError);
       } else if (dbCompetition) {
         setDbCompetitionId(dbCompetition.id);
-        setTicketPrice(Number(dbCompetition.ticket_price) || DEFAULT_TICKET_PRICE);
+        setTicketPrice(
+          Number(dbCompetition.ticket_price) || DEFAULT_TICKET_PRICE,
+        );
       } else {
-        console.warn(`No database competition found for on-chain ID ${competitionId}`);
+        console.warn(
+          `No database competition found for on-chain ID ${competitionId}`,
+        );
       }
-      
+
       setCompetitionLoading(false);
     } catch (err) {
-      console.error('Error loading competition:', err);
+      console.error("Error loading competition:", err);
       setCompetitionLoading(false);
     }
   }, [competitionId]);
@@ -134,7 +155,10 @@ export default function TicketPicker({
 
     setLoadingSold(true);
     const startTicket = currentPage * ticketsPerPage + 1;
-    const endTicket = Math.min(startTicket + ticketsPerPage - 1, competition.totalTickets);
+    const endTicket = Math.min(
+      startTicket + ticketsPerPage - 1,
+      competition.totalTickets,
+    );
 
     const newSoldTickets = new Set<number>();
 
@@ -151,11 +175,14 @@ export default function TicketPicker({
         batch.map(async (ticketNum) => {
           try {
             const owner = await getTicketOwner(competitionId, ticketNum);
-            return { ticketNum, sold: owner.toLowerCase() !== ZERO_ADDRESS.toLowerCase() };
+            return {
+              ticketNum,
+              sold: owner.toLowerCase() !== ZERO_ADDRESS.toLowerCase(),
+            };
           } catch {
             return { ticketNum, sold: false };
           }
-        })
+        }),
       );
 
       results.forEach(({ ticketNum, sold }) => {
@@ -180,29 +207,32 @@ export default function TicketPicker({
   }, [competition, loadSoldTickets]);
 
   // Subscribe to ticket purchase events
-  useCompetitionEvents({
-    onTicketsPurchased: (event: TicketsPurchasedEvent) => {
-      // Add newly purchased tickets to sold set
-      const newSold = new Set(soldTickets);
-      // Generate ticket numbers from fromTicket to fromTicket + count
-      const fromTicket = Number(event.fromTicket);
-      const count = Number(event.count);
-      for (let i = 0; i < count; i++) {
-        newSold.add(fromTicket + i);
-      }
-      setSoldTickets(newSold);
+  useCompetitionEvents(
+    {
+      onTicketsPurchased: (event: TicketsPurchasedEvent) => {
+        // Add newly purchased tickets to sold set
+        const newSold = new Set(soldTickets);
+        // Generate ticket numbers from fromTicket to fromTicket + count
+        const fromTicket = Number(event.fromTicket);
+        const count = Number(event.count);
+        for (let i = 0; i < count; i++) {
+          newSold.add(fromTicket + i);
+        }
+        setSoldTickets(newSold);
 
-      // Remove from selection if was selected
-      const newSelected = new Set(selectedTickets);
-      for (let i = 0; i < count; i++) {
-        newSelected.delete(fromTicket + i);
-      }
-      setSelectedTickets(newSelected);
+        // Remove from selection if was selected
+        const newSelected = new Set(selectedTickets);
+        for (let i = 0; i < count; i++) {
+          newSelected.delete(fromTicket + i);
+        }
+        setSelectedTickets(newSelected);
 
-      // Refresh competition details
-      loadCompetition();
-    }
-  }, competitionId);
+        // Refresh competition details
+        loadCompetition();
+      },
+    },
+    competitionId,
+  );
 
   const handleTicketClick = (ticketNumber: number) => {
     if (soldTickets.has(ticketNumber)) return;
@@ -212,7 +242,9 @@ export default function TicketPicker({
       newSelected.delete(ticketNumber);
     } else {
       if (competition && newSelected.size >= competition.maxTicketsPerTx) {
-        setError(`Maximum ${competition.maxTicketsPerTx} tickets per transaction`);
+        setError(
+          `Maximum ${competition.maxTicketsPerTx} tickets per transaction`,
+        );
         return;
       }
       newSelected.add(ticketNumber);
@@ -233,7 +265,9 @@ export default function TicketPicker({
     }
 
     if (!dbCompetitionId) {
-      setReservationError("Competition not found in database. Please try again.");
+      setReservationError(
+        "Competition not found in database. Please try again.",
+      );
       return null;
     }
 
@@ -253,42 +287,49 @@ export default function TicketPicker({
 
       if (result.error) {
         const parsedError = await parseReservationErrorAsync(result.error);
-        
+
         // Handle HTTP 409 with unavailable tickets - remove them from UI and refresh
-        if (parsedError.statusCode === 409 && parsedError.unavailableTickets && parsedError.unavailableTickets.length > 0) {
-          console.log("[TicketPicker] HTTP 409 - removing unavailable tickets:", parsedError.unavailableTickets);
-          
+        if (
+          parsedError.statusCode === 409 &&
+          parsedError.unavailableTickets &&
+          parsedError.unavailableTickets.length > 0
+        ) {
+          console.log(
+            "[TicketPicker] HTTP 409 - removing unavailable tickets:",
+            parsedError.unavailableTickets,
+          );
+
           const unavailableTickets = parsedError.unavailableTickets;
-          
+
           // Remove unavailable tickets from selection
           const newSelected = new Set(selectedTickets);
-          unavailableTickets.forEach(t => newSelected.delete(t));
+          unavailableTickets.forEach((t) => newSelected.delete(t));
           setSelectedTickets(newSelected);
-          
+
           // Immediately add unavailable tickets to sold tickets display
-          setSoldTickets(prev => {
+          setSoldTickets((prev) => {
             const updated = new Set(prev);
-            unavailableTickets.forEach(t => updated.add(t));
+            unavailableTickets.forEach((t) => updated.add(t));
             return updated;
           });
-          
+
           // Refresh sold tickets from server for consistency
           await loadSoldTickets();
-          
+
           // Show specific error message for 409 conflicts
           setReservationError(parsedError.message);
           return null;
         }
-        
+
         throw new SupabaseFunctionError(
           parsedError.message,
           parsedError.statusCode,
-          result.error
+          result.error,
         );
       }
 
       const response = result.data;
-      
+
       // Only show success on HTTP 200 with success: true
       if (response?.success !== true) {
         throw new Error(response?.error || "Failed to reserve tickets");
@@ -296,18 +337,20 @@ export default function TicketPicker({
 
       const resId = response.reservationId || null;
       setReservationId(resId);
-      setReservationSuccess("Tickets reserved! Complete payment within 15 minutes.");
+      setReservationSuccess(
+        "Tickets reserved! Complete payment within 15 minutes.",
+      );
       return resId;
     } catch (err) {
-      console.error('Error reserving tickets:', err);
+      console.error("Error reserving tickets:", err);
       let errorMessage = "Failed to reserve tickets";
-      
+
       if (err instanceof Error) {
         errorMessage = err.message;
       } else {
         errorMessage = getUserFriendlyErrorMessage();
       }
-      
+
       setReservationError(errorMessage);
       return null;
     } finally {
@@ -318,7 +361,7 @@ export default function TicketPicker({
   // Handle checkout button click - show captcha first
   const handleCheckout = async () => {
     setError(null);
-    
+
     if (selectedTickets.size === 0) {
       setError("Please select at least one ticket");
       return;
@@ -348,8 +391,12 @@ export default function TicketPicker({
     if (resId) {
       setShowPaymentModal(true);
     } else if (!reservationError) {
-      console.warn('[TicketPicker] Reservation returned null without setting an error');
-      setReservationError("Unable to reserve tickets. Please try again or contact support.");
+      console.warn(
+        "[TicketPicker] Reservation returned null without setting an error",
+      );
+      setReservationError(
+        "Unable to reserve tickets. Please try again or contact support.",
+      );
     }
   };
 
@@ -357,7 +404,7 @@ export default function TicketPicker({
 
   const totalCost = ticketPrice
     ? (ticketPrice * selectedTickets.size).toFixed(6)
-    : '0';
+    : "0";
 
   const totalPages = competition
     ? Math.ceil(competition.totalTickets / ticketsPerPage)
@@ -382,12 +429,17 @@ export default function TicketPicker({
   // Check if this is an Instant Win competition
   if (competition && competition.isInstantWin) {
     return (
-      <div className={`bg-white rounded-lg shadow-lg p-6 max-w-2xl w-full ${className}`}>
+      <div
+        className={`bg-white rounded-lg shadow-lg p-6 max-w-2xl w-full ${className}`}
+      >
         <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <p className="text-yellow-800 font-semibold">Manual Pick Not Available</p>
+          <p className="text-yellow-800 font-semibold">
+            Manual Pick Not Available
+          </p>
           <p className="text-yellow-700 text-sm mt-2">
-            This is an Instant Win competition. Ticket numbers are randomly assigned
-            using VRF to determine instant winners. Please use Lucky Dip to purchase tickets.
+            This is an Instant Win competition. Ticket numbers are randomly
+            assigned using VRF to determine instant winners. Please use Lucky
+            Dip to purchase tickets.
           </p>
         </div>
       </div>
@@ -395,7 +447,9 @@ export default function TicketPicker({
   }
 
   return (
-    <div className={`bg-white rounded-lg shadow-lg p-6 max-w-2xl w-full ${className}`}>
+    <div
+      className={`bg-white rounded-lg shadow-lg p-6 max-w-2xl w-full ${className}`}
+    >
       <h3 className="text-2xl font-bold mb-4 text-gray-800">
         Pick Your Numbers
       </h3>
@@ -414,11 +468,15 @@ export default function TicketPicker({
             </div>
             <div className="flex justify-between mb-2">
               <span className="text-gray-600">Available tickets:</span>
-              <span className="font-semibold text-green-600">{competition.available}</span>
+              <span className="font-semibold text-green-600">
+                {competition.available}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600">Max per transaction:</span>
-              <span className="font-semibold">{competition.maxTicketsPerTx}</span>
+              <span className="font-semibold">
+                {competition.maxTicketsPerTx}
+              </span>
             </div>
           </div>
 
@@ -435,7 +493,9 @@ export default function TicketPicker({
               Page {currentPage + 1} of {totalPages}
             </span>
             <button
-              onClick={() => setCurrentPage(Math.min(totalPages - 1, currentPage + 1))}
+              onClick={() =>
+                setCurrentPage(Math.min(totalPages - 1, currentPage + 1))
+              }
               disabled={currentPage >= totalPages - 1}
               className="px-4 py-2 bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 disabled:cursor-not-allowed rounded-lg"
             >
@@ -466,14 +526,17 @@ export default function TicketPicker({
                     disabled={isSold || loading}
                     className={`
                       aspect-square text-xs font-medium rounded transition-all
-                      ${isSold
-                        ? 'bg-red-200 text-red-500 cursor-not-allowed'
-                        : isSelected
-                        ? 'bg-blue-600 text-white ring-2 ring-blue-400'
-                        : 'bg-green-100 hover:bg-green-200 text-green-800'
+                      ${
+                        isSold
+                          ? "bg-red-200 text-red-500 cursor-not-allowed"
+                          : isSelected
+                            ? "bg-blue-600 text-white ring-2 ring-blue-400"
+                            : "bg-green-100 hover:bg-green-200 text-green-800"
                       }
                     `}
-                    title={isSold ? 'Sold' : isSelected ? 'Selected' : 'Available'}
+                    title={
+                      isSold ? "Sold" : isSelected ? "Selected" : "Available"
+                    }
                   >
                     {ticketNumber}
                   </button>
@@ -509,7 +572,10 @@ export default function TicketPicker({
             {selectedTickets.size > 0 && (
               <>
                 <div className="text-sm text-gray-600 mb-2">
-                  Numbers: {Array.from(selectedTickets).sort((a, b) => a - b).join(', ')}
+                  Numbers:{" "}
+                  {Array.from(selectedTickets)
+                    .sort((a, b) => a - b)
+                    .join(", ")}
                 </div>
                 <button
                   onClick={handleClearSelection}
@@ -521,35 +587,60 @@ export default function TicketPicker({
             )}
             <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-200">
               <span className="text-gray-700 font-medium">Total Cost:</span>
-              <span className="text-2xl font-bold text-blue-600">${totalCost}</span>
+              <span className="text-2xl font-bold text-blue-600">
+                ${totalCost}
+              </span>
             </div>
           </div>
 
           <button
             onClick={handleCheckout}
-            disabled={reserving || selectedTickets.size === 0 || !competition.active || !dbCompetitionId}
+            disabled={
+              reserving ||
+              selectedTickets.size === 0 ||
+              !competition.active ||
+              !dbCompetitionId
+            }
             className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center"
           >
             {reserving ? (
               <>
-                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                <svg
+                  className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
                 </svg>
                 Reserving...
               </>
             ) : !authenticated ? (
-              'Connect Wallet to Buy'
+              "Connect Wallet to Buy"
             ) : selectedTickets.size === 0 ? (
-              'Select Tickets'
+              "Select Tickets"
             ) : (
-              'Checkout'
+              "Checkout"
             )}
           </button>
         </>
       ) : (
         <div className="mb-4 p-4 bg-red-50 rounded-lg">
-          <p className="text-red-600 text-sm">Could not load competition details</p>
+          <p className="text-red-600 text-sm">
+            Could not load competition details
+          </p>
         </div>
       )}
 
@@ -579,9 +670,11 @@ export default function TicketPicker({
 
       {success && (
         <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-          <p className="text-green-800 font-semibold mb-2">Payment Successful!</p>
+          <p className="text-green-800 font-semibold mb-2">
+            Payment Successful!
+          </p>
           <p className="text-sm text-gray-700 mb-2">
-            Your ticket numbers: <strong>{success.tickets.join(', ')}</strong>
+            Your ticket numbers: <strong>{success.tickets.join(", ")}</strong>
           </p>
         </div>
       )}
@@ -628,7 +721,7 @@ export default function TicketPicker({
             onPaymentSuccess={() => {
               // Capture ticket numbers before clearing
               const purchasedTickets = Array.from(selectedTickets);
-              
+
               // Refresh sold tickets after successful payment
               loadSoldTickets();
               // Clear selection
@@ -639,16 +732,16 @@ export default function TicketPicker({
               // Show success
               setSuccess({
                 tickets: purchasedTickets,
-                txHash: (reservationId || 'confirmed') as Hash
+                txHash: (reservationId || "confirmed") as Hash,
               });
               // Call parent callback if provided
               if (onSuccess) {
                 onSuccess({
                   ticketNumbers: purchasedTickets,
-                  txHash: (reservationId || 'confirmed') as Hash,
-                  totalPaid: '0',
-                  buyerAddress: '0x0',
-                  instantWins: []
+                  txHash: (reservationId || "confirmed") as Hash,
+                  totalPaid: "0",
+                  buyerAddress: "0x0",
+                  instantWins: [],
                 });
               }
             }}

@@ -2281,8 +2281,10 @@ export const database = {
 
       // Get competition details
       const competitionIds = [
-        ...new Set(
-          (data || []).map((tx: any) => tx.competition_id).filter(Boolean),
+        ...new Set<string>(
+          (data || [])
+            .map((tx: any) => tx.competition_id)
+            .filter((id: any): id is string => Boolean(id)),
         ),
       ];
       let competitionsMap: { [key: string]: any } = {};
@@ -3258,8 +3260,10 @@ export const database = {
           if (!ordersError && ordersData && ordersData.length > 0) {
             // Fetch competition data separately for all orders
             const competitionIds = [
-              ...new Set(
-                ordersData.map((o: any) => o.competition_id).filter(Boolean),
+              ...new Set<string>(
+                ordersData
+                  .map((o: any) => o.competition_id)
+                  .filter((id: any): id is string => Boolean(id)),
               ),
             ];
             let competitionsMap = new Map<string, any>();
@@ -3365,10 +3369,10 @@ export const database = {
           if (!ledgerError && ledgerData && ledgerData.length > 0) {
             // Fetch competition data for all competition IDs
             const competitionIds = [
-              ...new Set(
+              ...new Set<string>(
                 ledgerData
                   .map((bl: any) => bl.metadata?.competition_id)
-                  .filter(Boolean),
+                  .filter((id: any): id is string => Boolean(id)),
               ),
             ];
 

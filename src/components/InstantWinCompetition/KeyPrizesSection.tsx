@@ -31,23 +31,27 @@ interface DatabasePrize {
 
 // Default prize images from Supabase storage (used as fallback if admin hasn't set images)
 const DEFAULT_PRIZE_IMAGES = {
-  grandPrize: 'https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Competition%20Images/Competition%20Images/bitcoin-image.webp',
-  majorPrize: 'https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Competition%20Images/Competition%20Images/Eth%20Tier%201.png',
-  jackpot: 'https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Competition%20Images/Competition%20Images/soltier1.jpg',
+  grandPrize:
+    "https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Competition%20Images/Competition%20Images/bitcoin-image.webp",
+  majorPrize:
+    "https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Competition%20Images/Competition%20Images/Eth%20Tier%201.png",
+  jackpot:
+    "https://mthwfldcjvpxjtmrqkqm.supabase.co/storage/v1/object/public/Competition%20Images/Competition%20Images/soltier1.jpg",
 };
 
 // UUID validation regex (RFC 4122)
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // Helper to validate if a URL looks like a valid image URL
 const isValidImageUrl = (url: string | null | undefined): boolean => {
-  if (!url || typeof url !== 'string') return false;
+  if (!url || typeof url !== "string") return false;
   const trimmed = url.trim();
   if (trimmed.length === 0) return false;
   // Check for common image URL patterns
   try {
     const parsed = new URL(trimmed);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
   } catch {
     return false;
   }
@@ -61,44 +65,49 @@ const KeyPrizesSection: React.FC<KeyPrizesSectionProps> = ({
   competitionUid,
   competitionId,
   totalTickets: _totalTickets,
-  prizeValue: _prizeValue = 10000
+  prizeValue: _prizeValue = 10000,
 }) => {
-  const [claimedTickets, setClaimedTickets] = useState<Map<number, boolean>>(new Map());
+  const [claimedTickets, setClaimedTickets] = useState<Map<number, boolean>>(
+    new Map(),
+  );
   const [databasePrizes, setDatabasePrizes] = useState<DatabasePrize[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Fixed prize configuration: 3 Major Prizes (1 winner each)
   // Admin can configure custom names and images for each
   // Total major prize winners = 3
-  const defaultPrizeConfig: PrizeConfig[] = useMemo(() => [
-    {
-      name: 'Grand Prize',
-      ticketCount: 1,
-      priority: 1,
-      description: 'The ultimate grand prize winner!',
-      imageUrl: DEFAULT_PRIZE_IMAGES.grandPrize,
-    },
-    {
-      name: 'Major Prize',
-      ticketCount: 1,
-      priority: 2,
-      description: 'Major prize winner!',
-      imageUrl: DEFAULT_PRIZE_IMAGES.majorPrize,
-    },
-    {
-      name: 'Jackpot',
-      ticketCount: 1,
-      priority: 3,
-      description: 'Jackpot prize winner!',
-      imageUrl: DEFAULT_PRIZE_IMAGES.jackpot,
-    },
-  ], []);
+  const defaultPrizeConfig: PrizeConfig[] = useMemo(
+    () => [
+      {
+        name: "Grand Prize",
+        ticketCount: 1,
+        priority: 1,
+        description: "The ultimate grand prize winner!",
+        imageUrl: DEFAULT_PRIZE_IMAGES.grandPrize,
+      },
+      {
+        name: "Major Prize",
+        ticketCount: 1,
+        priority: 2,
+        description: "Major prize winner!",
+        imageUrl: DEFAULT_PRIZE_IMAGES.majorPrize,
+      },
+      {
+        name: "Jackpot",
+        ticketCount: 1,
+        priority: 3,
+        description: "Jackpot prize winner!",
+        imageUrl: DEFAULT_PRIZE_IMAGES.jackpot,
+      },
+    ],
+    [],
+  );
 
   // Merge database prizes with defaults - database values take precedence
   const prizeConfig: PrizeConfig[] = useMemo(() => {
     // Group database prizes by priority to get images/descriptions
     const prizeByPriority = new Map<number, DatabasePrize>();
-    databasePrizes.forEach(prize => {
+    databasePrizes.forEach((prize) => {
       if (prize.priority !== null && prize.priority <= MAJOR_PRIZE_COUNT) {
         // Only keep the first prize of each priority (for the image/description)
         if (!prizeByPriority.has(prize.priority)) {
@@ -107,7 +116,7 @@ const KeyPrizesSection: React.FC<KeyPrizesSectionProps> = ({
       }
     });
 
-    return defaultPrizeConfig.map(defaultPrize => {
+    return defaultPrizeConfig.map((defaultPrize) => {
       const dbPrize = prizeByPriority.get(defaultPrize.priority);
       if (dbPrize) {
         // Use database values if valid, otherwise fall back to defaults
@@ -130,14 +139,20 @@ const KeyPrizesSection: React.FC<KeyPrizesSectionProps> = ({
     const distribution: Map<string, DatabasePrize[]> = new Map();
 
     // Initialize all prize tiers
-    prizeConfig.forEach(prize => {
+    prizeConfig.forEach((prize) => {
       distribution.set(prize.name, []);
     });
 
     // Group database prizes by their priority/tier
-    databasePrizes.forEach(prize => {
-      if (prize.priority !== null && prize.priority >= 1 && prize.priority <= MAJOR_PRIZE_COUNT) {
-        const prizeConfigItem = prizeConfig.find(p => p.priority === prize.priority);
+    databasePrizes.forEach((prize) => {
+      if (
+        prize.priority !== null &&
+        prize.priority >= 1 &&
+        prize.priority <= MAJOR_PRIZE_COUNT
+      ) {
+        const prizeConfigItem = prizeConfig.find(
+          (p) => p.priority === prize.priority,
+        );
         if (prizeConfigItem) {
           const tickets = distribution.get(prizeConfigItem.name) || [];
           tickets.push(prize);
@@ -155,11 +170,15 @@ const KeyPrizesSection: React.FC<KeyPrizesSectionProps> = ({
       // Determine the best identifier to use
       // Try competitionUid first if it's a valid UUID, otherwise use competitionId
       let lookupId = competitionUid;
-      if (!competitionUid || competitionUid.trim() === '' || !UUID_REGEX.test(competitionUid)) {
+      if (
+        !competitionUid ||
+        competitionUid.trim() === "" ||
+        !UUID_REGEX.test(competitionUid)
+      ) {
         // Fall back to competitionId if uid is not a valid UUID
         if (competitionId && UUID_REGEX.test(competitionId)) {
           lookupId = competitionId;
-        } else if (competitionId && competitionId.trim() !== '') {
+        } else if (competitionId && competitionId.trim() !== "") {
           // Use competitionId even if not UUID format - the database might have entries matching it
           lookupId = competitionId;
         } else {
@@ -171,12 +190,14 @@ const KeyPrizesSection: React.FC<KeyPrizesSectionProps> = ({
       setLoading(true);
       try {
         // Fetch all prizes for this competition (major prizes have priority 1-3)
-        const { data, error } = await supabase
-          .from('Prize_Instantprizes')
-          .select('UID, winningTicket, prize, url, description, priority, winningWalletAddress')
-          .eq('competitionId', lookupId)
-          .lte('priority', MAJOR_PRIZE_COUNT)
-          .order('priority', { ascending: true } as any);
+        const { data, error } = (await supabase
+          .from("Prize_Instantprizes")
+          .select(
+            "UID, winningTicket, prize, url, description, priority, winningWalletAddress",
+          )
+          .eq("competitionId", lookupId)
+          .lte("priority", MAJOR_PRIZE_COUNT)
+          .order("priority", { ascending: true } as any)) as any;
 
         if (!error && data) {
           // Store the full prize data
@@ -192,7 +213,7 @@ const KeyPrizesSection: React.FC<KeyPrizesSectionProps> = ({
           setClaimedTickets(claimed);
         }
       } catch (err) {
-        console.error('Error fetching prizes:', err);
+        console.error("Error fetching prizes:", err);
       }
       setLoading(false);
     };
@@ -221,7 +242,7 @@ const KeyPrizesSection: React.FC<KeyPrizesSectionProps> = ({
   }
 
   // Build prize sections with tickets from database
-  const prizeSections = prizeConfig.map(prize => {
+  const prizeSections = prizeConfig.map((prize) => {
     const prizePrizes = prizeTicketDistribution.get(prize.name) || [];
     const ticketEntries = prizePrizes.map((dbPrize, idx) => ({
       id: idx + 1,
@@ -229,7 +250,7 @@ const KeyPrizesSection: React.FC<KeyPrizesSectionProps> = ({
       isWinner: !!dbPrize.winningWalletAddress,
     }));
 
-    const claimedCount = ticketEntries.filter(t => t.isWinner).length;
+    const claimedCount = ticketEntries.filter((t) => t.isWinner).length;
 
     return {
       ...prize,
