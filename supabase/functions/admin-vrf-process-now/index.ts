@@ -12,11 +12,13 @@ import { base } from "npm:viem/chains";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, cache-control, pragma, expires",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, cache-control, pragma, expires",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const VRF_CONTRACT_DEFAULT = "0x8ce54644e3313934d663c43aea29641dfd8bca1a" as const;
+const VRF_CONTRACT_DEFAULT =
+  "0x8ce54644e3313934d663c43aea29641dfd8bca1a" as const;
 
 // Minimal ABI fragments we need
 const ABI = [
@@ -72,8 +74,6 @@ type CompetitionRow = {
   is_instant_win: boolean | null;
   winner_address: string | null;
   uid: string | null; // we will store onchain_competition_id here for MVP
-  contract_address: string | null;
-  chain_id: number | null;
 };
 
 function nowUnix(): number {
@@ -84,16 +84,19 @@ function nowUnix(): number {
 const DEFAULT_PRICE_WEI = 1000000000000000n; // 0.001 ETH
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { status: 200, headers: corsHeaders });
+  if (req.method === "OPTIONS")
+    return new Response(null, { status: 200, headers: corsHeaders });
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const rpc = Deno.env.get("BASE_RPC");
     const adminPk = Deno.env.get("ADMIN_WALLET_PRIVATE_KEY");
-    const vrfContract = (Deno.env.get("VRF_CONTRACT") || VRF_CONTRACT_DEFAULT) as `0x${string}`;
+    const vrfContract = (Deno.env.get("VRF_CONTRACT") ||
+      VRF_CONTRACT_DEFAULT) as `0x${string}`;
 
-    if (!supabaseUrl || !serviceRole) throw new Error("Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !serviceRole)
+      throw new Error("Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY");
     if (!rpc) throw new Error("Missing BASE_RPC");
     if (!adminPk) throw new Error("Missing ADMIN_WALLET_PRIVATE_KEY");
 
@@ -104,7 +107,11 @@ Deno.serve(async (req) => {
 
     const account = privateKeyToAccount(adminPk as `0x${string}`);
     const pub = createPublicClient({ chain: base, transport: http(rpc) });
-    const wallet = createWalletClient({ chain: base, transport: http(rpc), account });
+    const wallet = createWalletClient({
+      chain: base,
+      transport: http(rpc),
+      account,
+    });
 
     // 1) Fetch comps to process
     let comps: CompetitionRow[] = [];
@@ -112,7 +119,9 @@ Deno.serve(async (req) => {
     if (competitionId) {
       const { data, error } = await supabase
         .from("competitions")
-        .select("id,title,status,end_date,total_tickets,ticket_price,is_instant_win,winner_address,uid,contract_address,chain_id")
+        .select(
+          "id,title,status,end_date,total_tickets,ticket_price,is_instant_win,winner_address,uid",
+        )
         .eq("id", competitionId)
         .limit(1);
 
@@ -123,7 +132,9 @@ Deno.serve(async (req) => {
       // 1. Ended-by-time AND not already with winner
       const { data: endedComps, error: endedError } = await supabase
         .from("competitions")
-        .select("id,title,status,end_date,total_tickets,ticket_price,is_instant_win,winner_address,uid,contract_address,chain_id")
+        .select(
+          "id,title,status,end_date,total_tickets,ticket_price,is_instant_win,winner_address,uid",
+        )
         .is("winner_address", null)
         .not("end_date", "is", null)
         .lt("end_date", new Date().toISOString())
@@ -134,7 +145,9 @@ Deno.serve(async (req) => {
       // 2. Sold out competitions (ready immediately, regardless of end_date)
       const { data: soldOutComps, error: soldOutError } = await supabase
         .from("competitions")
-        .select("id,title,status,end_date,total_tickets,ticket_price,is_instant_win,winner_address,uid,contract_address,chain_id")
+        .select(
+          "id,title,status,end_date,total_tickets,ticket_price,is_instant_win,winner_address,uid",
+        )
         .is("winner_address", null)
         .eq("status", "sold_out")
         .limit(20);
@@ -150,9 +163,16 @@ Deno.serve(async (req) => {
     }
 
     if (!comps.length) {
-      return new Response(JSON.stringify({ ok: true, processed: 0, message: "No competitions eligible right now." }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          processed: 0,
+          message: "No competitions eligible right now.",
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     const results: any[] = [];
@@ -168,7 +188,9 @@ Deno.serve(async (req) => {
       let onchainId: string | null = comp.uid;
 
       if (!onchainId) {
-        const endTime = comp.end_date ? Math.floor(new Date(comp.end_date).getTime() / 1000) : nowUnix() + 120;
+        const endTime = comp.end_date
+          ? Math.floor(new Date(comp.end_date).getTime() / 1000)
+          : nowUnix() + 120;
 
         const totalTickets = BigInt(comp.total_tickets || 100);
         const pricePerTicketWei = DEFAULT_PRICE_WEI;
@@ -178,12 +200,25 @@ Deno.serve(async (req) => {
         const data = encodeFunctionData({
           abi: ABI,
           functionName: "createCompetition",
-          args: [totalTickets, pricePerTicketWei, BigInt(endTime), numWinners, maxTicketsPerTx],
+          args: [
+            totalTickets,
+            pricePerTicketWei,
+            BigInt(endTime),
+            numWinners,
+            maxTicketsPerTx,
+          ],
         });
 
         const fee = await pub.estimateFeesPerGas();
-        const nonce = await pub.getTransactionCount({ address: account.address });
-        const gas = await pub.estimateGas({ account: account.address, to: vrfContract, data, value: 0n });
+        const nonce = await pub.getTransactionCount({
+          address: account.address,
+        });
+        const gas = await pub.estimateGas({
+          account: account.address,
+          to: vrfContract,
+          data,
+          value: 0n,
+        });
 
         const txHash = await wallet.sendTransaction({
           to: vrfContract,
@@ -197,17 +232,27 @@ Deno.serve(async (req) => {
 
         await pub.waitForTransactionReceipt({ hash: txHash });
 
-        const nextId = await pub.readContract({ address: vrfContract, abi: ABI, functionName: "nextCompetitionId" });
+        const nextId = await pub.readContract({
+          address: vrfContract,
+          abi: ABI,
+          functionName: "nextCompetitionId",
+        });
         onchainId = (BigInt(nextId) - 1n).toString();
 
         // Store onchain link into DB
-        await supabase.from("competitions").update({
-          uid: onchainId,
-          contract_address: vrfContract,
-          chain_id: 8453,
-        }).eq("id", comp.id);
+        await supabase
+          .from("competitions")
+          .update({
+            uid: onchainId,
+          })
+          .eq("id", comp.id);
 
-        results.push({ id: comp.id, step: "created_onchain", onchainId, txHash });
+        results.push({
+          id: comp.id,
+          step: "created_onchain",
+          onchainId,
+          txHash,
+        });
       }
 
       // 3) Request VRF draw
@@ -218,8 +263,15 @@ Deno.serve(async (req) => {
       });
 
       const fee2 = await pub.estimateFeesPerGas();
-      const nonce2 = await pub.getTransactionCount({ address: account.address });
-      const gas2 = await pub.estimateGas({ account: account.address, to: vrfContract, data: drawData, value: 0n });
+      const nonce2 = await pub.getTransactionCount({
+        address: account.address,
+      });
+      const gas2 = await pub.estimateGas({
+        account: account.address,
+        to: vrfContract,
+        data: drawData,
+        value: 0n,
+      });
 
       const drawTx = await wallet.sendTransaction({
         to: vrfContract,
@@ -235,10 +287,13 @@ Deno.serve(async (req) => {
 
       // Try to extract requestId by simulating decode from call output is not available post-tx,
       // so MVP: store tx hash and let sync read winners. (You already have tx hash fields.)
-      await supabase.from("competitions").update({
-        tx_hash: drawTx,
-        status: "drawing",
-      }).eq("id", comp.id);
+      await supabase
+        .from("competitions")
+        .update({
+          tx_hash: drawTx,
+          status: "drawing",
+        })
+        .eq("id", comp.id);
 
       // 4) Try immediate sync
       let ready = false;
@@ -261,11 +316,14 @@ Deno.serve(async (req) => {
           winners = addrs;
           winningNumbers = nums;
 
-          await supabase.from("competitions").update({
-            winner_address: addrs[0],
-            status: "completed",
-            drawn_at: new Date().toISOString(),
-          }).eq("id", comp.id);
+          await supabase
+            .from("competitions")
+            .update({
+              winner_address: addrs[0],
+              status: "completed",
+              drawn_at: new Date().toISOString(),
+            })
+            .eq("id", comp.id);
         }
       } catch (_e) {
         // Not fulfilled yet or "Not drawn" revert, treat as pending
@@ -287,9 +345,12 @@ Deno.serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {
-    return new Response(JSON.stringify({ ok: false, error: String(e?.message || e) }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ ok: false, error: String(e?.message || e) }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 });
