@@ -192,9 +192,9 @@ Deno.serve(async (req) => {
       }
 
       if (!onchainId) {
-        const endTime = comp.end_date
-          ? Math.floor(new Date(comp.end_date).getTime() / 1000)
-          : nowUnix() + 120;
+        // For on-chain creation, always use a future endTime (contract rejects past times)
+        // The actual competition end logic is handled in the DB, this is just for VRF
+        const endTime = nowUnix() + 3600; // 1 hour from now
 
         const totalTickets = BigInt(comp.total_tickets || 100);
         const pricePerTicketWei = DEFAULT_PRICE_WEI;
