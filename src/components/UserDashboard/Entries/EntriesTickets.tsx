@@ -324,14 +324,21 @@ const EntriesTickets = ({
               <span className="text-[#DDE404] sequel-45 text-sm">
                 Transaction:
               </span>
-              <a
-                href={`https://basescan.org/tx/${transactionHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-white sequel-45 text-sm hover:text-[#DDE404] transition-colors underline max-w-[60%] break-all"
-              >
-                {transactionHash.slice(0, 10)}...{transactionHash.slice(-8)}
-              </a>
+              {/* Only make it a clickable link if it's a valid 0x hash */}
+              {transactionHash.startsWith("0x") ? (
+                <a
+                  href={`https://${import.meta.env.VITE_BASE_MAINNET === "true" ? "basescan.org" : "sepolia.basescan.org"}/tx/${transactionHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-white sequel-45 text-sm hover:text-[#DDE404] transition-colors underline max-w-[60%] break-all"
+                >
+                  {transactionHash.slice(0, 10)}...{transactionHash.slice(-8)}
+                </a>
+              ) : (
+                <span className="text-white/50 sequel-45 text-sm max-w-[60%] break-all">
+                  {transactionHash.slice(0, 10)}...{transactionHash.slice(-8)}
+                </span>
+              )}
             </div>
           </div>
         </>
