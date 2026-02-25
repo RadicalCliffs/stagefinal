@@ -119,8 +119,9 @@ Deno.serve(async (req) => {
       if (error) throw error;
       comps = (data || []) as CompetitionRow[];
     } else {
-      // MVP selection: ended-by-time AND not already with winner
-      const { data, error } = await supabase
+      // Selection: competitions that need VRF processing
+      // 1. Ended-by-time AND not already with winner
+      const { data: endedComps, error: endedError } = await supabase
         .from("competitions")
         .select("id,title,status,end_date,total_tickets,ticket_price,is_instant_win,winner_address,uid,contract_address,chain_id")
         .is("winner_address", null)
@@ -128,8 +129,24 @@ Deno.serve(async (req) => {
         .lt("end_date", new Date().toISOString())
         .limit(20);
 
-      if (error) throw error;
-      comps = (data || []) as CompetitionRow[];
+      if (endedError) throw endedError;
+
+      // 2. Sold out competitions (ready immediately, regardless of end_date)
+      const { data: soldOutComps, error: soldOutError } = await supabase
+        .from("competitions")
+        .select("id,title,status,end_date,total_tickets,ticket_price,is_instant_win,winner_address,uid,contract_address,chain_id")
+        .is("winner_address", null)
+        .eq("status", "sold_out")
+        .limit(20);
+
+      if (soldOutError) throw soldOutError;
+
+      // Combine, removing duplicates by id
+      const compMap = new Map();
+      for (const c of [...(endedComps || []), ...(soldOutComps || [])]) {
+        compMap.set(c.id, c);
+      }
+      comps = Array.from(compMap.values()).slice(0, 20) as CompetitionRow[];
     }
 
     if (!comps.length) {
