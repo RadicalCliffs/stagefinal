@@ -185,7 +185,11 @@ Deno.serve(async (req) => {
       }
 
       // 2) Ensure onchain ID exists (store in uid)
-      let onchainId: string | null = comp.uid;
+      // Check if uid is a valid numeric string (not a UUID)
+      let onchainId: string | null = null;
+      if (comp.uid && /^\d+$/.test(comp.uid)) {
+        onchainId = comp.uid;
+      }
 
       if (!onchainId) {
         const endTime = comp.end_date
