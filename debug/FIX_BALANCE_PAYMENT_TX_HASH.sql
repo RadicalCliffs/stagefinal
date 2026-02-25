@@ -7,13 +7,15 @@
 -- ============================================================================
 
 -- View current state before fix
+-- NOTE: transaction_hash is a GENERATED column from payment_tx_hash
+-- We must update payment_tx_hash, which will auto-update transaction_hash
 SELECT 
   'Before Fix' as status,
   COUNT(*) as total_balance_tickets,
-  COUNT(*) FILTER (WHERE transaction_hash ILIKE 'balance_%') as synthetic_hashes,
+  COUNT(*) FILTER (WHERE payment_tx_hash ILIKE 'balance_%') as synthetic_hashes,
   COUNT(DISTINCT canonical_user_id) as unique_users
 FROM tickets
-WHERE transaction_hash ILIKE 'balance_%';
+WHERE payment_tx_hash ILIKE 'balance_%';
 
 -- Create a temp table of users and their most recent on-chain topup tx_id
 -- Priority: 0x hashes (real on-chain) > any other non-null tx_id
@@ -37,7 +39,7 @@ SELECT
   COUNT(t.id) as tickets_to_update
 FROM user_latest_topup ult
 JOIN tickets t ON t.canonical_user_id = ult.canonical_user_id
-WHERE t.transaction_hash ILIKE 'balance_%'
+WHERE t.payment_tx_hash ILIKE 'balance_%'
 GROUP BY ult.canonical_user_id, ult.tx_id
 ORDER BY tickets_to_update DESC;
 
@@ -45,11 +47,10 @@ ORDER BY tickets_to_update DESC;
 -- BACKFILL EXECUTION - Update tickets with real topup tx_id
 -- ============================================================================
 
--- Do the actual update
+-- Do the actual update (update payment_tx_hash, which feeds the generated transaction_hash)
 UPDATE tickets t
 SET 
-  transaction_hash = ult.tx_id,
-  updated_at = NOW()
+  payment_tx_hash = ult.tx_id
 FROM (
   SELECT DISTINCT ON (canonical_user_id)
     canonical_user_id,
@@ -62,17 +63,17 @@ FROM (
   ORDER BY canonical_user_id, created_at DESC
 ) ult
 WHERE t.canonical_user_id = ult.canonical_user_id
-  AND t.transaction_hash ILIKE 'balance_%';
+  AND t.payment_tx_hash ILIKE 'balance_%';
 
 -- Report how many were updated
 SELECT 
   'After Fix' as status,
   COUNT(*) as total_balance_tickets,
-  COUNT(*) FILTER (WHERE transaction_hash ILIKE 'balance_%') as remaining_synthetic,
-  COUNT(*) FILTER (WHERE transaction_hash ILIKE '0x%') as real_hashes
+  COUNT(*) FILTER (WHERE payment_tx_hash ILIKE 'balance_%') as remaining_synthetic,
+  COUNT(*) FILTER (WHERE payment_tx_hash ILIKE '0x%') as real_hashes
 FROM tickets
 WHERE canonical_user_id IN (
-  SELECT DISTINCT canonical_user_id FROM tickets WHERE transaction_hash ILIKE 'balance_%'
+  SELECT DISTINCT canonical_user_id FROM tickets WHERE payment_tx_hash ILIKE 'balance_%'
 );
 
 -- ============================================================================
@@ -229,7 +230,6 @@ BEGIN
       ticket_number,
       status,
       canonical_user_id,
-      updated_at,
       order_id,
       created_at,
       buyer_id,
@@ -238,15 +238,13 @@ BEGIN
       payment_amount,
       payment_provider,
       payment_tx_hash,
-      purchased_at,
-      transaction_hash  -- Use the real topup hash here
+      purchased_at
     ) VALUES (
       gen_random_uuid(),
       p_competition_id,
       v_ticket_num,
       'sold',
       v_found_canonical_user_id,
-      NOW(),
       v_order_id,
       NOW(),
       v_found_canonical_user_id,
@@ -255,8 +253,7 @@ BEGIN
       v_total_amount,
       'balance',
       v_real_tx_hash,  -- Real topup hash instead of synthetic
-      NOW(),
-      v_real_tx_hash   -- Real topup hash for transaction_hash too
+      NOW()
     )
     ON CONFLICT DO NOTHING;
   END LOOP;
@@ -341,10 +338,10 @@ GRANT EXECUTE ON FUNCTION execute_balance_payment(numeric, uuid, text, uuid, int
 -- Check the results
 SELECT 
   'Final State' as report,
-  COUNT(*) FILTER (WHERE transaction_hash ILIKE '0x%') as real_onchain_hashes,
-  COUNT(*) FILTER (WHERE transaction_hash ILIKE 'balance_%') as synthetic_hashes,
-  COUNT(*) FILTER (WHERE transaction_hash NOT ILIKE '0x%' AND transaction_hash NOT ILIKE 'balance_%') as other_hashes,
-  COUNT(*) FILTER (WHERE transaction_hash IS NULL) as null_hashes
+  COUNT(*) FILTER (WHERE payment_tx_hash ILIKE '0x%') as real_onchain_hashes,
+  COUNT(*) FILTER (WHERE payment_tx_hash ILIKE 'balance_%') as synthetic_hashes,
+  COUNT(*) FILTER (WHERE payment_tx_hash NOT ILIKE '0x%' AND payment_tx_hash NOT ILIKE 'balance_%') as other_hashes,
+  COUNT(*) FILTER (WHERE payment_tx_hash IS NULL) as null_hashes
 FROM tickets;
 
 -- Show any remaining balance_payment hashes that couldn't be updated
@@ -355,7 +352,7 @@ SELECT
   MIN(created_at) as first_ticket,
   MAX(created_at) as last_ticket
 FROM tickets
-WHERE transaction_hash ILIKE 'balance_%'
+WHERE payment_tx_hash ILIKE 'balance_%'
 GROUP BY canonical_user_id
 ORDER BY ticket_count DESC
 LIMIT 20;
