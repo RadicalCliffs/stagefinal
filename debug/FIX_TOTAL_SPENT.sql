@@ -101,7 +101,8 @@ BEGIN
             'purchased_at', agg.min_created_at,
             'tickets_count', agg.ticket_count,
             'ticket_numbers', agg.ticket_nums,
-            'amount_spent', agg.ticket_count * COALESCE(c.ticket_price, 1)
+            'amount_spent', agg.ticket_count * COALESCE(c.ticket_price, 1),
+            'transaction_hash', agg.tx_hash
           )
         )
         FROM (
@@ -109,7 +110,9 @@ BEGIN
             COALESCE(tkt.purchase_key, DATE_TRUNC('minute', tkt.created_at)::TEXT) as purchase_key,
             MIN(tkt.created_at) as min_created_at,
             COUNT(*)::INTEGER as ticket_count,
-            STRING_AGG(tkt.ticket_number::TEXT, ',' ORDER BY tkt.ticket_number) as ticket_nums
+            STRING_AGG(tkt.ticket_number::TEXT, ',' ORDER BY tkt.ticket_number) as ticket_nums,
+            -- Get transaction hash - use first non-null from the group
+            (ARRAY_AGG(tkt.transaction_hash) FILTER (WHERE tkt.transaction_hash IS NOT NULL))[1] as tx_hash
           FROM tickets tkt
           WHERE tkt.competition_id = ce.competition_id::UUID
             AND tkt.canonical_user_id = v_canonical
@@ -137,6 +140,8 @@ SELECT
   tickets_count,
   competition_ticket_price,
   amount_spent,
-  tickets_count * competition_ticket_price as calculated_amount
+  tickets_count * competition_ticket_price as calculated_amount,
+  jsonb_array_length(individual_purchases) as purchase_sessions,
+  individual_purchases->0->>'transaction_hash' as sample_tx_hash
 FROM get_user_competition_entries('prize:pid:0x0ff51ec0ecc9ae1e5e6048976ba307c849781363')
 WHERE competition_title ILIKE '%solana slammer%';

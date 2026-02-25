@@ -4577,7 +4577,8 @@ export const database = {
               // purchaseDate: from individual purchase
               purchase_date: purchase.purchased_at || purchase.created_at,
               wallet_address: entry.wallet_address,
-              transaction_hash: null, // Individual purchases don't have tx hash
+              // transaction_hash: from individual purchase (now included in RPC)
+              transaction_hash: purchase.transaction_hash || null,
               // isInstantWin: competition_is_instant_win from RPC
               is_instant_win: entry.competition_is_instant_win || false,
               // prizeValue: competition_prize_value from RPC (plain string as per PR #355 spec)
