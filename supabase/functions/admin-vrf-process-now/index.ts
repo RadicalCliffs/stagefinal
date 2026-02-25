@@ -18,7 +18,7 @@ const corsHeaders = {
 };
 
 const VRF_CONTRACT_DEFAULT =
-  "0x8ce54644e3313934d663c43aea29641dfd8bca1a" as const;
+  "0xc5Dfc3f6a227B30161f53F0BC167495158854854" as const;
 
 // Minimal ABI fragments we need
 const ABI = [
