@@ -1,12 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import {
-  createPublicClient,
-  createWalletClient,
-  http,
-  encodeFunctionData,
-  decodeFunctionResult,
-} from "npm:viem";
+import { createPublicClient, createWalletClient, http } from "npm:viem";
 import { privateKeyToAccount } from "npm:viem/accounts";
 import { base } from "npm:viem/chains";
 
@@ -17,52 +11,46 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+// VRFWinnerSelector contract on Base
 const VRF_CONTRACT_DEFAULT =
   "0xc5Dfc3f6a227B30161f53F0BC167495158854854" as const;
 
-// Minimal ABI fragments we need
-const ABI = [
-  {
-    type: "function",
-    name: "createCompetition",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "totalTickets", type: "uint256" },
-      { name: "pricePerTicketWei", type: "uint256" },
-      { name: "endTime", type: "uint256" },
-      { name: "numWinners", type: "uint8" },
-      { name: "maxTicketsPerTx", type: "uint32" },
-    ],
-    outputs: [{ name: "competitionId", type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "nextCompetitionId",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "drawWinners",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "competitionId", type: "uint256" },
-      { name: "useVRF", type: "bool" },
-    ],
-    outputs: [{ name: "requestId", type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "getWinners",
-    stateMutability: "view",
-    inputs: [{ name: "competitionId", type: "uint256" }],
-    outputs: [
-      { name: "winningNumbers", type: "uint256[]" },
-      { name: "winners", type: "address[]" },
-    ],
-  },
-] as const;
+// Function selectors (verified from successful on-chain transactions)
+const SELECTOR_CREATE = "0x9134b595"; // createCompetition(bytes name,uint32 totalTickets,uint8 numWinners)
+const SELECTOR_DRAWS = "0x0cc36c36"; // draws(uint256) - get competition by index
+
+// Helper to encode createCompetition call manually
+// This contract uses selector 0x9134b595 with params: (bytes name, uint32 totalTickets, uint8 numWinners)
+// When called, it automatically triggers VRF request to select winners
+function encodeCreateCompetition(
+  name: string,
+  totalTickets: number,
+  numWinners: number,
+): `0x${string}` {
+  // Convert name to bytes
+  const nameBytes = new TextEncoder().encode(name);
+  const nameHex = Array.from(nameBytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+
+  // Calculate padding for name bytes (to 32-byte boundary)
+  const namePadding = (32 - (nameBytes.length % 32)) % 32;
+  const paddedNameHex = nameHex + "0".repeat(namePadding * 2);
+
+  // ABI encoding for (bytes, uint32, uint8):
+  // - offset to bytes data (0x60 = 96)
+  // - uint32 totalTickets padded to 32 bytes
+  // - uint8 numWinners padded to 32 bytes
+  // - bytes length (32 bytes)
+  // - bytes data (padded)
+  const offset =
+    "0000000000000000000000000000000000000000000000000000000000000060";
+  const ticketsPadded = totalTickets.toString(16).padStart(64, "0");
+  const winnersPadded = numWinners.toString(16).padStart(64, "0");
+  const lengthPadded = nameBytes.length.toString(16).padStart(64, "0");
+
+  return `${SELECTOR_CREATE}${offset}${ticketsPadded}${winnersPadded}${lengthPadded}${paddedNameHex}` as `0x${string}`;
+}
 
 type CompetitionRow = {
   id: string;
@@ -73,15 +61,8 @@ type CompetitionRow = {
   ticket_price: number | null;
   is_instant_win: boolean | null;
   winner_address: string | null;
-  uid: string | null; // we will store onchain_competition_id here for MVP
+  uid: string | null;
 };
-
-function nowUnix(): number {
-  return Math.floor(Date.now() / 1000);
-}
-
-// MVP: use a fixed on-chain ticket price (0.001 ETH) because your DB ticket_price is not guaranteed to be ETH
-const DEFAULT_PRICE_WEI = 1000000000000000n; // 0.001 ETH
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
@@ -113,7 +94,7 @@ Deno.serve(async (req) => {
       account,
     });
 
-    // 1) Fetch comps to process
+    // 1) Fetch competitions to process
     let comps: CompetitionRow[] = [];
 
     if (competitionId) {
@@ -178,51 +159,57 @@ Deno.serve(async (req) => {
     const results: any[] = [];
 
     for (const comp of comps) {
-      // Skip instant win (MVP: those are handled by Prize_Instantprizes flows)
-      if (comp.is_instant_win) {
-        results.push({ id: comp.id, skipped: true, reason: "instant_win" });
-        continue;
-      }
+      try {
+        // Skip instant win (handled by Prize_Instantprizes flows)
+        if (comp.is_instant_win) {
+          results.push({ id: comp.id, skipped: true, reason: "instant_win" });
+          continue;
+        }
 
-      // 2) Ensure onchain ID exists (store in uid)
-      // Check if uid is a valid numeric string (not a UUID)
-      let onchainId: string | null = null;
-      if (comp.uid && /^\d+$/.test(comp.uid)) {
-        onchainId = comp.uid;
-      }
+        // Use the Supabase UUID as the on-chain competition name
+        const competitionName = comp.id;
 
-      if (!onchainId) {
-        // For on-chain creation, always use a future endTime (contract rejects past times)
-        // The actual competition end logic is handled in the DB, this is just for VRF
-        const endTime = nowUnix() + 3600; // 1 hour from now
+        // Check if already registered (uid stores the name when registered)
+        if (comp.uid === competitionName) {
+          results.push({
+            id: comp.id,
+            skipped: true,
+            reason: "already_registered",
+            uid: comp.uid,
+          });
+          continue;
+        }
 
-        const totalTickets = BigInt(comp.total_tickets || 100);
-        const pricePerTicketWei = DEFAULT_PRICE_WEI;
+        // Register competition on VRFWinnerSelector contract
+        // This automatically triggers VRF request for random winner selection
+        const totalTickets = comp.total_tickets || 100;
         const numWinners = 1; // MVP: 1 main winner
-        const maxTicketsPerTx = 10;
 
-        const data = encodeFunctionData({
-          abi: ABI,
-          functionName: "createCompetition",
-          args: [
-            totalTickets,
-            pricePerTicketWei,
-            BigInt(endTime),
-            numWinners,
-            maxTicketsPerTx,
-          ],
-        });
+        // Encode the createCompetition call
+        const data = encodeCreateCompetition(
+          competitionName,
+          totalTickets,
+          numWinners,
+        );
 
         const fee = await pub.estimateFeesPerGas();
         const nonce = await pub.getTransactionCount({
           address: account.address,
         });
-        const gas = await pub.estimateGas({
-          account: account.address,
-          to: vrfContract,
-          data,
-          value: 0n,
-        });
+
+        // Estimate gas with buffer, fallback to 300k if estimation fails
+        let gas = 300000n;
+        try {
+          gas = await pub.estimateGas({
+            account: account.address,
+            to: vrfContract,
+            data,
+            value: 0n,
+          });
+          gas = (gas * 130n) / 100n; // Add 30% buffer for VRF callback
+        } catch (_e) {
+          // Use default gas
+        }
 
         const txHash = await wallet.sendTransaction({
           to: vrfContract,
@@ -234,114 +221,34 @@ Deno.serve(async (req) => {
           maxPriorityFeePerGas: fee.maxPriorityFeePerGas,
         });
 
-        await pub.waitForTransactionReceipt({ hash: txHash });
+        const receipt = await pub.waitForTransactionReceipt({ hash: txHash });
 
-        const nextId = await pub.readContract({
-          address: vrfContract,
-          abi: ABI,
-          functionName: "nextCompetitionId",
-        });
-        onchainId = (BigInt(nextId) - 1n).toString();
-
-        // Store onchain link into DB
+        // Store the competition name in uid to mark as registered
+        // Also update status to "drawing" since VRF was triggered
         await supabase
           .from("competitions")
           .update({
-            uid: onchainId,
+            uid: competitionName,
+            tx_hash: txHash,
+            status: "drawing",
           })
           .eq("id", comp.id);
 
         results.push({
           id: comp.id,
-          step: "created_onchain",
-          onchainId,
+          competitionName,
           txHash,
+          status: receipt.status,
+          step: "vrf_triggered",
+          message:
+            "VRF request sent. Winners will be selected by Chainlink callback.",
+        });
+      } catch (compError) {
+        results.push({
+          id: comp.id,
+          error: String((compError as Error)?.message || compError),
         });
       }
-
-      // 3) Request VRF draw
-      const drawData = encodeFunctionData({
-        abi: ABI,
-        functionName: "drawWinners",
-        args: [BigInt(onchainId), true],
-      });
-
-      const fee2 = await pub.estimateFeesPerGas();
-      const nonce2 = await pub.getTransactionCount({
-        address: account.address,
-      });
-      const gas2 = await pub.estimateGas({
-        account: account.address,
-        to: vrfContract,
-        data: drawData,
-        value: 0n,
-      });
-
-      const drawTx = await wallet.sendTransaction({
-        to: vrfContract,
-        data: drawData,
-        value: 0n,
-        gas: gas2,
-        nonce: nonce2,
-        maxFeePerGas: fee2.maxFeePerGas,
-        maxPriorityFeePerGas: fee2.maxPriorityFeePerGas,
-      });
-
-      const receipt = await pub.waitForTransactionReceipt({ hash: drawTx });
-
-      // Try to extract requestId by simulating decode from call output is not available post-tx,
-      // so MVP: store tx hash and let sync read winners. (You already have tx hash fields.)
-      await supabase
-        .from("competitions")
-        .update({
-          tx_hash: drawTx,
-          status: "drawing",
-        })
-        .eq("id", comp.id);
-
-      // 4) Try immediate sync
-      let ready = false;
-      let winners: string[] = [];
-      let winningNumbers: string[] = [];
-
-      try {
-        const res = await pub.readContract({
-          address: vrfContract,
-          abi: ABI,
-          functionName: "getWinners",
-          args: [BigInt(onchainId)],
-        });
-
-        const nums = (res[0] || []).map((n: bigint) => n.toString());
-        const addrs = (res[1] || []) as string[];
-
-        if (addrs.length > 0) {
-          ready = true;
-          winners = addrs;
-          winningNumbers = nums;
-
-          await supabase
-            .from("competitions")
-            .update({
-              winner_address: addrs[0],
-              status: "completed",
-              drawn_at: new Date().toISOString(),
-            })
-            .eq("id", comp.id);
-        }
-      } catch (_e) {
-        // Not fulfilled yet or "Not drawn" revert, treat as pending
-      }
-
-      results.push({
-        id: comp.id,
-        onchainId,
-        drawTx,
-        drawMined: receipt.status,
-        ready,
-        winners,
-        winningNumbers,
-      });
     }
 
     return new Response(
@@ -350,7 +257,7 @@ Deno.serve(async (req) => {
     );
   } catch (e) {
     return new Response(
-      JSON.stringify({ ok: false, error: String(e?.message || e) }),
+      JSON.stringify({ ok: false, error: String((e as Error)?.message || e) }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
