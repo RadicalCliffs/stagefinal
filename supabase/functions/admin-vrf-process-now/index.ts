@@ -76,15 +76,24 @@ Deno.serve(async (req) => {
     const vrfContract = (Deno.env.get("VRF_CONTRACT") ||
       VRF_CONTRACT_DEFAULT) as `0x${string}`;
 
+    console.log("ENV CHECK:", {
+      hasUrl: !!supabaseUrl,
+      hasService: !!serviceRole,
+      hasRpc: !!rpc,
+      hasPk: !!adminPk,
+    });
+
     if (!supabaseUrl || !serviceRole)
       throw new Error("Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY");
     if (!rpc) throw new Error("Missing BASE_RPC");
     if (!adminPk) throw new Error("Missing ADMIN_WALLET_PRIVATE_KEY");
 
     const supabase = createClient(supabaseUrl, serviceRole);
+    console.log("Supabase client created:", !!supabase);
 
     const body = await req.json().catch(() => ({}));
     const competitionId: string | undefined = body?.competitionId;
+    console.log("Body parsed, competitionId:", competitionId);
 
     const account = privateKeyToAccount(adminPk as `0x${string}`);
     const pub = createPublicClient({ chain: base, transport: http(rpc) });
@@ -98,6 +107,7 @@ Deno.serve(async (req) => {
     let comps: CompetitionRow[] = [];
 
     if (competitionId) {
+      console.log("Querying single competition:", competitionId);
       const result = await supabase
         .from("competitions")
         .select(
@@ -106,11 +116,13 @@ Deno.serve(async (req) => {
         .eq("id", competitionId)
         .limit(1);
 
+      console.log("Single query result:", JSON.stringify(result));
       if (result?.error) throw result.error;
       comps = (result?.data || []) as CompetitionRow[];
     } else {
       // Selection: competitions that need VRF processing
       // 1. Ended-by-time AND not already with winner
+      console.log("Querying ended competitions...");
       const endedResult = await supabase
         .from("competitions")
         .select(
@@ -121,10 +133,12 @@ Deno.serve(async (req) => {
         .lt("end_date", new Date().toISOString())
         .limit(20);
 
+      console.log("Ended result:", JSON.stringify(endedResult));
       if (endedResult?.error) throw endedResult.error;
       const endedComps = endedResult?.data || [];
 
       // 2. Sold out competitions (ready immediately, regardless of end_date)
+      console.log("Querying sold_out competitions...");
       const soldOutResult = await supabase
         .from("competitions")
         .select(
@@ -134,6 +148,7 @@ Deno.serve(async (req) => {
         .eq("status", "sold_out")
         .limit(20);
 
+      console.log("SoldOut result:", JSON.stringify(soldOutResult));
       if (soldOutResult?.error) throw soldOutResult.error;
       const soldOutComps = soldOutResult?.data || [];
 
