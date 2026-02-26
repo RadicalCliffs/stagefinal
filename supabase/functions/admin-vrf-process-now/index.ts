@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
     let comps: CompetitionRow[] = [];
 
     if (competitionId) {
-      const { data, error } = await supabase
+      const result = await supabase
         .from("competitions")
         .select(
           "id,title,status,end_date,total_tickets,ticket_price,is_instant_win,winner_address,uid",
@@ -106,12 +106,12 @@ Deno.serve(async (req) => {
         .eq("id", competitionId)
         .limit(1);
 
-      if (error) throw error;
-      comps = (data || []) as CompetitionRow[];
+      if (result?.error) throw result.error;
+      comps = (result?.data || []) as CompetitionRow[];
     } else {
       // Selection: competitions that need VRF processing
       // 1. Ended-by-time AND not already with winner
-      const { data: endedComps, error: endedError } = await supabase
+      const endedResult = await supabase
         .from("competitions")
         .select(
           "id,title,status,end_date,total_tickets,ticket_price,is_instant_win,winner_address,uid",
@@ -121,10 +121,11 @@ Deno.serve(async (req) => {
         .lt("end_date", new Date().toISOString())
         .limit(20);
 
-      if (endedError) throw endedError;
+      if (endedResult?.error) throw endedResult.error;
+      const endedComps = endedResult?.data || [];
 
       // 2. Sold out competitions (ready immediately, regardless of end_date)
-      const { data: soldOutComps, error: soldOutError } = await supabase
+      const soldOutResult = await supabase
         .from("competitions")
         .select(
           "id,title,status,end_date,total_tickets,ticket_price,is_instant_win,winner_address,uid",
@@ -133,11 +134,12 @@ Deno.serve(async (req) => {
         .eq("status", "sold_out")
         .limit(20);
 
-      if (soldOutError) throw soldOutError;
+      if (soldOutResult?.error) throw soldOutResult.error;
+      const soldOutComps = soldOutResult?.data || [];
 
       // Combine, removing duplicates by id
       const compMap = new Map();
-      for (const c of [...(endedComps || []), ...(soldOutComps || [])]) {
+      for (const c of [...endedComps, ...soldOutComps]) {
         compMap.set(c.id, c);
       }
       comps = Array.from(compMap.values()).slice(0, 20) as CompetitionRow[];
