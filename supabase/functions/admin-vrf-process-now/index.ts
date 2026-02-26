@@ -1,8 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { createPublicClient, createWalletClient, http } from "npm:viem";
-import { privateKeyToAccount } from "npm:viem/accounts";
-import { base } from "npm:viem/chains";
+import { createPublicClient, createWalletClient, http } from "npm:viem@2";
+import { privateKeyToAccount } from "npm:viem@2/accounts";
+import { base } from "npm:viem@2/chains";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
