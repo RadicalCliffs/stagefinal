@@ -14,12 +14,19 @@ const corsHeaders = {
 const VRF_CONTRACT = "0xc5Dfc3f6a227B30161f53F0BC167495158854854" as const;
 const SELECTOR_CREATE = "0x9134b595";
 
-function encodeCreateCompetition(name: string, totalTickets: number, numWinners: number): `0x${string}` {
+function encodeCreateCompetition(
+  name: string,
+  totalTickets: number,
+  numWinners: number,
+): `0x${string}` {
   const nameBytes = new TextEncoder().encode(name);
-  const nameHex = Array.from(nameBytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+  const nameHex = Array.from(nameBytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
   const namePadding = (32 - (nameBytes.length % 32)) % 32;
   const paddedNameHex = nameHex + "0".repeat(namePadding * 2);
-  const offset = "0000000000000000000000000000000000000000000000000000000000000060";
+  const offset =
+    "0000000000000000000000000000000000000000000000000000000000000060";
   const ticketsPadded = totalTickets.toString(16).padStart(64, "0");
   const winnersPadded = numWinners.toString(16).padStart(64, "0");
   const lengthPadded = nameBytes.length.toString(16).padStart(64, "0");
@@ -46,7 +53,8 @@ Deno.serve(async (req) => {
     const rpc = Deno.env.get("BASE_RPC");
     const adminPk = Deno.env.get("ADMIN_WALLET_PRIVATE_KEY");
 
-    if (!supabaseUrl || !serviceRole) throw new Error("Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !serviceRole)
+      throw new Error("Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY");
     if (!rpc) throw new Error("Missing BASE_RPC");
     if (!adminPk) throw new Error("Missing ADMIN_WALLET_PRIVATE_KEY");
 
@@ -67,15 +75,23 @@ Deno.serve(async (req) => {
 
     if (!comps.length) {
       return new Response(
-        JSON.stringify({ ok: true, processed: 0, message: "No sold_out competitions without winner." }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({
+          ok: true,
+          processed: 0,
+          message: "No sold_out competitions without winner.",
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
     // Setup viem clients
     const account = privateKeyToAccount(adminPk as `0x${string}`);
     const pub = createPublicClient({ chain: base, transport: http(rpc) });
-    const wallet = createWalletClient({ chain: base, transport: http(rpc), account });
+    const wallet = createWalletClient({
+      chain: base,
+      transport: http(rpc),
+      account,
+    });
 
     const results: any[] = [];
 
@@ -88,7 +104,11 @@ Deno.serve(async (req) => {
 
         // Skip if already registered (uid matches id)
         if (comp.uid === comp.id) {
-          results.push({ id: comp.id, skipped: true, reason: "already_registered" });
+          results.push({
+            id: comp.id,
+            skipped: true,
+            reason: "already_registered",
+          });
           continue;
         }
 
@@ -96,7 +116,9 @@ Deno.serve(async (req) => {
         const txData = encodeCreateCompetition(comp.id, totalTickets, 1);
 
         const fee = await pub.estimateFeesPerGas();
-        const nonce = await pub.getTransactionCount({ address: account.address });
+        const nonce = await pub.getTransactionCount({
+          address: account.address,
+        });
 
         const txHash = await wallet.sendTransaction({
           to: VRF_CONTRACT,
@@ -122,18 +144,24 @@ Deno.serve(async (req) => {
           message: "VRF triggered - waiting for Chainlink callback",
         });
       } catch (compError) {
-        results.push({ id: comp.id, error: String((compError as Error)?.message || compError) });
+        results.push({
+          id: comp.id,
+          error: String((compError as Error)?.message || compError),
+        });
       }
     }
 
     return new Response(
       JSON.stringify({ ok: true, processed: results.length, results }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {
     return new Response(
       JSON.stringify({ ok: false, error: String((e as Error)?.message || e) }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 });
