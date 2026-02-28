@@ -204,6 +204,7 @@ Deno.serve(async (req) => {
             username: user?.username || "Unknown",
             country: user?.country || null,
             wallet_address: winner.walletAddress,
+            vrf_tx_hash: comp.vrf_tx_hash || comp.rng_tx_hash || null, // Include VRF TX hash
             crdate: new Date().toISOString(),
           };
 
@@ -225,6 +226,7 @@ Deno.serve(async (req) => {
             status: "completed",
             competitionended: 1,
             vrf_draw_completed_at: new Date().toISOString(),
+            vrf_status: "completed",
             vrf_error: null,
             draw_date: new Date().toISOString(),
           })
