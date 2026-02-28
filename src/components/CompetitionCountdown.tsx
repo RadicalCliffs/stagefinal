@@ -9,10 +9,24 @@ interface CompetitionCountdownProps {
 
 const CompetitionCountdown = ({ endDate, format = 'badge', isEnded = false }: CompetitionCountdownProps) => {
   const [timeRemaining, setTimeRemaining] = useState('00:00:00:00');
+  const [formattedEndDate, setFormattedEndDate] = useState({ month: '', day: '', year: '', time: '' });
 
   useEffect(() => {
-    // If competition has ended (sold out, drawn, etc.), stop the countdown immediately
-    if (isEnded) {
+    // If competition has ended (sold out, drawn, etc.), format the end date for display
+    if (isEnded && endDate) {
+      const date = new Date(endDate);
+      const month = date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+      const day = String(date.getDate()).padStart(2, '0');
+      const year = String(date.getFullYear());
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      
+      setFormattedEndDate({
+        month,
+        day,
+        year,
+        time: `${hours}:${minutes}`
+      });
       setTimeRemaining('00:00:00:00');
       return;
     }
@@ -42,6 +56,39 @@ const CompetitionCountdown = ({ endDate, format = 'badge', isEnded = false }: Co
   }, [endDate, isEnded]);
 
   if (format === 'full') {
+    // If ended, show formatted date instead of countdown
+    if (isEnded && formattedEndDate.month) {
+      return (
+        <div className='flex items-center gap-2'>
+          <div className="flex flex-col items-center">
+            <p className='bg-white sequel-75 text-center text-[#2E2122] px-3 py-2 sm:text-2xl text-xl rounded-lg min-w-[60px]'>
+              {formattedEndDate.month}
+            </p>
+            <span className="text-white/60 text-xs sequel-45 mt-1">MONTH</span>
+          </div>
+          <div className="flex flex-col items-center">
+            <p className='bg-white sequel-75 text-center text-[#2E2122] px-3 py-2 sm:text-2xl text-xl rounded-lg min-w-[60px]'>
+              {formattedEndDate.day}
+            </p>
+            <span className="text-white/60 text-xs sequel-45 mt-1">DAY</span>
+          </div>
+          <div className="flex flex-col items-center">
+            <p className='bg-white sequel-75 text-center text-[#2E2122] px-3 py-2 sm:text-2xl text-xl rounded-lg min-w-[70px]'>
+              {formattedEndDate.year}
+            </p>
+            <span className="text-white/60 text-xs sequel-45 mt-1">YEAR</span>
+          </div>
+          <div className="flex flex-col items-center">
+            <p className='bg-white sequel-75 text-center text-[#2E2122] px-3 py-2 sm:text-2xl text-xl rounded-lg min-w-[70px]'>
+              {formattedEndDate.time}
+            </p>
+            <span className="text-white/60 text-xs sequel-45 mt-1">TIME</span>
+          </div>
+        </div>
+      );
+    }
+    
+    // Otherwise show countdown
     const [days, hours, minutes, seconds] = timeRemaining.split(':');
     return (
       <div className='flex items-center gap-1'>
