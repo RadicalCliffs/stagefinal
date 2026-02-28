@@ -19,7 +19,9 @@
     "test:install": "playwright install chromium",
     "types:generate": "bash scripts/regenerate-types.sh",
     "vrf:sync-blockchain": "node scripts/vrf-sync-blockchain.mjs",
-    "vrf:sync": "node scripts/vrf-sync-blockchain.mjs"
+    "vrf:sync": "node scripts/vrf-sync-blockchain.mjs",
+    "vrf:verify": "node scripts/verify-vrf-hashes.mjs",
+    "vrf:test": "node scripts/test-vrf-call.mjs"
   },
   "dependencies": {
     "@base-org/account": "^2.5.1",
