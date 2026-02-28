@@ -162,6 +162,11 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
 
           if (data?.status && isSuccessStatus(data.status)) {
             clearInterval(pollInterval);
+            
+            // Add a brief delay before showing success to give users confidence
+            // This prevents the "too quick" notification issue
+            await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5 second delay
+            
             setStep('success');
 
             onSuccess?.();
@@ -346,7 +351,11 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
       setOptimisticTopUpId(topUpId);
       addPendingTopUp(amount, topUpId);
 
-      // Show success immediately (optimistic) - verification will happen in background
+      // Add a brief delay to show processing state (gives users confidence that payment is being handled)
+      // This prevents the "too quick" notification issue mentioned in requirements
+      await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
+
+      // Show success after processing delay
       setTransactionId(transactionHash);
       setStep('success');
       await refreshUserData();
