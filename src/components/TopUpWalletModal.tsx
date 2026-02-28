@@ -12,7 +12,6 @@ import type { LifecycleStatus } from '@coinbase/onchainkit/checkout';
 import { FundButton, getOnrampBuyUrl } from '@coinbase/onchainkit/fund';
 import { useRealTimeBalance } from '../hooks/useRealTimeBalance';
 import { useRealtimeSubscriptions } from '../hooks/useRealtimeSubscriptions';
-import { pay, type PaymentOptions, type PaymentResult } from '@base-org/account/payment/browser';
 
 
 
@@ -34,8 +33,8 @@ interface TopUpWalletModalProps {
   textOverrides?: TopUpWalletModalTextOverrides;
 }
 
-type PaymentStep = 'method' | 'amount' | 'loading' | 'checkout' | 'crypto-checkout' | 'commerce-checkout' | 'onramp-processing' | 'fund-button' | 'base-account-processing' | 'success' | 'error';
-type PaymentMethod = 'crypto' | 'commerce' | 'offramp' | 'onramp' | 'fund' | 'base-account';
+type PaymentStep = 'method' | 'amount' | 'loading' | 'checkout' | 'crypto-checkout' | 'commerce-checkout' | 'onramp-processing' | 'fund-button' | 'success' | 'error';
+type PaymentMethod = 'crypto' | 'commerce' | 'offramp' | 'onramp' | 'fund';
 
 // Get preset amounts from Coinbase checkout URLs
 const PRESET_AMOUNTS = Object.keys(TOP_UP_CHECKOUT_URLS).map(Number).filter(a => a >= 3).sort((a, b) => a - b);
@@ -92,7 +91,6 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
   const [transactionId, setTransactionId] = useState<string>('');
   const [cryptoChargeId, setCryptoChargeId] = useState<string>('');
   const [onrampUrl, setOnrampUrl] = useState<string>('');
-  const [baseAccountLoading, setBaseAccountLoading] = useState<boolean>(false);
   const [optimisticTopUpId, setOptimisticTopUpId] = useState<string | null>(null);
 
   // Real-time subscriptions for balance and transaction updates
@@ -281,12 +279,6 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
         }
         
         setStep('fund-button');
-      } else if (paymentMethod === 'base-account') {
-        
-        // Base Account payment flow - one-tap USDC payment
-        setStep('base-account-processing');
-        setBaseAccountLoading(true);
-        await handleBaseAccountTopUp();
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to initiate payment';
@@ -738,20 +730,6 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
           )}
 
           {/* Base Account Processing */}
-          {step === 'base-account-processing' && (
-            <div className="py-12 text-center">
-              <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-700 border-t-[#0052FF] mx-auto mb-4"></div>
-              <p className="text-white sequel-45 mb-2">Processing Base Account Payment</p>
-              <p className="text-[#0052FF] sequel-75 text-xl mb-4">${amount} USD</p>
-              <p className="text-gray-400 text-xs sequel-45">
-                Please complete the payment in the Base Account popup...
-              </p>
-              <p className="text-gray-500 text-xs sequel-45 mt-2">
-                Your balance will be credited immediately after confirmation.
-              </p>
-            </div>
-          )}
-
           {/* FundButton Step - OnchainKit FundButton */}
           {step === 'fund-button' && walletAddress && (
             <div className="space-y-4">
