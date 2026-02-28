@@ -13,6 +13,8 @@ const CompetitionCountdown = ({ endDate, format = 'badge', isEnded = false }: Co
 
   useEffect(() => {
     // If competition has ended (sold out, drawn, etc.), format the end date for display
+    // NOTE: Date is displayed in user's local timezone for better UX
+    // The backend stores all dates in UTC, but display uses local time
     if (isEnded && endDate) {
       const date = new Date(endDate);
       const month = date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();

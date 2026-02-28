@@ -127,14 +127,15 @@ INSERT INTO pending_tickets (
   ticket_numbers,
   status,
   confirmed_at
-) VALUES (
-  'comp-uuid',
+)
+SELECT
+  'comp-uuid'::UUID,
   'prize:pid:0xUSER',
   '0xUSER',
-  generate_series(10000, 10002)::text, -- 3 free tickets
+  string_agg(n::text, ','), -- Convert series to comma-separated string
   'confirmed',
   NOW()
-);
+FROM generate_series(10000, 10002) AS n;
 ```
 
 ## Verification
