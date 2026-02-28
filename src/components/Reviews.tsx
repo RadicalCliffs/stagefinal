@@ -1,4 +1,4 @@
-import { astheticCircle, trustpilotDesktop, trustpilotMobile } from "../assets/images";
+import { astheticCircle, trustpilotIsolation, trustpilotMobile, rouletteWheel } from "../assets/images";
 import CountUp from "./CountUp";
 
 interface ReviewsProps {
@@ -19,11 +19,13 @@ const Reviews = ({ compact = false }: ReviewsProps) => {
             Given in Prizes
           </p>
         </div>
-        {/* TrustPilot logo centered between the two stats */}
-        <div className="flex items-center justify-center shrink-0">
+        {/* TrustPilot logo centered between the two stats with roulette wheels */}
+        <div className="flex items-center justify-center shrink-0 gap-4">
+          <img src={rouletteWheel} alt="Roulette Wheel" className="w-12 h-12 md:w-16 md:h-16" />
           <a href="https://uk.trustpilot.com/review/theprize.io" target="_blank" rel="noopener noreferrer">
-            <img src={trustpilotDesktop} alt="Trustpilot Reviews" className={`${compact ? "max-w-[320px]" : "max-w-[480px]"} mx-auto`} />
+            <img src={trustpilotIsolation} alt="Trustpilot Reviews" className={`${compact ? "max-w-[320px]" : "max-w-[480px]"} mx-auto`} />
           </a>
+          <img src={rouletteWheel} alt="Roulette Wheel" className="w-12 h-12 md:w-16 md:h-16" />
         </div>
         <div className="shrink-0 overflow-hidden">
           <p className={`sequel-95 ${compact ? "md:text-3xl text-lg" : "md:text-4xl text-xl"} md:text-left text-center`}>
