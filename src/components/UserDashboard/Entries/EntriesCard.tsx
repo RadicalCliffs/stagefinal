@@ -387,7 +387,7 @@ const EntriesCard = ({
               }
               className="uppercase sequel-75 block text-center text-lg bg-[#DDE404] text-[#000000] w-full rounded-lg py-3 mt-8"
             >
-              Buy More Entries
+              {isFinished ? "See Results" : "Buy More Entries"}
             </Link>
           )}
         </div>
