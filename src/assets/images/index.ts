@@ -95,6 +95,7 @@ import trustpilotDesktop from './trustpilot-desktop.png'
 import trustpilotMobile from './Trustpilotmobile.png'
 import trustpilotIsolation from './Isolation_Mode.png'
 import trustpilotDesktopHero from './trust-pilot-desktop-hero.png'
+import rouletteWheel from './Roulette.png'
 import howItWorksMobile from './how-it-works-mobile.png'
 import aboutMobile41 from './about-mobile-4-1.png'
 import aboutMobile42 from './about-mobile-4-2.png'
@@ -194,6 +195,7 @@ export {
   trustpilotMobile,
   trustpilotIsolation,
   trustpilotDesktopHero,
+  rouletteWheel,
   btcGiveaway,
   rolexWatch,
   lamboUrus,
