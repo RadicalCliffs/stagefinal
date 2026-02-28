@@ -259,7 +259,7 @@ const winners = await contract.getWinners(onchainCompetitionId);
 for (let i = 0; i < winners.winnerAddresses.length; i++) {
     await supabase.from('winners').insert({
         competition_id: competitionId,
-        user_id: winnerswinnerAddresses[i],
+        user_id: winners.winnerAddresses[i],
         ticket_number: winners.winningNumbers[i].toString(),
         vrf_tx_hash: tx.hash
     });
