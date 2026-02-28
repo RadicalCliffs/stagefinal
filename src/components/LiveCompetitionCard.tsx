@@ -104,9 +104,9 @@ const LiveCompetitionCard: React.FC<CompetitionCardProps> = ({
       </button>
       <button
         onClick={onEnter}
-        className="sequel-75 md:mt-2 mt-1 cursor-pointer sm:hover:scale-105 transition-all bg-white text-[#030303] sm:uppercase capitalize md:pt-2 md:pb-2.5 pt-2.5 pb-2 md:rounded-xl rounded-md w-full md:text-xs text-xs flex items-center justify-center"
+        className="sequel-75 md:mt-2 mt-1 cursor-pointer sm:hover:scale-105 transition-all bg-white text-[#030303] uppercase md:pt-2 md:pb-2.5 pt-2.5 pb-2 md:rounded-xl rounded-md w-full md:text-xs text-xs flex items-center justify-center"
       >
-        Click for details
+        VIEW COMPETITION
       </button>
     </div>
   );

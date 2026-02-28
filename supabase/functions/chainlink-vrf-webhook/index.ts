@@ -190,6 +190,9 @@ Deno.serve(async (req: Request) => {
           completed_at: new Date().toISOString(),
           rng_random_number: randomNumber,
           rng_tx_hash: txHash,
+          vrf_tx_hash: txHash, // Standardized field
+          vrf_status: 'completed',
+          vrf_draw_completed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
         .eq("id", competitionIdToUse);
@@ -208,6 +211,9 @@ Deno.serve(async (req: Request) => {
           completed_at: new Date().toISOString(),
           rng_random_number: randomNumber,
           rng_tx_hash: txHash,
+          vrf_tx_hash: txHash, // Standardized field for UI display
+          vrf_status: 'completed',
+          vrf_draw_completed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
         .eq("id", competitionIdToUse);

@@ -12,7 +12,6 @@ import type { LifecycleStatus } from '@coinbase/onchainkit/checkout';
 import { FundButton, getOnrampBuyUrl } from '@coinbase/onchainkit/fund';
 import { useRealTimeBalance } from '../hooks/useRealTimeBalance';
 import { useRealtimeSubscriptions } from '../hooks/useRealtimeSubscriptions';
-import { pay, type PaymentOptions, type PaymentResult } from '@base-org/account/payment/browser';
 
 
 
@@ -34,8 +33,8 @@ interface TopUpWalletModalProps {
   textOverrides?: TopUpWalletModalTextOverrides;
 }
 
-type PaymentStep = 'method' | 'amount' | 'loading' | 'checkout' | 'crypto-checkout' | 'commerce-checkout' | 'onramp-processing' | 'fund-button' | 'base-account-processing' | 'success' | 'error';
-type PaymentMethod = 'crypto' | 'commerce' | 'offramp' | 'onramp' | 'fund' | 'base-account';
+type PaymentStep = 'method' | 'amount' | 'loading' | 'checkout' | 'crypto-checkout' | 'commerce-checkout' | 'onramp-processing' | 'fund-button' | 'success' | 'error';
+type PaymentMethod = 'crypto' | 'commerce' | 'offramp' | 'onramp' | 'fund';
 
 // Get preset amounts from Coinbase checkout URLs
 const PRESET_AMOUNTS = Object.keys(TOP_UP_CHECKOUT_URLS).map(Number).filter(a => a >= 3).sort((a, b) => a - b);
@@ -92,7 +91,6 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
   const [transactionId, setTransactionId] = useState<string>('');
   const [cryptoChargeId, setCryptoChargeId] = useState<string>('');
   const [onrampUrl, setOnrampUrl] = useState<string>('');
-  const [baseAccountLoading, setBaseAccountLoading] = useState<boolean>(false);
   const [optimisticTopUpId, setOptimisticTopUpId] = useState<string | null>(null);
 
   // Real-time subscriptions for balance and transaction updates
@@ -162,6 +160,11 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
 
           if (data?.status && isSuccessStatus(data.status)) {
             clearInterval(pollInterval);
+            
+            // Add a brief delay before showing success to give users confidence
+            // This prevents the "too quick" notification issue
+            await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5 second delay
+            
             setStep('success');
 
             onSuccess?.();
@@ -276,171 +279,11 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
         }
         
         setStep('fund-button');
-      } else if (paymentMethod === 'base-account') {
-        
-        // Base Account payment flow - one-tap USDC payment
-        setStep('base-account-processing');
-        setBaseAccountLoading(true);
-        await handleBaseAccountTopUp();
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to initiate payment';
       setError(errorMessage);
       setStep('error');
-      setBaseAccountLoading(false);
-    }
-  };
-
-  // Handle Base Account top-up - One-tap USDC payment via Base Account SDK
-  const handleBaseAccountTopUp = async () => {
-    if (!baseUser?.id) {
-      setError('Please log in first');
-      setStep('error');
-      setBaseAccountLoading(false);
-      return;
-    }
-
-    // Validate wallet address is available for sender identification
-    if (!walletAddress) {
-      setError('No wallet connected. Please connect a wallet first.');
-      setStep('error');
-      setBaseAccountLoading(false);
-      return;
-    }
-
-    try {
-      const treasuryAddress = import.meta.env.VITE_TREASURY_ADDRESS;
-      if (!treasuryAddress) {
-        throw new Error('Payment system configuration error. Please contact support.');
-      }
-
-      // Validate treasury address format
-      if (!treasuryAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
-        throw new Error('Payment system configuration error. Please contact support.');
-      }
-
-      // Determine if using testnet
-      const isTestnet = import.meta.env.VITE_BASE_MAINNET !== 'true';
-
-      // Process payment via Base Account SDK first
-      // This sends USDC from user's wallet to treasury on-chain
-      const paymentOptions: PaymentOptions = {
-        to: treasuryAddress as `0x${string}`,
-        amount: amount.toFixed(2),
-        testnet: isTestnet,
-      };
-
-      const paymentResult = await pay(paymentOptions);
-
-      if (!(paymentResult as any).success) {
-        throw new Error((paymentResult as any).error || 'Payment failed');
-      }
-
-      const transactionHash = (paymentResult as any).id || (paymentResult as any).transactionHash;
-      if (!transactionHash) {
-        throw new Error('Payment succeeded but no transaction hash returned');
-      }
-
-      // OPTIMISTIC UI: Add pending balance immediately after successful on-chain payment
-      const topUpId = `topup_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-      setOptimisticTopUpId(topUpId);
-      addPendingTopUp(amount, topUpId);
-
-      // Show success immediately (optimistic) - verification will happen in background
-      setTransactionId(transactionHash);
-      setStep('success');
-      await refreshUserData();
-
-      // Dispatch balance update event
-      window.dispatchEvent(new CustomEvent('balance-updated', {
-        detail: { newBalance: amount } // Optimistic - actual balance will be updated later
-      }));
-
-      onSuccess?.();
-
-      // After successful on-chain payment, call instant-topup to verify and credit balance
-      // This runs in the background and doesn't block the user experience
-
-      // Get auth token for API call - prefer wallet-based auth
-      const walletToken = `wallet:${walletAddress}`;
-      const { data: sessionData } = await supabase.auth.getSession();
-      const authToken = sessionData.session?.access_token || walletToken;
-
-      const verifyAndCredit = async (): Promise<void> => {
-        try {
-          const topupResponse = await fetch('/api/instant-topup', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${authToken}`,
-            },
-            body: JSON.stringify({
-              transactionHash,
-              amount,
-              walletAddress, // Sender wallet address for verification
-            }),
-          });
-
-          const topupResult = await topupResponse.json();
-
-          if (!topupResponse.ok || !topupResult.success) {
-            // Don't show error to user - transaction was sent successfully on-chain
-            // The optimistic UI update is sufficient
-            return;
-          }
-
-          // Clear optimistic update now that balance is confirmed
-          if (optimisticTopUpId) {
-            removePendingTopUp(optimisticTopUpId);
-            setOptimisticTopUpId(null);
-          }
-
-          // Update transaction ID if returned
-          if (topupResult.transactionId) {
-            setTransactionId(topupResult.transactionId);
-          }
-
-          // Refresh balance to get the actual amount (including any bonuses)
-          await refreshUserData();
-
-          // Dispatch actual balance update event
-          if (topupResult.newBalance !== undefined && topupResult.newBalance !== null) {
-            window.dispatchEvent(new CustomEvent('balance-updated', {
-              detail: { newBalance: topupResult.newBalance }
-            }));
-          }
-        } catch (err) {
-          // Don't retry - the on-chain transaction was successful
-          // Backend will credit the balance, and optimistic UI is already showing it
-        }
-      };
-
-      // Start background verification and crediting
-      verifyAndCredit().catch(() => {
-        // Ignore verification errors - transaction succeeded on-chain
-      });
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Payment failed';
-
-      // Rollback optimistic update on error
-      if (optimisticTopUpId) {
-        removePendingTopUp(optimisticTopUpId);
-        setOptimisticTopUpId(null);
-      }
-
-      // Provide user-friendly error messages
-      if (errorMessage.includes('rejected') || errorMessage.includes('denied')) {
-        setError('Payment was rejected');
-      } else if (errorMessage.includes('insufficient')) {
-        setError('Insufficient balance in your Base Account');
-      } else if (errorMessage.includes('contact support')) {
-        setError(errorMessage);
-      } else {
-        setError(errorMessage);
-      }
-      setStep('error');
-    } finally {
-      setBaseAccountLoading(false);
     }
   };
 
@@ -729,20 +572,6 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
           )}
 
           {/* Base Account Processing */}
-          {step === 'base-account-processing' && (
-            <div className="py-12 text-center">
-              <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-700 border-t-[#0052FF] mx-auto mb-4"></div>
-              <p className="text-white sequel-45 mb-2">Processing Base Account Payment</p>
-              <p className="text-[#0052FF] sequel-75 text-xl mb-4">${amount} USD</p>
-              <p className="text-gray-400 text-xs sequel-45">
-                Please complete the payment in the Base Account popup...
-              </p>
-              <p className="text-gray-500 text-xs sequel-45 mt-2">
-                Your balance will be credited immediately after confirmation.
-              </p>
-            </div>
-          )}
-
           {/* FundButton Step - OnchainKit FundButton */}
           {step === 'fund-button' && walletAddress && (
             <div className="space-y-4">
