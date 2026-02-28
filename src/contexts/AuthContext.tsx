@@ -329,23 +329,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       if (entryError) {
         console.error('[AuthContext] Error fetching entry data:', entryError);
+        setEntryCount(0);
       } else {
         // entryData is array of { competitionid, ticketnumbers[] }
         // We need to filter by competition status to only count ACTIVE entries
         if (Array.isArray(entryData) && entryData.length > 0) {
           // Fetch competition statuses for all competitions in the entry data
           const competitionIds = entryData.map((entry: any) => entry.competitionid);
-          const { data: competitions } = await supabase
+          const { data: competitions, error: competitionsError } = await supabase
             .from('competitions')
             .select('id, status')
             .in('id', competitionIds);
           
-          // Only count competitions that are NOT in finished states
+          // If competitions query fails, log error and count all entries (fallback behavior)
+          if (competitionsError) {
+            console.error('[AuthContext] Error fetching competition statuses:', competitionsError);
+            setEntryCount(entryData.length);
+            return;
+          }
+          
+          // Only count competitions that are NOT in finished states and have a valid status
           // Finished states: completed, drawn, sold_out, cancelled, expired
           const finishedStatuses = ['completed', 'drawn', 'sold_out', 'cancelled', 'expired'];
           const activeCompetitionIds = new Set(
             (competitions || [])
-              .filter((comp: any) => !finishedStatuses.includes(comp.status?.toLowerCase()))
+              .filter((comp: any) => {
+                // Require a valid status - if status is null/undefined, treat as not active
+                if (!comp.status) return false;
+                return !finishedStatuses.includes(comp.status.toLowerCase());
+              })
               .map((comp: any) => comp.id)
           );
           
