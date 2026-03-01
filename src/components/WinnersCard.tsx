@@ -110,6 +110,21 @@ export const WinnerCard = ({
             {wallet}
           </a>
         </div>
+        {/* VRF Transaction Hash - clickable link to BaseScan */}
+        {txHash && /^0x[a-fA-F0-9]{64}$/.test(txHash) && (
+          <div className="mt-1 pt-1 border-t border-white/5">
+            <p className="sequel-75 text-[8px] text-white/80 uppercase mb-0.5 text-center">VRF TX:</p>
+            <a
+              href={`https://basescan.org/tx/${txHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="sequel-45 text-[7px] text-[#DDE404] hover:text-[#DDE404]/80 hover:underline font-mono break-all text-center block"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {txHash.slice(0, 10)}...{txHash.slice(-8)}
+            </a>
+          </div>
+        )}
       </div>
     </div>
   );
