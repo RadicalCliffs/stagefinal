@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Copy, Check, ExternalLink } from "lucide-react";
+import { ChevronLeft, ChevronRight, Copy, Check, ExternalLink, Wallet } from "lucide-react";
 import type { EntriesTableProps } from "../../models/models";
 
 const EntriesTable: React.FC<EntriesTableProps> = ({ entries, itemsPerPage = 20 }) => {
@@ -28,11 +28,27 @@ const EntriesTable: React.FC<EntriesTableProps> = ({ entries, itemsPerPage = 20 
         return `https://${explorerDomain}/tx/${cleanHash}`;
     };
 
-    // Check if a hash is a valid transaction hash (for VRF/blockchain verification)
-    const isValidTxHash = (hash: string): boolean => {
-        if (!hash) return false;
+    // Check if a hash is a valid blockchain transaction hash
+    // Returns: 'blockchain' | 'balance_payment' | 'coinbase_charge' | 'invalid'
+    const classifyTxHash = (hash: string): 'blockchain' | 'balance_payment' | 'coinbase_charge' | 'invalid' => {
+        if (!hash) return 'invalid';
+        
+        // Balance payment identifier (e.g., "balance_payment_abc123")
+        if (hash.startsWith('balance_payment_')) return 'balance_payment';
+        
+        // UUID format (Coinbase Commerce charge ID)
+        // Format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(hash)) {
+            return 'coinbase_charge';
+        }
+        
+        // Valid blockchain tx hash: 0x followed by 64 hex chars
         const cleanHash = hash.startsWith('0x') ? hash : `0x${hash}`;
-        return /^0x[a-fA-F0-9]{64}$/.test(cleanHash);
+        if (/^0x[a-fA-F0-9]{64}$/.test(cleanHash)) {
+            return 'blockchain';
+        }
+        
+        return 'invalid';
     };
 
     // Format username from wallet address or use provided username
@@ -78,12 +94,13 @@ const EntriesTable: React.FC<EntriesTableProps> = ({ entries, itemsPerPage = 20 
         return walletAddress.length > 12 ? `${walletAddress.substring(0, 10)}...` : walletAddress;
     };
 
-    // Copy BaseScan URL to clipboard (not the hash itself)
+    // Copy hash or URL to clipboard
     const handleCopyHash = async (hash: string, e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
         try {
-            const url = isValidTxHash(hash) ? getBaseScanUrl(hash) : hash;
+            const hashType = classifyTxHash(hash);
+            const url = hashType === 'blockchain' ? getBaseScanUrl(hash) : hash;
             await navigator.clipboard.writeText(url);
             setCopiedHash(hash);
             setTimeout(() => setCopiedHash(null), 2000);
@@ -92,7 +109,7 @@ const EntriesTable: React.FC<EntriesTableProps> = ({ entries, itemsPerPage = 20 
         }
     };
 
-    // Render VRF hash with clickable link to BaseScan
+    // Render transaction hash with appropriate UI based on type
     const renderVRFHash = (entry: any) => {
         const txHash = entry.transactionHash || entry.vrfHash || entry.rngHash;
 
@@ -100,17 +117,51 @@ const EntriesTable: React.FC<EntriesTableProps> = ({ entries, itemsPerPage = 20 
             return <span className="text-white/40 text-sm">-</span>;
         }
 
-        const isValidHash = isValidTxHash(txHash);
-        const displayHash = txHash.length > 16 ? `${txHash.substring(0, 8)}...${txHash.slice(-6)}` : txHash;
+        const hashType = classifyTxHash(txHash);
 
-        if (isValidHash) {
+        // Balance payment - show wallet icon and "Balance" text
+        if (hashType === 'balance_payment') {
+            return (
+                <div className="flex items-center gap-1.5">
+                    <Wallet size={14} className="text-green-400" />
+                    <span className="text-green-400 text-sm sequel-45">Balance</span>
+                </div>
+            );
+        }
+
+        // Coinbase Commerce charge - show as non-clickable reference
+        if (hashType === 'coinbase_charge') {
+            const displayId = txHash.length > 12 ? `${txHash.substring(0, 8)}...` : txHash;
+            return (
+                <div className="flex items-center gap-2">
+                    <span className="text-white/50 text-sm sequel-45" title={`Charge ID: ${txHash}`}>
+                        {displayId}
+                    </span>
+                    <button
+                        onClick={(e) => handleCopyHash(txHash, e)}
+                        className="text-white/40 hover:text-[#DDE404] transition-colors shrink-0"
+                        title="Copy Charge ID"
+                    >
+                        {copiedHash === txHash ? (
+                            <Check size={14} className="text-[#DDE404]" />
+                        ) : (
+                            <Copy size={14} />
+                        )}
+                    </button>
+                </div>
+            );
+        }
+
+        // Valid blockchain hash - show clickable link to BaseScan
+        if (hashType === 'blockchain') {
+            const displayHash = txHash.length > 16 ? `${txHash.substring(0, 8)}...${txHash.slice(-6)}` : txHash;
             return (
                 <div className="flex items-center gap-2">
                     <a
                         href={getBaseScanUrl(txHash)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[#DDE404] hover:text-[#DDE404]/80 transition-colors truncate max-w-[100px] font-mono text-sm flex items-center gap-1"
+                        className="text-[#DDE404] hover:text-[#DDE404]/80 transition-colors truncate max-w-25 font-mono text-sm flex items-center gap-1"
                         title="View on BaseScan"
                         onClick={(e) => e.stopPropagation()}
                     >
@@ -132,10 +183,11 @@ const EntriesTable: React.FC<EntriesTableProps> = ({ entries, itemsPerPage = 20 
             );
         }
 
-        // Non-blockchain hash (display only)
+        // Invalid/unknown hash format - show as plain text
+        const displayHash = txHash.length > 16 ? `${txHash.substring(0, 8)}...${txHash.slice(-6)}` : txHash;
         return (
             <div className="flex items-center gap-2">
-                <p className="text-white/60 truncate max-w-[100px] font-mono text-sm">{displayHash}</p>
+                <p className="text-white/40 truncate max-w-25 font-mono text-sm">{displayHash}</p>
                 <button
                     onClick={(e) => handleCopyHash(txHash, e)}
                     className="text-white/40 hover:text-[#DDE404] transition-colors shrink-0"
