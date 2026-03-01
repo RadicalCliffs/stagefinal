@@ -560,7 +560,7 @@ Deno.serve(async (req: Request) => {
                 payment_status:
                   eventType === "charge:confirmed" ? "completed" : "pending",
                 payment_provider: "coinbase_commerce",
-                tx_id: eventData.id,
+                tx_id: txHash || eventData.id, // Use blockchain tx hash when available, fallback to charge ID
                 wallet_address: payerWallet,
                 competition_id: null,
                 type: "topup",
@@ -1241,13 +1241,15 @@ Deno.serve(async (req: Request) => {
                 txnId.length > 0
               ) {
                 try {
+                  // Extract blockchain tx hash from payment if available
+                  const blockchainTxHash = payment?.transaction_id || payment?.payment_id || "";
                   // Complete update payload with all critical fields
                   const updatePayload = {
                     type: "topup", // CRITICAL: Mark as top-up transaction for proper classification
                     payment_provider: "coinbase_commerce", // CRITICAL: Set payment provider for filtering
                     status: "completed",
                     payment_status: "completed",
-                    tx_id: charge.id,
+                    tx_id: blockchainTxHash || charge.id, // Use blockchain tx hash when available, fallback to charge ID
                     wallet_address: payerWallet,
                     network: payment?.network || "base",
                     payment_id: payment?.payment_id || payment?.transaction_id,
