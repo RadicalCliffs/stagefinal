@@ -1242,7 +1242,8 @@ Deno.serve(async (req: Request) => {
               ) {
                 try {
                   // Extract blockchain tx hash from payment if available
-                  const blockchainTxHash = payment?.transaction_id || payment?.payment_id || "";
+                  const blockchainTxHash =
+                    payment?.transaction_id || payment?.payment_id || "";
                   // Complete update payload with all critical fields
                   const updatePayload = {
                     type: "topup", // CRITICAL: Mark as top-up transaction for proper classification
