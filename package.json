@@ -28,7 +28,7 @@
     "@coinbase/cdp-core": "^0.0.74",
     "@coinbase/cdp-hooks": "^0.0.74",
     "@coinbase/cdp-react": "^0.0.74",
-    "@coinbase/cdp-sdk": "^1.40.1",
+    "@coinbase/cdp-sdk": "^1.44.1",
     "@coinbase/onchainkit": "^1.1.2",
     "@farcaster/miniapp-sdk": "^0.2.1",
     "@hookform/resolvers": "^5.2.2",
