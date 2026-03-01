@@ -1,7 +1,35 @@
 import { useNavigate } from "react-router";
 import { useState, type FC } from "react";
-import { Copy, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { Copy, Check, ChevronDown, ChevronUp, ExternalLink, Wallet } from "lucide-react";
 import type { EntryOrder, PurchaseOrder } from "../../../models/models";
+
+/**
+ * Classify transaction hash type
+ * Returns: 'blockchain' | 'balance_payment' | 'coinbase_charge' | 'invalid'
+ */
+function classifyTxHash(
+  hash: string,
+): "blockchain" | "balance_payment" | "coinbase_charge" | "invalid" {
+  if (!hash) return "invalid";
+
+  // Balance payment identifier (e.g., "balance_payment_abc123")
+  if (hash.startsWith("balance_payment_")) return "balance_payment";
+
+  // UUID format (Coinbase Commerce charge ID)
+  if (
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(hash)
+  ) {
+    return "coinbase_charge";
+  }
+
+  // Valid blockchain tx hash: 0x followed by 64 hex chars
+  const cleanHash = hash.startsWith("0x") ? hash : `0x${hash}`;
+  if (/^0x[a-fA-F0-9]{64}$/.test(cleanHash)) {
+    return "blockchain";
+  }
+
+  return "invalid";
+}
 
 
 
@@ -84,14 +112,91 @@ const OrdersTable: FC<OrdersTableProps> = ({ activeTab, data }) => {
   const handleCopyTxHash = async (txHash: string, id: string) => {
     if (!txHash) return;
     try {
-      // Copy the full BaseScan URL, not just the hash
-      const baseScanUrl = getBaseScanUrl(txHash);
-      await navigator.clipboard.writeText(baseScanUrl);
+      const hashType = classifyTxHash(txHash);
+      // Copy BaseScan URL for blockchain hashes, raw hash for others
+      const textToCopy = hashType === "blockchain" ? getBaseScanUrl(txHash) : txHash;
+      await navigator.clipboard.writeText(textToCopy);
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2000);
     } catch (err) {
       console.error('Failed to copy:', err);
     }
+  };
+
+  // Render transaction hash with appropriate UI based on type
+  const renderTxHash = (txHash: string | null | undefined, itemId: string) => {
+    if (!txHash) return <span className="text-white/40">-</span>;
+
+    const hashType = classifyTxHash(txHash);
+    const displayHash = txHash.length > 16 ? `${txHash.substring(0, 8)}...${txHash.slice(-4)}` : txHash;
+
+    // Balance payment - show wallet icon and "Balance" text
+    if (hashType === "balance_payment") {
+      return (
+        <div className="flex items-center gap-1.5 justify-center">
+          <Wallet size={14} className="text-green-400" />
+          <span className="text-green-400 sequel-45">Balance</span>
+        </div>
+      );
+    }
+
+    // Coinbase Commerce charge - show as non-clickable reference
+    if (hashType === "coinbase_charge") {
+      const chargeDisplay = txHash.length > 12 ? `${txHash.substring(0, 8)}...` : txHash;
+      return (
+        <div className="flex items-center gap-2 justify-center">
+          <span className="text-white/50 sequel-45" title={`Charge: ${txHash}`}>
+            {chargeDisplay}
+          </span>
+          <button
+            onClick={() => handleCopyTxHash(txHash, itemId)}
+            className="text-white/40 hover:text-[#DDE404] transition-colors"
+            title="Copy Charge ID"
+          >
+            {copiedId === itemId ? <Check size={14} className="text-[#DDE404]" /> : <Copy size={14} />}
+          </button>
+        </div>
+      );
+    }
+
+    // Valid blockchain hash - show clickable link to BaseScan
+    if (hashType === "blockchain") {
+      return (
+        <div className="flex items-center gap-2 justify-center">
+          <a
+            href={getBaseScanUrl(txHash)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[#DDE404] hover:text-[#DDE404]/80 transition-colors truncate max-w-25 font-mono flex items-center gap-1"
+            title="View on BaseScan"
+          >
+            {displayHash}
+            <ExternalLink size={12} />
+          </a>
+          <button
+            onClick={() => handleCopyTxHash(txHash, itemId)}
+            className="text-white/40 hover:text-[#DDE404] transition-colors"
+            title="Copy BaseScan URL"
+          >
+            {copiedId === itemId ? <Check size={14} className="text-[#DDE404]" /> : <Copy size={14} />}
+          </button>
+        </div>
+      );
+    }
+
+    // Invalid/unknown hash format - show as plain text
+    return (
+      <div className="flex items-center gap-2 justify-center">
+        <span className="text-white/40 truncate max-w-25 font-mono">{displayHash}</span>
+        <button
+          onClick={() => handleCopyTxHash(txHash, itemId)}
+          className="text-white/40 hover:text-[#DDE404] transition-colors"
+          title="Copy Hash"
+        >
+          {copiedId === itemId ? <Check size={14} className="text-[#DDE404]" /> : <Copy size={14} />}
+        </button>
+      </div>
+    );
   };
 
   const handleAmountClick = (id: string | number) => {
@@ -135,22 +240,7 @@ const OrdersTable: FC<OrdersTableProps> = ({ activeTab, data }) => {
                       {item.competition_name || 'Wallet Top-Up'}
                     </p>
                     <p className="text-white/60 text-center">{item.payment_provider || 'unknown'}</p>
-                    <div className="flex items-center gap-2 justify-center">
-                      <p className="text-white/60 truncate max-w-[100px]">{item.tx_id || item.transaction_hash || '-'}</p>
-                      {(item.tx_id || item.transaction_hash) && (
-                        <button
-                          onClick={() => handleCopyTxHash(item.tx_id || item.transaction_hash, item.id)}
-                          className="text-white/60 hover:text-[#DDE404] transition-colors"
-                          title="Copy BaseScan URL"
-                        >
-                          {copiedId === item.id ? (
-                            <Check size={14} className="text-[#DDE404]" />
-                          ) : (
-                            <Copy size={14} />
-                          )}
-                        </button>
-                      )}
-                    </div>
+                    {renderTxHash(item.tx_id || item.transaction_hash, item.id)}
                     <p className="text-white/60 text-center">
                       {item.balance_before !== null && item.balance_before !== undefined 
                         ? `$${Number(item.balance_before).toFixed(2)}` 
@@ -237,22 +327,7 @@ const OrdersTable: FC<OrdersTableProps> = ({ activeTab, data }) => {
                       </div>
                       <div className="flex justify-between gap-4 items-center">
                         <p className="text-white/60">TX Hash</p>
-                        <div className="flex items-center gap-2">
-                          <p className="text-white truncate max-w-[130px] text-right">{item.tx_id || item.transaction_hash || '-'}</p>
-                          {(item.tx_id || item.transaction_hash) && (
-                            <button
-                              onClick={() => handleCopyTxHash(item.tx_id || item.transaction_hash, item.id)}
-                              className="text-white/60 hover:text-[#DDE404] transition-colors shrink-0"
-                              title="Copy BaseScan URL"
-                            >
-                              {copiedId === item.id ? (
-                                <Check size={14} className="text-[#DDE404]" />
-                              ) : (
-                                <Copy size={14} />
-                              )}
-                            </button>
-                          )}
-                        </div>
+                        {renderTxHash(item.tx_id || item.transaction_hash, item.id)}
                       </div>
                       <div className="flex justify-between gap-4">
                         <p className="text-white/60">Balance Before</p>

@@ -1,7 +1,8 @@
 import { Link } from "react-router";
+import { useState } from "react";
 import Countdown from "../../Countdown";
 import { monkeyNftV3 } from "../../../assets/images";
-import { ChevronRight, Clock, Zap } from "lucide-react";
+import { ChevronRight, Clock, Zap, Wallet, ExternalLink, Copy, Check } from "lucide-react";
 
 interface EntriesCardProps {
   variant?: "compact" | "detailed";
@@ -49,7 +50,7 @@ const EntriesCard = ({
   ticketNumbers,
   amountSpent,
   purchaseDate,
-  transactionHash: _transactionHash,
+  transactionHash,
   competitionImage,
   prizeValue: _prizeValue,
   numberOfTickets,
@@ -65,6 +66,7 @@ const EntriesCard = ({
   vrfTxHash,
 }: EntriesCardProps) => {
   const isDetailed = variant === "detailed";
+  const [copiedHash, setCopiedHash] = useState<string | null>(null);
   // 'completed' and 'drawn' both indicate finished competitions
   const isFinished =
     activeTab === "finished" || status === "drawn" || status === "completed";
@@ -110,6 +112,106 @@ const EntriesCard = ({
       return `${diffHours}h ${remainingMinutes}m`;
     }
     return `${diffMinutes}m`;
+  };
+
+  // Classify transaction hash type
+  const classifyTxHash = (
+    hash: string,
+  ): "blockchain" | "balance_payment" | "coinbase_charge" | "invalid" => {
+    if (!hash) return "invalid";
+    if (hash.startsWith("balance_payment_")) return "balance_payment";
+    if (
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(hash)
+    ) {
+      return "coinbase_charge";
+    }
+    const cleanHash = hash.startsWith("0x") ? hash : `0x${hash}`;
+    if (/^0x[a-fA-F0-9]{64}$/.test(cleanHash)) {
+      return "blockchain";
+    }
+    return "invalid";
+  };
+
+  // Generate BaseScan URL
+  const getBaseScanUrl = (txHash: string): string => {
+    if (!txHash) return "";
+    const cleanHash = txHash.startsWith("0x") ? txHash : `0x${txHash}`;
+    const isMainnet = import.meta.env.VITE_BASE_MAINNET === "true";
+    const explorerDomain = isMainnet ? "basescan.org" : "sepolia.basescan.org";
+    return `https://${explorerDomain}/tx/${cleanHash}`;
+  };
+
+  // Copy handler
+  const handleCopyHash = async (hash: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      const hashType = classifyTxHash(hash);
+      const url = hashType === "blockchain" ? getBaseScanUrl(hash) : hash;
+      await navigator.clipboard.writeText(url);
+      setCopiedHash(hash);
+      setTimeout(() => setCopiedHash(null), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
+  };
+
+  // Render transaction hash with classification
+  const renderTxHash = () => {
+    if (!transactionHash) return null;
+
+    const hashType = classifyTxHash(transactionHash);
+
+    if (hashType === "balance_payment") {
+      return (
+        <div className="flex items-center gap-x-2">
+          <span className="text-[#DDE404] sequel-45 text-[10px] sm:text-xs whitespace-nowrap">TX:</span>
+          <div className="flex items-center gap-1">
+            <Wallet size={12} className="text-green-400" />
+            <span className="text-green-400 sequel-45 text-[10px] sm:text-xs">Balance</span>
+          </div>
+        </div>
+      );
+    }
+
+    if (hashType === "coinbase_charge") {
+      const displayId = transactionHash.length > 12 ? `${transactionHash.substring(0, 8)}...` : transactionHash;
+      return (
+        <div className="flex items-center gap-x-2">
+          <span className="text-[#DDE404] sequel-45 text-[10px] sm:text-xs whitespace-nowrap">TX:</span>
+          <span className="text-white/50 sequel-45 text-[10px] sm:text-xs" title={transactionHash}>{displayId}</span>
+        </div>
+      );
+    }
+
+    if (hashType === "blockchain") {
+      const displayHash = `${transactionHash.substring(0, 6)}...${transactionHash.slice(-4)}`;
+      return (
+        <div className="flex items-center gap-x-2">
+          <span className="text-[#DDE404] sequel-45 text-[10px] sm:text-xs whitespace-nowrap">TX:</span>
+          <a
+            href={getBaseScanUrl(transactionHash)}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="text-[#DDE404] hover:text-[#DDE404]/80 sequel-45 text-[10px] sm:text-xs flex items-center gap-0.5"
+            title="View on BaseScan"
+          >
+            {displayHash}
+            <ExternalLink size={10} />
+          </a>
+          <button
+            onClick={(e) => handleCopyHash(transactionHash, e)}
+            className="text-white/40 hover:text-[#DDE404] transition-colors"
+            title="Copy BaseScan URL"
+          >
+            {copiedHash === transactionHash ? <Check size={10} className="text-[#DDE404]" /> : <Copy size={10} />}
+          </button>
+        </div>
+      );
+    }
+
+    return null;
   };
 
   return (
@@ -194,6 +296,7 @@ const EntriesCard = ({
                 (ticketNumbers ||
                   amountSpent ||
                   purchaseDate ||
+                  transactionHash ||
                   isPending ||
                   isInstantWin) && (
                   <div className="mt-3 space-y-1.5">
@@ -268,6 +371,9 @@ const EntriesCard = ({
                         </span>
                       </div>
                     )}
+
+                    {/* Transaction Hash */}
+                    {renderTxHash()}
                   </div>
                 )}
 
