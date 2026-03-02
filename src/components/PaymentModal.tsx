@@ -1,29 +1,64 @@
-import { lazy, Suspense, useCallback, useState, useEffect, useRef, useMemo } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+} from "react";
 import { useNavigate } from "react-router";
 import { supabase } from "../lib/supabase";
-import { footerLogo, applePay, visaLogo, masterCardLogo } from "../assets/images";
+import {
+  footerLogo,
+  applePay,
+  visaLogo,
+  masterCardLogo,
+} from "../assets/images";
 import PaymentStatus from "./PaymentStatus";
 import { usePaymentStatus } from "../hooks/useGetPaymentStatus";
-import { CircleX, Check, DollarSign, Clock, AlertTriangle, RefreshCw, CreditCard, Sparkles, Shield, ChevronRight, ExternalLink, Coins } from "lucide-react";
+import {
+  CircleX,
+  Check,
+  DollarSign,
+  Clock,
+  AlertTriangle,
+  RefreshCw,
+  CreditCard,
+  Sparkles,
+  Shield,
+  ChevronRight,
+  ExternalLink,
+  Coins,
+} from "lucide-react";
 import { useAuthUser } from "../contexts/AuthContext";
 import type { UserInfo } from "./UserInfoModal";
 import { BasePaymentService } from "../lib/base-payment";
 import { BaseAccountPaymentService } from "../lib/base-account-payment";
-import { purchaseTicketsWithBalance, getUserBalance } from "../lib/ticketPurchaseService";
-import { BalancePaymentService, type RPCVerifyAndRescueRequest } from "../lib/balance-payment-service";
+import {
+  purchaseTicketsWithBalance,
+  getUserBalance,
+} from "../lib/ticketPurchaseService";
+import {
+  BalancePaymentService,
+  type RPCVerifyAndRescueRequest,
+} from "../lib/balance-payment-service";
 import { toCanonicalUserId } from "../lib/canonicalUserId";
 import { isSuccessStatus, isFailureStatus } from "../lib/payment-status";
-import { getPaymentErrorInfo, type PaymentErrorInfo } from "../lib/error-handler";
+import {
+  getPaymentErrorInfo,
+  type PaymentErrorInfo,
+} from "../lib/error-handler";
 import { CoinbaseCommerceService } from "../lib/coinbase-commerce";
 import { useBaseSubAccount } from "../hooks/useBaseSubAccount";
 import { useRealtimeSubscriptions } from "../hooks/useRealtimeSubscriptions";
 import { reservationStorage } from "../lib/reservation-storage";
 import { useProactiveReservationMonitor } from "../hooks/useProactiveReservationMonitor";
 // Wagmi hook for getting the wallet client (provider) for transactions
-import { useWalletClient } from 'wagmi';
+import { useWalletClient } from "wagmi";
 
 // Lazy load TopUpWalletModal - only loaded when user clicks the banner
-const TopUpWalletModal = lazy(() => import('./TopUpWalletModal'));
+const TopUpWalletModal = lazy(() => import("./TopUpWalletModal"));
 
 // CRYPTO_OPTIONS removed - OnchainKit checkout disabled
 
@@ -31,7 +66,7 @@ const TopUpWalletModal = lazy(() => import('./TopUpWalletModal'));
  * Format transaction hash for logging (truncate and handle null)
  */
 function formatTransactionHash(hash: string | null | undefined): string {
-  return hash ? hash.substring(0, 16) + '...' : 'N/A';
+  return hash ? hash.substring(0, 16) + "..." : "N/A";
 }
 
 /**
@@ -73,10 +108,10 @@ async function confirmTicketsUnified(params: ConfirmTicketsParams): Promise<{
     sessionId,
   } = params;
 
-  console.log('[PaymentModal] confirmTicketsUnified called with:', {
+  console.log("[PaymentModal] confirmTicketsUnified called with:", {
     reservationId,
-    userId: userId?.substring(0, 10) + '...',
-    competitionId: competitionId?.substring(0, 10) + '...',
+    userId: userId?.substring(0, 10) + "...",
+    competitionId: competitionId?.substring(0, 10) + "...",
     paymentProvider,
     ticketCount,
     hasSelectedTickets: selectedTickets?.length > 0,
@@ -85,12 +120,12 @@ async function confirmTicketsUnified(params: ConfirmTicketsParams): Promise<{
 
   // Helper function to make the confirmation request
   const makeConfirmationRequest = async (useReservation: boolean) => {
-    return await fetch('/api/confirm-pending-tickets', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    return await fetch("/api/confirm-pending-tickets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         // On retry, set reservationId to null to force fallback allocation path
-        reservationId: useReservation ? (reservationId || null) : null,
+        reservationId: useReservation ? reservationId || null : null,
         // User identifier - could be wallet address or Privy DID
         // Send both userId AND userIdentifier for backward compatibility with different function versions
         userId,
@@ -121,42 +156,55 @@ async function confirmTicketsUnified(params: ConfirmTicketsParams): Promise<{
     try {
       result = await response.json();
     } catch (parseError) {
-      console.error('[PaymentModal] Failed to parse confirmation response:', parseError);
-      console.error('[PaymentModal] Response status:', response.status);
-      console.error('[PaymentModal] Response statusText:', response.statusText);
+      console.error(
+        "[PaymentModal] Failed to parse confirmation response:",
+        parseError,
+      );
+      console.error("[PaymentModal] Response status:", response.status);
+      console.error("[PaymentModal] Response statusText:", response.statusText);
       return {
         success: false,
         error: `Server returned invalid response (HTTP ${response.status}). Please contact support with transaction hash: ${formatTransactionHash(transactionHash)}`,
       };
     }
-    
-    console.log('[PaymentModal] confirmTicketsUnified result:', result);
+
+    console.log("[PaymentModal] confirmTicketsUnified result:", result);
 
     // Check if we got HTTP 409 with reservation unavailable error
     const is409Error = response.status === 409;
-    const isReservationError = result.error && (
-      result.error.toLowerCase().includes('reservation is no longer available') ||
-      result.error.toLowerCase().includes('expired')
-    );
+    const isReservationError =
+      result.error &&
+      (result.error
+        .toLowerCase()
+        .includes("reservation is no longer available") ||
+        result.error.toLowerCase().includes("expired"));
 
     // If first attempt failed with 409 reservation error, retry with null reservationId
     if (!result.success && is409Error && isReservationError && reservationId) {
-      console.log('[PaymentModal] Got 409 reservation error, retrying with null reservationId for fallback allocation...');
-      
+      console.log(
+        "[PaymentModal] Got 409 reservation error, retrying with null reservationId for fallback allocation...",
+      );
+
       try {
         response = await makeConfirmationRequest(false);
-        
+
         // Check if retry response is valid before parsing
         if (!response.ok) {
-          console.error('[PaymentModal] Retry request failed with status:', response.status);
+          console.error(
+            "[PaymentModal] Retry request failed with status:",
+            response.status,
+          );
           // Let the original error handling below deal with it
-          result = { success: false, error: `Retry failed with HTTP ${response.status}` };
+          result = {
+            success: false,
+            error: `Retry failed with HTTP ${response.status}`,
+          };
         } else {
           result = await response.json();
         }
-        console.log('[PaymentModal] Retry result:', result);
+        console.log("[PaymentModal] Retry result:", result);
       } catch (retryError) {
-        console.error('[PaymentModal] Retry attempt failed:', retryError);
+        console.error("[PaymentModal] Retry attempt failed:", retryError);
         // Keep original result for error reporting below
       }
     }
@@ -169,18 +217,24 @@ async function confirmTicketsUnified(params: ConfirmTicketsParams): Promise<{
         confirmationInProgress: result.confirmationInProgress || false,
       };
     } else {
-      console.error('[PaymentModal] Ticket confirmation failed:', result.error);
+      console.error("[PaymentModal] Ticket confirmation failed:", result.error);
       return {
         success: false,
-        error: result.error || 'Ticket confirmation failed',
+        error: result.error || "Ticket confirmation failed",
       };
     }
   } catch (err) {
-    console.error('[PaymentModal] confirmTicketsUnified error:', err);
-    console.error('[PaymentModal] Error details:', err instanceof Error ? err.stack : err);
+    console.error("[PaymentModal] confirmTicketsUnified error:", err);
+    console.error(
+      "[PaymentModal] Error details:",
+      err instanceof Error ? err.stack : err,
+    );
     return {
       success: false,
-      error: err instanceof Error ? err.message : 'Network error during confirmation',
+      error:
+        err instanceof Error
+          ? err.message
+          : "Network error during confirmation",
     };
   }
 }
@@ -214,9 +268,25 @@ interface PaymentModalProps {
 }
 
 // Payment steps: removed 'onchainkit-processing', 'crypto-selection', 'othercrypto-processing' - OnchainKit checkout disabled
-type PaymentStep = 'initial' | 'checkout' | 'base-processing' | 'base-account-processing' | 'balance-processing' | 'oneclick-processing' | 'commerce-checkout' | 'success' | 'error';
+type PaymentStep =
+  | "initial"
+  | "checkout"
+  | "base-processing"
+  | "base-account-processing"
+  | "balance-processing"
+  | "oneclick-processing"
+  | "commerce-checkout"
+  | "success"
+  | "error";
 // Payment methods: removed 'onchainkit', 'othercrypto' - OnchainKit checkout disabled
-type PaymentMethod = 'coinbase' | 'base' | 'base-account' | 'balance' | 'oneclick' | 'card' | 'commerce';
+type PaymentMethod =
+  | "coinbase"
+  | "base"
+  | "base-account"
+  | "balance"
+  | "oneclick"
+  | "card"
+  | "commerce";
 
 const PaymentModal: React.FC<PaymentModalProps> = ({
   isOpen,
@@ -237,15 +307,25 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   const ticketPrice = Number(rawTicketPrice) || 1;
 
   // SCORCHED EARTH: Fatal error if competitionId is missing or invalid
-  const isCompetitionIdInvalid = !competitionId || typeof competitionId !== 'string' || !/^([0-9a-fA-F-]{36})$/.test(competitionId);
+  const isCompetitionIdInvalid =
+    !competitionId ||
+    typeof competitionId !== "string" ||
+    !/^([0-9a-fA-F-]{36})$/.test(competitionId);
   if (isCompetitionIdInvalid) {
     return (
       <div className="fixed inset-0 bg-black/80 flex flex-col items-center justify-center z-50">
         <div className="bg-red-900 border-2 border-red-500 rounded-xl p-8 shadow-2xl max-w-lg w-full text-center">
           <h2 className="text-3xl text-red-300 font-bold mb-4">FATAL ERROR</h2>
-          <p className="text-red-200 text-lg mb-2">Competition ID is missing or invalid.</p>
-          <p className="text-red-400 font-mono break-all mb-4">{String(competitionId)}</p>
-          <p className="text-red-100 text-sm mb-6">This is a critical bug. Please refresh the page, and if the problem persists, contact support with this error message.</p>
+          <p className="text-red-200 text-lg mb-2">
+            Competition ID is missing or invalid.
+          </p>
+          <p className="text-red-400 font-mono break-all mb-4">
+            {String(competitionId)}
+          </p>
+          <p className="text-red-100 text-sm mb-6">
+            This is a critical bug. Please refresh the page, and if the problem
+            persists, contact support with this error message.
+          </p>
           <button
             className="py-3 px-8 bg-linear-to-r from-red-500 to-red-700 text-white rounded-xl font-bold text-lg hover:from-red-700 hover:to-red-500 transition-all duration-300"
             onClick={() => window.location.reload()}
@@ -258,14 +338,22 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   }
 
   // Hard cap ticket count to available inventory to prevent overpayment
-  const maxTickets = maxAvailableTickets !== undefined ? maxAvailableTickets : Infinity;
+  const maxTickets =
+    maxAvailableTickets !== undefined ? maxAvailableTickets : Infinity;
   const ticketCount = Math.min(rawTicketCount, maxTickets);
 
   // Calculate amount based on capped ticket count
   const amount = Number(ticketCount * ticketPrice);
   const navigate = useNavigate();
   // Hooks must be called unconditionally at the top level
-  const { authenticated, baseUser, profile, linkedWallets, refreshUserData, canonicalUserId } = useAuthUser();
+  const {
+    authenticated,
+    baseUser,
+    profile,
+    linkedWallets,
+    refreshUserData,
+    canonicalUserId,
+  } = useAuthUser();
   // Base Sub Account for passkey-free payments (when available)
   const {
     isSupported: hasSubAccount,
@@ -285,22 +373,34 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   useRealtimeSubscriptions({
     onBalanceLedgerChange: useCallback(() => {
       if (canonicalUserId && isOpen) {
-        console.log('[PaymentModal] Balance ledger changed, refreshing balance');
-        getUserBalance(canonicalUserId).then(result => {
-          if (result.success) {
-            setUserBalance(result.data.available_balance);
-          }
-        }).catch(err => console.warn('[PaymentModal] Balance refresh failed:', err));
+        console.log(
+          "[PaymentModal] Balance ledger changed, refreshing balance",
+        );
+        getUserBalance(canonicalUserId)
+          .then((result) => {
+            if (result.success) {
+              setUserBalance(result.data.available_balance);
+            }
+          })
+          .catch((err) =>
+            console.warn("[PaymentModal] Balance refresh failed:", err),
+          );
       }
     }, [canonicalUserId, isOpen]),
     onSubAccountBalanceChange: useCallback(() => {
       if (canonicalUserId && isOpen) {
-        console.log('[PaymentModal] Sub-account balance changed, refreshing balance');
-        getUserBalance(canonicalUserId).then(result => {
-          if (result.success) {
-            setUserBalance(result.data.available_balance);
-          }
-        }).catch(err => console.warn('[PaymentModal] Balance refresh failed:', err));
+        console.log(
+          "[PaymentModal] Sub-account balance changed, refreshing balance",
+        );
+        getUserBalance(canonicalUserId)
+          .then((result) => {
+            if (result.success) {
+              setUserBalance(result.data.available_balance);
+            }
+          })
+          .catch((err) =>
+            console.warn("[PaymentModal] Balance refresh failed:", err),
+          );
       }
     }, [canonicalUserId, isOpen]),
     debounceMs: 500,
@@ -318,77 +418,92 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   // Memoize treasury address to avoid repeated env var access and toLowerCase() calls
   const treasuryAddress = useMemo(
     () => import.meta.env.VITE_TREASURY_ADDRESS?.toLowerCase(),
-    []
+    [],
   );
-  
+
   // Helper to get the primary wallet address (respects user's primary wallet selection)
   const getPrimaryWalletAddress = useCallback(() => {
     // CRITICAL FIX: Use baseUser.id as the primary source since it represents the wallet
     // the user actually logged in with (effectiveWalletAddress from AuthContext).
     // This fixes the issue where embedded wallet differs from login wallet.
     if (baseUser?.id) {
-      console.log('[PaymentModal] Using baseUser.id as wallet address:', baseUser.id);
+      console.log(
+        "[PaymentModal] Using baseUser.id as wallet address:",
+        baseUser.id,
+      );
       return baseUser.id;
     }
-    
+
     // Fallback 1: Use profile wallet address (from database)
     if (profile?.wallet_address) {
-      console.log('[PaymentModal] Using profile.wallet_address:', profile.wallet_address);
+      console.log(
+        "[PaymentModal] Using profile.wallet_address:",
+        profile.wallet_address,
+      );
       return profile.wallet_address;
     }
-    
+
     // Fallback 2: Check linkedWallets with primary index
     if (linkedWallets && linkedWallets.length > 0) {
       // Get the primary wallet index from localStorage (set by user in LoggedInUserBtn)
       // Wrap in try-catch to handle localStorage access errors (e.g., private browsing mode)
       let primaryIndex = 0;
       try {
-        const savedIndex = localStorage.getItem('primaryWalletIndex');
+        const savedIndex = localStorage.getItem("primaryWalletIndex");
         if (savedIndex !== null) {
           primaryIndex = parseInt(savedIndex, 10);
         }
       } catch (err) {
-        console.warn('[PaymentModal] Failed to read primaryWalletIndex:', err);
+        console.warn("[PaymentModal] Failed to read primaryWalletIndex:", err);
         // Continue with default index 0
       }
-      
+
       // Validate the index: must be a valid non-negative integer within array bounds
       // parseInt can return negative numbers (e.g., "-1" -> -1), NaN, or positive numbers
-      if (!isNaN(primaryIndex) && primaryIndex >= 0 && primaryIndex < linkedWallets.length) {
+      if (
+        !isNaN(primaryIndex) &&
+        primaryIndex >= 0 &&
+        primaryIndex < linkedWallets.length
+      ) {
         const address = linkedWallets[primaryIndex]?.address;
-        console.log('[PaymentModal] Using linkedWallets[primaryIndex]:', address);
+        console.log(
+          "[PaymentModal] Using linkedWallets[primaryIndex]:",
+          address,
+        );
         return address || null;
       }
-      
+
       // Use first wallet if index is invalid
       const address = linkedWallets[0]?.address;
-      console.log('[PaymentModal] Using linkedWallets[0]:', address);
+      console.log("[PaymentModal] Using linkedWallets[0]:", address);
       return address || null;
     }
-    
-    console.warn('[PaymentModal] No wallet address found');
+
+    console.warn("[PaymentModal] No wallet address found");
     return null;
   }, [baseUser?.id, profile?.wallet_address, linkedWallets]);
-  
+
   const [loading, setLoading] = useState(false);
   const [baseLoading, setBaseLoading] = useState(false);
   const [baseAccountLoading, setBaseAccountLoading] = useState(false);
-  const [baseAccountTransactionId, setBaseAccountTransactionId] = useState<string>('');
+  const [baseAccountTransactionId, setBaseAccountTransactionId] =
+    useState<string>("");
   const [oneClickLoading, setOneClickLoading] = useState(false);
   const [showInitialPayment, setShowInitialPayment] = useState(false);
-  const [paymentStep, setPaymentStep] = useState<PaymentStep>('initial');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('coinbase');
-  const [paymentUrl, setPaymentUrl] = useState<string>('');
-  const [invoiceId, setInvoiceId] = useState<string>('');
-  const [baseTransactionId, setBaseTransactionId] = useState<string>('');
-  const [balanceTransactionId, setBalanceTransactionId] = useState<string>('');
+  const [paymentStep, setPaymentStep] = useState<PaymentStep>("initial");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("coinbase");
+  const [paymentUrl, setPaymentUrl] = useState<string>("");
+  const [invoiceId, setInvoiceId] = useState<string>("");
+  const [baseTransactionId, setBaseTransactionId] = useState<string>("");
+  const [balanceTransactionId, setBalanceTransactionId] = useState<string>("");
   // OnchainKit state removed - checkout disabled due to contract fetching errors
   // Card payment state (now uses Commerce checkout flow)
   const [cardLoading, setCardLoading] = useState(false);
   // Coinbase Commerce checkout state (used for both card and crypto commerce payments)
   const [commerceLoading, setCommerceLoading] = useState(false);
-  const [commerceCheckoutUrl, setCommerceCheckoutUrl] = useState<string>('');
-  const [commerceTransactionId, setCommerceTransactionId] = useState<string>('');
+  const [commerceCheckoutUrl, setCommerceCheckoutUrl] = useState<string>("");
+  const [commerceTransactionId, setCommerceTransactionId] =
+    useState<string>("");
   const [userBalance, setUserBalance] = useState<number>(0);
   const [loadingBalance, setLoadingBalance] = useState(false);
   // Inline error message state (replaces browser alert() dialogs)
@@ -401,56 +516,88 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   // Store purchased ticket numbers separately so they persist after payment success
   // This prevents clearing when onPaymentSuccess resets selectedTickets
   const [purchasedTickets, setPurchasedTickets] = useState<number[]>([]);
-  const { paymentData, loading:paymentLoading, paymentStatus } = usePaymentStatus(onOpen);
+  const {
+    paymentData,
+    loading: paymentLoading,
+    paymentStatus,
+  } = usePaymentStatus(onOpen);
 
   // ISSUE 9B FIX: Optimistic update state - shows immediate feedback after payment
   const [showOptimisticSuccess, setShowOptimisticSuccess] = useState(false);
   // State for TopUpWalletModal
   const [showTopUpModal, setShowTopUpModal] = useState(false);
   // PAYMENT SUCCESS BUT ALLOCATION PENDING: Track when payment succeeded but tickets not yet allocated
-  const [paymentSucceededButAllocationPending, setPaymentSucceededButAllocationPending] = useState(false);
+  const [
+    paymentSucceededButAllocationPending,
+    setPaymentSucceededButAllocationPending,
+  ] = useState(false);
 
   // WALLET DIAGNOSTIC: Log wallet information for debugging
   useEffect(() => {
     if (isOpen && baseUser?.id) {
       const userWallet = linkedWallets?.[0]?.address || profile?.wallet_address;
-      
-      console.log('[PaymentModal] Wallet diagnostic:', {
-        userId: baseUser.id || 'MISSING_USER_ID',
-        userWallet: userWallet || 'MISSING_WALLET',
-        userWalletFull: userWallet || 'MISSING_WALLET', // Show full address for comparison
-        treasuryAddress: treasuryAddress || 'MISSING_TREASURY_ADDRESS',
-        treasuryAddressFull: import.meta.env.VITE_TREASURY_ADDRESS || 'MISSING_ENV_TREASURY', // Show full treasury address
-        isBusinessWallet: userWallet && treasuryAddress ? userWallet.toLowerCase() === treasuryAddress : false,
+
+      console.log("[PaymentModal] Wallet diagnostic:", {
+        userId: baseUser.id || "MISSING_USER_ID",
+        userWallet: userWallet || "MISSING_WALLET",
+        userWalletFull: userWallet || "MISSING_WALLET", // Show full address for comparison
+        treasuryAddress: treasuryAddress || "MISSING_TREASURY_ADDRESS",
+        treasuryAddressFull:
+          import.meta.env.VITE_TREASURY_ADDRESS || "MISSING_ENV_TREASURY", // Show full treasury address
+        isBusinessWallet:
+          userWallet && treasuryAddress
+            ? userWallet.toLowerCase() === treasuryAddress
+            : false,
         linkedWalletsCount: linkedWallets?.length || 0,
-        linkedWalletsDetails: linkedWallets?.map(w => ({
-          address: w.address || 'MISSING_ADDRESS',
-          type: w.type || 'MISSING_TYPE',
-          walletClient: w.walletClient || 'MISSING_CLIENT'
-        })) || [],
-        profileWallet: profile?.wallet_address || 'NO_PROFILE_WALLET',
-        profileId: profile?.id || 'NO_PROFILE_ID',
+        linkedWalletsDetails:
+          linkedWallets?.map((w) => ({
+            address: w.address || "MISSING_ADDRESS",
+            type: w.type || "MISSING_TYPE",
+            walletClient: w.walletClient || "MISSING_CLIENT",
+          })) || [],
+        profileWallet: profile?.wallet_address || "NO_PROFILE_WALLET",
+        profileId: profile?.id || "NO_PROFILE_ID",
         walletClientAvailable: !!walletClient, // Only log boolean, not the object
-        localStorage_cdp_wallet: localStorage.getItem('cdp:wallet_address') || 'NOT_SET',
+        localStorage_cdp_wallet:
+          localStorage.getItem("cdp:wallet_address") || "NOT_SET",
         canonicalUserId: toCanonicalUserId(baseUser.id),
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
 
       // CRITICAL: Alert if business wallet is detected as user wallet
-      if (userWallet && treasuryAddress && userWallet.toLowerCase() === treasuryAddress) {
-        console.error('[PaymentModal] CRITICAL ERROR: Business wallet is set as user wallet!');
-        console.error('[PaymentModal] This will cause payments to fail. User needs to sign out and reconnect with their personal wallet.');
-        console.error('[PaymentModal] Treasury:', treasuryAddress);
-        console.error('[PaymentModal] User wallet:', userWallet);
+      if (
+        userWallet &&
+        treasuryAddress &&
+        userWallet.toLowerCase() === treasuryAddress
+      ) {
+        console.error(
+          "[PaymentModal] CRITICAL ERROR: Business wallet is set as user wallet!",
+        );
+        console.error(
+          "[PaymentModal] This will cause payments to fail. User needs to sign out and reconnect with their personal wallet.",
+        );
+        console.error("[PaymentModal] Treasury:", treasuryAddress);
+        console.error("[PaymentModal] User wallet:", userWallet);
       }
     }
-  }, [isOpen, baseUser?.id, linkedWallets, profile?.wallet_address, treasuryAddress, walletClient]);
+  }, [
+    isOpen,
+    baseUser?.id,
+    linkedWallets,
+    profile?.wallet_address,
+    treasuryAddress,
+    walletClient,
+  ]);
 
   // ISSUE 3C FIX: Reservation expiration tracking
   // Show countdown timer for reservation expiration during checkout
-  const [reservationTimeRemaining, setReservationTimeRemaining] = useState<number | null>(null);
+  const [reservationTimeRemaining, setReservationTimeRemaining] = useState<
+    number | null
+  >(null);
   const [reservationExpired, setReservationExpired] = useState(false);
-  const reservationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const reservationTimerRef = useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  );
 
   // Fetch reservation expiration time when reservationId is provided
   useEffect(() => {
@@ -467,18 +614,20 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     // Fetch reservation details to get expiration time
     const fetchReservationExpiry = async () => {
       try {
-        const { data: reservation } = await supabase
-          .from('pending_tickets')
-          .select('expires_at, status')
-          .eq('id', reservationId)
-          .maybeSingle() as { data: { expires_at?: string; status?: string } | null };
+        const { data: reservation } = (await supabase
+          .from("pending_tickets")
+          .select("expires_at, status")
+          .eq("id", reservationId)
+          .maybeSingle()) as {
+          data: { expires_at?: string; status?: string } | null;
+        };
 
         if (reservation?.expires_at) {
           const expiresAt = new Date(reservation.expires_at).getTime();
           const now = Date.now();
           const remaining = Math.max(0, Math.floor((expiresAt - now) / 1000));
 
-          if (remaining <= 0 || reservation.status === 'expired') {
+          if (remaining <= 0 || reservation.status === "expired") {
             setReservationExpired(true);
             setReservationTimeRemaining(0);
           } else {
@@ -487,7 +636,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           }
         }
       } catch (err) {
-        console.error('[PaymentModal] Error fetching reservation expiry:', err);
+        console.error("[PaymentModal] Error fetching reservation expiry:", err);
       }
     };
 
@@ -520,16 +669,22 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   const formatTimeRemaining = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
   // Check if one-click payment is available for current amount
   const canUseOneClick = hasSpendPermission && canOneClickSpend(amount);
 
   const urlParams = new URLSearchParams(window.location.search);
-  const statusOfPayment = urlParams.get("payment") || urlParams.get("paymentStatus");
+  const statusOfPayment =
+    urlParams.get("payment") || urlParams.get("paymentStatus");
   const txId = urlParams.get("txId");
-  const npId = urlParams.get("NP_id") || urlParams.get("payment_id") || urlParams.get("invoice_id") || urlParams.get("paymentId") || urlParams.get("id");
+  const npId =
+    urlParams.get("NP_id") ||
+    urlParams.get("payment_id") ||
+    urlParams.get("invoice_id") ||
+    urlParams.get("paymentId") ||
+    urlParams.get("id");
 
   const hasPaymentParams = !!statusOfPayment || !!npId || !!txId;
 
@@ -548,7 +703,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         setUserBalance(result.data.available_balance ?? 0);
       }
     } catch (error) {
-      console.error('Failed to load user balance:', error);
+      console.error("Failed to load user balance:", error);
     } finally {
       setLoadingBalance(false);
     }
@@ -556,26 +711,33 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
   // CRITICAL FIX: Auto-recover reservation from sessionStorage on mount
   // This fixes the bug where refreshing the page loses the reservation
-  const [recoveredReservationId, setRecoveredReservationId] = useState<string | null>(null);
-  
+  const [recoveredReservationId, setRecoveredReservationId] = useState<
+    string | null
+  >(null);
+
   useEffect(() => {
     // Only attempt recovery if no reservationId prop was provided
     if (reservationId || !competitionId || !isOpen) {
       return;
     }
 
-    console.log('[PaymentModal] Attempting to recover reservation from storage...');
+    console.log(
+      "[PaymentModal] Attempting to recover reservation from storage...",
+    );
     const stored = reservationStorage.getReservation(competitionId);
-    
+
     if (stored && stored.reservationId) {
-      console.log('[PaymentModal] ✅ Recovered reservation:', {
+      console.log("[PaymentModal] ✅ Recovered reservation:", {
         reservationId: stored.reservationId,
         ticketCount: stored.ticketNumbers?.length || 0,
-        age: Math.round((Date.now() - stored.timestamp) / 1000) + 's'
+        age: Math.round((Date.now() - stored.timestamp) / 1000) + "s",
       });
       setRecoveredReservationId(stored.reservationId);
     } else {
-      console.log('[PaymentModal] No stored reservation found for competition:', competitionId);
+      console.log(
+        "[PaymentModal] No stored reservation found for competition:",
+        competitionId,
+      );
     }
   }, [reservationId, competitionId, isOpen]);
 
@@ -588,16 +750,21 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       // IMPORTANT: If opened via URL params (payment redirect), don't show initial payment selection
       // This prevents the "No Entries Selected" error when returning from payment providers
       setShowInitialPayment(!hasPaymentParams);
-      setPaymentStep('initial');
-      setPaymentUrl('');
-      setInvoiceId('');
-      setBaseTransactionId('');
-      setBalanceTransactionId('');
+      setPaymentStep("initial");
+      setPaymentUrl("");
+      setInvoiceId("");
+      setBaseTransactionId("");
+      setBalanceTransactionId("");
       // OnchainKit state reset removed - checkout disabled
       setHasInitialized(true);
       // Load user balance when modal opens
       loadUserBalance();
-    } else if (!isOpen && paymentStep !== 'base-processing' && paymentStep !== 'base-account-processing' && paymentStep !== 'balance-processing') {
+    } else if (
+      !isOpen &&
+      paymentStep !== "base-processing" &&
+      paymentStep !== "base-account-processing" &&
+      paymentStep !== "balance-processing"
+    ) {
       // Only reset initialization flag when modal closes AND no payment is in progress
       // This prevents state reset if modal re-renders during payment processing
       setHasInitialized(false);
@@ -606,21 +773,21 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
   // Poll for payment status when in checkout step
   useEffect(() => {
-    if (paymentStep === 'checkout' && invoiceId) {
+    if (paymentStep === "checkout" && invoiceId) {
       const pollInterval = setInterval(async () => {
         try {
-          const { data } = await supabase
-            .from('user_transactions')
-            .select('status')
-            .eq('tx_id', invoiceId)
-            .single() as { data: { status?: string } | null };
+          const { data } = (await supabase
+            .from("user_transactions")
+            .select("status")
+            .eq("tx_id", invoiceId)
+            .single()) as { data: { status?: string } | null };
 
           if (data?.status && isSuccessStatus(data.status)) {
             clearInterval(pollInterval);
-            setPaymentStep('success');
+            setPaymentStep("success");
           } else if (data?.status && isFailureStatus(data.status)) {
             clearInterval(pollInterval);
-            setPaymentStep('error');
+            setPaymentStep("error");
           }
         } catch (err) {
           // Continue polling
@@ -650,23 +817,30 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
     // CRITICAL FIX: Block payment if reservation has expired
     if (reservationExpired) {
-      setErrorMessage("Your ticket reservation has expired. Please close this dialog and select your tickets again.");
+      setErrorMessage(
+        "Your ticket reservation has expired. Please close this dialog and select your tickets again.",
+      );
       return;
     }
 
     // CRITICAL FIX: Ensure userBalance is a valid number before comparison
-    const safeBalance = typeof userBalance === 'number' && Number.isFinite(userBalance) ? userBalance : 0;
+    const safeBalance =
+      typeof userBalance === "number" && Number.isFinite(userBalance)
+        ? userBalance
+        : 0;
     if (safeBalance < amount) {
       const shortfall = amount - safeBalance;
-      setErrorMessage(`Insufficient balance. Please top up your wallet with at least $${shortfall.toFixed(2)} to continue.`);
+      setErrorMessage(
+        `Insufficient balance. Please top up your wallet with at least $${shortfall.toFixed(2)} to continue.`,
+      );
       // Open the top-up modal to help user add funds
       setShowTopUpModal(true);
       return;
     }
 
     setBalanceLoading(true);
-    setPaymentMethod('balance');
-    setPaymentStep('balance-processing');
+    setPaymentMethod("balance");
+    setPaymentStep("balance-processing");
     setShowInitialPayment(false);
     setPaymentAttempted(true);
     // Store tickets before payment in case they get cleared
@@ -680,88 +854,132 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       let ticketNumbersToPurchase = selectedTickets;
 
       if (!currentReservationId) {
-        console.log('[PaymentModal] No reservation found, creating one...');
+        console.log("[PaymentModal] No reservation found, creating one...");
         const reserveResult = await BalancePaymentService.reserveTickets({
           userId: canonicalUserId,
           competitionId,
           ticketNumbers: selectedTickets,
-          ticketCount: selectedTickets.length === 0 ? ticketCount : undefined
+          ticketCount: selectedTickets.length === 0 ? ticketCount : undefined,
         });
 
         if (!reserveResult.success || !reserveResult.data) {
-          console.error('[PaymentModal] Reservation failed:', reserveResult.error);
-          setErrorMessage(reserveResult.error || 'Failed to reserve tickets');
+          console.error(
+            "[PaymentModal] Reservation failed:",
+            reserveResult.error,
+          );
+          setErrorMessage(reserveResult.error || "Failed to reserve tickets");
           setBalanceLoading(false);
-          setPaymentStep('initial');
+          setPaymentStep("initial");
           return;
         }
 
         currentReservationId = reserveResult.data.reservation_id;
         ticketNumbersToPurchase = reserveResult.data.ticket_numbers;
-        console.log('[PaymentModal] Reservation created:', currentReservationId);
+        console.log(
+          "[PaymentModal] Reservation created:",
+          currentReservationId,
+        );
       } else {
         // Using existing reservation - retrieve ticket numbers from storage
-        const storedReservation = reservationStorage.getReservation(competitionId);
-        if (storedReservation && storedReservation.ticketNumbers && storedReservation.ticketNumbers.length > 0) {
+        const storedReservation =
+          reservationStorage.getReservation(competitionId);
+        if (
+          storedReservation &&
+          storedReservation.ticketNumbers &&
+          storedReservation.ticketNumbers.length > 0
+        ) {
           ticketNumbersToPurchase = storedReservation.ticketNumbers;
-          console.log('[PaymentModal] Using ticket numbers from stored reservation:', ticketNumbersToPurchase);
+          console.log(
+            "[PaymentModal] Using ticket numbers from stored reservation:",
+            ticketNumbersToPurchase,
+          );
         } else {
-          console.log('[PaymentModal] Using existing reservation with selected tickets:', selectedTickets);
+          console.log(
+            "[PaymentModal] Using existing reservation with selected tickets:",
+            selectedTickets,
+          );
         }
       }
 
       // Step 2: Purchase with balance (has internal retries + RPC fallback in the service)
 
-      if (!competitionId || typeof competitionId !== 'string' || competitionId.length < 10) {
-        console.error('[PaymentModal] ERROR: competitionId is missing or invalid:', competitionId);
-        setErrorMessage('Internal error: Competition ID is missing. Please refresh and try again.');
+      if (
+        !competitionId ||
+        typeof competitionId !== "string" ||
+        competitionId.length < 10
+      ) {
+        console.error(
+          "[PaymentModal] ERROR: competitionId is missing or invalid:",
+          competitionId,
+        );
+        setErrorMessage(
+          "Internal error: Competition ID is missing. Please refresh and try again.",
+        );
         setLoading(false);
         return;
       }
 
-      console.log('[PaymentModal] Purchasing with balance, reservation:', currentReservationId, 'competitionId:', competitionId);
+      console.log(
+        "[PaymentModal] Purchasing with balance, reservation:",
+        currentReservationId,
+        "competitionId:",
+        competitionId,
+      );
       const purchaseResult = await BalancePaymentService.purchaseWithBalance({
         reservationId: currentReservationId,
         competitionId: competitionId,
         ticketNumbers: ticketNumbersToPurchase,
         userId: canonicalUserId,
-        ticketPrice: ticketPrice
+        ticketPrice: ticketPrice,
       });
 
       if (purchaseResult.success && purchaseResult.data) {
         // === PURCHASE SUCCEEDED ===
         const purchaseData = purchaseResult.data;
-        console.log('[PaymentModal] Purchase successful:', purchaseData.payment_id);
+        console.log(
+          "[PaymentModal] Purchase successful:",
+          purchaseData.payment_id,
+        );
 
         setShowOptimisticSuccess(true);
         setBalanceTransactionId(purchaseData.payment_id);
-        setPaymentStep('success');
+        setPaymentStep("success");
 
         // Update balance from response
-        if (purchaseData.new_balance !== undefined && purchaseData.new_balance !== null) {
+        if (
+          purchaseData.new_balance !== undefined &&
+          purchaseData.new_balance !== null
+        ) {
           const newBalanceNum = parseFloat(purchaseData.new_balance);
           setUserBalance(newBalanceNum);
         }
 
         // Store purchased ticket numbers for display
         if (purchaseData.tickets && Array.isArray(purchaseData.tickets)) {
-          setPurchasedTickets(purchaseData.tickets.map(t => t.ticket_number));
+          setPurchasedTickets(purchaseData.tickets.map((t) => t.ticket_number));
         }
 
         // Refresh user data
         await refreshUserData();
-        loadUserBalance().catch(err => console.error('[PaymentModal] Background balance refresh failed:', err));
+        loadUserBalance().catch((err) =>
+          console.error(
+            "[PaymentModal] Background balance refresh failed:",
+            err,
+          ),
+        );
 
         // Dispatch balance-updated event for other components
         if (purchaseData.new_balance !== undefined) {
-          window.dispatchEvent(new CustomEvent('balance-updated', {
-            detail: {
-              newBalance: parseFloat(purchaseData.new_balance),
-              purchaseAmount: parseFloat(purchaseData.amount),
-              ticketsCreated: purchaseData.tickets.length,
-              competitionId
-            }
-          }));
+          window.dispatchEvent(
+            new CustomEvent("balance-updated", {
+              detail: {
+                newBalance: parseFloat(purchaseData.new_balance),
+                purchaseAmount: parseFloat(purchaseData.amount),
+                ticketsCreated: purchaseData.tickets.length,
+                competitionId,
+              },
+            }),
+          );
         }
 
         // Clear reservation from storage after successful purchase
@@ -780,12 +998,15 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       // SAFEGUARD 5: Before showing error, call verify-and-rescue endpoint
       // This checks if the purchase actually went through (idempotency hit)
       // and if not, performs a last-resort direct database write.
-      console.warn('[PaymentModal] Purchase reported failure, invoking verify-and-rescue safeguard...');
-      console.warn('[PaymentModal] Original error:', purchaseResult.error);
+      console.warn(
+        "[PaymentModal] Purchase reported failure, invoking verify-and-rescue safeguard...",
+      );
+      console.warn("[PaymentModal] Original error:", purchaseResult.error);
 
       // Don't rescue on insufficient balance or validation errors - those are real
-      const isNonRescuableError = purchaseResult.errorDetails?.type === 'insufficient_balance' ||
-        purchaseResult.errorDetails?.type === 'validation';
+      const isNonRescuableError =
+        purchaseResult.errorDetails?.type === "insufficient_balance" ||
+        purchaseResult.errorDetails?.type === "validation";
 
       if (!isNonRescuableError && ticketNumbersToPurchase.length > 0) {
         try {
@@ -794,35 +1015,43 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
             p_competition_id: competitionId,
             p_ticket_numbers: ticketNumbersToPurchase,
             p_ticket_price: ticketPrice,
-            p_idempotency_key: currentReservationId || '',
+            p_idempotency_key: currentReservationId || "",
           };
 
-          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://mthwfldcjvpxjtmrqkqm.supabase.co';
-          const rescueResponse = await fetch(`${supabaseUrl}/functions/v1/purchase-handler/verify-and-rescue-purchase`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(rescueRequestBody),
-          });
+          const supabaseUrl =
+            import.meta.env.VITE_SUPABASE_URL ||
+            "https://mthwfldcjvpxjtmrqkqm.supabase.co";
+          const rescueResponse = await fetch(
+            `${supabaseUrl}/functions/v1/purchase-handler/verify-and-rescue-purchase`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(rescueRequestBody),
+            },
+          );
 
           let rescueData: any = null;
           try {
             rescueData = await rescueResponse.json();
           } catch {
-            console.warn('[PaymentModal] Could not parse rescue response');
+            console.warn("[PaymentModal] Could not parse rescue response");
           }
 
           if (rescueData && rescueData.success) {
             // RESCUE SUCCEEDED - show success!
-            console.log('[PaymentModal] RESCUE SUCCEEDED!', {
+            console.log("[PaymentModal] RESCUE SUCCEEDED!", {
               rescued: rescueData.rescued,
               alreadyExists: rescueData.alreadyExists,
               ticketCount: rescueData.ticket_count,
             });
 
-            const rescueTickets: number[] = rescueData.ticket_numbers || ticketNumbersToPurchase;
+            const rescueTickets: number[] =
+              rescueData.ticket_numbers || ticketNumbersToPurchase;
             setPurchasedTickets(rescueTickets);
-            setBalanceTransactionId(rescueData.entry_id || 'rescue-' + Date.now());
-            setPaymentStep('success');
+            setBalanceTransactionId(
+              rescueData.entry_id || "rescue-" + Date.now(),
+            );
+            setPaymentStep("success");
             setShowOptimisticSuccess(true);
 
             if (rescueData.available_balance !== undefined) {
@@ -836,14 +1065,16 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
             await refreshUserData();
             loadUserBalance().catch(() => {});
 
-            window.dispatchEvent(new CustomEvent('balance-updated', {
-              detail: {
-                newBalance: Number(rescueData.available_balance || 0),
-                purchaseAmount: Number(rescueData.total_cost || 0),
-                ticketsCreated: rescueTickets.length,
-                competitionId,
-              }
-            }));
+            window.dispatchEvent(
+              new CustomEvent("balance-updated", {
+                detail: {
+                  newBalance: Number(rescueData.available_balance || 0),
+                  purchaseAmount: Number(rescueData.total_cost || 0),
+                  ticketsCreated: rescueTickets.length,
+                  competitionId,
+                },
+              }),
+            );
 
             if (onPaymentSuccess) {
               onPaymentSuccess();
@@ -853,39 +1084,51 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
             setBalanceLoading(false);
             return;
           } else {
-            console.warn('[PaymentModal] Rescue did not succeed:', rescueData?.error);
+            console.warn(
+              "[PaymentModal] Rescue did not succeed:",
+              rescueData?.error,
+            );
           }
         } catch (rescueErr) {
-          console.warn('[PaymentModal] Rescue call failed:', rescueErr);
+          console.warn("[PaymentModal] Rescue call failed:", rescueErr);
         }
       }
 
       // Rescue failed or was not applicable - show original error
       // Handle specific error types
-      if (purchaseResult.errorDetails?.type === 'expired') {
+      if (purchaseResult.errorDetails?.type === "expired") {
         reservationStorage.clearReservation(competitionId);
         setRecoveredReservationId(null);
-        setErrorMessage('Your reservation expired. Please select your tickets again.');
-      } else if (purchaseResult.errorDetails?.type === 'insufficient_balance') {
-        setErrorMessage('Insufficient balance. Please top up your wallet.');
-      } else if (purchaseResult.errorDetails?.type === 'conflict') {
+        setErrorMessage(
+          "Your reservation expired. Please select your tickets again.",
+        );
+      } else if (purchaseResult.errorDetails?.type === "insufficient_balance") {
+        setErrorMessage("Insufficient balance. Please top up your wallet.");
+      } else if (purchaseResult.errorDetails?.type === "conflict") {
         reservationStorage.clearReservation(competitionId);
         setRecoveredReservationId(null);
-        setErrorMessage('Some tickets are no longer available. Please select different tickets.');
-      } else if (purchaseResult.errorDetails?.type === 'not_found') {
+        setErrorMessage(
+          "Some tickets are no longer available. Please select different tickets.",
+        );
+      } else if (purchaseResult.errorDetails?.type === "not_found") {
         reservationStorage.clearReservation(competitionId);
         setRecoveredReservationId(null);
-        setErrorMessage('Reservation not found. Please select your tickets again.');
+        setErrorMessage(
+          "Reservation not found. Please select your tickets again.",
+        );
       } else {
-        setErrorMessage(purchaseResult.error || 'Failed to purchase tickets');
+        setErrorMessage(purchaseResult.error || "Failed to purchase tickets");
       }
 
       setBalanceLoading(false);
-      setPaymentStep('initial');
+      setPaymentStep("initial");
     } catch (error) {
-      console.error('Balance payment error:', error);
+      console.error("Balance payment error:", error);
       // ISSUE 8B FIX: Use enhanced error handler with guidance
-      setPaymentError(error, "Payment failed. Please try again or contact support.");
+      setPaymentError(
+        error,
+        "Payment failed. Please try again or contact support.",
+      );
     } finally {
       setBalanceLoading(false);
     }
@@ -900,14 +1143,20 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     }
 
     if (reservationExpired) {
-      setErrorMessage("Your ticket reservation has expired. Please close this dialog and select your tickets again.");
+      setErrorMessage(
+        "Your ticket reservation has expired. Please close this dialog and select your tickets again.",
+      );
       return;
     }
 
     const totalAmount = ticketCount * ticketPrice;
 
     if (!totalAmount || !Number.isFinite(totalAmount) || totalAmount <= 0) {
-      console.error('Base Account payment validation failed:', { ticketCount, ticketPrice, totalAmount });
+      console.error("Base Account payment validation failed:", {
+        ticketCount,
+        ticketPrice,
+        totalAmount,
+      });
       setErrorMessage("Invalid payment amount. Please select tickets first.");
       return;
     }
@@ -915,42 +1164,44 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     const walletAddress = getPrimaryWalletAddress();
 
     setBaseAccountLoading(true);
-    setPaymentMethod('base-account');
-    setPaymentStep('base-account-processing');
+    setPaymentMethod("base-account");
+    setPaymentStep("base-account-processing");
     setShowInitialPayment(false);
     setPurchasedTickets([...selectedTickets]);
     setPaymentAttempted(true);
 
     try {
-      console.log('[PaymentModal] Starting Base Account payment flow', {
-        walletAddress: walletAddress ? walletAddress.substring(0, 10) + '...' : 'none',
-        reservationId: effectiveReservationId || 'none',
+      console.log("[PaymentModal] Starting Base Account payment flow", {
+        walletAddress: walletAddress
+          ? walletAddress.substring(0, 10) + "..."
+          : "none",
+        reservationId: effectiveReservationId || "none",
         ticketCount,
         selectedTickets,
         totalAmount,
       });
 
       const result = await BaseAccountPaymentService.purchaseTickets({
-        userId: baseUser?.id ?? '',
+        userId: baseUser?.id ?? "",
         competitionId,
         ticketCount,
         ticketPrice,
         selectedTickets,
         walletAddress: walletAddress || undefined,
-        reservationId: effectiveReservationId ?? '',
+        reservationId: effectiveReservationId ?? "",
       });
 
-      console.log('[PaymentModal] Base Account payment result:', result);
+      console.log("[PaymentModal] Base Account payment result:", result);
 
       if (result.success) {
         setShowOptimisticSuccess(true);
         setBaseAccountTransactionId(result.transactionId);
-        setPaymentStep('success');
-        
+        setPaymentStep("success");
+
         // Clear reservation after successful purchase
         reservationStorage.clearReservation(competitionId);
         setRecoveredReservationId(null);
-        
+
         await refreshUserData();
         if (onPaymentSuccess) {
           onPaymentSuccess();
@@ -959,23 +1210,37 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       } else {
         // CRITICAL FIX: If payment failed with reservation/ticket errors, clear potentially stale reservation
         // This allows users to retry with a fresh reservation
-        const errorLower = (result.error || '').toLowerCase();
-        if (errorLower.includes('reservation') || 
-            errorLower.includes('ticket') || 
-            errorLower.includes('expired') || 
-            errorLower.includes('not found') ||
-            errorLower.includes('no longer available')) {
-          console.log('[PaymentModal] Clearing stale reservation due to error:', result.error);
+        const errorLower = (result.error || "").toLowerCase();
+        if (
+          errorLower.includes("reservation") ||
+          errorLower.includes("ticket") ||
+          errorLower.includes("expired") ||
+          errorLower.includes("not found") ||
+          errorLower.includes("no longer available")
+        ) {
+          console.log(
+            "[PaymentModal] Clearing stale reservation due to error:",
+            result.error,
+          );
           reservationStorage.clearReservation(competitionId);
           setRecoveredReservationId(null);
         }
         // ISSUE FIX: Pass paymentSucceeded flag to properly handle partial success
         // When payment succeeds but allocation fails, show "payment processing" instead of error
-        setPaymentError(result.transactionHash || null, result.error || "Base Account payment failed. Please try again.", result.paymentSucceeded || false);
+        setPaymentError(
+          result.transactionHash || null,
+          result.error || "Base Account payment failed. Please try again.",
+          result.paymentSucceeded || false,
+        );
       }
     } catch (error) {
-      console.error('Base Account payment error:', error);
-      setPaymentError(null, error instanceof Error ? error.message : "Base Account payment failed. Please try again.");
+      console.error("Base Account payment error:", error);
+      setPaymentError(
+        null,
+        error instanceof Error
+          ? error.message
+          : "Base Account payment failed. Please try again.",
+      );
     } finally {
       setBaseAccountLoading(false);
     }
@@ -993,13 +1258,17 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
     // CRITICAL FIX: Block payment if reservation has expired
     if (reservationExpired) {
-      setErrorMessage("Your ticket reservation has expired. Please close this dialog and select your tickets again.");
+      setErrorMessage(
+        "Your ticket reservation has expired. Please close this dialog and select your tickets again.",
+      );
       return;
     }
 
     // Validate profile exists before accessing its properties
     if (!profile) {
-      setErrorMessage("Profile not loaded. Please refresh the page and try again.");
+      setErrorMessage(
+        "Profile not loaded. Please refresh the page and try again.",
+      );
       return;
     }
 
@@ -1012,7 +1281,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     const totalAmount = ticketCount * ticketPrice;
 
     if (!totalAmount || !Number.isFinite(totalAmount) || totalAmount <= 0) {
-      console.error('One-click payment validation failed:', { ticketCount, ticketPrice, totalAmount });
+      console.error("One-click payment validation failed:", {
+        ticketCount,
+        ticketPrice,
+        totalAmount,
+      });
       setErrorMessage("Invalid payment amount. Please select tickets first.");
       return;
     }
@@ -1027,13 +1300,17 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           validityDays: 365,
         });
         if (!success) {
-          setErrorMessage("One-click payments setup was cancelled. Please try the regular payment option.");
+          setErrorMessage(
+            "One-click payments setup was cancelled. Please try the regular payment option.",
+          );
           return;
         }
         // Continue with payment after permission is granted
       } catch (err) {
-        console.error('Error enabling one-click payments:', err);
-        setErrorMessage("Failed to enable one-click payments. Please try the regular payment option.");
+        console.error("Error enabling one-click payments:", err);
+        setErrorMessage(
+          "Failed to enable one-click payments. Please try the regular payment option.",
+        );
         return;
       } finally {
         setOneClickLoading(false);
@@ -1042,13 +1319,15 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
     // Check if current amount is within spend limits
     if (!canOneClickSpend(totalAmount)) {
-      setErrorMessage(`This purchase exceeds your one-click payment limit. Remaining: $${spendLimitInfo?.remaining ? Number(spendLimitInfo.remaining) / 1_000_000 : 0}. Please use the regular payment option.`);
+      setErrorMessage(
+        `This purchase exceeds your one-click payment limit. Remaining: $${spendLimitInfo?.remaining ? Number(spendLimitInfo.remaining) / 1_000_000 : 0}. Please use the regular payment option.`,
+      );
       return;
     }
 
     setOneClickLoading(true);
-    setPaymentMethod('base');
-    setPaymentStep('base-processing');
+    setPaymentMethod("base");
+    setPaymentStep("base-processing");
     setShowInitialPayment(false);
     setPurchasedTickets([...selectedTickets]);
 
@@ -1064,21 +1343,31 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           // The sub-account's parent Base account can provide an Ethereum provider
           // This allows CDP wallet users to sign transactions
           const baseAccountWallet = linkedWallets?.find(
-            (w: any) => w.walletClient === 'base_account' || w.isBaseAccount
+            (w: any) => w.walletClient === "base_account" || w.isBaseAccount,
           );
-          if (baseAccountWallet && typeof baseAccountWallet.getEthereumProvider === 'function') {
+          if (
+            baseAccountWallet &&
+            typeof baseAccountWallet.getEthereumProvider === "function"
+          ) {
             walletProvider = await baseAccountWallet.getEthereumProvider();
-            console.log('[PaymentModal] Using Base account provider for one-click payment');
+            console.log(
+              "[PaymentModal] Using Base account provider for one-click payment",
+            );
           }
         } catch (providerErr) {
-          console.warn('[PaymentModal] Failed to get Base account provider:', providerErr);
+          console.warn(
+            "[PaymentModal] Failed to get Base account provider:",
+            providerErr,
+          );
         }
       }
 
       // ISSUE 3B FIX: For CDP users without wallet provider, use reservation-based confirmation
       // The spend permission allows server-side fund pulling via treasury
       if (!walletProvider) {
-        console.log('[PaymentModal] No wallet provider available, using spend permission flow for CDP user');
+        console.log(
+          "[PaymentModal] No wallet provider available, using spend permission flow for CDP user",
+        );
 
         // Use unified confirmation to allocate tickets
         // For CDP users, the server handles the spend permission verification
@@ -1087,26 +1376,33 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           userId: baseUser?.id,
           competitionId,
           transactionHash: `spend_permission_${Date.now()}_${baseUser.id.substring(0, 8)}`,
-          paymentProvider: 'spend_permission',
+          paymentProvider: "spend_permission",
           walletAddress: walletAddress,
           selectedTickets,
           ticketCount,
         });
 
-        console.log('[PaymentModal] Spend permission ticket confirmation result:', confirmResult);
+        console.log(
+          "[PaymentModal] Spend permission ticket confirmation result:",
+          confirmResult,
+        );
 
         if (confirmResult.success) {
           // Log idempotent confirmation scenarios
           if (confirmResult.alreadyConfirmed) {
-            console.log('[PaymentModal] Tickets already confirmed (idempotent success)');
+            console.log(
+              "[PaymentModal] Tickets already confirmed (idempotent success)",
+            );
           } else if (confirmResult.confirmationInProgress) {
-            console.log('[PaymentModal] Confirmation in progress by another request (idempotent success)');
+            console.log(
+              "[PaymentModal] Confirmation in progress by another request (idempotent success)",
+            );
           }
-          
+
           // ISSUE 9B FIX: Show optimistic success immediately
           setShowOptimisticSuccess(true);
-          setBaseTransactionId(reservationId || 'success');
-          setPaymentStep('success');
+          setBaseTransactionId(reservationId || "success");
+          setPaymentStep("success");
           await refreshUserData();
           if (onPaymentSuccess) {
             onPaymentSuccess();
@@ -1114,7 +1410,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           setShowOptimisticSuccess(false);
         } else {
           // ISSUE 8B FIX: Use enhanced error handler
-          setPaymentError(null, confirmResult.error || "Payment failed. Please try again.");
+          setPaymentError(
+            null,
+            confirmResult.error || "Payment failed. Please try again.",
+          );
         }
         return;
       }
@@ -1136,7 +1435,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         // ISSUE 9B FIX: Show optimistic success immediately
         setShowOptimisticSuccess(true);
         setBaseTransactionId(result.transactionId);
-        setPaymentStep('success');
+        setPaymentStep("success");
         await refreshUserData();
         if (onPaymentSuccess) {
           onPaymentSuccess();
@@ -1144,12 +1443,18 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         setShowOptimisticSuccess(false);
       } else {
         // ISSUE 8B FIX: Use enhanced error handler
-        setPaymentError(null, result.error || "Payment failed. Please try again.");
+        setPaymentError(
+          null,
+          result.error || "Payment failed. Please try again.",
+        );
       }
     } catch (error) {
       console.error("One-click payment error:", error);
       // ISSUE 8B FIX: Use enhanced error handler with guidance
-      setPaymentError(error, "Payment failed. Please try again or contact support.");
+      setPaymentError(
+        error,
+        "Payment failed. Please try again or contact support.",
+      );
     } finally {
       setOneClickLoading(false);
     }
@@ -1165,13 +1470,17 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
     // CRITICAL FIX: Block payment if reservation has expired
     if (reservationExpired) {
-      setErrorMessage("Your ticket reservation has expired. Please close this dialog and select your tickets again.");
+      setErrorMessage(
+        "Your ticket reservation has expired. Please close this dialog and select your tickets again.",
+      );
       return;
     }
 
     // Validate profile exists before accessing its properties
     if (!profile) {
-      setErrorMessage("Profile not loaded. Please refresh the page and try again.");
+      setErrorMessage(
+        "Profile not loaded. Please refresh the page and try again.",
+      );
       return;
     }
 
@@ -1184,32 +1493,45 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     // CRITICAL FIX: Validate that the user's wallet is NOT the business wallet
     // The treasury address should NEVER be used as the sender wallet
     if (treasuryAddress && walletAddress.toLowerCase() === treasuryAddress) {
-      console.error('[PaymentModal] CRITICAL: Business wallet detected as user wallet', {
-        userWallet: walletAddress,
-        treasury: treasuryAddress
-      });
-      setErrorMessage("Configuration error: Business wallet detected. Please sign out and sign in with your personal wallet.");
+      console.error(
+        "[PaymentModal] CRITICAL: Business wallet detected as user wallet",
+        {
+          userWallet: walletAddress,
+          treasury: treasuryAddress,
+        },
+      );
+      setErrorMessage(
+        "Configuration error: Business wallet detected. Please sign out and sign in with your personal wallet.",
+      );
       return;
     }
 
     const totalAmount = ticketCount * ticketPrice;
 
     if (!totalAmount || !Number.isFinite(totalAmount) || totalAmount <= 0) {
-      console.error('Base payment validation failed:', { ticketCount, ticketPrice, totalAmount });
+      console.error("Base payment validation failed:", {
+        ticketCount,
+        ticketPrice,
+        totalAmount,
+      });
       setErrorMessage("Invalid payment amount. Please select tickets first.");
       return;
     }
 
     // Validate wallet client is available for signing transactions
     if (!walletClient) {
-      console.error('[PaymentModal] No wallet client available for Base payment');
-      setErrorMessage("Wallet not connected. Please reconnect your wallet or use the 'Pay with any wallet' option.");
+      console.error(
+        "[PaymentModal] No wallet client available for Base payment",
+      );
+      setErrorMessage(
+        "Wallet not connected. Please reconnect your wallet or use the 'Pay with any wallet' option.",
+      );
       return;
     }
 
     setBaseLoading(true);
-    setPaymentMethod('base');
-    setPaymentStep('base-processing');
+    setPaymentMethod("base");
+    setPaymentStep("base-processing");
     setShowInitialPayment(false);
     // Store tickets before payment in case they get cleared
     setPurchasedTickets([...selectedTickets]);
@@ -1217,17 +1539,20 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     try {
       // Use wagmi's wallet client as the provider for signing transactions
       // The walletClient provides an EIP-1193 compatible 'request' method
-      console.log('[PaymentModal] Using wagmi wallet client for Base payment:', walletAddress);
+      console.log(
+        "[PaymentModal] Using wagmi wallet client for Base payment:",
+        walletAddress,
+      );
 
       // Purchase tickets using Base USDC with wallet client as provider
       const result = await BasePaymentService.purchaseTickets({
-        userId: baseUser?.id ?? '',
+        userId: baseUser?.id ?? "",
         competitionId,
         ticketCount,
         ticketPrice,
         selectedTickets,
         walletAddress,
-        reservationId: reservationId ?? '',
+        reservationId: reservationId ?? "",
         walletProvider: walletClient, // Pass wagmi wallet client as the provider
         userEmail: profile?.email || undefined,
       });
@@ -1236,7 +1561,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         // ISSUE 9B FIX: Show optimistic success immediately
         setShowOptimisticSuccess(true);
         setBaseTransactionId(result.transactionId);
-        setPaymentStep('success');
+        setPaymentStep("success");
         // Refresh user data to show updated entries
         await refreshUserData();
         // Call success callback to refresh entries display
@@ -1252,23 +1577,29 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           setPaymentError(
             null,
             `Your payment of $${result.amount.toFixed(2)} was received successfully, but ticket allocation is still ongoing. ` +
-            `Transaction ID: ${result.transactionId}. ` +
-            `Please contact support with this transaction ID if you haven't received your tickets in 10 minutes. ` +
-            `All tickets purchased before a competition cut off time that weren't previously reserved will be honored. Your funds are safe and have been received.`,
-            true // Mark as payment succeeded
+              `Transaction ID: ${result.transactionId}. ` +
+              `Please contact support with this transaction ID if you haven't received your tickets in 10 minutes. ` +
+              `All tickets purchased before a competition cut off time that weren't previously reserved will be honored. Your funds are safe and have been received.`,
+            true, // Mark as payment succeeded
           );
           setBaseTransactionId(result.transactionId);
           // Still refresh data in case tickets were partially allocated
           await refreshUserData();
         } else {
           // Normal payment failure
-          setPaymentError(null, result.error || "Payment failed. Please try again.");
+          setPaymentError(
+            null,
+            result.error || "Payment failed. Please try again.",
+          );
         }
       }
     } catch (error) {
       console.error("Base payment error:", error);
       // ISSUE 8B FIX: Use enhanced error handler with guidance
-      setPaymentError(error, "Payment failed. Please try again or contact support.");
+      setPaymentError(
+        error,
+        "Payment failed. Please try again or contact support.",
+      );
     } finally {
       setBaseLoading(false);
     }
@@ -1289,20 +1620,26 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
     // CRITICAL FIX: Block payment if reservation has expired
     if (reservationExpired) {
-      setErrorMessage("Your ticket reservation has expired. Please close this dialog and select your tickets again.");
+      setErrorMessage(
+        "Your ticket reservation has expired. Please close this dialog and select your tickets again.",
+      );
       return;
     }
 
     const totalAmount = ticketCount * ticketPrice;
     if (!totalAmount || !Number.isFinite(totalAmount) || totalAmount <= 0) {
-      console.error('Card payment validation failed:', { ticketCount, ticketPrice, totalAmount });
+      console.error("Card payment validation failed:", {
+        ticketCount,
+        ticketPrice,
+        totalAmount,
+      });
       setErrorMessage("Invalid payment amount. Please select tickets first.");
       return;
     }
 
     setCardLoading(true);
-    setPaymentMethod('card');
-    setPaymentStep('commerce-checkout');
+    setPaymentMethod("card");
+    setPaymentStep("commerce-checkout");
     setShowInitialPayment(false);
     setPurchasedTickets([...selectedTickets]);
 
@@ -1313,17 +1650,17 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       // Coinbase Commerce checkout page will handle the quantity (77 items)
       // This ensures the payment goes to the business and tickets are credited correctly
       const result = await CoinbaseCommerceService.createEntryPurchase(
-        baseUser?.id ?? '',
+        baseUser?.id ?? "",
         competitionId,
         ticketPrice,
         ticketCount,
         selectedTickets,
-        reservationId ?? ''
+        reservationId ?? "",
       );
 
       // Validate that we got a checkout URL
       if (!result.checkoutUrl) {
-        console.error('No checkout URL returned from createEntryPurchase');
+        console.error("No checkout URL returned from createEntryPurchase");
         setPaymentError(null, "Failed to create checkout. Please try again.");
         return;
       }
@@ -1333,10 +1670,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       setCommerceTransactionId(result.transactionId);
 
       // Ticket confirmation happens via commerce-webhook after payment is confirmed
-
     } catch (error) {
-      console.error('Card payment error:', error);
-      setPaymentError(error, "Failed to create checkout. Please try another payment method.");
+      console.error("Card payment error:", error);
+      setPaymentError(
+        error,
+        "Failed to create checkout. Please try another payment method.",
+      );
     } finally {
       setCardLoading(false);
     }
@@ -1353,20 +1692,26 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
     // CRITICAL FIX: Block payment if reservation has expired
     if (reservationExpired) {
-      setErrorMessage("Your ticket reservation has expired. Please close this dialog and select your tickets again.");
+      setErrorMessage(
+        "Your ticket reservation has expired. Please close this dialog and select your tickets again.",
+      );
       return;
     }
 
     const totalAmount = ticketCount * ticketPrice;
     if (!totalAmount || !Number.isFinite(totalAmount) || totalAmount <= 0) {
-      console.error('Commerce payment validation failed:', { ticketCount, ticketPrice, totalAmount });
+      console.error("Commerce payment validation failed:", {
+        ticketCount,
+        ticketPrice,
+        totalAmount,
+      });
       setErrorMessage("Invalid payment amount. Please select tickets first.");
       return;
     }
 
     setCommerceLoading(true);
-    setPaymentMethod('commerce');
-    setPaymentStep('commerce-checkout');
+    setPaymentMethod("commerce");
+    setPaymentStep("commerce-checkout");
     setShowInitialPayment(false);
     setPurchasedTickets([...selectedTickets]);
 
@@ -1378,12 +1723,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         ticketPrice,
         ticketCount,
         selectedTickets,
-        reservationId
+        reservationId,
       );
 
       // Validate that we got a checkout URL
       if (!result.checkoutUrl) {
-        console.error('No checkout URL returned from createEntryPurchase');
+        console.error("No checkout URL returned from createEntryPurchase");
         setPaymentError(null, "Failed to create checkout. Please try again.");
         return;
       }
@@ -1393,36 +1738,46 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       setCommerceTransactionId(result.transactionId);
 
       // Ticket confirmation happens via commerce-webhook after payment is confirmed
-
     } catch (error) {
-      console.error('Commerce payment error:', error);
-      setPaymentError(error, "Failed to create checkout. Please try another payment method.");
+      console.error("Commerce payment error:", error);
+      setPaymentError(
+        error,
+        "Failed to create checkout. Please try another payment method.",
+      );
     } finally {
       setCommerceLoading(false);
     }
   };
 
   // Modal width adjusted - removed onchainkit-processing, crypto-selection, othercrypto-processing
-  const modalWidth = paymentStep === 'checkout' || paymentStep === 'base-processing' || paymentStep === 'base-account-processing' || paymentStep === 'commerce-checkout' ? 'max-w-2xl' : (hasPaymentParams ? 'max-w-xl' : 'max-w-2xl');
+  const modalWidth =
+    paymentStep === "checkout" ||
+    paymentStep === "base-processing" ||
+    paymentStep === "base-account-processing" ||
+    paymentStep === "commerce-checkout"
+      ? "max-w-2xl"
+      : hasPaymentParams
+        ? "max-w-xl"
+        : "max-w-2xl";
 
   const handleReturn = () => {
     if (hasPaymentParams) {
-      window.history.replaceState({}, '', window.location.pathname);
+      window.history.replaceState({}, "", window.location.pathname);
     }
     setShowInitialPayment(true);
-    setPaymentStep('initial');
-    setPaymentUrl('');
-    setInvoiceId('');
-    setBaseTransactionId('');
-    setBalanceTransactionId('');
+    setPaymentStep("initial");
+    setPaymentUrl("");
+    setInvoiceId("");
+    setBaseTransactionId("");
+    setBalanceTransactionId("");
     // OnchainKit state reset removed - checkout disabled
     // Reset card payment state
     setCardLoading(false);
     // Reset commerce checkout state (used for both card and crypto commerce payments)
     setCommerceLoading(false);
-    setCommerceCheckoutUrl('');
-    setCommerceTransactionId('');
-    setPaymentMethod('coinbase');
+    setCommerceCheckoutUrl("");
+    setCommerceTransactionId("");
+    setPaymentMethod("coinbase");
     setPurchasedTickets([]);
     setPaymentAttempted(false);
     setErrorMessage(null);
@@ -1435,13 +1790,16 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   };
 
   // ISSUE 8B FIX: Helper to set payment error with enhanced guidance
-  const setPaymentError = useCallback((error: unknown, fallbackMessage: string, paymentSucceeded = false) => {
-    const info = getPaymentErrorInfo(error, fallbackMessage);
-    setErrorMessage(info.message);
-    setErrorInfo(info);
-    setPaymentSucceededButAllocationPending(paymentSucceeded);
-    setPaymentStep('error');
-  }, []);
+  const setPaymentError = useCallback(
+    (error: unknown, fallbackMessage: string, paymentSucceeded = false) => {
+      const info = getPaymentErrorInfo(error, fallbackMessage);
+      setErrorMessage(info.message);
+      setErrorInfo(info);
+      setPaymentSucceededButAllocationPending(paymentSucceeded);
+      setPaymentStep("error");
+    },
+    [],
+  );
 
   const handleCloseModal = () => {
     onClose();
@@ -1451,16 +1809,24 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   const handleViewEntries = () => {
     onClose();
     handleReturn();
-    navigate('/dashboard/entries');
+    navigate("/dashboard/entries");
   };
 
-  if(paymentLoading) return null;
+  if (paymentLoading) return null;
 
   return (
-    <div className={`fixed inset-0 bg-black/70 flex justify-center items-center z-50 p-4 ${isOpen ? 'block' : 'hidden'}`}>
-      <div className={`bg-[#1A1A1A] relative w-full border-2 border-white rounded-xl max-h-[90vh] overflow-y-auto ${modalWidth}`}>
+    <div
+      className={`fixed inset-0 bg-black/70 flex justify-center items-center z-50 p-4 ${isOpen ? "block" : "hidden"}`}
+    >
+      <div
+        className={`bg-[#1A1A1A] relative w-full border-2 border-white rounded-xl max-h-[90vh] overflow-y-auto ${modalWidth}`}
+      >
         <div className="sticky top-0 bg-[#1A1A1A] pt-4 pb-2 z-10">
-          <img src={footerLogo} alt="prize-io" className="mx-auto w-24 sm:w-32 md:w-auto" />
+          <img
+            src={footerLogo}
+            alt="prize-io"
+            className="mx-auto w-24 sm:w-32 md:w-auto"
+          />
           {competitionName && (
             <p className="text-white sequel-95 text-center uppercase text-sm sm:text-base mt-3">
               {competitionName}
@@ -1473,150 +1839,208 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           aria-label="Close payment modal"
           type="button"
         >
-          <CircleX color="black" size={20} className="sm:w-6 sm:h-6"/>
+          <CircleX color="black" size={20} className="sm:w-6 sm:h-6" />
         </button>
-        
+
         <div className="px-4 sm:px-6 md:px-8 pb-4 sm:pb-6">
           <h1 className="sequel-95 uppercase text-white text-lg sm:text-xl md:text-2xl mb-3 sm:mb-4 text-center">
-            {paymentStep === 'checkout' ? 'Complete Crypto Payment' :
-             paymentStep === 'base-processing' ? 'Processing Base Payment' :
-             paymentStep === 'base-account-processing' ? 'Processing Base Payment' :
-             paymentStep === 'balance-processing' ? 'Processing Balance Payment' :
-             paymentStep === 'commerce-checkout' ? 'Complete Payment' :
-             paymentStep === 'success' ? (textOverrides?.successMessage || 'Payment Successful') :
-             hasPaymentParams ? 'Payment Status' : (textOverrides?.modalTitle || 'Complete Payment')}
+            {paymentStep === "checkout"
+              ? "Complete Crypto Payment"
+              : paymentStep === "base-processing"
+                ? "Processing Base Payment"
+                : paymentStep === "base-account-processing"
+                  ? "Processing Base Payment"
+                  : paymentStep === "balance-processing"
+                    ? "Processing Balance Payment"
+                    : paymentStep === "commerce-checkout"
+                      ? "Complete Payment"
+                      : paymentStep === "success"
+                        ? textOverrides?.successMessage || "Payment Successful"
+                        : hasPaymentParams
+                          ? "Payment Status"
+                          : textOverrides?.modalTitle || "Complete Payment"}
           </h1>
           <div className="h-0.5 w-full bg-white mb-3 sm:mb-4"></div>
 
           {/* Initial payment selection */}
-          {showInitialPayment && paymentStep === 'initial' && ticketCount > 0 && (
-            <div className="space-y-4">
-              {/* Premium Order Summary Card with integrated timer */}
-              <div className="relative overflow-hidden rounded-xl bg-gray-900 border border-white/10 p-4">
-                <div className="absolute top-0 left-0 w-full h-1 bg-linear-to-r from-[#DDE404] via-[#0052FF] to-[#EF008F]"></div>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-[#DDE404]/20 flex items-center justify-center">
-                      <Sparkles className="text-[#DDE404]" size={18} />
-                    </div>
-                    <div>
-                      <p className="text-white/60 sequel-45 text-xs">Your Entries</p>
-                      <p className="text-white sequel-75 text-lg">{ticketCount} <span className="text-sm text-white/60">{ticketCount > 1 ? 'tickets' : 'ticket'}</span></p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-white/60 sequel-45 text-xs">{textOverrides?.totalLabel || 'Total'}</p>
-                    <p className="text-[#DDE404] sequel-95 text-xl">${amount.toFixed(2)}</p>
-                  </div>
-                </div>
-                {/* Reservation timer integrated into summary card */}
-                {reservationId && reservationTimeRemaining !== null && (
-                  <div className={`flex items-center gap-2 rounded-lg px-3 py-2 ${
-                    reservationExpired
-                      ? 'bg-red-500/10 border border-red-500/30'
-                      : reservationTimeRemaining < 120
-                        ? 'bg-amber-500/10 border border-amber-500/30'
-                        : 'bg-white/5 border border-white/10'
-                  }`}>
-                    <Clock size={16} className={
-                      reservationExpired
-                        ? 'text-red-400'
-                        : reservationTimeRemaining < 120
-                          ? 'text-amber-400'
-                          : 'text-white/60'
-                    } />
-                    {reservationExpired ? (
-                      <p className="text-red-400 sequel-45 text-xs">
-                        Reservation expired - please select tickets again
-                      </p>
-                    ) : (
-                      <p className={`sequel-45 text-xs ${
-                        reservationTimeRemaining < 120 ? 'text-amber-400' : 'text-white/60'
-                      }`}>
-                        Reserved for {formatTimeRemaining(reservationTimeRemaining)}
-                        {reservationTimeRemaining < 120 && ' - complete soon!'}
-                      </p>
-                    )}
-                  </div>
-                )}
-                {/* Maximum inventory notice */}
-                {maxAvailableTickets !== undefined && ticketCount >= maxAvailableTickets && maxAvailableTickets > 0 && (
-                  <div className={`flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg px-3 py-2 ${reservationId && reservationTimeRemaining !== null ? 'mt-2' : ''}`}>
-                    <AlertTriangle size={14} className="text-yellow-400" />
-                    <p className="text-yellow-400 sequel-45 text-xs">
-                      Maximum available tickets selected ({maxAvailableTickets})
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Inline Error Message - replaces browser alert() dialogs */}
-              {errorMessage && (
-                <div className="bg-red-500/10 border border-red-500/40 rounded-lg px-4 py-3 flex items-start gap-3">
-                  <CircleX size={20} className="text-red-400 shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <p className="text-red-400 sequel-75 text-sm">{errorMessage}</p>
-                    <button
-                      onClick={() => setErrorMessage(null)}
-                      className="text-red-400/70 hover:text-red-400 text-xs sequel-45 mt-1 underline"
-                    >
-                      Dismiss
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* === PAYMENT OPTIONS - Pay With Base and Pay With Balance === */}
-              <div className="space-y-3">
-                {/* A. Pay With Balance - Always shown when authenticated */}
-                {authenticated && (
-                  <button
-                    onClick={handleBalancePayment}
-                    disabled={balanceLoading || loadingBalance}
-                    className="w-full h-18 flex items-center justify-between px-4 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
-                  >
+          {showInitialPayment &&
+            paymentStep === "initial" &&
+            ticketCount > 0 && (
+              <div className="space-y-4">
+                {/* Premium Order Summary Card with integrated timer */}
+                <div className="relative overflow-hidden rounded-xl bg-gray-900 border border-white/10 p-4">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-linear-to-r from-[#DDE404] via-[#0052FF] to-[#EF008F]"></div>
+                  <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
-                        <DollarSign className="text-white" size={22} />
+                      <div className="w-9 h-9 rounded-full bg-[#DDE404]/20 flex items-center justify-center">
+                        <Sparkles className="text-[#DDE404]" size={18} />
                       </div>
-                      <div className="text-left">
-                        <p className="text-white sequel-75 text-sm uppercase">Pay With Balance</p>
-                        <p className="text-[#DDE404] sequel-45 text-xs">
-                          {loadingBalance ? 'Loading...' : `Available: $${userBalance.toFixed(2)}`}
+                      <div>
+                        <p className="text-white/60 sequel-45 text-xs">
+                          Your Entries
+                        </p>
+                        <p className="text-white sequel-75 text-lg">
+                          {ticketCount}{" "}
+                          <span className="text-sm text-white/60">
+                            {ticketCount > 1 ? "tickets" : "ticket"}
+                          </span>
                         </p>
                       </div>
                     </div>
-                    <ChevronRight size={20} className="text-white" />
-                  </button>
-                )}
-
-                {/* B. Pay With Wallet - DISABLED: OnchainKit checkout removed due to contract fetching errors */}
-                {/* Users should use "Pay With Balance" or "Pay With Base Account" instead */}
-
-                {/* C. Pay With Base */}
-                {authenticated && (
-                  <button
-                    onClick={handleBaseAccountPayment}
-                    disabled={baseAccountLoading}
-                    className="w-full h-18 flex items-center justify-between px-4 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
-                        <svg className="w-6 h-6 text-white" viewBox="0 0 111 111" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M54.921 110.034C85.359 110.034 110.034 85.402 110.034 55.017C110.034 24.6319 85.359 0 54.921 0C26.0432 0 2.35281 22.1714 0 50.3923H72.8467V59.6416H3.9565e-07C2.35281 87.8625 26.0432 110.034 54.921 110.034Z" fill="currentColor"/>
-                        </svg>
-                      </div>
-                      <div className="text-left">
-                        <p className="text-white sequel-75 text-sm uppercase">Pay With Base</p>
-                        <p className="text-white/80 sequel-45 text-xs">Fast payments on Base</p>
-                      </div>
+                    <div className="text-right">
+                      <p className="text-white/60 sequel-45 text-xs">
+                        {textOverrides?.totalLabel || "Total"}
+                      </p>
+                      <p className="text-[#DDE404] sequel-95 text-xl">
+                        ${amount.toFixed(2)}
+                      </p>
                     </div>
-                    <ChevronRight size={20} className="text-white" />
-                  </button>
+                  </div>
+                  {/* Reservation timer integrated into summary card */}
+                  {reservationId && reservationTimeRemaining !== null && (
+                    <div
+                      className={`flex items-center gap-2 rounded-lg px-3 py-2 ${
+                        reservationExpired
+                          ? "bg-red-500/10 border border-red-500/30"
+                          : reservationTimeRemaining < 120
+                            ? "bg-amber-500/10 border border-amber-500/30"
+                            : "bg-white/5 border border-white/10"
+                      }`}
+                    >
+                      <Clock
+                        size={16}
+                        className={
+                          reservationExpired
+                            ? "text-red-400"
+                            : reservationTimeRemaining < 120
+                              ? "text-amber-400"
+                              : "text-white/60"
+                        }
+                      />
+                      {reservationExpired ? (
+                        <p className="text-red-400 sequel-45 text-xs">
+                          Reservation expired - please select tickets again
+                        </p>
+                      ) : (
+                        <p
+                          className={`sequel-45 text-xs ${
+                            reservationTimeRemaining < 120
+                              ? "text-amber-400"
+                              : "text-white/60"
+                          }`}
+                        >
+                          Reserved for{" "}
+                          {formatTimeRemaining(reservationTimeRemaining)}
+                          {reservationTimeRemaining < 120 &&
+                            " - complete soon!"}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {/* Maximum inventory notice */}
+                  {maxAvailableTickets !== undefined &&
+                    ticketCount >= maxAvailableTickets &&
+                    maxAvailableTickets > 0 && (
+                      <div
+                        className={`flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg px-3 py-2 ${reservationId && reservationTimeRemaining !== null ? "mt-2" : ""}`}
+                      >
+                        <AlertTriangle size={14} className="text-yellow-400" />
+                        <p className="text-yellow-400 sequel-45 text-xs">
+                          Maximum available tickets selected (
+                          {maxAvailableTickets})
+                        </p>
+                      </div>
+                    )}
+                </div>
+
+                {/* Inline Error Message - replaces browser alert() dialogs */}
+                {errorMessage && (
+                  <div className="bg-red-500/10 border border-red-500/40 rounded-lg px-4 py-3 flex items-start gap-3">
+                    <CircleX
+                      size={20}
+                      className="text-red-400 shrink-0 mt-0.5"
+                    />
+                    <div className="flex-1">
+                      <p className="text-red-400 sequel-75 text-sm">
+                        {errorMessage}
+                      </p>
+                      <button
+                        onClick={() => setErrorMessage(null)}
+                        className="text-red-400/70 hover:text-red-400 text-xs sequel-45 mt-1 underline"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
                 )}
 
-                {/* D. Pay With Crypto - Coinbase Commerce checkout - HIDDEN */}
-                {/* <button
+                {/* === PAYMENT OPTIONS - Pay With Base and Pay With Balance === */}
+                <div className="space-y-3">
+                  {/* A. Pay With Balance - Always shown when authenticated */}
+                  {authenticated && (
+                    <button
+                      onClick={handleBalancePayment}
+                      disabled={balanceLoading || loadingBalance}
+                      className="w-full h-18 flex items-center justify-between px-4 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
+                          <DollarSign className="text-white" size={22} />
+                        </div>
+                        <div className="text-left">
+                          <p className="text-white sequel-75 text-sm uppercase">
+                            Pay With Balance
+                          </p>
+                          <p className="text-[#DDE404] sequel-45 text-xs">
+                            {loadingBalance
+                              ? "Loading..."
+                              : `Available: $${userBalance.toFixed(2)}`}
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight size={20} className="text-white" />
+                    </button>
+                  )}
+
+                  {/* B. Pay With Wallet - DISABLED: OnchainKit checkout removed due to contract fetching errors */}
+                  {/* Users should use "Pay With Balance" or "Pay With Base Account" instead */}
+
+                  {/* C. Pay With Base */}
+                  {authenticated && (
+                    <button
+                      onClick={handleBaseAccountPayment}
+                      disabled={baseAccountLoading}
+                      className="w-full h-18 flex items-center justify-between px-4 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
+                          <svg
+                            className="w-6 h-6 text-white"
+                            viewBox="0 0 111 111"
+                            fill="none"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <path
+                              d="M54.921 110.034C85.359 110.034 110.034 85.402 110.034 55.017C110.034 24.6319 85.359 0 54.921 0C26.0432 0 2.35281 22.1714 0 50.3923H72.8467V59.6416H3.9565e-07C2.35281 87.8625 26.0432 110.034 54.921 110.034Z"
+                              fill="currentColor"
+                            />
+                          </svg>
+                        </div>
+                        <div className="text-left">
+                          <p className="text-white sequel-75 text-sm uppercase">
+                            Pay With Base
+                          </p>
+                          <p className="text-white/80 sequel-45 text-xs">
+                            Fast payments on Base
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight size={20} className="text-white" />
+                    </button>
+                  )}
+
+                  {/* D. Pay With Crypto - Coinbase Commerce checkout - HIDDEN */}
+                  {/* <button
                   onClick={handleCommercePayment}
                   disabled={commerceLoading}
                   className="w-full h-18 flex items-center justify-between px-4 bg-[#0052FF] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
@@ -1633,8 +2057,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                   <ChevronRight size={20} className="text-white" />
                 </button> */}
 
-                {/* E. Pay With Card - Coming Soon - HIDDEN */}
-                {/* <button
+                  {/* E. Pay With Card - Coming Soon - HIDDEN */}
+                  {/* <button
                   disabled
                   className="w-full h-18 flex items-center justify-between px-4 bg-gray-600 rounded-xl cursor-not-allowed"
                 >
@@ -1649,48 +2073,61 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                   </div>
                   <span className="text-[#DDE404] sequel-45 text-xs uppercase">Coming Soon</span>
                 </button> */}
+                </div>
+
+                {/* Cancel button */}
+                <button
+                  onClick={onClose}
+                  type="button"
+                  className="w-full bg-transparent border border-white/20 uppercase text-sm text-white/60 sequel-45 hover:bg-white/5 hover:text-white hover:border-white/40 px-6 py-3 cursor-pointer rounded-xl transition-all duration-200 mt-3"
+                >
+                  Cancel
+                </button>
               </div>
-
-              {/* Cancel button */}
-              <button
-                onClick={onClose}
-                type="button"
-                className="w-full bg-transparent border border-white/20 uppercase text-sm text-white/60 sequel-45 hover:bg-white/5 hover:text-white hover:border-white/40 px-6 py-3 cursor-pointer rounded-xl transition-all duration-200 mt-3"
-              >
-                Cancel
-              </button>
-
-            </div>
-          )}
+            )}
 
           {/* Error state: Modal opened with no tickets selected */}
           {/* Only show when genuinely no tickets selected AND not during/after a payment attempt */}
           {/* Also check paymentAttempted and purchasedTickets to prevent showing after successful payment resets ticketCount */}
-          {showInitialPayment && paymentStep === 'initial' && ticketCount === 0 && !baseLoading && !baseAccountLoading && !balanceLoading && !loading && !paymentAttempted && purchasedTickets.length === 0 && (
-            <div className="py-8 text-center">
-              <div className="w-16 h-16 bg-[#EF008F] rounded-full flex items-center justify-center mx-auto mb-4">
-                <CircleX size={32} className="text-white" />
+          {showInitialPayment &&
+            paymentStep === "initial" &&
+            ticketCount === 0 &&
+            !baseLoading &&
+            !baseAccountLoading &&
+            !balanceLoading &&
+            !loading &&
+            !paymentAttempted &&
+            purchasedTickets.length === 0 && (
+              <div className="py-8 text-center">
+                <div className="w-16 h-16 bg-[#EF008F] rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CircleX size={32} className="text-white" />
+                </div>
+                <h3 className="text-white sequel-75 text-xl mb-2">
+                  No Entries Selected
+                </h3>
+                <p className="text-gray-400 sequel-45 mb-6">
+                  Please select at least one ticket before proceeding to
+                  checkout.
+                </p>
+                <button
+                  onClick={handleCloseModal}
+                  className="py-4 px-10 bg-linear-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  Select Tickets
+                </button>
               </div>
-              <h3 className="text-white sequel-75 text-xl mb-2">No Entries Selected</h3>
-              <p className="text-gray-400 sequel-45 mb-6">
-                Please select at least one ticket before proceeding to checkout.
-              </p>
-              <button
-                onClick={handleCloseModal}
-                className="py-4 px-10 bg-linear-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98]"
-              >
-                Select Tickets
-              </button>
-            </div>
-          )}
+            )}
 
           {/* Balance Processing */}
-          {paymentStep === 'balance-processing' && (
+          {paymentStep === "balance-processing" && (
             <div className="py-8 text-center">
               <div className="w-16 h-16 border-4 border-[#DDE404] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-              <h3 className="text-white sequel-75 text-xl mb-2">Processing Payment</h3>
+              <h3 className="text-white sequel-75 text-xl mb-2">
+                Processing Payment
+              </h3>
               <p className="text-gray-400 sequel-45 mb-4">
-                {ticketCount} {ticketCount > 1 ? 'entries' : 'entry'} • ${amount.toFixed(2)} from your balance
+                {ticketCount} {ticketCount > 1 ? "entries" : "entry"} • $
+                {amount.toFixed(2)} from your balance
               </p>
               <p className="text-gray-500 text-xs sequel-45">
                 Please wait while we process your balance payment...
@@ -1699,12 +2136,15 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           )}
 
           {/* Base Processing */}
-          {paymentStep === 'base-processing' && (
+          {paymentStep === "base-processing" && (
             <div className="py-8 text-center">
               <div className="w-16 h-16 border-4 border-[#DDE404] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-              <h3 className="text-white sequel-75 text-xl mb-2">Processing Payment</h3>
+              <h3 className="text-white sequel-75 text-xl mb-2">
+                Processing Payment
+              </h3>
               <p className="text-gray-400 sequel-45 mb-4">
-                {ticketCount} {ticketCount > 1 ? 'entries' : 'entry'} • ${amount.toFixed(2)}
+                {ticketCount} {ticketCount > 1 ? "entries" : "entry"} • $
+                {amount.toFixed(2)}
               </p>
               <p className="text-gray-500 text-xs sequel-45">
                 Please wait while we confirm your transaction on Base...
@@ -1713,12 +2153,15 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           )}
 
           {/* Base Account Processing */}
-          {paymentStep === 'base-account-processing' && (
+          {paymentStep === "base-account-processing" && (
             <div className="py-8 text-center">
               <div className="w-16 h-16 border-4 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-              <h3 className="text-white sequel-75 text-xl mb-2">Processing Base Payment</h3>
+              <h3 className="text-white sequel-75 text-xl mb-2">
+                Processing Base Payment
+              </h3>
               <p className="text-gray-400 sequel-45 mb-4">
-                {ticketCount} {ticketCount > 1 ? 'entries' : 'entry'} • ${amount.toFixed(2)}
+                {ticketCount} {ticketCount > 1 ? "entries" : "entry"} • $
+                {amount.toFixed(2)}
               </p>
               <div className="flex items-center justify-center gap-2 text-blue-400 text-xs sequel-45 mb-3">
                 <div className="animate-pulse w-2 h-2 bg-blue-500 rounded-full"></div>
@@ -1737,10 +2180,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
           {/* Coinbase Commerce Checkout - External hosted checkout page */}
           {/* Used for both card payments and crypto commerce payments */}
-          {paymentStep === 'commerce-checkout' && commerceCheckoutUrl && (
+          {paymentStep === "commerce-checkout" && commerceCheckoutUrl && (
             <div className="space-y-4">
               <p className="text-white/60 sequel-45 text-sm text-center">
-                {ticketCount} {ticketCount > 1 ? 'entries' : 'entry'} • ${amount.toFixed(2)} USD
+                {ticketCount} {ticketCount > 1 ? "entries" : "entry"} • $
+                {amount.toFixed(2)} USD
               </p>
 
               <div className="bg-[#1A1A1A] rounded-lg p-6 text-center">
@@ -1776,7 +2220,9 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
               </div>
 
               <p className="text-gray-500 text-xs sequel-45 text-center">
-                Pay with your Coinbase account or any supported cryptocurrency. Your entries will be confirmed automatically once payment is verified.
+                Pay with your Coinbase account or any supported cryptocurrency.
+                Your entries will be confirmed automatically once payment is
+                verified.
               </p>
 
               <button
@@ -1789,12 +2235,15 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           )}
 
           {/* Commerce Checkout Loading - Before checkout URL is ready */}
-          {paymentStep === 'commerce-checkout' && !commerceCheckoutUrl && (
+          {paymentStep === "commerce-checkout" && !commerceCheckoutUrl && (
             <div className="py-8 text-center">
               <div className="w-16 h-16 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-              <h3 className="text-white sequel-75 text-xl mb-2">Creating Checkout</h3>
+              <h3 className="text-white sequel-75 text-xl mb-2">
+                Creating Checkout
+              </h3>
               <p className="text-gray-400 sequel-45 mb-4">
-                {ticketCount} {ticketCount > 1 ? 'entries' : 'entry'} • ${amount.toFixed(2)} USD
+                {ticketCount} {ticketCount > 1 ? "entries" : "entry"} • $
+                {amount.toFixed(2)} USD
               </p>
               <p className="text-gray-500 text-xs sequel-45">
                 Setting up your Coinbase Commerce checkout...
@@ -1810,28 +2259,41 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
           {/* Payment success */}
           {/* ISSUE 9B FIX: Show optimistic loading state while data refreshes */}
-          {paymentStep === 'success' && (
+          {paymentStep === "success" && (
             <div className="py-8 text-center">
               <div className="w-16 h-16 bg-[#DDE404] rounded-full flex items-center justify-center mx-auto mb-4">
                 <Check size={32} className="text-black" />
               </div>
-              <h3 className="text-white sequel-75 text-xl mb-2">Payment Successful!</h3>
+              <h3 className="text-white sequel-75 text-xl mb-2">
+                Payment Successful!
+              </h3>
               <p className="text-gray-400 sequel-45 mb-4">
-                Your {purchasedTickets.length || ticketCount} {(purchasedTickets.length || ticketCount) > 1 ? 'entries have' : 'entry has'} been confirmed.
+                Your {purchasedTickets.length || ticketCount}{" "}
+                {(purchasedTickets.length || ticketCount) > 1
+                  ? "entries have"
+                  : "entry has"}{" "}
+                been confirmed.
               </p>
 
               {/* ISSUE 9B FIX: Show optimistic loading feedback while entries refresh */}
               {showOptimisticSuccess && (
                 <div className="mb-4 flex items-center justify-center gap-2 py-2 px-4 bg-green-500/10 border border-green-500/30 rounded-lg mx-auto max-w-xs">
-                  <RefreshCw size={16} className="text-green-400 animate-spin" />
-                  <span className="text-green-400 sequel-45 text-sm">Loading your tickets...</span>
+                  <RefreshCw
+                    size={16}
+                    className="text-green-400 animate-spin"
+                  />
+                  <span className="text-green-400 sequel-45 text-sm">
+                    Loading your tickets...
+                  </span>
                 </div>
               )}
 
               {/* Proof of Purchase Reference */}
               {(baseTransactionId || balanceTransactionId) && (
                 <div className="bg-[#1A1A1A] rounded-lg p-4 mb-4 max-w-md mx-auto">
-                  <p className="text-white/60 sequel-45 text-xs mb-1">Proof of Purchase Reference:</p>
+                  <p className="text-white/60 sequel-45 text-xs mb-1">
+                    Proof of Purchase Reference:
+                  </p>
                   <p className="text-[#DDE404] sequel-75 text-sm font-mono break-all">
                     {baseTransactionId || balanceTransactionId}
                   </p>
@@ -1841,7 +2303,9 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
               {/* Display purchased ticket numbers - use purchasedTickets which persist after onPaymentSuccess */}
               {purchasedTickets.length > 0 && (
                 <div className="bg-[#2A2A2A] rounded-lg p-4 mb-6 max-w-md mx-auto">
-                  <p className="text-white/60 sequel-45 text-sm mb-2">Your Ticket Numbers:</p>
+                  <p className="text-white/60 sequel-45 text-sm mb-2">
+                    Your Ticket Numbers:
+                  </p>
                   <div className="flex flex-wrap gap-2 justify-center max-h-32 overflow-y-auto">
                     {purchasedTickets.map((ticket) => (
                       <span
@@ -1866,7 +2330,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
           {/* Payment error */}
           {/* ISSUE 8B FIX: Enhanced error display with specific guidance */}
-          {paymentStep === 'error' && (
+          {paymentStep === "error" && (
             <div className="py-8 text-center">
               {paymentSucceededButAllocationPending ? (
                 // Payment succeeded but allocation pending - show blue warning icon (Coinbase style)
@@ -1880,7 +2344,9 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                 </div>
               )}
               <h3 className="text-white sequel-75 text-xl mb-2">
-                {paymentSucceededButAllocationPending ? 'Payment Processing' : 'Payment Failed'}
+                {paymentSucceededButAllocationPending
+                  ? "Payment Processing"
+                  : "Payment Failed"}
               </h3>
               <p className="text-gray-400 sequel-45 mb-2">
                 {errorMessage || "Something went wrong with your payment."}
@@ -1889,27 +2355,33 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
               {errorInfo?.guidance && !paymentSucceededButAllocationPending && (
                 <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg px-4 py-3 mb-4 mx-auto max-w-md">
                   <div className="flex items-start gap-2">
-                    <AlertTriangle size={18} className="text-amber-400 shrink-0 mt-0.5" />
+                    <AlertTriangle
+                      size={18}
+                      className="text-amber-400 shrink-0 mt-0.5"
+                    />
                     <p className="text-amber-400/90 sequel-45 text-sm text-left">
                       {errorInfo.guidance}
                     </p>
                   </div>
                 </div>
               )}
-              {!errorInfo?.guidance && !paymentSucceededButAllocationPending && (
-                <p className="text-gray-500 sequel-45 text-sm mb-4">
-                  Your tickets have not been charged. Please try again or choose a different payment method.
-                </p>
-              )}
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                {!paymentSucceededButAllocationPending && errorInfo?.retryable !== false && (
-                  <button
-                    onClick={handleReturn}
-                    className="py-4 px-10 bg-linear-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98]"
-                  >
-                    Try Again
-                  </button>
+              {!errorInfo?.guidance &&
+                !paymentSucceededButAllocationPending && (
+                  <p className="text-gray-500 sequel-45 text-sm mb-4">
+                    Your tickets have not been charged. Please try again or
+                    choose a different payment method.
+                  </p>
                 )}
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                {!paymentSucceededButAllocationPending &&
+                  errorInfo?.retryable !== false && (
+                    <button
+                      onClick={handleReturn}
+                      className="py-4 px-10 bg-linear-to-r from-[#DDE404] to-[#C5CC03] hover:from-[#C5CC03] hover:to-[#DDE404] text-black sequel-75 uppercase rounded-xl transition-all duration-300 shadow-lg shadow-[#DDE404]/20 hover:shadow-[#DDE404]/30 hover:scale-[1.02] active:scale-[0.98]"
+                    >
+                      Try Again
+                    </button>
+                  )}
                 {paymentSucceededButAllocationPending && (
                   <button
                     onClick={handleCloseModal}
@@ -1918,29 +2390,32 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                     Close
                   </button>
                 )}
-                {errorInfo?.category === 'availability' && !paymentSucceededButAllocationPending && (
-                  <button
-                    onClick={() => {
-                      handleCloseModal();
-                      window.location.reload();
-                    }}
-                    className="py-4 px-10 bg-transparent border border-white/30 text-white sequel-75 uppercase rounded-xl hover:bg-white/10 hover:border-white/50 transition-all duration-200"
-                  >
-                    Refresh & Select New Tickets
-                  </button>
-                )}
+                {errorInfo?.category === "availability" &&
+                  !paymentSucceededButAllocationPending && (
+                    <button
+                      onClick={() => {
+                        handleCloseModal();
+                        window.location.reload();
+                      }}
+                      className="py-4 px-10 bg-transparent border border-white/30 text-white sequel-75 uppercase rounded-xl hover:bg-white/10 hover:border-white/50 transition-all duration-200"
+                    >
+                      Refresh & Select New Tickets
+                    </button>
+                  )}
               </div>
             </div>
           )}
 
           {/* Legacy payment status from URL params */}
-          {(hasPaymentParams && !showInitialPayment && paymentStep === 'initial') && (
-            <PaymentStatus
-              status={paymentStatus}
-              paymentData={paymentData}
-              onReturn={handleReturn}
-            />
-          )}
+          {hasPaymentParams &&
+            !showInitialPayment &&
+            paymentStep === "initial" && (
+              <PaymentStatus
+                status={paymentStatus}
+                paymentData={paymentData}
+                onReturn={handleReturn}
+              />
+            )}
         </div>
       </div>
 
@@ -1957,8 +2432,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
               if (canonicalUserId) {
                 setLoadingBalance(true);
                 getUserBalance(canonicalUserId)
-                  .then(balance => setUserBalance(balance.data.available_balance))
-                  .catch(err => console.warn('Failed to refresh balance:', err))
+                  .then((balance) =>
+                    setUserBalance(balance.data.available_balance),
+                  )
+                  .catch((err) =>
+                    console.warn("Failed to refresh balance:", err),
+                  )
                   .finally(() => setLoadingBalance(false));
               }
             }}

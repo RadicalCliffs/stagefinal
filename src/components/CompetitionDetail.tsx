@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router';
-import { database } from '../lib/database';
-import Loader from './Loader';
-import IndividualCompetition from './IndividualCompetition/IndividualCompetition';
-import InstantWinCompetition from './InstantWinCompetition/InstantWinCompetition';
-import FinishedCompetition from './FinishedCompetition/FinishedCompetition';
-import type { Competition } from '../models/models';
-import { isFinalState } from './CompetitionStatusIndicator';
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router";
+import { database } from "../lib/database";
+import Loader from "./Loader";
+import IndividualCompetition from "./IndividualCompetition/IndividualCompetition";
+import InstantWinCompetition from "./InstantWinCompetition/InstantWinCompetition";
+import FinishedCompetition from "./FinishedCompetition/FinishedCompetition";
+import type { Competition } from "../models/models";
+import { isFinalState } from "./CompetitionStatusIndicator";
 
 // Helper to check if a competition is sold out
 const isSoldOut = (competition: Competition): boolean => {
@@ -22,7 +22,6 @@ const hasEnded = (competition: Competition): boolean => {
   return endDate <= new Date();
 };
 
-
 const CompetitionDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -32,13 +31,13 @@ const CompetitionDetail = () => {
   useEffect(() => {
     const fetchCompetition = async () => {
       if (!id) {
-        navigate('/competitions');
+        navigate("/competitions");
         return;
       }
 
       const comp = await database.getCompetitionByIdV2(id);
       if (!comp) {
-        navigate('/competitions');
+        navigate("/competitions");
         return;
       }
 
@@ -67,21 +66,25 @@ const CompetitionDetail = () => {
   // Route to FinishedCompetition for all terminal states (drawn, completed, cancelled, expired)
   // Also route to FinishedCompetition for sold-out or ended competitions
   // This prevents users from interacting with ticket purchase UI for ended competitions
-  if (isFinalState(competition.status) || isSoldOut(competition) || hasEnded(competition)) {
-    return <FinishedCompetition competition={competition}/>;
+  if (
+    isFinalState(competition.status) ||
+    isSoldOut(competition) ||
+    hasEnded(competition)
+  ) {
+    return <FinishedCompetition competition={competition} />;
   }
 
   // Also show FinishedCompetition for competitions that are currently drawing
   // (winner selection in progress - no new entries allowed)
-  if (competition.status === 'drawing') {
-    return <FinishedCompetition competition={competition}/>;
+  if (competition.status === "drawing") {
+    return <FinishedCompetition competition={competition} />;
   }
 
   if (competition.is_instant_win) {
-    return <InstantWinCompetition competition={competition}/>;
+    return <InstantWinCompetition competition={competition} />;
   }
 
-  return <IndividualCompetition competition={competition}/>;
+  return <IndividualCompetition competition={competition} />;
 };
 
 export default CompetitionDetail;

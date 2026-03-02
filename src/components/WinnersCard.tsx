@@ -95,7 +95,9 @@ export const WinnerCard = ({
       {/* Yellow button with draw date nested underneath */}
       <div className="px-2.5 pb-2.5">
         <Link
-          to={_competitionId ? `/competitions/${_competitionId}` : "/competitions"}
+          to={
+            _competitionId ? `/competitions/${_competitionId}` : "/competitions"
+          }
           className="bg-[#DDE404] block cursor-pointer hover:bg-[#DDE404]/90 text-black sequel-95 py-1.5 w-full rounded-md uppercase text-[10px] text-center border border-white"
         >
           VIEW COMPETITION
