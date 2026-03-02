@@ -82,13 +82,13 @@ export const getDashboardEntries = (
 
 /**
  * Get competition entries (by competition id or uid)
- * 
- * SQL Function: public.get_competition_entries(competition_identifier TEXT)
- * 
+ *
+ * SQL Function: public.get_competition_entries(p_competition_id TEXT, p_limit INT, p_offset INT)
+ *
  * @param supabaseClient - Supabase client instance
  * @param compIdOrUid - Competition UUID or UID
  * @returns Promise with RPC result containing competition entries
- * 
+ *
  * @example
  * const { data, error } = await getCompetitionEntries(supabase, '88f3467c-747e-4231-bb2e-1869e227bb85');
  */
@@ -99,9 +99,9 @@ export const getCompetitionEntries = (
   if (!compIdOrUid || typeof compIdOrUid !== 'string' || compIdOrUid.trim() === '') {
     throw new Error('compIdOrUid is required for getCompetitionEntries');
   }
-  
+
   return supabaseClient.rpc('get_competition_entries', {
-    competition_identifier: compIdOrUid
+    p_competition_id: compIdOrUid
   });
 };
 

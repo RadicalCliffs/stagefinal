@@ -453,7 +453,7 @@ class OmnipotentDataService {
         const bypassResult = (await supabase.rpc(
           "get_competition_entries_bypass_rls",
           {
-            competition_identifier: competitionId,
+            p_competition_id: competitionId,
           } as any,
         )) as { data: any; error: any };
 
