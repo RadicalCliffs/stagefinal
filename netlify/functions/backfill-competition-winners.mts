@@ -523,10 +523,10 @@ async function syncCompetitionWinners(supabase: SupabaseClient): Promise<void> {
 
   try {
     // Call the sync function if it exists
-    const { error } = await supabase.rpc("sync_competition_winners");
+    const { error } = await supabase.rpc("sync_all_winners_to_competition_winners");
     if (error) {
       // If RPC doesn't exist, that's okay - the trigger should handle it
-      console.log("[BackfillWinners] sync_competition_winners RPC not available, using trigger");
+      console.log("[BackfillWinners] sync_all_winners_to_competition_winners RPC not available, using trigger");
     } else {
       console.log("[BackfillWinners] competition_winners synced successfully");
     }

@@ -174,10 +174,10 @@ export async function reserveTickets(params: {
   userIdentifier: string;
   holdMinutes?: number;
 }): Promise<ReserveTicketsResponse> {
-  const { data, error } = await (supabase.rpc as any)("reserve_tickets", {
+  const { data, error } = await (supabase.rpc as any)("reserve_selected_tickets", {
+    p_user_id: params.userIdentifier,
     p_competition_id: params.competitionId,
     p_ticket_numbers: params.ticketNumbers,
-    p_user_id: params.userIdentifier,
     p_hold_minutes: params.holdMinutes ?? 15,
   });
 

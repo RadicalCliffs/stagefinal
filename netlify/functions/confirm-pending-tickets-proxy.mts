@@ -988,23 +988,25 @@ export default async (req: Request, _context: Context): Promise<Response> => {
           await supabase.rpc("log_confirmation_incident", {
             p_incident_id: incidentId,
             p_source: "netlify_proxy",
-            p_endpoint: "/api/confirm-pending-tickets",
             p_error_type: "BaseAccountFallbackPath",
             p_error_message:
               "Base Account payment used fallback allocation (no reservation)",
             p_error_stack: null,
-            p_user_id: canonicalUserId,
-            p_competition_id: competitionId,
-            p_reservation_id: null,
-            p_session_id: sessionId,
-            p_transaction_hash: finalTransactionHash,
+            p_request_context: {
+              endpoint: "/api/confirm-pending-tickets",
+              user_id: canonicalUserId,
+              competition_id: competitionId,
+              reservation_id: null,
+              session_id: sessionId,
+              transaction_hash: finalTransactionHash,
+            },
             p_env_context: {
               paymentProvider: "base_account",
               ticketCount: ticketNumbers.length,
               ticketNumbers: ticketNumbers.join(","),
               hadWalletAddress: !!walletAddress,
             },
-            p_metadata: {
+            p_function_context: {
               timestamp: new Date().toISOString(),
               origin: origin || "unknown",
               allocatedTickets: ticketNumbers,
@@ -1438,21 +1440,23 @@ export default async (req: Request, _context: Context): Promise<Response> => {
           await supabase.rpc("log_confirmation_incident", {
             p_incident_id: incidentId,
             p_source: "netlify_proxy",
-            p_endpoint: "/api/confirm-pending-tickets",
             p_error_type: "BaseAccount409Fallback",
             p_error_message: `Reservation ${reservation.id} unavailable (status: ${currentReservation?.status}), attempting PATH A fallback`,
             p_error_stack: null,
-            p_user_id: canonicalUserId,
-            p_competition_id: competitionId,
-            p_reservation_id: reservation.id,
-            p_session_id: sessionId,
-            p_transaction_hash: transactionHash,
+            p_request_context: {
+              endpoint: "/api/confirm-pending-tickets",
+              user_id: canonicalUserId,
+              competition_id: competitionId,
+              reservation_id: reservation.id,
+              session_id: sessionId,
+              transaction_hash: transactionHash,
+            },
             p_env_context: {
               paymentProvider,
               reservationStatus: currentReservation?.status,
               ticketCount: reservation.ticket_count || ticketNumbers.length,
             },
-            p_metadata: {
+            p_function_context: {
               timestamp: new Date().toISOString(),
               origin: origin || "unknown",
             },
@@ -2040,16 +2044,18 @@ export default async (req: Request, _context: Context): Promise<Response> => {
       await supabase.rpc("log_confirmation_incident", {
         p_incident_id: incidentId,
         p_source: "netlify_proxy",
-        p_endpoint: "/api/confirm-pending-tickets",
         p_error_type:
           err instanceof Error && err.name ? err.name : "UnknownError",
         p_error_message: errorMessage,
         p_error_stack: errorStack,
-        p_user_id: body?.userId || body?.userIdentifier || null,
-        p_competition_id: body?.competitionId || null,
-        p_reservation_id: body?.reservationId || null,
-        p_session_id: body?.sessionId || null,
-        p_transaction_hash: body?.transactionHash || null,
+        p_request_context: {
+          endpoint: "/api/confirm-pending-tickets",
+          user_id: body?.userId || body?.userIdentifier || null,
+          competition_id: body?.competitionId || null,
+          reservation_id: body?.reservationId || null,
+          session_id: body?.sessionId || null,
+          transaction_hash: body?.transactionHash || null,
+        },
         p_env_context: {
           netlify: true,
           hasSupabaseUrl: !!(
@@ -2059,7 +2065,7 @@ export default async (req: Request, _context: Context): Promise<Response> => {
           hasServiceRoleKey: !!Netlify.env.get("SUPABASE_SERVICE_ROLE_KEY"),
           nodeVersion: process.version,
         },
-        p_metadata: {
+        p_function_context: {
           timestamp: new Date().toISOString(),
           origin: origin || "unknown",
         },

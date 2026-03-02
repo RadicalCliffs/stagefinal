@@ -177,7 +177,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
         try {
             // Fetch unavailable tickets directly using RPC
             const { data: unavailableData, error: unavailableError } = await supabase
-                .rpc('get_unavailable_tickets', { p_competition_id: competitionId } as any);
+                .rpc('get_unavailable_tickets', { competition_id: competitionId } as any);
 
             if (unavailableError) {
                 console.error('[TicketSelector] Error fetching unavailable tickets:', unavailableError);
