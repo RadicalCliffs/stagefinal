@@ -397,9 +397,9 @@ export const database = {
             // Use RPC to get accurate ticket count - avoids uuid/text type mismatch in OR queries
             // The RPC properly resolves competition ID and handles both UUID and legacy uid formats
             const { data: availability } = (await (supabase.rpc as any)(
-              "get_competition_ticket_availability_text",
+              "get_competition_ticket_availability",
               {
-                p_competition_id: data.id,
+                competition_id: data.id,
               },
             )) as any;
 
@@ -1884,8 +1884,8 @@ export const database = {
           // The RPC properly resolves competition ID and handles both UUID and legacy uid formats
           const { data: availability, error: rpcError } = (await (
             supabase.rpc as any
-          )("get_competition_ticket_availability_text", {
-            p_competition_id: competitionId,
+          )("get_competition_ticket_availability", {
+            competition_id: competitionId,
           })) as any;
 
           // If RPC provides sold_tickets array directly, use it
@@ -3583,9 +3583,9 @@ export const database = {
       const { data, error } = (await (supabase.rpc as any)(
         "allocate_lucky_dip_tickets",
         {
-          p_user_id: userId.trim(),
+          p_user_canonical_id: userId.trim(),
           p_competition_id: competitionId.trim(),
-          p_ticket_count: count,
+          p_count: count,
           p_ticket_price: ticketPrice,
           p_hold_minutes: holdMinutes,
           p_session_id: sessionId || null,
@@ -3914,15 +3914,15 @@ export const database = {
     try {
       // Use the text wrapper RPC to avoid uuid = text type errors
       const { data, error }: any = (await (supabase.rpc as any)(
-        "get_competition_ticket_availability_text",
+        "get_competition_ticket_availability",
         {
-          p_competition_id: competitionId.trim(),
+          competition_id: competitionId.trim(),
         },
       )) as any;
 
       if (error) {
         console.warn(
-          "RPC get_competition_ticket_availability_text not available, using fallback:",
+          "RPC get_competition_ticket_availability not available, using fallback:",
           error.message,
         );
         // Fallback to existing method
@@ -3936,7 +3936,7 @@ export const database = {
         // The RPC returns { error: "message" } when competition is not found or invalid
         if (rpcData.error) {
           console.warn(
-            "RPC get_competition_ticket_availability_text returned error:",
+            "RPC get_competition_ticket_availability returned error:",
             rpcData.error,
           );
           return null;
@@ -4263,8 +4263,8 @@ export const database = {
     try {
       // Use RPC function to bypass RLS which fails with Privy auth (auth.uid() is null)
       const { data, error: rpcError } = (await (supabase.rpc as any)(
-        "confirm_pending_ticket_reservation" as any,
-        { p_reservation_id: reservationId },
+        "confirm_ticket_purchase",
+        { p_pending_ticket_id: reservationId },
       )) as any;
 
       if (rpcError) {

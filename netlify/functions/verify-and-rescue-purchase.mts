@@ -190,7 +190,7 @@ export default async (req: Request, context: Context) => {
       const { data: rpcResult, error: rpcError } = await supabase.rpc(
         "purchase_tickets_with_balance",
         {
-          p_user_identifier: canonicalUserId,
+          p_canonical_user_id: canonicalUserId,
           p_competition_id: competitionId,
           p_ticket_price: ticketPrice,
           p_ticket_count: null,

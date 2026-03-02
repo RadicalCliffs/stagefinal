@@ -142,19 +142,21 @@ async function getEdgeFunctions(): Promise<any[]> {
 // Get database indexes
 async function getDatabaseIndexes(serviceClient: ReturnType<typeof createClient>): Promise<any[]> {
   try {
-    // Query pg_indexes system catalog to get all non-system indexes
-    const { data, error } = await serviceClient.rpc('get_database_indexes');
-    
+    // Query pg_indexes system catalog using exec_sql RPC
+    const { data, error } = await serviceClient.rpc('exec_sql', {
+      sql_query: "SELECT schemaname, tablename, indexname, indexdef FROM pg_indexes WHERE schemaname = 'public' ORDER BY tablename, indexname"
+    });
+
     if (error) {
       // Check if it's a missing function error
       if (error.message && error.message.includes('function') && error.message.includes('does not exist')) {
-        console.warn('get_database_indexes RPC function not found. Please run migrations.');
+        console.warn('exec_sql RPC function not found. Please run migrations.');
         return [];
       }
       console.error('Error querying indexes:', error);
       throw new Error(`Failed to query indexes: ${error.message}`);
     }
-    
+
     return data || [];
   } catch (error) {
     console.error('Error getting database indexes:', error);

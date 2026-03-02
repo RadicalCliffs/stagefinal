@@ -65,13 +65,12 @@ async function callRpcWithRetry(
       const { data: rpcResult, error: rpcError } = await supabase.rpc(
         "purchase_tickets_with_balance",
         {
-          p_user_identifier: params.canonicalUserId,
+          p_canonical_user_id: params.canonicalUserId,
           p_competition_id: params.competitionId,
           p_ticket_price: params.ticketPrice,
           p_ticket_count: params.ticketCount,
           p_ticket_numbers: params.ticketNumbers,
           p_idempotency_key: params.idempotencyKey,
-          p_reservation_id: params.reservationId,
         }
       );
 

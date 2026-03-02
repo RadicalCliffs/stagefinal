@@ -244,8 +244,8 @@ async function processCleanup(
   for (const account of accountsToClearEmail) {
     try {
       // Use raw SQL to update, avoiding any triggers that reference non-existent columns
-      const { error: updateError } = await serviceClient.rpc('execute_sql', {
-        sql: `UPDATE canonical_users SET email = NULL, updated_at = NOW() WHERE id = '${account.id}'`
+      const { error: updateError } = await serviceClient.rpc('exec_sql', {
+        sql_query: `UPDATE canonical_users SET email = NULL, updated_at = NOW() WHERE id = '${account.id}'`
       });
 
       // If RPC doesn't exist, fallback to direct update
