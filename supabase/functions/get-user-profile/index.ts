@@ -168,7 +168,7 @@ Deno.serve(async (req: Request) => {
     const { data: orders, error: ordersErr } = await supabase
       .from("orders")
       .select("id, competition_id, amount_usd, payment_status, created_at")
-      .eq("user_id", canonicalUserId)
+      .eq("canonical_user_id", canonicalUserId)
       .order("created_at", { ascending: false })
       .limit(20);
 

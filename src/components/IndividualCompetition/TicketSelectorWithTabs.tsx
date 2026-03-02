@@ -177,7 +177,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
         try {
             // Fetch unavailable tickets directly using RPC
             const { data: unavailableData, error: unavailableError } = await supabase
-                .rpc('get_unavailable_tickets', { competition_id: competitionId } as any);
+                .rpc('get_unavailable_tickets', { p_competition_id: competitionId } as any);
 
             if (unavailableError) {
                 console.error('[TicketSelector] Error fetching unavailable tickets:', unavailableError);
@@ -199,10 +199,43 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ competitionId, totalTic
                 setIsInitialLoad(false);
             }
         } catch (err) {
-            console.error('Error fetching available tickets:', err);
-            // Only show error on initial load, silently fail on background refreshes
-            if (isInitialLoad) {
-                setLoadingError('Failed to load available tickets. Please try again.');
+            console.warn('[TicketSelector] RPC failed, using direct query fallback:', err);
+            // Fallback: query joincompetition directly to get sold ticket numbers
+            try {
+                const { data: soldData } = await supabase
+                    .from('joincompetition')
+                    .select('ticketnumbers')
+                    .eq('competitionid', competitionId)
+                    .in('status', ['active', 'sold']) as any;
+
+                const unavailableSet = new Set<number>();
+                if (soldData) {
+                    soldData.forEach((row: { ticketnumbers: string | null }) => {
+                        const nums = String(row.ticketnumbers || '')
+                            .split(',')
+                            .map((x: string) => parseInt(x.trim(), 10))
+                            .filter((n: number) => Number.isFinite(n) && n > 0);
+                        nums.forEach((n: number) => unavailableSet.add(n));
+                    });
+                }
+
+                const available: number[] = [];
+                for (let i = 1; i <= totalTickets; i++) {
+                    if (!unavailableSet.has(i)) {
+                        available.push(i);
+                    }
+                }
+
+                console.log('[TicketSelector] Fallback succeeded:', { count: available.length });
+                setAvailableTickets(available);
+                if (isInitialLoad) {
+                    setIsInitialLoad(false);
+                }
+            } catch (fallbackErr) {
+                console.error('[TicketSelector] Fallback also failed:', fallbackErr);
+                if (isInitialLoad) {
+                    setLoadingError('Failed to load available tickets. Please try again.');
+                }
             }
         } finally {
             console.log('[TicketSelector] fetchAvailableTickets finally', { showLoadingState, isInitialLoad });

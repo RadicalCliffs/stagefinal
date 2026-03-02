@@ -172,38 +172,48 @@ export interface CompetitionCardProps {
 export interface Competition {
   id: string;
   uid?: string; // Legacy UID field used for joincompetition and Prize_Instantprizes
-  creator_id: string;
+  creator_id?: string | null;
   title: string;
   description: string;
-  contract_address: string;
-  chain_id: number;
-  max_participants: number;
+  description_text?: string | null;
+  contract_address?: string;
+  chain_id?: number;
+  max_participants?: number;
   max_tickets?: number;  // Added for ticket-based competitions
-  entry_fee: string;
-  status: 'draft' | 'active' | 'drawing' | 'drawn' | 'completed' | 'cancelled' | 'expired';
+  entry_fee?: string;
+  status: 'draft' | 'active' | 'drawing' | 'drawn' | 'completed' | 'cancelled' | 'expired' | 'upcoming' | 'sold_out';
   winner_address?: string | null;
   tx_hash?: string | null;
   vrf_request_id?: string | null;
   created_at?: string | null;
+  updated_at?: string | null;
   drawn_at?: string | null;
   end_date?: string | null;
   draw_date?: string | null;
   start_date?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
   is_instant_win?: boolean | null;
   competition_type?: string | null;
   image_url: string;
   total_entries?: number;
   entries_sold?: number;
   prize_value?: number | null;
+  prize_description?: string | null;
   entry_price?: number;
   ticket_price?: number | null;
   total_tickets?: number | null;
+  sold_tickets?: number | null;
   tickets_sold?: number | null;
   progressPercent?: number;  // Calculated field for UI display
   category?: string | null;
   prize_type?: string | null;
   is_featured?: boolean | null;
-  winning_tickets_generated?: boolean | null;
+  winning_tickets_generated?: string | null;
+  winning_ticket_numbers?: string | null;
+  winning_ticket_count?: number | null;
+  winner_count?: number | null;
+  num_winners?: number | null;
   font_size_override?: string | null;
   font_weight_override?: string | null;
   metadata_title?: string | null;
@@ -211,10 +221,37 @@ export interface Competition {
   metadata_image?: string | null;
   competitionended?: number | null;
   crdate?: string | null;
+  deleted?: boolean | null;
+  max_tickets_per_user_percentage?: number | null;
   // VRF On-Chain fields
-  onchain_competition_id?: number | null;
+  onchain_competition_id?: string | null;
+  onchain_pid?: string | null;
   vrf_error?: string | null;
+  vrf_error_at?: string | null;
   vrf_draw_requested_at?: string | null;
+  vrf_draw_completed_at?: string | null;
+  vrf_completed_at?: string | null;
+  vrf_status?: string | null;
+  vrf_tx_hash?: string | null;
+  vrf_verified?: boolean | null;
+  vrf_method?: string | null;
+  vrf_random_word?: string | null;
+  vrf_random_words?: number[] | null;
+  vrf_proof?: string | null;
+  vrf_proof_tx?: string | null;
+  vrf_request_tx?: string | null;
+  vrf_requested_at?: string | null;
+  vrf_fulfilled_at?: string | null;
+  vrf_randomness?: any | null;
+  vrf_subscription_id?: number | null;
+  vrfulfillment_address?: string | null;
+  outcomes_vrf_seed?: string | null;
+  outcomes_generated_at?: string | null;
+  randomness_verified_at?: string | null;
+  vrf_request_block?: number | null;
+  vrf_config_used?: any | null;
+  vrf_processed_at?: string | null;
+  vrf_seed_used?: string | null;
 }
 
 export interface CompetitionWrapper {

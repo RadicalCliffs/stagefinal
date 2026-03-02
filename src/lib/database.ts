@@ -2105,7 +2105,7 @@ export const database = {
       const { data, error } = (await supabase
         .from("orders")
         .select("*")
-        .eq("user_id", userId)
+        .eq("canonical_user_id", userId)
         .order("created_at", { ascending: false })) as any;
 
       if (error) {
@@ -3220,16 +3220,16 @@ export const database = {
       identity.canonicalUserId
     ) {
       try {
-        // Orders table uses user_id column which stores the user identifier
+        // Orders table uses canonical_user_id column which stores the user identifier
         const orderFilters: string[] = [];
         if (identity.walletAddress) {
-          orderFilters.push(`user_id.eq.${identity.walletAddress}`);
+          orderFilters.push(`canonical_user_id.eq.${identity.walletAddress}`);
         }
         if (identity.legacyUserId) {
-          orderFilters.push(`user_id.eq.${identity.legacyUserId}`);
+          orderFilters.push(`canonical_user_id.eq.${identity.legacyUserId}`);
         }
         if (identity.canonicalUserId) {
-          orderFilters.push(`user_id.eq.${identity.canonicalUserId}`);
+          orderFilters.push(`canonical_user_id.eq.${identity.canonicalUserId}`);
         }
 
         if (orderFilters.length > 0) {
@@ -3241,7 +3241,7 @@ export const database = {
               `
               id,
               competition_id,
-              user_id,
+              canonical_user_id,
               amount,
               ticket_count,
               status,
