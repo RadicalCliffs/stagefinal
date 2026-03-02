@@ -95,13 +95,13 @@ export const WinnerCard = ({
       {/* Yellow button with draw date nested underneath */}
       <div className="px-2.5 pb-2.5">
         <Link
-          to="/competitions/live-competition"
+          to={_competitionId ? `/competitions/${_competitionId}` : "/competitions"}
           className="bg-[#DDE404] block cursor-pointer hover:bg-[#DDE404]/90 text-black sequel-95 py-1.5 w-full rounded-md uppercase text-[10px] text-center border border-white"
         >
           VIEW COMPETITION
         </Link>
         <p className="sequel-45 text-[9px] text-center text-white py-1 mt-0.5">
-          Draw Date: <span className="sequel-75">{date || "12.12.2025"}</span>
+          Draw Date: <span className="sequel-75">{date || "TBD"}</span>
         </p>
       </div>
 

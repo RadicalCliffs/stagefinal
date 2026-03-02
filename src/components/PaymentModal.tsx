@@ -797,7 +797,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
             p_idempotency_key: currentReservationId || '',
           };
 
-          const rescueResponse = await fetch('https://mthwfldcjvpxjtmrqkqm.supabase.co/functions/v1/purchase-handler/verify-and-rescue-purchase', {
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://mthwfldcjvpxjtmrqkqm.supabase.co';
+          const rescueResponse = await fetch(`${supabaseUrl}/functions/v1/purchase-handler/verify-and-rescue-purchase`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(rescueRequestBody),

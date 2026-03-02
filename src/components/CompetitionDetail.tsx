@@ -25,7 +25,6 @@ const hasEnded = (competition: Competition): boolean => {
 
 const CompetitionDetail = () => {
   const { id } = useParams<{ id: string }>();
-  console.log(id)
   const navigate = useNavigate();
   const [competition, setCompetition] = useState<Competition>();
   const [loading, setLoading] = useState(true);

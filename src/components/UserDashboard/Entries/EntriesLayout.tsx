@@ -28,9 +28,9 @@ export default function EntriesLayout() {
                 setActiveTab(OPTIONS[0]);
                 navigate('/dashboard/entries');
               }}
-              className='py-3 px-3 sm:px-4 lg:px-6 lg:text-sm md:text-xs text-[11px] uppercase rounded-lg cursor-pointer transition-all duration-200 leading-tight bg-[#DDE404] sequel-75 text-[#1A1A1A] border-2 border-[#DDE404] shadow-lg shadow-[#DDE404]/20 !text-[10px] sm:!text-xs md:!text-sm !sequel-75 py-3 sm:py-4'
+              className='py-3 sm:py-4 px-3 sm:px-4 lg:px-6 text-[10px] sm:text-xs md:text-sm uppercase rounded-lg cursor-pointer transition-all duration-200 leading-tight bg-[#DDE404] sequel-75 text-[#1A1A1A] border-2 border-[#DDE404] shadow-lg shadow-[#DDE404]/20'
             >
-              Finished Competitions
+              Back to My Entries
             </button>
           </div>
         ) : (
