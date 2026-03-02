@@ -2176,7 +2176,7 @@ export interface Database {
       }
       get_unavailable_tickets: {
         Args: {
-          p_competition_id: string
+          competition_id: string
         }
         Returns: number[]
       }
