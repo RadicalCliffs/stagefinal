@@ -486,7 +486,7 @@ export class BalancePaymentService {
             p_ticket_price: ticketPrice,
             p_hold_minutes: 15,
             p_session_id: idempotencyKey,
-            p_excluded_tickets: null,
+            p_excluded_tickets: undefined,
           },
         );
 

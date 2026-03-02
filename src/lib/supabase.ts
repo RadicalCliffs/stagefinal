@@ -23,15 +23,11 @@ const supabase = createClient<Database>(supabaseUrl, supabaseKey, {
     // Storage key prefix - don't change this as existing sessions use this key
     storageKey: 'sb-' + new URL(supabaseUrl).hostname.split('.')[0] + '-auth-token',
   },
-  global: {
-    headers: {
-      // Prevent Safari and other browsers from aggressively caching responses
-      // This fixes Safari users not seeing recent entries and transactions
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Pragma': 'no-cache',
-      // Note: 'Expires' header intentionally omitted - it causes CORS preflight failures
-    },
-  },
+  // NOTE: global.headers configuration removed to prevent CORS preflight failures
+  // Headers like 'Cache-Control', 'Pragma', and 'Expires' are non-simple headers
+  // that trigger CORS preflight (OPTIONS) requests for POST/RPC calls
+  // This was causing "Fetch failed loading: POST" errors for ticket reservations
+  // Cache control can be handled via Supabase dashboard settings if needed
 });
 
 export default supabase;
