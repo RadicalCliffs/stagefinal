@@ -291,7 +291,7 @@ Deno.serve(async (req: Request) => {
 
   // Handle preflight
   if (req.method === "OPTIONS") {
-    return new Response(null, { status: 200,  // Use 200 instead of 204 for better compatibility headers: cors });
+    return new Response(null, { status: 200, headers: cors });
   }
 
   // Only accept POST requests

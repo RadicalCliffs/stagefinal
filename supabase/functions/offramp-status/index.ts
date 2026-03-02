@@ -14,28 +14,30 @@ import { toPrizePid } from "../_shared/userId.ts";
 
 // CORS configuration
 const ALLOWED_ORIGINS = [
-  'https://vocal-cascaron-bcef9b.netlify.app',
-  'https://stage.theprize.io',
-  'https://theprize.io',
-  'https://www.theprize.io',
-  'http://localhost:3000',
-  'http://localhost:5173',
+  "https://vocal-cascaron-bcef9b.netlify.app",
+  "https://stage.theprize.io",
+  "https://theprize.io",
+  "https://www.theprize.io",
+  "http://localhost:3000",
+  "http://localhost:5173",
 ];
 
 function corsHeaders(req: Request) {
-  const origin = req.headers.get('origin') ?? '';
-  const allowOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : '';
+  const origin = req.headers.get("origin") ?? "";
+  const allowOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : "";
   return {
-    'Access-Control-Allow-Origin': allowOrigin,
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'authorization, content-type, x-client-info, apikey, cache-control, pragma, expires',
-    'Access-Control-Max-Age': '86400',
-    'Vary': 'Origin',
+    "Access-Control-Allow-Origin": allowOrigin,
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers":
+      "authorization, content-type, x-client-info, apikey, cache-control, pragma, expires",
+    "Access-Control-Max-Age": "86400",
+    Vary: "Origin",
   };
 }
 
 // Coinbase API endpoints
-const COINBASE_SELL_API = "https://api.developer.coinbase.com/onramp/v1/sell/user";
+const COINBASE_SELL_API =
+  "https://api.developer.coinbase.com/onramp/v1/sell/user";
 
 interface StatusRequest {
   payoutId?: string;
@@ -60,9 +62,9 @@ interface PayoutStatus {
  * Base64url encode a string or object
  */
 function base64UrlEncode(input: string | object): string {
-  const str = typeof input === 'string' ? input : JSON.stringify(input);
+  const str = typeof input === "string" ? input : JSON.stringify(input);
   const base64 = btoa(str);
-  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 }
 
 /**
@@ -85,7 +87,9 @@ async function generateCdpJwt(uri: string): Promise<string> {
   // Generate a random nonce (16 bytes as hex string per Coinbase spec)
   const nonceBytes = new Uint8Array(16);
   crypto.getRandomValues(nonceBytes);
-  const nonce = Array.from(nonceBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+  const nonce = Array.from(nonceBytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 
   const header = {
     alg: "ES256",
@@ -131,22 +135,22 @@ async function generateCdpJwt(uri: string): Promise<string> {
     binaryDer,
     { name: "ECDSA", namedCurve: "P-256" },
     false,
-    ["sign"]
+    ["sign"],
   );
 
   const encoder = new TextEncoder();
   const signature = await crypto.subtle.sign(
     { name: "ECDSA", hash: "SHA-256" },
     cryptoKey,
-    encoder.encode(message)
+    encoder.encode(message),
   );
 
   const signatureArray = new Uint8Array(signature);
   const signatureBase64 = btoa(String.fromCharCode(...signatureArray));
   const signatureBase64Url = signatureBase64
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=/g, '');
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "");
 
   return `${message}.${signatureBase64Url}`;
 }
@@ -154,7 +158,9 @@ async function generateCdpJwt(uri: string): Promise<string> {
 /**
  * Fetch offramp transactions from Coinbase API
  */
-async function fetchCoinbaseOfframpTransactions(partnerUserId: string): Promise<unknown[]> {
+async function fetchCoinbaseOfframpTransactions(
+  partnerUserId: string,
+): Promise<unknown[]> {
   const apiUrl = `${COINBASE_SELL_API}/${encodeURIComponent(partnerUserId)}/transactions`;
 
   try {
@@ -185,11 +191,14 @@ Deno.serve(async (req: Request) => {
   const cors = corsHeaders(req);
   const requestId = crypto.randomUUID().slice(0, 8);
 
-  console.log(`[offramp-status][${requestId}] Incoming request: method=${req.method}`);
+  console.log(
+    `[offramp-status][${requestId}] Incoming request: method=${req.method}`,
+  );
 
   // Handle preflight
   if (req.method === "OPTIONS") {
-    return new Response(null, { status: 200,  // Use 200 instead of 204 for better compatibility headers: cors });
+    // Use 200 instead of 204 for better compatibility
+    return new Response(null, { status: 200, headers: cors });
   }
 
   try {
@@ -199,9 +208,9 @@ Deno.serve(async (req: Request) => {
     if (req.method === "GET") {
       const url = new URL(req.url);
       params = {
-        payoutId: url.searchParams.get('payoutId') || undefined,
-        partnerUserRef: url.searchParams.get('partnerUserRef') || undefined,
-        checkCoinbase: url.searchParams.get('checkCoinbase') === 'true',
+        payoutId: url.searchParams.get("payoutId") || undefined,
+        partnerUserRef: url.searchParams.get("partnerUserRef") || undefined,
+        checkCoinbase: url.searchParams.get("checkCoinbase") === "true",
       };
     }
 
@@ -212,7 +221,10 @@ Deno.serve(async (req: Request) => {
       } catch {
         return new Response(
           JSON.stringify({ success: false, error: "Invalid JSON body" }),
-          { status: 400, headers: { "Content-Type": "application/json", ...cors } }
+          {
+            status: 400,
+            headers: { "Content-Type": "application/json", ...cors },
+          },
         );
       }
     }
@@ -220,17 +232,29 @@ Deno.serve(async (req: Request) => {
     const { payoutId, partnerUserRef, checkCoinbase = false } = params;
 
     // Convert partnerUserRef to canonical format for database lookup
-    const canonicalUserRef = partnerUserRef ? toPrizePid(partnerUserRef) : undefined;
-    console.log(`[offramp-status][${requestId}] Canonical user ref: ${canonicalUserRef}`);
+    const canonicalUserRef = partnerUserRef
+      ? toPrizePid(partnerUserRef)
+      : undefined;
+    console.log(
+      `[offramp-status][${requestId}] Canonical user ref: ${canonicalUserRef}`,
+    );
 
     if (!payoutId && !partnerUserRef) {
       return new Response(
-        JSON.stringify({ success: false, error: "payoutId or partnerUserRef is required" }),
-        { status: 400, headers: { "Content-Type": "application/json", ...cors } }
+        JSON.stringify({
+          success: false,
+          error: "payoutId or partnerUserRef is required",
+        }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...cors },
+        },
       );
     }
 
-    console.log(`[offramp-status][${requestId}] Checking status for payoutId=${payoutId}, partnerUserRef=${partnerUserRef}`);
+    console.log(
+      `[offramp-status][${requestId}] Checking status for payoutId=${payoutId}, partnerUserRef=${partnerUserRef}`,
+    );
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -239,7 +263,10 @@ Deno.serve(async (req: Request) => {
     if (!supabaseUrl || !supabaseServiceKey) {
       return new Response(
         JSON.stringify({ success: false, error: "Server configuration error" }),
-        { status: 500, headers: { "Content-Type": "application/json", ...cors } }
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...cors },
+        },
       );
     }
 
@@ -250,9 +277,11 @@ Deno.serve(async (req: Request) => {
 
     if (payoutId) {
       const { data, error } = await supabase
-        .from('user_transactions')
-        .select('id, status, payment_status, amount, currency, pay_currency, metadata, created_at, updated_at')
-        .eq('id', payoutId)
+        .from("user_transactions")
+        .select(
+          "id, status, payment_status, amount, currency, pay_currency, metadata, created_at, updated_at",
+        )
+        .eq("id", payoutId)
         .single();
 
       if (!error && data) {
@@ -261,9 +290,11 @@ Deno.serve(async (req: Request) => {
           status: data.status,
           paymentStatus: data.payment_status,
           cryptoAmount: data.metadata?.sell_amount?.value,
-          cryptoCurrency: data.pay_currency || data.metadata?.sell_amount?.currency,
-          fiatAmount: data.amount?.toString() || data.metadata?.cashout_amount?.value,
-          fiatCurrency: data.currency || 'USD',
+          cryptoCurrency:
+            data.pay_currency || data.metadata?.sell_amount?.currency,
+          fiatAmount:
+            data.amount?.toString() || data.metadata?.cashout_amount?.value,
+          fiatCurrency: data.currency || "USD",
           network: data.metadata?.network,
           createdAt: data.created_at,
           updatedAt: data.updated_at,
@@ -273,22 +304,26 @@ Deno.serve(async (req: Request) => {
       // Query using canonical user ID for consistent matching
       // Also try legacy lookup with original partnerUserRef for backward compatibility
       let { data, error } = await supabase
-        .from('user_transactions')
-        .select('id, status, payment_status, amount, currency, pay_currency, metadata, created_at, updated_at')
-        .eq('user_privy_id', canonicalUserRef)
-        .eq('payment_provider', 'coinbase_offramp')
-        .order('created_at', { ascending: false })
+        .from("user_transactions")
+        .select(
+          "id, status, payment_status, amount, currency, pay_currency, metadata, created_at, updated_at",
+        )
+        .eq("user_privy_id", canonicalUserRef)
+        .eq("payment_provider", "coinbase_offramp")
+        .order("created_at", { ascending: false })
         .limit(1)
         .single();
 
       // Fallback: try with original partnerUserRef if canonical lookup fails
       if (error && partnerUserRef && partnerUserRef !== canonicalUserRef) {
         const fallbackResult = await supabase
-          .from('user_transactions')
-          .select('id, status, payment_status, amount, currency, pay_currency, metadata, created_at, updated_at')
-          .eq('user_privy_id', partnerUserRef)
-          .eq('payment_provider', 'coinbase_offramp')
-          .order('created_at', { ascending: false })
+          .from("user_transactions")
+          .select(
+            "id, status, payment_status, amount, currency, pay_currency, metadata, created_at, updated_at",
+          )
+          .eq("user_privy_id", partnerUserRef)
+          .eq("payment_provider", "coinbase_offramp")
+          .order("created_at", { ascending: false })
           .limit(1)
           .single();
         data = fallbackResult.data;
@@ -301,9 +336,11 @@ Deno.serve(async (req: Request) => {
           status: data.status,
           paymentStatus: data.payment_status,
           cryptoAmount: data.metadata?.sell_amount?.value,
-          cryptoCurrency: data.pay_currency || data.metadata?.sell_amount?.currency,
-          fiatAmount: data.amount?.toString() || data.metadata?.cashout_amount?.value,
-          fiatCurrency: data.currency || 'USD',
+          cryptoCurrency:
+            data.pay_currency || data.metadata?.sell_amount?.currency,
+          fiatAmount:
+            data.amount?.toString() || data.metadata?.cashout_amount?.value,
+          fiatCurrency: data.currency || "USD",
           network: data.metadata?.network,
           createdAt: data.created_at,
           updatedAt: data.updated_at,
@@ -314,7 +351,8 @@ Deno.serve(async (req: Request) => {
     // Optionally check Coinbase API for real-time status
     let coinbaseTransactions: unknown[] = [];
     if (checkCoinbase && partnerUserRef) {
-      coinbaseTransactions = await fetchCoinbaseOfframpTransactions(partnerUserRef);
+      coinbaseTransactions =
+        await fetchCoinbaseOfframpTransactions(partnerUserRef);
     }
 
     return new Response(
@@ -322,10 +360,11 @@ Deno.serve(async (req: Request) => {
         success: true,
         data: {
           payout: dbPayout,
-          coinbaseTransactions: coinbaseTransactions.length > 0 ? coinbaseTransactions : undefined,
+          coinbaseTransactions:
+            coinbaseTransactions.length > 0 ? coinbaseTransactions : undefined,
         },
       }),
-      { status: 200, headers: { "Content-Type": "application/json", ...cors } }
+      { status: 200, headers: { "Content-Type": "application/json", ...cors } },
     );
   } catch (error) {
     console.error(`[offramp-status][${requestId}] Error:`, error);
@@ -335,7 +374,7 @@ Deno.serve(async (req: Request) => {
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
       }),
-      { status: 500, headers: { "Content-Type": "application/json", ...cors } }
+      { status: 500, headers: { "Content-Type": "application/json", ...cors } },
     );
   }
 });
