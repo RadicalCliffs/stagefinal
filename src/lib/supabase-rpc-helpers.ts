@@ -83,7 +83,7 @@ export const getDashboardEntries = (
 /**
  * Get competition entries (by competition id or uid)
  *
- * SQL Function: public.get_competition_entries(p_competition_id TEXT, p_limit INT, p_offset INT)
+ * SQL Function: public.get_competition_entries(competition_identifier TEXT)
  *
  * @param supabaseClient - Supabase client instance
  * @param compIdOrUid - Competition UUID or UID
@@ -101,7 +101,7 @@ export const getCompetitionEntries = (
   }
 
   return supabaseClient.rpc('get_competition_entries', {
-    p_competition_id: compIdOrUid
+    competition_identifier: compIdOrUid
   });
 };
 
@@ -132,13 +132,13 @@ export const getAvailability = (
 
 /**
  * Get unavailable tickets (used in availability calc)
- * 
- * SQL Function: public.get_unavailable_tickets(competition_id TEXT)
- * 
+ *
+ * SQL Function: public.get_unavailable_tickets(p_competition_id TEXT)
+ *
  * @param supabaseClient - Supabase client instance
  * @param compIdOrUid - Competition UUID or UID
  * @returns Promise with RPC result containing unavailable ticket numbers
- * 
+ *
  * @example
  * const { data, error } = await getUnavailableTickets(supabase, '88f3467c-747e-4231-bb2e-1869e227bb85');
  */
@@ -149,9 +149,9 @@ export const getUnavailableTickets = (
   if (!compIdOrUid || typeof compIdOrUid !== 'string' || compIdOrUid.trim() === '') {
     throw new Error('compIdOrUid is required for getUnavailableTickets');
   }
-  
+
   return supabaseClient.rpc('get_unavailable_tickets', {
-    competition_id: compIdOrUid
+    p_competition_id: compIdOrUid
   });
 };
 
