@@ -325,11 +325,22 @@ Deno.serve(async (req: Request) => {
         const errorMsg = result?.error || 'Unknown error from allocation RPC';
         const errorDetail = result?.error_detail || result?.error || 'allocation_failed';
         console.error(`[${requestId}] Allocation RPC failed:`, errorMsg, result);
+
+        // Use 409 Conflict for availability issues so client can handle gracefully
+        const isAvailabilityError = errorMsg.includes('available') ||
+          errorMsg.includes('Insufficient') || errorMsg.includes('pending ticket');
+        const statusCode = isAvailabilityError ? 409 : 500;
+
         return errorResponse(
-          "Failed to reserve tickets",
-          500,
+          errorMsg,
+          statusCode,
           corsHeaders,
-          { retryable: result?.retryable ?? true, errorDetail }
+          {
+            retryable: result?.retryable ?? !isAvailabilityError,
+            errorDetail,
+            available_count: result?.available_count,
+            requested_count: result?.requested_count
+          }
         );
       }
 
