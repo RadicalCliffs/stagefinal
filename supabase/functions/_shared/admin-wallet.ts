@@ -5,15 +5,19 @@
  */
 
 export function getAdminWalletPrivateKey(): string | null {
-  return Deno.env.get('ADMIN_WALLET_PRIVATE_KEY') || 
-         Deno.env.get('NEW_ADMIN_WALLET_PRIVATE_KEY') || 
-         null;
+  return (
+    Deno.env.get("ADMIN_WALLET_PRIVATE_KEY") ||
+    Deno.env.get("NEW_ADMIN_WALLET_PRIVATE_KEY") ||
+    null
+  );
 }
 
 export function requireAdminWalletPrivateKey(): string {
   const key = getAdminWalletPrivateKey();
   if (!key) {
-    throw new Error('Admin wallet private key not configured. Set ADMIN_WALLET_PRIVATE_KEY or NEW_ADMIN_WALLET_PRIVATE_KEY in Supabase secrets.');
+    throw new Error(
+      "Admin wallet private key not configured. Set ADMIN_WALLET_PRIVATE_KEY or NEW_ADMIN_WALLET_PRIVATE_KEY in Supabase secrets.",
+    );
   }
   return key;
 }

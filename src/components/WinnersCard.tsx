@@ -10,7 +10,6 @@ import {
 } from "../assets/images";
 import type { WinnerCardProps } from "../models/models";
 
-
 export const WinnerCard = ({
   prize,
   username,
@@ -28,7 +27,9 @@ export const WinnerCard = ({
     <div className="w-full bg-[#1A1A1A] text-white rounded-xl overflow-hidden border-[3px] border-white hover:border-[#DDE404] transition-colors flex flex-col max-w-[260px] mx-auto cursor-pointer">
       {/* Prize header */}
       <div className="bg-black px-3 py-2 text-center">
-        <h5 className="sequel-95 uppercase text-white text-sm mb-0 break-all leading-tight">{prize}</h5>
+        <h5 className="sequel-95 uppercase text-white text-sm mb-0 break-all leading-tight">
+          {prize}
+        </h5>
         <p className="sequel-75 text-[11px] text-white/90">WINNER</p>
       </div>
 
@@ -37,7 +38,7 @@ export const WinnerCard = ({
         {/* Avatar - takes full height on left */}
         <div className="shrink-0 relative w-20">
           <img
-            src={imgError ? avatar : (avatarUrl || avatar)}
+            src={imgError ? avatar : avatarUrl || avatar}
             alt="Winner"
             className="w-full h-full rounded-md object-cover"
             onError={() => setImgError(true)}
@@ -55,14 +56,22 @@ export const WinnerCard = ({
         <div className="flex-1 flex flex-col gap-1 min-w-0">
           {/* Username */}
           <div>
-            <p className="sequel-45 text-[8px] text-white/60 uppercase mb-0">USERNAME:</p>
-            <p className="sequel-75 text-[11px] text-white truncate">{username}</p>
+            <p className="sequel-45 text-[8px] text-white/60 uppercase mb-0">
+              USERNAME:
+            </p>
+            <p className="sequel-75 text-[11px] text-white truncate">
+              {username}
+            </p>
           </div>
 
           {/* Country */}
           <div>
-            <p className="sequel-45 text-[8px] text-white/60 uppercase mb-0">COUNTRY:</p>
-            <p className="sequel-75 text-[11px] text-white truncate">{country}</p>
+            <p className="sequel-45 text-[8px] text-white/60 uppercase mb-0">
+              COUNTRY:
+            </p>
+            <p className="sequel-75 text-[11px] text-white truncate">
+              {country}
+            </p>
           </div>
 
           {/* Social icons */}
@@ -92,13 +101,15 @@ export const WinnerCard = ({
           VIEW COMPETITION
         </Link>
         <p className="sequel-45 text-[9px] text-center text-white py-1 mt-0.5">
-          Draw Date: <span className="sequel-75">{date || '12.12.2025'}</span>
+          Draw Date: <span className="sequel-75">{date || "12.12.2025"}</span>
         </p>
       </div>
 
       {/* Winner wallet at bottom - CENTERED and ALWAYS CLICKABLE */}
       <div className="bg-[#0A0A0A] px-2.5 py-1.5 border-t border-white/10">
-        <p className="sequel-75 text-[8px] text-white/80 uppercase mb-0.5 text-center">WINNER WALLET:</p>
+        <p className="sequel-75 text-[8px] text-white/80 uppercase mb-0.5 text-center">
+          WINNER WALLET:
+        </p>
         <div className="flex flex-col gap-0.5 items-center">
           <a
             href={`https://basescan.org/address/${wallet}`}
@@ -113,7 +124,9 @@ export const WinnerCard = ({
         {/* VRF Transaction Hash - clickable link to BaseScan */}
         {txHash && /^0x[a-fA-F0-9]{64}$/.test(txHash) && (
           <div className="mt-1 pt-1 border-t border-white/5">
-            <p className="sequel-75 text-[8px] text-white/80 uppercase mb-0.5 text-center">VRF TX:</p>
+            <p className="sequel-75 text-[8px] text-white/80 uppercase mb-0.5 text-center">
+              VRF TX:
+            </p>
             <a
               href={`https://basescan.org/tx/${txHash}`}
               target="_blank"

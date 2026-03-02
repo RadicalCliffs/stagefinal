@@ -2,7 +2,15 @@ import { Link } from "react-router";
 import { useState } from "react";
 import Countdown from "../../Countdown";
 import { monkeyNftV3 } from "../../../assets/images";
-import { ChevronRight, Clock, Zap, Wallet, ExternalLink, Copy, Check } from "lucide-react";
+import {
+  ChevronRight,
+  Clock,
+  Zap,
+  Wallet,
+  ExternalLink,
+  Copy,
+  Check,
+} from "lucide-react";
 
 interface EntriesCardProps {
   variant?: "compact" | "detailed";
@@ -121,7 +129,9 @@ const EntriesCard = ({
     if (!hash) return "invalid";
     if (hash.startsWith("balance_payment_")) return "balance_payment";
     if (
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(hash)
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        hash,
+      )
     ) {
       return "coinbase_charge";
     }
@@ -165,21 +175,35 @@ const EntriesCard = ({
     if (hashType === "balance_payment") {
       return (
         <div className="flex items-center gap-x-2">
-          <span className="text-[#DDE404] sequel-45 text-[10px] sm:text-xs whitespace-nowrap">TX:</span>
+          <span className="text-[#DDE404] sequel-45 text-[10px] sm:text-xs whitespace-nowrap">
+            TX:
+          </span>
           <div className="flex items-center gap-1">
             <Wallet size={12} className="text-green-400" />
-            <span className="text-green-400 sequel-45 text-[10px] sm:text-xs">Balance</span>
+            <span className="text-green-400 sequel-45 text-[10px] sm:text-xs">
+              Balance
+            </span>
           </div>
         </div>
       );
     }
 
     if (hashType === "coinbase_charge") {
-      const displayId = transactionHash.length > 12 ? `${transactionHash.substring(0, 8)}...` : transactionHash;
+      const displayId =
+        transactionHash.length > 12
+          ? `${transactionHash.substring(0, 8)}...`
+          : transactionHash;
       return (
         <div className="flex items-center gap-x-2">
-          <span className="text-[#DDE404] sequel-45 text-[10px] sm:text-xs whitespace-nowrap">TX:</span>
-          <span className="text-white/50 sequel-45 text-[10px] sm:text-xs" title={transactionHash}>{displayId}</span>
+          <span className="text-[#DDE404] sequel-45 text-[10px] sm:text-xs whitespace-nowrap">
+            TX:
+          </span>
+          <span
+            className="text-white/50 sequel-45 text-[10px] sm:text-xs"
+            title={transactionHash}
+          >
+            {displayId}
+          </span>
         </div>
       );
     }
@@ -188,7 +212,9 @@ const EntriesCard = ({
       const displayHash = `${transactionHash.substring(0, 6)}...${transactionHash.slice(-4)}`;
       return (
         <div className="flex items-center gap-x-2">
-          <span className="text-[#DDE404] sequel-45 text-[10px] sm:text-xs whitespace-nowrap">TX:</span>
+          <span className="text-[#DDE404] sequel-45 text-[10px] sm:text-xs whitespace-nowrap">
+            TX:
+          </span>
           <a
             href={getBaseScanUrl(transactionHash)}
             target="_blank"
@@ -205,7 +231,11 @@ const EntriesCard = ({
             className="text-white/40 hover:text-[#DDE404] transition-colors"
             title="Copy BaseScan URL"
           >
-            {copiedHash === transactionHash ? <Check size={10} className="text-[#DDE404]" /> : <Copy size={10} />}
+            {copiedHash === transactionHash ? (
+              <Check size={10} className="text-[#DDE404]" />
+            ) : (
+              <Copy size={10} />
+            )}
           </button>
         </div>
       );
