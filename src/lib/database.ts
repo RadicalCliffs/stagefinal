@@ -2785,12 +2785,12 @@ export const database = {
       if (identity.walletAddress) {
         try {
           // Query joincompetition WITHOUT join to competitions
-          // SCHEMA: joincompetition has: userid, competitionid, ticketnumbers, joinedat, created_at
+          // SCHEMA: joincompetition has: wallet_address, competition_id, ticketnumbers, created_at
           const { data, error }: any = (await supabase
             .from("joincompetition")
             .select("*")
-            .ilike("userid", identity.walletAddress)
-            .order("joinedat", { ascending: false })) as any;
+            .ilike("wallet_address", identity.walletAddress)
+            .order("created_at", { ascending: false })) as any;
 
           if (!error && data && data.length > 0) {
             databaseLogger.success(
@@ -2894,12 +2894,12 @@ export const database = {
       // Also try by userid
       if (identity.legacyUserId && allEntries.length === 0) {
         try {
-          // SCHEMA: joincompetition has: user_id, competition_id, ticket_numbers, joinedat, created_at
+          // SCHEMA: joincompetition has: user_id, competition_id, ticket_numbers, created_at
           const { data, error }: any = (await supabase
             .from("joincompetition")
             .select("*")
             .eq("user_id", identity.legacyUserId)
-            .order("joinedat", { ascending: false })) as any;
+            .order("created_at", { ascending: false })) as any;
 
           if (!error && data && data.length > 0) {
             // Fetch competition data separately (same logic as above)
@@ -3361,7 +3361,6 @@ export const database = {
             .from("balance_ledger")
             .select("*")
             .or(ledgerFilters.join(","))
-            .eq("source", "purchase")
             .lt("amount", 0) // Purchases are negative (debits)
             .not("metadata->competition_id", "is", null)
             .order("created_at", { ascending: false })) as any;
