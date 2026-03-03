@@ -299,10 +299,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
         if (onSuccess) onSuccess();
       }, SUCCESS_DISPLAY_DURATION);
     }
-  }, [wagmiIsSuccess, wagmiTxHash, hasEmbeddedWallet, onSuccess, recipientAddress, amount
-      }, SUCCESS_DISPLAY_DURATION);
-    }
-  }, [wagmiIsSuccess, wagmiTxHash, hasEmbeddedWallet, onSuccess]);
+  }, [wagmiIsSuccess, wagmiTxHash, hasEmbeddedWallet, onSuccess, recipientAddress, amount]);
 
   // Handle Wagmi transaction pending state
   useEffect(() => {
