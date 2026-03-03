@@ -13,36 +13,36 @@ CREATE OR REPLACE VIEW public.purchase_events AS
 WITH combined_events AS (
   -- Purchases from tickets table
   SELECT 
-    t.uid::text AS source_row_id,
+    t.id::text AS source_row_id,
     'tickets'::text AS source_table,
     t.user_id,
     t.competition_id,
-    t.cost AS amount,
+    t.purchase_price AS amount,
     t.created_at AS occurred_at,
     t.purchase_key,
     1 AS priority  -- Higher priority for tickets
   FROM public.tickets t
   WHERE t.user_id IS NOT NULL 
     AND t.competition_id IS NOT NULL
-    AND t.cost IS NOT NULL
+    AND t.purchase_price IS NOT NULL
     AND t.created_at IS NOT NULL
 
   UNION ALL
 
   -- Purchases from joincompetition table
   SELECT 
-    jc.uid::text AS source_row_id,
+    jc.id::text AS source_row_id,
     'joincompetition'::text AS source_table,
     jc.user_id,
     jc.competition_id,
-    jc.cost AS amount,
+    jc.amount_spent AS amount,
     jc.created_at AS occurred_at,
-    jc.purchase_key,
+    NULL::text AS purchase_key,  -- joincompetition doesn't have purchase_key
     2 AS priority  -- Lower priority for joincompetition
   FROM public.joincompetition jc
   WHERE jc.user_id IS NOT NULL 
     AND jc.competition_id IS NOT NULL
-    AND jc.cost IS NOT NULL
+    AND jc.amount_spent IS NOT NULL
     AND jc.created_at IS NOT NULL
 ),
 deduplicated_events AS (
