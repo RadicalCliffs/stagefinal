@@ -288,7 +288,10 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
   useEffect(() => {
     if (wagmiIsSuccess && wagmiTxHash && !hasEmbeddedWallet) {
       setTxHash(wagmiTxHash);
-      setSave to recent transactions
+      setSuccess(true);
+      setIsSending(false);
+      
+      // Save to recent transactions
       saveRecentTransaction(recipientAddress, amount, wagmiTxHash);
       
       // Call success callback after a delay to show success message
