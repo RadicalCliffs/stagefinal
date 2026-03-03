@@ -29,7 +29,8 @@ export const config: Config = {
 
 // ---------- Supabase ----------
 function getSupabase(): SupabaseClient {
-  const supabaseUrl = Netlify.env.get("VITE_SUPABASE_URL") || Netlify.env.get("SUPABASE_URL");
+  const supabaseUrl =
+    Netlify.env.get("VITE_SUPABASE_URL") || Netlify.env.get("SUPABASE_URL");
   const serviceRoleKey = Netlify.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
   if (!supabaseUrl) throw new Error("Missing SUPABASE_URL / VITE_SUPABASE_URL");
@@ -61,7 +62,7 @@ async function createWinnerNotification(
   supabase: SupabaseClient,
   profileId: string,
   competition: CompetitionForDraw,
-  ticketNumber: number
+  ticketNumber: number,
 ): Promise<void> {
   try {
     const { error } = await supabase.from("user_notifications").insert({
@@ -76,9 +77,14 @@ async function createWinnerNotification(
     });
 
     if (error) {
-      console.error("[VRF-Scheduler] Error creating winner notification:", error);
+      console.error(
+        "[VRF-Scheduler] Error creating winner notification:",
+        error,
+      );
     } else {
-      console.log(`[VRF-Scheduler] Winner notification created for user ${profileId}`);
+      console.log(
+        `[VRF-Scheduler] Winner notification created for user ${profileId}`,
+      );
     }
   } catch (err) {
     console.error("[VRF-Scheduler] Error in createWinnerNotification:", err);
@@ -93,14 +99,17 @@ async function sendWinnerEmail(
   username: string,
   competitionTitle: string,
   prizeValue: string,
-  ticketNumber: number
+  ticketNumber: number,
 ): Promise<void> {
   const sendgridApiKey = Netlify.env.get("SENDGRID_API_KEY");
-  const fromEmail = Netlify.env.get("SENDGRID_FROM_EMAIL") || "contact@theprize.io";
+  const fromEmail =
+    Netlify.env.get("SENDGRID_FROM_EMAIL") || "contact@theprize.io";
   const templateId = Netlify.env.get("SENDGRID_TEMPLATE_WINNER");
 
   if (!sendgridApiKey || !templateId) {
-    console.log("[VRF-Scheduler] SendGrid winner email not configured, skipping");
+    console.log(
+      "[VRF-Scheduler] SendGrid winner email not configured, skipping",
+    );
     return;
   }
 
@@ -112,15 +121,17 @@ async function sendWinnerEmail(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        personalizations: [{
-          to: [{ email }],
-          dynamic_template_data: {
-            "Player Username": username,
-            "Competition Name": competitionTitle,
-            "Prize Value": prizeValue,
-            "Winning Ticket": `#${ticketNumber}`,
+        personalizations: [
+          {
+            to: [{ email }],
+            dynamic_template_data: {
+              "Player Username": username,
+              "Competition Name": competitionTitle,
+              "Prize Value": prizeValue,
+              "Winning Ticket": `#${ticketNumber}`,
+            },
           },
-        }],
+        ],
         from: { email: fromEmail, name: "ThePrize.io" },
         template_id: templateId,
       }),
@@ -143,9 +154,11 @@ async function sendWinnerEmail(
 async function notifyLosingParticipants(
   supabase: SupabaseClient,
   competition: CompetitionForDraw,
-  winnerUserId: string | null
+  winnerUserId: string | null,
 ): Promise<void> {
-  console.log(`[VRF-Scheduler] Notifying non-winners for competition ${competition.id}...`);
+  console.log(
+    `[VRF-Scheduler] Notifying non-winners for competition ${competition.id}...`,
+  );
 
   try {
     // Get all entries for this competition
@@ -155,7 +168,9 @@ async function notifyLosingParticipants(
       .eq("competitionid", competition.id);
 
     if (!entries || entries.length === 0) {
-      console.log(`[VRF-Scheduler] No entries found for competition ${competition.id}`);
+      console.log(
+        `[VRF-Scheduler] No entries found for competition ${competition.id}`,
+      );
       return;
     }
 
@@ -167,7 +182,9 @@ async function notifyLosingParticipants(
       }
     }
 
-    console.log(`[VRF-Scheduler] Found ${participantUserIds.size} non-winning participants to notify`);
+    console.log(
+      `[VRF-Scheduler] Found ${participantUserIds.size} non-winning participants to notify`,
+    );
 
     if (participantUserIds.size === 0) return;
 
@@ -208,12 +225,19 @@ async function notifyLosingParticipants(
       const batchSize = 50;
       for (let i = 0; i < notifications.length; i += batchSize) {
         const batch = notifications.slice(i, i + batchSize);
-        const { error } = await supabase.from("user_notifications").insert(batch);
+        const { error } = await supabase
+          .from("user_notifications")
+          .insert(batch);
         if (error) {
-          console.error(`[VRF-Scheduler] Error creating batch of loss notifications:`, error);
+          console.error(
+            `[VRF-Scheduler] Error creating batch of loss notifications:`,
+            error,
+          );
         }
       }
-      console.log(`[VRF-Scheduler] Created ${notifications.length} loss notifications`);
+      console.log(
+        `[VRF-Scheduler] Created ${notifications.length} loss notifications`,
+      );
     }
   } catch (err) {
     console.error("[VRF-Scheduler] Error in notifyLosingParticipants:", err);
@@ -225,7 +249,9 @@ async function notifyLosingParticipants(
 /**
  * Find competitions ready for VRF draw
  */
-async function getCompetitionsReadyForDraw(supabase: SupabaseClient): Promise<CompetitionForDraw[]> {
+async function getCompetitionsReadyForDraw(
+  supabase: SupabaseClient,
+): Promise<CompetitionForDraw[]> {
   const now = new Date().toISOString();
 
   // Query for competitions that:
@@ -236,7 +262,9 @@ async function getCompetitionsReadyForDraw(supabase: SupabaseClient): Promise<Co
   // 5. Are NOT instant win (instant win winners are determined at purchase)
   const { data, error } = await supabase
     .from("competitions")
-    .select("id, title, status, end_date, onchain_competition_id, is_instant_win, vrf_draw_requested_at, vrf_draw_completed_at")
+    .select(
+      "id, title, status, end_date, onchain_competition_id, is_instant_win, vrf_draw_requested_at, vrf_draw_completed_at",
+    )
     .not("onchain_competition_id", "is", null)
     .in("status", ["active", "ended"])
     .lt("end_date", now)
@@ -255,7 +283,10 @@ async function getCompetitionsReadyForDraw(supabase: SupabaseClient): Promise<Co
 /**
  * Mark competition as drawing (VRF in progress)
  */
-async function markCompetitionAsDrawing(supabase: SupabaseClient, competitionId: string): Promise<void> {
+async function markCompetitionAsDrawing(
+  supabase: SupabaseClient,
+  competitionId: string,
+): Promise<void> {
   const { error } = await supabase
     .from("competitions")
     .update({
@@ -265,7 +296,10 @@ async function markCompetitionAsDrawing(supabase: SupabaseClient, competitionId:
     .eq("id", competitionId);
 
   if (error) {
-    console.error(`[VRF-Scheduler] Error marking competition ${competitionId} as drawing:`, error);
+    console.error(
+      `[VRF-Scheduler] Error marking competition ${competitionId} as drawing:`,
+      error,
+    );
     throw error;
   }
 }
@@ -276,12 +310,17 @@ async function markCompetitionAsDrawing(supabase: SupabaseClient, competitionId:
  */
 async function processCompetitionForDraw(
   supabase: SupabaseClient,
-  competition: CompetitionForDraw
+  competition: CompetitionForDraw,
 ): Promise<{ success: boolean; message: string }> {
-  console.log(`[VRF-Scheduler] Processing competition: ${competition.title} (${competition.id})`);
+  console.log(
+    `[VRF-Scheduler] Processing competition: ${competition.title} (${competition.id})`,
+  );
 
   // Validate onchain_competition_id
-  if (!competition.onchain_competition_id || competition.onchain_competition_id <= 0) {
+  if (
+    !competition.onchain_competition_id ||
+    competition.onchain_competition_id <= 0
+  ) {
     return {
       success: false,
       message: `Invalid onchain_competition_id: ${competition.onchain_competition_id}`,
@@ -302,7 +341,9 @@ async function processCompetitionForDraw(
     }
 
     // If it's been more than 5 minutes, retry
-    console.log(`[VRF-Scheduler] VRF draw was requested ${competition.vrf_draw_requested_at} but not completed. Retrying...`);
+    console.log(
+      `[VRF-Scheduler] VRF draw was requested ${competition.vrf_draw_requested_at} but not completed. Retrying...`,
+    );
   }
 
   try {
@@ -310,14 +351,17 @@ async function processCompetitionForDraw(
     await markCompetitionAsDrawing(supabase, competition.id);
 
     // CRITICAL FIX: Actually trigger the VRF draw by calling the edge function
-    const supabaseUrl = Netlify.env.get("VITE_SUPABASE_URL") || Netlify.env.get("SUPABASE_URL");
+    const supabaseUrl =
+      Netlify.env.get("VITE_SUPABASE_URL") || Netlify.env.get("SUPABASE_URL");
     const serviceRoleKey = Netlify.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     if (!supabaseUrl || !serviceRoleKey) {
       throw new Error("Supabase configuration missing");
     }
 
-    console.log(`[VRF-Scheduler] Calling vrf-draw-winner for competition ${competition.id}...`);
+    console.log(
+      `[VRF-Scheduler] Calling vrf-draw-winner for competition ${competition.id}...`,
+    );
 
     const vrfResponse = await fetch(
       `${supabaseUrl}/functions/v1/vrf-draw-winner`,
@@ -325,15 +369,17 @@ async function processCompetitionForDraw(
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${serviceRoleKey}`,
+          Authorization: `Bearer ${serviceRoleKey}`,
         },
         body: JSON.stringify({ competition_id: competition.id }),
-      }
+      },
     );
 
     if (!vrfResponse.ok) {
       const errorText = await vrfResponse.text();
-      throw new Error(`VRF draw failed (HTTP ${vrfResponse.status}): ${errorText}`);
+      throw new Error(
+        `VRF draw failed (HTTP ${vrfResponse.status}): ${errorText}`,
+      );
     }
 
     const vrfResult = await vrfResponse.json();
@@ -342,7 +388,9 @@ async function processCompetitionForDraw(
       throw new Error(vrfResult.error || "VRF draw failed");
     }
 
-    console.log(`[VRF-Scheduler] ✓ VRF draw successful for ${competition.id}. Winner: ${vrfResult.winner_address}`);
+    console.log(
+      `[VRF-Scheduler] ✓ VRF draw successful for ${competition.id}. Winner: ${vrfResult.winner_address}`,
+    );
 
     return {
       success: true,
@@ -379,7 +427,9 @@ async function checkVRFDrawResults(supabase: SupabaseClient): Promise<void> {
     return;
   }
 
-  console.log(`[VRF-Scheduler] Checking ${drawingCompetitions.length} competitions in drawing status`);
+  console.log(
+    `[VRF-Scheduler] Checking ${drawingCompetitions.length} competitions in drawing status`,
+  );
 
   // For each drawing competition, check if there are winners already synced
   for (const comp of drawingCompetitions) {
@@ -391,7 +441,9 @@ async function checkVRFDrawResults(supabase: SupabaseClient): Promise<void> {
 
     if (existingWinner) {
       // Winner already exists, mark as completed and send notifications
-      console.log(`[VRF-Scheduler] Winner found for competition ${comp.id}, marking as completed`);
+      console.log(
+        `[VRF-Scheduler] Winner found for competition ${comp.id}, marking as completed`,
+      );
 
       await supabase
         .from("competitions")
@@ -419,7 +471,7 @@ async function checkVRFDrawResults(supabase: SupabaseClient): Promise<void> {
           supabase,
           existingWinner.user_id,
           comp as CompetitionForDraw,
-          existingWinner.ticket_number
+          existingWinner.ticket_number,
         );
       }
 
@@ -432,18 +484,24 @@ async function checkVRFDrawResults(supabase: SupabaseClient): Promise<void> {
           .eq("id", comp.id)
           .maybeSingle();
 
-        const prizeValue = compDetails?.prize_value ? `£${compDetails.prize_value}` : comp.title;
+        const prizeValue = compDetails?.prize_value
+          ? `£${compDetails.prize_value}`
+          : comp.title;
         await sendWinnerEmail(
           userData.email,
           userData.username || "Player",
           comp.title,
           prizeValue,
-          existingWinner.ticket_number
+          existingWinner.ticket_number,
         );
       }
 
       // Notify losing participants
-      await notifyLosingParticipants(supabase, comp as CompetitionForDraw, existingWinner.user_id);
+      await notifyLosingParticipants(
+        supabase,
+        comp as CompetitionForDraw,
+        existingWinner.user_id,
+      );
     }
   }
 }
@@ -458,7 +516,9 @@ export default async (req: Request): Promise<Response> => {
     const body = await req.json();
     if (body && body.next_run) {
       isScheduledInvocation = true;
-      console.log(`[VRF-Scheduler] Scheduled function triggered. Next run: ${body.next_run}`);
+      console.log(
+        `[VRF-Scheduler] Scheduled function triggered. Next run: ${body.next_run}`,
+      );
     }
   } catch {
     // If body parsing fails, it's likely not a scheduled invocation
@@ -476,7 +536,7 @@ export default async (req: Request): Promise<Response> => {
       {
         status: 403,
         headers: { "Content-Type": "application/json" },
-      }
+      },
     );
   }
 
@@ -490,7 +550,9 @@ export default async (req: Request): Promise<Response> => {
     let errorCount = 0;
 
     if (competitions.length > 0) {
-      console.log(`[VRF-Scheduler] Found ${competitions.length} competition(s) ready for VRF draw`);
+      console.log(
+        `[VRF-Scheduler] Found ${competitions.length} competition(s) ready for VRF draw`,
+      );
 
       // Step 2: Process each competition
       for (const competition of competitions) {
@@ -498,10 +560,14 @@ export default async (req: Request): Promise<Response> => {
 
         if (result.success) {
           processedCount++;
-          console.log(`[VRF-Scheduler] ✓ ${competition.title}: ${result.message}`);
+          console.log(
+            `[VRF-Scheduler] ✓ ${competition.title}: ${result.message}`,
+          );
         } else {
           errorCount++;
-          console.log(`[VRF-Scheduler] ✗ ${competition.title}: ${result.message}`);
+          console.log(
+            `[VRF-Scheduler] ✗ ${competition.title}: ${result.message}`,
+          );
         }
       }
     }
@@ -510,7 +576,9 @@ export default async (req: Request): Promise<Response> => {
     await checkVRFDrawResults(supabase);
 
     const elapsed = Date.now() - startTime;
-    console.log(`[VRF-Scheduler] Completed in ${elapsed}ms. Ready for draw: ${competitions.length}, Processed: ${processedCount}, Errors: ${errorCount}`);
+    console.log(
+      `[VRF-Scheduler] Completed in ${elapsed}ms. Ready for draw: ${competitions.length}, Processed: ${processedCount}, Errors: ${errorCount}`,
+    );
 
     return new Response(
       JSON.stringify({
@@ -523,7 +591,7 @@ export default async (req: Request): Promise<Response> => {
       {
         status: 200,
         headers: { "Content-Type": "application/json" },
-      }
+      },
     );
   } catch (error) {
     console.error("[VRF-Scheduler] Fatal error:", error);
@@ -535,7 +603,7 @@ export default async (req: Request): Promise<Response> => {
       {
         status: 500,
         headers: { "Content-Type": "application/json" },
-      }
+      },
     );
   }
 };
