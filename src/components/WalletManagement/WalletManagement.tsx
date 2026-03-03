@@ -1329,6 +1329,36 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
         </div>
       )}
 
+      {/* Quick Stats Summary */}
+      {!showMultiNetworkView && (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-[#1A1A1A] border border-white/10 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Wallet size={16} className="text-[#DDE404]" />
+              <p className="text-white/60 sequel-75 text-xs uppercase">Current Balance</p>
+            </div>
+            <p className="text-white sequel-75 text-2xl">
+              ${realTimeLoading ? "..." : realTimeBalance.toFixed(2)}
+            </p>
+            {hasUsedBonus && (
+              <p className="text-green-400/70 sequel-45 text-[10px] mt-1">
+                Includes signup bonus
+              </p>
+            )}
+          </div>
+          <div className="bg-[#1A1A1A] border border-white/10 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <History size={16} className="text-[#DDE404]" />
+              <p className="text-white/60 sequel-75 text-xs uppercase">Total Top-Ups</p>
+            </div>
+            <p className="text-white sequel-75 text-2xl">{transactions.length}</p>
+            <p className="text-white/40 sequel-45 text-[10px] mt-1">
+              {transactions.filter(tx => ['pending', 'pending_payment', 'waiting', 'processing'].includes((tx.status || '').toLowerCase())).length} pending
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Transaction History Section */}
       <div className="bg-[#1A1A1A] border border-white/10 rounded-xl overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
@@ -1337,15 +1367,61 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
             <h3 className="text-white sequel-75 text-sm uppercase">
               Top-Up History
             </h3>
+            {transactionsLoading && (
+              <RefreshCw size={14} className="text-white/40 animate-spin" />
+            )}
           </div>
-          {transactions.length > 3 && (
+          <div className="flex items-center gap-2">
+            {transactions.length > 3 && (
+              <button
+                onClick={() => setShowAllTransactions(!showAllTransactions)}
+                className="text-[#DDE404] hover:text-[#DDE404]/80 sequel-75 text-xs uppercase transition-colors"
+              >
+                {showAllTransactions ? "Show Less" : "View All"}
+              </button>
+            )}
             <button
-              onClick={() => setShowAllTransactions(!showAllTransactions)}
-              className="text-[#DDE404] hover:text-[#DDE404]/80 sequel-75 text-xs uppercase transition-colors"
+              onClick={async () => {
+                setTransactionsLoading(true);
+                try {
+                  const canonicalId = toPrizePid(baseUser?.id || '');
+                  const normalizedWallet = isWalletAddress(baseUser?.id || '')
+                    ? (baseUser?.id || '').toLowerCase()
+                    : baseUser?.id || '';
+
+                  const { data, error }: any = (await supabase
+                    .from("user_transactions")
+                    .select("*")
+                    .eq("type", "topup")
+                    .in("status", [
+                      "pending",
+                      "pending_payment",
+                      "waiting",
+                      "processing",
+                      "finished",
+                      "completed",
+                      "confirmed",
+                      "success",
+                    ])
+                    .or(
+                      `user_id.eq.${normalizedWallet},canonical_user_id.eq.${canonicalId},wallet_address.eq.${normalizedWallet}`,
+                    )
+                    .order("created_at", { ascending: false } as any)
+                    .limit(10)) as { data: WalletTransaction[]; error: any };
+
+                  if (!error) setTransactions(data || []);
+                } catch (err) {
+                  console.error('Error refreshing transactions:', err);
+                } finally {
+                  setTransactionsLoading(false);
+                }
+              }}
+              className="text-white/60 hover:text-white transition-colors p-1"
+              title="Refresh transactions"
             >
-              {showAllTransactions ? "Show Less" : "View All"}
+              <RefreshCw size={16} />
             </button>
-          )}
+          </div>
         </div>
 
         <div className="px-6 py-4">
@@ -1405,21 +1481,31 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
                           <ArrowUpRight size={20} className="text-green-400" />
                         )}
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
                           <p className="text-white sequel-75 text-sm">Top-Up</p>
-                          {isPending && (
-                            <span className="bg-yellow-500/20 text-yellow-400 sequel-75 text-[10px] px-2 py-0.5 rounded">
-                              PENDING
+                          {isPending ? (
+                            <span className="bg-yellow-500/20 text-yellow-400 sequel-75 text-[10px] px-2 py-0.5 rounded uppercase">
+                              {statusLower === 'processing' ? 'Processing' : 'Pending'}
+                            </span>
+                          ) : (
+                            <span className="bg-green-500/20 text-green-400 sequel-75 text-[10px] px-2 py-0.5 rounded uppercase">
+                              Completed
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-2 mt-0.5">
+                        <div className="flex items-center gap-2">
                           <p className="text-white/40 sequel-45 text-xs flex items-center gap-1">
                             <Clock size={12} />
                             {formattedDate} • {formattedTime}
                           </p>
                         </div>
+                        {/* Show transaction ID for reference */}
+                        {tx.id && (
+                          <p className="text-white/30 sequel-45 text-[10px] font-mono mt-1">
+                            ID: {tx.id.substring(0, 8)}...
+                          </p>
+                        )}
                       </div>
                     </div>
                     <div className="text-right">

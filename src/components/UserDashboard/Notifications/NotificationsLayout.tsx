@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { notificationService } from '../../../lib/notification-service';
 import { useAuthUser } from '../../../contexts/AuthContext';
+import { supabase } from '../../../lib/supabase';
 import type { UserNotification } from '../../../types/notifications';
 import { Bell, CheckCheck, RefreshCw, Sparkles } from 'lucide-react';
 import Loader from '../../Loader';
@@ -9,18 +10,25 @@ import NotificationCard from './NotificationCard';
 const NotificationsLayout = () => {
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
   const [backfillStatus, setBackfillStatus] = useState<string | null>(null);
   const { baseUser, canonicalUserId, authenticated } = useAuthUser();
   const hasBackfilled = useRef(false);
 
-  const loadNotifications = useCallback(async () => {
+  const loadNotifications = useCallback(async (isBackgroundRefresh = false) => {
     if (!authenticated || !canonicalUserId) return;
 
-    setLoading(true);
+    if (!isBackgroundRefresh) {
+      setLoading(true);
+    } else {
+      setIsRefreshing(true);
+    }
+    
     const data = await notificationService.getUserNotifications(canonicalUserId);
     setNotifications(data);
     setLoading(false);
+    setIsRefreshing(false);
     return data;
   }, [authenticated, canonicalUserId]);
 
@@ -52,7 +60,7 @@ const NotificationsLayout = () => {
 
   useEffect(() => {
     const init = async () => {
-      const data = await loadNotifications();
+      const data = await loadNotifications(false);
 
       // Auto-backfill if no notifications exist and we haven't tried yet
       if (data && data.length === 0 && !hasBackfilled.current && authenticated && canonicalUserId) {
@@ -62,6 +70,34 @@ const NotificationsLayout = () => {
     };
 
     init();
+
+    // Set up real-time subscription for notifications
+    if (!canonicalUserId) return;
+
+    console.log('[Notifications] Setting up real-time subscription');
+    
+    const channel = supabase
+      .channel(`user-notifications-${canonicalUserId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `canonical_user_id=eq.${canonicalUserId}`
+        },
+        (payload) => {
+          console.log('[Notifications] Real-time update:', payload.eventType);
+          // Refresh notifications on any change
+          loadNotifications(true);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('[Notifications] Cleaning up real-time subscription');
+      supabase.removeChannel(channel);
+    };
   }, [loadNotifications, handleBackfill, authenticated, canonicalUserId]);
 
   const handleMarkAsRead = async (id: string) => {
@@ -94,6 +130,16 @@ const NotificationsLayout = () => {
 
   return (
     <div className="max-w-5xl mx-auto">
+      {/* Real-time refresh indicator */}
+      {isRefreshing && (
+        <div className="fixed top-20 right-6 z-50 animate-fade-in">
+          <div className="bg-[#DDE404] text-black sequel-75 text-xs px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
+            <RefreshCw size={14} className="animate-spin" />
+            <span>Updating...</span>
+          </div>
+        </div>
+      )}
+      
       {/* Header with gradient and animated background */}
       <div className="relative mb-8 overflow-hidden rounded-2xl">
         <div className="absolute inset-0 bg-linear-to-r from-[#DDE404]/20 via-purple-500/10 to-[#EF008F]/20 animate-pulse" />
@@ -121,15 +167,25 @@ const NotificationsLayout = () => {
                 </p>
               </div>
             </div>
-            {unreadCount > 0 && (
+            <div className="flex items-center gap-2">
+              {unreadCount > 0 && (
+                <button
+                  onClick={handleMarkAllAsRead}
+                  className="bg-[#DDE404] hover:bg-[#DDE404]/90 text-[#1A1A1A] sequel-75 uppercase px-5 py-3 rounded-xl transition-all hover:scale-105 active:scale-95 text-sm flex items-center gap-2 shadow-lg shadow-[#DDE404]/30"
+                >
+                  <CheckCheck size={18} />
+                  Mark All as Read
+                </button>
+              )}
               <button
-                onClick={handleMarkAllAsRead}
-                className="bg-[#DDE404] hover:bg-[#DDE404]/90 text-[#1A1A1A] sequel-75 uppercase px-5 py-3 rounded-xl transition-all hover:scale-105 active:scale-95 text-sm flex items-center gap-2 shadow-lg shadow-[#DDE404]/30"
+                onClick={() => loadNotifications(true)}
+                disabled={isRefreshing}
+                className="bg-white/10 hover:bg-white/20 text-white sequel-75 uppercase px-4 py-3 rounded-xl transition-all hover:scale-105 active:scale-95 text-sm flex items-center gap-2 disabled:opacity-50"
+                title="Refresh notifications"
               >
-                <CheckCheck size={18} />
-                Mark All as Read
+                <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
               </button>
-            )}
+            </div>
           </div>
         </div>
       </div>

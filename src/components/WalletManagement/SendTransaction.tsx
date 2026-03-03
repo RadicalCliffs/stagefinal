@@ -1,9 +1,12 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { Send, AlertCircle, CheckCircle, ExternalLink, Loader2 } from 'lucide-react';
+import { Send, AlertCircle, CheckCircle, ExternalLink, Loader2, History, Clock, ChevronRight } from 'lucide-react';
 import { useSendEvmTransaction, useEvmAddress } from '@coinbase/cdp-hooks';
 import { useAccount, useSendTransaction, useWaitForTransactionReceipt } from 'wagmi';
 import { parseEther, isAddress, createPublicClient, http } from 'viem';
 import { base, baseSepolia } from 'viem/chains';
+import { supabase } from '../../lib/supabase';
+import { useAuthUser } from '../../contexts/AuthContext';
+import { database } from '../../lib/database';
 
 // Success message display duration in milliseconds
 const SUCCESS_DISPLAY_DURATION = 3000;
@@ -39,6 +42,13 @@ interface SendTransactionProps {
   onSuccess?: () => void;
 }
 
+interface RecentTransaction {
+  to: string;
+  amount: string;
+  timestamp: string;
+  hash: string;
+}
+
 /**
  * SendTransaction Component
  * 
@@ -47,6 +57,8 @@ interface SendTransactionProps {
  * - Uses Wagmi's useSendTransaction hook for external wallets (MetaMask, Coinbase Wallet, etc.)
  */
 export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuccess }) => {
+  const { canonicalUserId } = useAuthUser();
+  
   // CDP hooks (for embedded wallets)
   const { evmAddress } = useEvmAddress();
   const { sendEvmTransaction } = useSendEvmTransaction();
@@ -74,6 +86,8 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
     estimatedCost: string;
   } | null>(null);
   const [isEstimatingGas, setIsEstimatingGas] = useState(false);
+  const [recentTransactions, setRecentTransactions] = useState<RecentTransaction[]>([]);
+  const [showRecentTx, setShowRecentTx] = useState(false);
 
   // Memoize network info to avoid recreating object on every render
   const networkInfo = useMemo(() => getNetworkInfo(), []);
@@ -156,6 +170,28 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
     estimateGas();
   }, [estimateGas]);
 
+  // Load recent outgoing transactions on mount
+  useEffect(() => {
+    const loadRecentTransactions = async () => {
+      if (!walletAddress) return;
+      
+      try {
+        // Query blockchain send transactions from the wallet
+        // This could be expanded to query actual on-chain data via a block explorer API
+        // For now, we'll use local storage to track recent sends
+        const stored = localStorage.getItem(`recent-sends-${walletAddress}`);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          setRecentTransactions(parsed.slice(0, 5)); // Show last 5
+        }
+      } catch (err) {
+        console.error('Failed to load recent transactions:', err);
+      }
+    };
+
+    loadRecentTransactions();
+  }, [walletAddress]);
+
   // Memoize explorer URL generator
   const getExplorerUrl = useCallback(() => {
     if (!txHash) return null;
@@ -222,6 +258,9 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
         setTxHash(result.transactionHash || null);
         setSuccess(true);
         
+        // Save to recent transactions
+        saveRecentTransaction(recipientAddress, amount, result.transactionHash || '');
+        
         // Call success callback after a delay to show success message
         setTimeout(() => {
           if (onSuccess) onSuccess();
@@ -249,19 +288,53 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
   useEffect(() => {
     if (wagmiIsSuccess && wagmiTxHash && !hasEmbeddedWallet) {
       setTxHash(wagmiTxHash);
-      setSuccess(true);
-      setIsSending(false);
+      setSave to recent transactions
+      saveRecentTransaction(recipientAddress, amount, wagmiTxHash);
       
       // Call success callback after a delay to show success message
       setTimeout(() => {
         if (onSuccess) onSuccess();
       }, SUCCESS_DISPLAY_DURATION);
     }
+  }, [wagmiIsSuccess, wagmiTxHash, hasEmbeddedWallet, onSuccess, recipientAddress, amount
+      }, SUCCESS_DISPLAY_DURATION);
+    }
   }, [wagmiIsSuccess, wagmiTxHash, hasEmbeddedWallet, onSuccess]);
 
   // Handle Wagmi transaction pending state
   useEffect(() => {
-    if (wagmiIsPending || wagmiIsConfirming) {
+    if (wagmiIsPending || wagmiIsConfirmin
+
+  // Save transaction to recent list
+  const saveRecentTransaction = (to: string, amt: string, hash: string) => {
+    if (!walletAddress) return;
+    
+    try {
+      const stored = localStorage.getItem(`recent-sends-${walletAddress}`);
+      const existing: RecentTransaction[] = stored ? JSON.parse(stored) : [];
+      
+      const newTx: RecentTransaction = {
+        to,
+        amount: amt,
+        timestamp: new Date().toISOString(),
+        hash
+      };
+      
+      // Add to beginning, keep last 10
+      const updated = [newTx, ...existing].slice(0, 10);
+      localStorage.setItem(`recent-sends-${walletAddress}`, JSON.stringify(updated));
+      setRecentTransactions(updated.slice(0, 5));
+    } catch (err) {
+      console.error('Failed to save recent transaction:', err);
+    }
+  };
+
+  // Fill form with recent transaction
+  const useRecentTransaction = (tx: RecentTransaction) => {
+    setRecipientAddress(tx.to);
+    setAmount(tx.amount);
+    setShowRecentTx(false);
+  };g) {
       setIsSending(true);
     }
   }, [wagmiIsPending, wagmiIsConfirming]);
@@ -283,53 +356,99 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
   }
 
   if (success && txHash) {
+    const truncateAddress = (addr: string) => 
+      `${addr.substring(0, 6)}...${addr.substring(addr.length - 4)}`;
+    
     return (
       <div className="bg-[#1E1E1E] rounded-xl p-6 border border-white/10">
         <div className="flex items-start gap-3 mb-6">
-          <div className="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center shrink-0">
+          <div className="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center shrink-0 animate-pulse">
             <CheckCircle size={24} className="text-green-400" />
           </div>
-          <div>
+          <div className="flex-1">
             <h3 className="text-white sequel-75 text-lg mb-2">Transaction Sent!</h3>
             <p className="text-white/60 sequel-45 text-sm">
-              Your transaction has been broadcast to the network.
+              Your transaction has been broadcast to the {networkInfo.networkName} network.
             </p>
           </div>
         </div>
 
-        <div className="bg-[#2A2A2A] rounded-lg p-4 mb-4">
-          <p className="text-white/40 sequel-45 text-xs mb-2">Recipient:</p>
-          <p className="text-white sequel-45 text-sm font-mono break-all mb-4">{recipientAddress}</p>
+        {/* Transaction Details Card */}
+        <div className="bg-[#2A2A2A] rounded-lg p-4 mb-4 space-y-3">
+          <div>
+            <p className="text-white/40 sequel-45 text-xs mb-1.5">From</p>
+            <p className="text-white sequel-45 text-sm font-mono">{truncateAddress(walletAddress || '')}</p>
+          </div>
           
-          <p className="text-white/40 sequel-45 text-xs mb-2">Amount:</p>
-          <p className="text-white sequel-75 text-lg mb-4">{amount} ETH</p>
+          <div>
+            <p className="text-white/40 sequel-45 text-xs mb-1.5">To</p>
+            <p className="text-white sequel-45 text-sm font-mono">{truncateAddress(recipientAddress)}</p>
+          </div>
+          
+          <div>
+            <p className="text-white/40 sequel-45 text-xs mb-1.5">Amount</p>
+            <p className="text-[#DDE404] sequel-75 text-xl">{amount} ETH</p>
+          </div>
 
-          <p className="text-white/40 sequel-45 text-xs mb-2">Transaction Hash:</p>
-          <p className="text-white sequel-45 text-xs font-mono break-all">{txHash}</p>
+          <div>
+            <p className="text-white/40 sequel-45 text-xs mb-1.5">Transaction Hash</p>
+            <p className="text-white sequel-45 text-xs font-mono break-all">{txHash}</p>
+          </div>
+          
+          <div>
+            <p className="text-white/40 sequel-45 text-xs mb-1.5">Status</p>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              <span className="text-green-400 sequel-75 text-sm">Pending Confirmation</span>
+            </div>
+          </div>
         </div>
 
-        <a
-          href={getExplorerUrl() || '#'}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center justify-center gap-2 bg-[#DDE404] hover:bg-[#DDE404]/90 text-black sequel-75 py-3 rounded-lg transition-colors mb-3"
-        >
-          <ExternalLink size={18} />
-          View on BaseScan
-        </a>
+        {/* Action Buttons */}
+        <div className="space-y-3">
+          <a
+            href={getExplorerUrl() || '#'}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 bg-[#DDE404] hover:bg-[#DDE404]/90 text-black sequel-75 py-3 rounded-lg transition-all hover:scale-105"
+          >
+            <ExternalLink size={18} />
+            View on {networkInfo.isMainnet ? 'BaseScan' : 'BaseScan Testnet'}
+          </a>
 
-        <button
-          onClick={() => {
-            setSuccess(false);
-            setTxHash(null);
-            setRecipientAddress('');
-            setAmount('');
-            if (onClose) onClose();
-          }}
-          className="w-full bg-[#404040] hover:bg-[#505050] text-white sequel-75 py-3 rounded-lg transition-colors"
-        >
-          Close
-        </button>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => {
+                setSuccess(false);
+                setTxHash(null);
+                setRecipientAddress('');
+                setAmount('');
+              }}
+              className="bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 sequel-75 py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
+            >
+              <Send size={16} />
+              Send Another
+            </button>
+            <button
+              onClick={() => {
+                if (onClose) onClose();
+              }}
+              className="bg-[#404040] hover:bg-[#505050] text-white sequel-75 py-3 rounded-lg transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+
+        {/* Info Note */}
+        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mt-4">
+          <div className="flex items-start gap-2">
+            <Clock size={14} className="text-blue-400 shrink-0 mt-0.5" />
+            <p className="text-blue-300/70 sequel-45 text-xs">
+              Your transaction is being processed. It usually takes a few seconds to confirm on Base network.
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -365,9 +484,42 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
 
       <div className="space-y-4 mb-6">
         <div>
-          <label htmlFor="recipient" className="block text-white sequel-75 text-sm mb-2">
-            Recipient Address
-          </label>
+          <div className="flex items-center justify-between mb-2">
+            <label htmlFor="recipient" className="block text-white sequel-75 text-sm">
+              Recipient Address
+            </label>
+            {recentTransactions.length > 0 && (
+              <button
+                onClick={() => setShowRecentTx(!showRecentTx)}
+                className="text-[#DDE404] hover:text-[#DDE404]/80 sequel-75 text-xs flex items-center gap-1 transition-colors"
+                type="button"
+              >
+                <History size={14} />
+                Recent
+              </button>
+            )}
+          </div>
+          
+          {/* Recent Transactions Dropdown */}
+          {showRecentTx && recentTransactions.length > 0 && (
+            <div className="bg-[#252525] border border-white/10 rounded-lg p-2 mb-2 max-h-48 overflow-y-auto">
+              {recentTransactions.map((tx, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => useRecentTransaction(tx)}
+                  className="w-full text-left px-3 py-2 rounded hover:bg-white/10 transition-colors flex items-center justify-between"
+                  type="button"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white sequel-45 text-xs font-mono truncate">{tx.to}</p>
+                    <p className="text-white/40 sequel-45 text-[10px] mt-0.5">{tx.amount} ETH • {new Date(tx.timestamp).toLocaleDateString()}</p>
+                  </div>
+                  <ChevronRight size={14} className="text-white/40 shrink-0 ml-2" />
+                </button>
+              ))}
+            </div>
+          )}
+          
           <input
             id="recipient"
             type="text"
@@ -410,16 +562,34 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
         </div>
       </div>
 
-      {/* Gas Fee Estimate Display */}
-      {estimatedGas && (
+      {/* Gas Fee Estimate Display with Total Cost */}
+      {estimatedGas && isValidAmount && (
         <div className="bg-[#2A2A2A] rounded-lg p-4 mb-4">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-white/60 sequel-75 text-sm">Estimated Network Fee</p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-white/60 sequel-75 text-sm">Transaction Summary</p>
             {isEstimatingGas && <Loader2 size={14} className="text-white/40 animate-spin" />}
           </div>
-          <p className="text-[#DDE404] sequel-75 text-xl">{estimatedGas.estimatedCost} ETH</p>
-          <p className="text-white/40 sequel-45 text-xs mt-1">
-            Gas fees are paid to network validators for processing your transaction
+          
+          <div className="space-y-2 mb-3">
+            <div className="flex items-center justify-between">
+              <span className="text-white/60 sequel-45 text-sm">Send Amount</span>
+              <span className="text-white sequel-75 text-sm">{amount} ETH</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-white/60 sequel-45 text-sm">Network Fee</span>
+              <span className="text-white sequel-75 text-sm">{estimatedGas.estimatedCost} ETH</span>
+            </div>
+            <div className="h-px bg-white/10 my-2"></div>
+            <div className="flex items-center justify-between">
+              <span className="text-white sequel-75 text-sm">Total Cost</span>
+              <span className="text-[#DDE404] sequel-75 text-lg">
+                {(parseFloat(amount) + parseFloat(estimatedGas.estimatedCost)).toFixed(6)} ETH
+              </span>
+            </div>
+          </div>
+          
+          <p className="text-white/40 sequel-45 text-xs">
+            Gas fees are paid to network validators. Base has some of the lowest fees of any network.
           </p>
         </div>
       )}
