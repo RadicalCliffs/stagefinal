@@ -16,7 +16,7 @@ RETURNS TABLE (
   image TEXT, status TEXT, entry_type TEXT, is_winner BOOLEAN,
   ticket_numbers TEXT, total_tickets INTEGER, total_amount_spent NUMERIC,
   purchase_date TIMESTAMPTZ, transaction_hash TEXT, is_instant_win BOOLEAN,
-  prize_value NUMERIC, competition_status TEXT, end_date TIMESTAMPTZ
+  prize_value NUMERIC, competition_status TEXT, end_date TIMESTAMPTZ, ticket_price NUMERIC
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -86,7 +86,8 @@ BEGIN
     COALESCE(c.is_instant_win, FALSE),
     c.prize_value,
     COALESCE(c.status, 'completed'),
-    c.end_date
+    c.end_date,
+    c.ticket_price
   FROM public.joincompetition jc
   LEFT JOIN public.competitions c ON (
     -- FIX: competitionid is TEXT, c.id is UUID - use regex check then cast
@@ -135,7 +136,8 @@ BEGIN
     COALESCE(c.is_instant_win, FALSE),
     c.prize_value,
     COALESCE(c.status, 'completed'),
-    c.end_date
+    c.end_date,
+    c.ticket_price
   FROM public.tickets t
   LEFT JOIN public.competitions c ON t.competition_id = c.id  -- UUID = UUID
   WHERE (
@@ -176,7 +178,8 @@ BEGIN
     COALESCE(c.is_instant_win, FALSE),
     c.prize_value,
     COALESCE(c.status, 'active'),
-    c.end_date
+    c.end_date,
+    c.ticket_price
   FROM public.pending_tickets pt
   LEFT JOIN public.competitions c ON pt.competition_id = c.id  -- UUID = UUID
   WHERE (

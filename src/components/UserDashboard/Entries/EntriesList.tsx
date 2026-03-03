@@ -656,6 +656,9 @@ export default function EntriesList() {
 
       if (!groupMap.has(key)) {
         // Initialize new group for this competition
+        // For display: total_amount_spent should equal total_tickets × ticket_price
+        const ticketCount = entry.number_of_tickets || 0;
+        const ticketPrice = entry.ticket_price ? Number(entry.ticket_price) : 1;
         groupMap.set(key, {
           competition_id: entry.competition_id,
           title: entry.title,
@@ -664,9 +667,9 @@ export default function EntriesList() {
           status: effectiveStatus as 'live' | 'completed' | 'drawn' | 'pending',
           entry_type: entry.entry_type,
           is_winner: entry.is_winner || false,
-          total_tickets: entry.number_of_tickets || 0,
+          total_tickets: ticketCount,
           all_ticket_numbers: entry.ticket_numbers || '',
-          total_amount_spent: parseFloat(entry.amount_spent) || 0,
+          total_amount_spent: ticketCount * ticketPrice,
           first_purchase_date: entry.purchase_date,
           last_purchase_date: entry.purchase_date,
           transaction_hashes: entry.transaction_hash && entry.transaction_hash !== 'no-hash'
@@ -691,9 +694,11 @@ export default function EntriesList() {
         const allTickets = [...new Set([...existingTickets, ...newTickets])];
         existing.all_ticket_numbers = allTickets.join(', ');
 
-        // Sum up tickets and amount
-        existing.total_tickets += entry.number_of_tickets || 0;
-        existing.total_amount_spent += parseFloat(entry.amount_spent) || 0;
+        // Sum up tickets and recalculate amount (ticket_count × ticket_price)
+        const additionalTickets = entry.number_of_tickets || 0;
+        existing.total_tickets += additionalTickets;
+        const ticketPrice = entry.ticket_price ? Number(entry.ticket_price) : 1;
+        existing.total_amount_spent = existing.total_tickets * ticketPrice;
 
         // Track if any entry is a winner
         if (entry.is_winner) {

@@ -200,16 +200,12 @@ const CompetitionEntryDetails = () => {
     // The number_of_tickets field can be out of sync with actual ticket_numbers
     const totalTickets = uniqueTickets.length;
 
-    // FIX: Calculate total amount from ACTUAL amount_spent in entries, not ticket count * price
-    // This ensures we show what was actually paid, including any discounts or bonuses
-    const totalAmount = uniqueEntries.reduce((sum, entry) => {
-      const amount = typeof entry.amount_spent === 'number' 
-        ? entry.amount_spent 
-        : typeof entry.amount_spent === 'string' 
-          ? parseFloat(entry.amount_spent) || 0 
-          : 0;
-      return sum + amount;
-    }, 0);
+    // Get ticket price from entry data (from competition), default to $1
+    const ticketPrice = Number(firstEntry.ticket_price) || 1;
+
+    // Calculate total amount: For SUMMARY display, ticket_count × ticket_price is correct
+    // This shows the total value of all tickets owned, which is standard for competition entries
+    const totalAmount = totalTickets * ticketPrice;
 
     // Check if any entry is a winner
     const isWinner = entries.some((e) => e.is_winner);
