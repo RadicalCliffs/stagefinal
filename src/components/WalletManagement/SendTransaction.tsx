@@ -100,6 +100,37 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
     });
   }, [networkInfo.chain, networkInfo.rpcUrl]);
 
+  // Save transaction to recent list
+  const saveRecentTransaction = (to: string, amt: string, hash: string) => {
+    if (!walletAddress) return;
+    
+    try {
+      const stored = localStorage.getItem(`recent-sends-${walletAddress}`);
+      const existing: RecentTransaction[] = stored ? JSON.parse(stored) : [];
+      
+      const newTx: RecentTransaction = {
+        to,
+        amount: amt,
+        timestamp: new Date().toISOString(),
+        hash
+      };
+      
+      // Add to beginning, keep last 10
+      const updated = [newTx, ...existing].slice(0, 10);
+      localStorage.setItem(`recent-sends-${walletAddress}`, JSON.stringify(updated));
+      setRecentTransactions(updated.slice(0, 5));
+    } catch (err) {
+      console.error('Failed to save recent transaction:', err);
+    }
+  };
+
+  // Fill form with recent transaction
+  const useRecentTransaction = (tx: RecentTransaction) => {
+    setRecipientAddress(tx.to);
+    setAmount(tx.amount);
+    setShowRecentTx(false);
+  };
+
   // Validate recipient address
   const isValidAddress = recipientAddress && isAddress(recipientAddress);
   const addressError = recipientAddress && !isValidAddress ? 'Invalid Ethereum address' : null;
@@ -303,38 +334,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ onClose, onSuc
 
   // Handle Wagmi transaction pending state
   useEffect(() => {
-    if (wagmiIsPending || wagmiIsConfirmin
-
-  // Save transaction to recent list
-  const saveRecentTransaction = (to: string, amt: string, hash: string) => {
-    if (!walletAddress) return;
-    
-    try {
-      const stored = localStorage.getItem(`recent-sends-${walletAddress}`);
-      const existing: RecentTransaction[] = stored ? JSON.parse(stored) : [];
-      
-      const newTx: RecentTransaction = {
-        to,
-        amount: amt,
-        timestamp: new Date().toISOString(),
-        hash
-      };
-      
-      // Add to beginning, keep last 10
-      const updated = [newTx, ...existing].slice(0, 10);
-      localStorage.setItem(`recent-sends-${walletAddress}`, JSON.stringify(updated));
-      setRecentTransactions(updated.slice(0, 5));
-    } catch (err) {
-      console.error('Failed to save recent transaction:', err);
-    }
-  };
-
-  // Fill form with recent transaction
-  const useRecentTransaction = (tx: RecentTransaction) => {
-    setRecipientAddress(tx.to);
-    setAmount(tx.amount);
-    setShowRecentTx(false);
-  };g) {
+    if (wagmiIsPending || wagmiIsConfirming) {
       setIsSending(true);
     }
   }, [wagmiIsPending, wagmiIsConfirming]);
