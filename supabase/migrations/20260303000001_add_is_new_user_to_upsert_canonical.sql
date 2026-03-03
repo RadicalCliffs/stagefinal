@@ -50,7 +50,7 @@ BEGIN
     v_final_canonical_id := p_canonical_user_id;
   ELSIF v_existing_canonical_id IS NOT NULL AND v_existing_canonical_id LIKE 'prize:pid:temp%' 
         AND p_wallet_address IS NOT NULL THEN
-    v_final_canonical_id := 'prize:pid:' || util.normalize_evm_address(p_wallet_address);
+    v_final_canonical_id := 'prize:pid:' || LOWER(p_wallet_address);
   ELSIF p_canonical_user_id IS NOT NULL THEN
     v_final_canonical_id := p_canonical_user_id;
   ELSE
@@ -59,19 +59,19 @@ BEGIN
 
   -- Normalize wallet addresses if provided (store in local vars to avoid ambiguity)
   IF p_wallet_address IS NOT NULL THEN
-    v_normalized_wallet := util.normalize_evm_address(p_wallet_address);
+    v_normalized_wallet := LOWER(p_wallet_address);
   ELSE
     v_normalized_wallet := NULL;
   END IF;
   
   IF p_base_wallet_address IS NOT NULL THEN
-    v_normalized_base_wallet := util.normalize_evm_address(p_base_wallet_address);
+    v_normalized_base_wallet := LOWER(p_base_wallet_address);
   ELSE
     v_normalized_base_wallet := NULL;
   END IF;
   
   IF p_eth_wallet_address IS NOT NULL THEN
-    v_normalized_eth_wallet := util.normalize_evm_address(p_eth_wallet_address);
+    v_normalized_eth_wallet := LOWER(p_eth_wallet_address);
   ELSE
     v_normalized_eth_wallet := NULL;
   END IF;
