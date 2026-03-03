@@ -8,37 +8,40 @@
 -- Unifies tickets and joincompetition tables into a single purchase event stream
 -- ============================================================================
 
+DROP VIEW IF EXISTS public.purchase_groups CASCADE;
+DROP VIEW IF EXISTS public.purchase_events CASCADE;
+
 CREATE OR REPLACE VIEW public.purchase_events AS
--- Purchases from tickets table
+-- Purchases from tickets table  
 SELECT 
-  t.uid::text AS source_row_id,
+  t.id::text AS source_row_id,
   'tickets'::text AS source_table,
-  t.user_id,
-  t.competition_id,
-  t.cost AS amount,
+  COALESCE(t.user_id, t.canonical_user_id) AS user_id,
+  t.competition_id::text AS competition_id,
+  t.purchase_price AS amount,
   t.created_at AS occurred_at,
   t.purchase_key
 FROM public.tickets t
-WHERE t.user_id IS NOT NULL 
-  AND t.competition_id IS NOT NULL
-  AND t.cost IS NOT NULL
+WHERE t.competition_id IS NOT NULL
+  AND t.purchase_price IS NOT NULL
   AND t.created_at IS NOT NULL
+  -- Exclude balance payments (purchase_key starts with 'bal_')
+  AND (t.purchase_key IS NULL OR NOT t.purchase_key LIKE 'bal_%')
 
 UNION ALL
 
 -- Purchases from joincompetition table
 SELECT 
-  jc.uid::text AS source_row_id,
+  jc.id::text AS source_row_id,
   'joincompetition'::text AS source_table,
-  jc.user_id,
-  jc.competition_id,
-  jc.cost AS amount,
+  jc.canonical_user_id AS user_id,
+  jc.competitionid::text AS competition_id,
+  jc.amount_spent AS amount,
   jc.created_at AS occurred_at,
-  jc.purchase_key
+  NULL AS purchase_key
 FROM public.joincompetition jc
-WHERE jc.user_id IS NOT NULL 
-  AND jc.competition_id IS NOT NULL
-  AND jc.cost IS NOT NULL
+WHERE jc.competitionid IS NOT NULL
+  AND jc.amount_spent IS NOT NULL
   AND jc.created_at IS NOT NULL;
 
 COMMENT ON VIEW public.purchase_events IS 

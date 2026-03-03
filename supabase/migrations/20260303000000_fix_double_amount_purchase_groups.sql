@@ -9,6 +9,9 @@
 -- FIX: Recreate purchase_events view with deduplication
 -- ============================================================================
 
+DROP VIEW IF EXISTS public.purchase_groups CASCADE;
+DROP VIEW IF EXISTS public.purchase_events CASCADE;
+
 CREATE OR REPLACE VIEW public.purchase_events AS
 WITH combined_events AS (
   -- Purchases from tickets table

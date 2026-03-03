@@ -63,15 +63,14 @@ WHERE competition_id = '98ea9cbc-5d9b-409b-b757-acb9d0292a95'
 ORDER BY group_start_at DESC
 LIMIT 10;
 
--- 6. Check what get_comprehensive_user_dashboard_entries returns
--- REPLACE 'YOUR_USER_ID' with your actual canonical_user_id
-SELECT 
-  id,
-  competition_id,
-  title,
-  total_tickets,
-  total_amount_spent,
-  ticket_price,
-  purchase_date
-FROM get_comprehensive_user_dashboard_entries('YOUR_USER_ID')
-WHERE competition_id = '98ea9cbc-5d9b-409b-b757-acb9d0292a95';
+-- 6. Check what get_comprehensive_user_dashboard_entries returns (COMMENTED OUT - needs user_id)
+-- SELECT 
+--   id,
+--   competition_id,
+--   title,
+--   total_tickets,
+--   total_amount_spent,
+--   ticket_price,
+--   purchase_date
+-- FROM get_comprehensive_user_dashboard_entries('YOUR_USER_ID')
+-- WHERE competition_id = '98ea9cbc-5d9b-409b-b757-acb9d0292a95';
