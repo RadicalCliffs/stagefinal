@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { notificationService } from '../../../lib/notification-service';
-import { useAuthUser } from '../../../contexts/AuthContext';
-import { supabase } from '../../../lib/supabase';
-import type { UserNotification } from '../../../types/notifications';
-import { Bell, CheckCheck, RefreshCw, Sparkles } from 'lucide-react';
-import Loader from '../../Loader';
-import NotificationCard from './NotificationCard';
+import { useState, useEffect, useCallback, useRef } from "react";
+import { notificationService } from "../../../lib/notification-service";
+import { useAuthUser } from "../../../contexts/AuthContext";
+import { supabase } from "../../../lib/supabase";
+import type { UserNotification } from "../../../types/notifications";
+import { Bell, CheckCheck, RefreshCw, Sparkles } from "lucide-react";
+import Loader from "../../Loader";
+import NotificationCard from "./NotificationCard";
 
 const NotificationsLayout = () => {
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
@@ -16,41 +16,50 @@ const NotificationsLayout = () => {
   const { baseUser, canonicalUserId, authenticated } = useAuthUser();
   const hasBackfilled = useRef(false);
 
-  const loadNotifications = useCallback(async (isBackgroundRefresh = false) => {
-    if (!authenticated || !canonicalUserId) return;
+  const loadNotifications = useCallback(
+    async (isBackgroundRefresh = false) => {
+      if (!authenticated || !canonicalUserId) return;
 
-    if (!isBackgroundRefresh) {
-      setLoading(true);
-    } else {
-      setIsRefreshing(true);
-    }
-    
-    const data = await notificationService.getUserNotifications(canonicalUserId);
-    setNotifications(data);
-    setLoading(false);
-    setIsRefreshing(false);
-    return data;
-  }, [authenticated, canonicalUserId]);
+      if (!isBackgroundRefresh) {
+        setLoading(true);
+      } else {
+        setIsRefreshing(true);
+      }
+
+      const data =
+        await notificationService.getUserNotifications(canonicalUserId);
+      setNotifications(data);
+      setLoading(false);
+      setIsRefreshing(false);
+      return data;
+    },
+    [authenticated, canonicalUserId],
+  );
 
   // Backfill notifications from activity history
   const handleBackfill = useCallback(async () => {
     if (!authenticated || !canonicalUserId || backfilling) return;
 
     setBackfilling(true);
-    setBackfillStatus('Loading your activity history...');
+    setBackfillStatus("Loading your activity history...");
 
     try {
-      const result = await notificationService.backfillNotificationsFromActivity(canonicalUserId);
+      const result =
+        await notificationService.backfillNotificationsFromActivity(
+          canonicalUserId,
+        );
       if (result.created > 0) {
-        setBackfillStatus(`Added ${result.created} notification${result.created !== 1 ? 's' : ''} from your history`);
+        setBackfillStatus(
+          `Added ${result.created} notification${result.created !== 1 ? "s" : ""} from your history`,
+        );
         // Reload notifications to show the new ones
         await loadNotifications();
       } else {
-        setBackfillStatus('No new activity to add');
+        setBackfillStatus("No new activity to add");
       }
     } catch (err) {
-      console.error('[Notifications] Backfill error:', err);
-      setBackfillStatus('Could not load activity history');
+      console.error("[Notifications] Backfill error:", err);
+      setBackfillStatus("Could not load activity history");
     } finally {
       setBackfilling(false);
       // Clear status after 3 seconds
@@ -63,7 +72,13 @@ const NotificationsLayout = () => {
       const data = await loadNotifications(false);
 
       // Auto-backfill if no notifications exist and we haven't tried yet
-      if (data && data.length === 0 && !hasBackfilled.current && authenticated && canonicalUserId) {
+      if (
+        data &&
+        data.length === 0 &&
+        !hasBackfilled.current &&
+        authenticated &&
+        canonicalUserId
+      ) {
         hasBackfilled.current = true;
         await handleBackfill();
       }
@@ -74,28 +89,28 @@ const NotificationsLayout = () => {
     // Set up real-time subscription for notifications
     if (!canonicalUserId) return;
 
-    console.log('[Notifications] Setting up real-time subscription');
-    
+    console.log("[Notifications] Setting up real-time subscription");
+
     const channel = supabase
       .channel(`user-notifications-${canonicalUserId}`)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
-          table: 'notifications',
-          filter: `canonical_user_id=eq.${canonicalUserId}`
+          event: "*",
+          schema: "public",
+          table: "notifications",
+          filter: `canonical_user_id=eq.${canonicalUserId}`,
         },
         (payload) => {
-          console.log('[Notifications] Real-time update:', payload.eventType);
+          console.log("[Notifications] Real-time update:", payload.eventType);
           // Refresh notifications on any change
           loadNotifications(true);
-        }
+        },
       )
       .subscribe();
 
     return () => {
-      console.log('[Notifications] Cleaning up real-time subscription');
+      console.log("[Notifications] Cleaning up real-time subscription");
       supabase.removeChannel(channel);
     };
   }, [loadNotifications, handleBackfill, authenticated, canonicalUserId]);
@@ -116,8 +131,6 @@ const NotificationsLayout = () => {
     await loadNotifications();
   };
 
-
-
   if (loading) {
     return (
       <div className="py-12">
@@ -126,7 +139,7 @@ const NotificationsLayout = () => {
     );
   }
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -139,7 +152,7 @@ const NotificationsLayout = () => {
           </div>
         </div>
       )}
-      
+
       {/* Header with gradient and animated background */}
       <div className="relative mb-8 overflow-hidden rounded-2xl">
         <div className="absolute inset-0 bg-linear-to-r from-[#DDE404]/20 via-purple-500/10 to-[#EF008F]/20 animate-pulse" />
@@ -163,7 +176,9 @@ const NotificationsLayout = () => {
                   )}
                 </h2>
                 <p className="text-white/60 sequel-45 text-sm mt-1">
-                  {unreadCount > 0 ? `${unreadCount} unread notification${unreadCount !== 1 ? 's' : ''}` : 'All caught up! 🎉'}
+                  {unreadCount > 0
+                    ? `${unreadCount} unread notification${unreadCount !== 1 ? "s" : ""}`
+                    : "All caught up! 🎉"}
                 </p>
               </div>
             </div>
@@ -183,7 +198,10 @@ const NotificationsLayout = () => {
                 className="bg-white/10 hover:bg-white/20 text-white sequel-75 uppercase px-4 py-3 rounded-xl transition-all hover:scale-105 active:scale-95 text-sm flex items-center gap-2 disabled:opacity-50"
                 title="Refresh notifications"
               >
-                <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
+                <RefreshCw
+                  size={18}
+                  className={isRefreshing ? "animate-spin" : ""}
+                />
               </button>
             </div>
           </div>
@@ -197,20 +215,28 @@ const NotificationsLayout = () => {
             <div className="inline-block p-6 bg-linear-to-br from-white/10 to-transparent rounded-full mb-6">
               <Bell className="text-white/30" size={64} />
             </div>
-            <h3 className="text-white sequel-75 text-xl mb-2">No notifications yet</h3>
+            <h3 className="text-white sequel-75 text-xl mb-2">
+              No notifications yet
+            </h3>
             <p className="text-white/40 sequel-45 text-sm mb-6 max-w-md mx-auto">
-              You'll be notified here when you win, competitions end, or we have special offers
+              You'll be notified here when you win, competitions end, or we have
+              special offers
             </p>
             {backfillStatus && (
-              <p className="text-[#DDE404] sequel-45 text-sm mb-4 animate-pulse">{backfillStatus}</p>
+              <p className="text-[#DDE404] sequel-45 text-sm mb-4 animate-pulse">
+                {backfillStatus}
+              </p>
             )}
             <button
               onClick={handleBackfill}
               disabled={backfilling}
               className="bg-linear-to-r from-[#DDE404] to-[#B8BE04] hover:from-[#B8BE04] hover:to-[#DDE404] text-black sequel-75 uppercase px-6 py-3 rounded-xl transition-all hover:scale-105 active:scale-95 text-sm flex items-center gap-2 mx-auto disabled:opacity-50 shadow-lg shadow-[#DDE404]/30"
             >
-              <RefreshCw size={18} className={backfilling ? 'animate-spin' : ''} />
-              {backfilling ? 'Loading...' : 'Load Activity History'}
+              <RefreshCw
+                size={18}
+                className={backfilling ? "animate-spin" : ""}
+              />
+              {backfilling ? "Loading..." : "Load Activity History"}
             </button>
           </div>
         </div>
@@ -220,7 +246,7 @@ const NotificationsLayout = () => {
             <div
               key={notification.id}
               style={{
-                animation: `fadeInUp 0.5s ease-out ${index * 0.1}s both`
+                animation: `fadeInUp 0.5s ease-out ${index * 0.1}s both`,
               }}
             >
               <NotificationCard

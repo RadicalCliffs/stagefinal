@@ -92,6 +92,10 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
   const [cryptoChargeId, setCryptoChargeId] = useState<string>('');
   const [onrampUrl, setOnrampUrl] = useState<string>('');
   const [optimisticTopUpId, setOptimisticTopUpId] = useState<string | null>(null);
+  const [successDisplayedAt, setSuccessDisplayedAt] = useState<number | null>(null);
+
+  // Constant for minimum success display duration (3 seconds)
+  const MIN_SUCCESS_DISPLAY_MS = 3000;
 
   // Real-time subscriptions for balance and transaction updates
   // Auto-refreshes balance when changes are detected in the database
@@ -130,6 +134,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
       setTransactionId('');
       setCryptoChargeId('');
       setOnrampUrl('');
+      setSuccessDisplayedAt(null); // Reset success display timer
     }
   }, [isOpen]);
 
@@ -166,6 +171,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
             await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5 second delay
             
             setStep('success');
+            setSuccessDisplayedAt(Date.now()); // Track when success was displayed
 
             onSuccess?.();
           } else if (data?.status && isFailureStatus(data.status)) {
@@ -799,9 +805,37 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                 <Check size={32} className="text-black" />
               </div>
               <h3 className="text-white sequel-75 text-xl mb-2">{textOverrides?.successMessage || 'Payment Successful!'}</h3>
+              
+              {/* Show first top-up bonus message if applicable */}
+              {!hasUsedBonus && amount > 0 && (
+                <div className="bg-gradient-to-r from-[#DDE404]/20 to-[#DDE404]/10 border border-[#DDE404]/30 rounded-lg p-4 mb-4 mx-auto max-w-md">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <Gift size={20} className="text-[#DDE404]" />
+                    <h4 className="text-[#DDE404] sequel-75 text-lg">First Top-Up Bonus!</h4>
+                  </div>
+                  <p className="text-white sequel-45 text-sm mb-1">
+                    You topped up <span className="text-[#DDE404] font-bold">${amount.toFixed(2)}</span>
+                  </p>
+                  <p className="text-white sequel-45 text-sm mb-1">
+                    You received an extra <span className="text-[#DDE404] font-bold">${(amount * 0.5).toFixed(2)}</span> bonus!
+                  </p>
+                  <p className="text-white/80 sequel-45 text-xs mt-2">
+                    Total credited: <span className="text-[#DDE404] font-bold">${(amount * 1.5).toFixed(2)}</span>
+                  </p>
+                </div>
+              )}
+              
               <p className="text-gray-400 sequel-45 mb-6">Your balance has been updated.</p>
               <button
-                onClick={onClose}
+                onClick={() => {
+                  // Ensure success message displays for at least 3 seconds
+                  const elapsedMs = successDisplayedAt ? Date.now() - successDisplayedAt : MIN_SUCCESS_DISPLAY_MS;
+                  if (elapsedMs < MIN_SUCCESS_DISPLAY_MS) {
+                    setTimeout(onClose, MIN_SUCCESS_DISPLAY_MS - elapsedMs);
+                  } else {
+                    onClose();
+                  }
+                }}
                 className="h-14 px-10 flex items-center justify-center mx-auto bg-[#0052FF] rounded-xl transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
               >
                 <span className="text-white sequel-75 text-base uppercase">Done</span>

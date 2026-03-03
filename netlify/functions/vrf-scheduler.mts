@@ -309,13 +309,52 @@ async function processCompetitionForDraw(
     // Mark competition as drawing
     await markCompetitionAsDrawing(supabase, competition.id);
 
-    console.log(`[VRF-Scheduler] Competition ${competition.id} marked as drawing, VRF system will process`);
+    // CRITICAL FIX: Actually trigger the VRF draw by calling the edge function
+    const supabaseUrl = Netlify.env.get("VITE_SUPABASE_URL") || Netlify.env.get("SUPABASE_URL");
+    const serviceRoleKey = Netlify.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      throw new Error("Supabase configuration missing");
+    }
+
+    console.log(`[VRF-Scheduler] Calling vrf-draw-winner for competition ${competition.id}...`);
+
+    const vrfResponse = await fetch(
+      `${supabaseUrl}/functions/v1/vrf-draw-winner`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${serviceRoleKey}`,
+        },
+        body: JSON.stringify({ competition_id: competition.id }),
+      }
+    );
+
+    if (!vrfResponse.ok) {
+      const errorText = await vrfResponse.text();
+      throw new Error(`VRF draw failed (HTTP ${vrfResponse.status}): ${errorText}`);
+    }
+
+    const vrfResult = await vrfResponse.json();
+
+    if (!vrfResult.ok) {
+      throw new Error(vrfResult.error || "VRF draw failed");
+    }
+
+    console.log(`[VRF-Scheduler] ✓ VRF draw successful for ${competition.id}. Winner: ${vrfResult.winner_address}`);
 
     return {
       success: true,
-      message: `Competition ${competition.id} ready for VRF draw`,
+      message: `VRF draw completed. Winner: ${vrfResult.winner_address || vrfResult.winner_user_id}`,
     };
   } catch (error) {
+    // Mark competition back to ended status if draw failed
+    await supabase
+      .from("competitions")
+      .update({ status: "ended" })
+      .eq("id", competition.id);
+
     return {
       success: false,
       message: `Error processing competition: ${error instanceof Error ? error.message : String(error)}`,

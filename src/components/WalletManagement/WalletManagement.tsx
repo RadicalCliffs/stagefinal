@@ -1335,7 +1335,9 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
           <div className="bg-[#1A1A1A] border border-white/10 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
               <Wallet size={16} className="text-[#DDE404]" />
-              <p className="text-white/60 sequel-75 text-xs uppercase">Current Balance</p>
+              <p className="text-white/60 sequel-75 text-xs uppercase">
+                Current Balance
+              </p>
             </div>
             <p className="text-white sequel-75 text-2xl">
               ${realTimeLoading ? "..." : realTimeBalance.toFixed(2)}
@@ -1349,11 +1351,25 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
           <div className="bg-[#1A1A1A] border border-white/10 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
               <History size={16} className="text-[#DDE404]" />
-              <p className="text-white/60 sequel-75 text-xs uppercase">Total Top-Ups</p>
+              <p className="text-white/60 sequel-75 text-xs uppercase">
+                Total Top-Ups
+              </p>
             </div>
-            <p className="text-white sequel-75 text-2xl">{transactions.length}</p>
+            <p className="text-white sequel-75 text-2xl">
+              {transactions.length}
+            </p>
             <p className="text-white/40 sequel-45 text-[10px] mt-1">
-              {transactions.filter(tx => ['pending', 'pending_payment', 'waiting', 'processing'].includes((tx.status || '').toLowerCase())).length} pending
+              {
+                transactions.filter((tx) =>
+                  [
+                    "pending",
+                    "pending_payment",
+                    "waiting",
+                    "processing",
+                  ].includes((tx.status || "").toLowerCase()),
+                ).length
+              }{" "}
+              pending
             </p>
           </div>
         </div>
@@ -1384,10 +1400,10 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
               onClick={async () => {
                 setTransactionsLoading(true);
                 try {
-                  const canonicalId = toPrizePid(baseUser?.id || '');
-                  const normalizedWallet = isWalletAddress(baseUser?.id || '')
-                    ? (baseUser?.id || '').toLowerCase()
-                    : baseUser?.id || '';
+                  const canonicalId = toPrizePid(baseUser?.id || "");
+                  const normalizedWallet = isWalletAddress(baseUser?.id || "")
+                    ? (baseUser?.id || "").toLowerCase()
+                    : baseUser?.id || "";
 
                   const { data, error }: any = (await supabase
                     .from("user_transactions")
@@ -1411,7 +1427,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
 
                   if (!error) setTransactions(data || []);
                 } catch (err) {
-                  console.error('Error refreshing transactions:', err);
+                  console.error("Error refreshing transactions:", err);
                 } finally {
                   setTransactionsLoading(false);
                 }
@@ -1486,7 +1502,9 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
                           <p className="text-white sequel-75 text-sm">Top-Up</p>
                           {isPending ? (
                             <span className="bg-yellow-500/20 text-yellow-400 sequel-75 text-[10px] px-2 py-0.5 rounded uppercase">
-                              {statusLower === 'processing' ? 'Processing' : 'Pending'}
+                              {statusLower === "processing"
+                                ? "Processing"
+                                : "Pending"}
                             </span>
                           ) : (
                             <span className="bg-green-500/20 text-green-400 sequel-75 text-[10px] px-2 py-0.5 rounded uppercase">
