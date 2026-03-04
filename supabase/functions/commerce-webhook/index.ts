@@ -1,6 +1,69 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { toPrizePid, normalizeWalletAddress } from "../_shared/userId.ts";
+
+// ============================================================================
+// Inlined from _shared/userId.ts to avoid bundler issues
+// ============================================================================
+
+function isWalletAddress(identifier: string): boolean {
+  return /^0x[a-fA-F0-9]{40}$/.test(identifier);
+}
+
+function isPrizePid(identifier: string): boolean {
+  return identifier.startsWith('prize:pid:');
+}
+
+function extractPrizePid(prizePid: string): string {
+  if (!isPrizePid(prizePid)) {
+    return prizePid;
+  }
+  return prizePid.substring('prize:pid:'.length);
+}
+
+function toPrizePid(inputUserId: string | null | undefined): string {
+  if (!inputUserId || inputUserId.trim() === '') {
+    return `prize:pid:${crypto.randomUUID()}`;
+  }
+
+  const trimmedId = inputUserId.trim();
+
+  if (isPrizePid(trimmedId)) {
+    const extracted = extractPrizePid(trimmedId);
+    if (isWalletAddress(extracted)) {
+      return `prize:pid:${extracted.toLowerCase()}`;
+    }
+    return trimmedId.toLowerCase();
+  }
+
+  if (isWalletAddress(trimmedId)) {
+    return `prize:pid:${trimmedId.toLowerCase()}`;
+  }
+
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (uuidPattern.test(trimmedId)) {
+    throw new Error(
+      `UUID cannot be used as canonical_user_id: ${trimmedId}. ` +
+      `Use allocate_temp_canonical_user() for users without wallets, ` +
+      `or provide a wallet address to create prize:pid:0x{wallet} format.`
+    );
+  }
+
+  throw new Error(
+    `Invalid user identifier format: ${trimmedId}. ` +
+    `Must be wallet address (0x...) or already in prize:pid: format.`
+  );
+}
+
+function normalizeWalletAddress(address: string | null | undefined): string | null {
+  if (!address) return null;
+  const trimmed = address.trim();
+  if (isWalletAddress(trimmed)) {
+    return trimmed.toLowerCase();
+  }
+  return trimmed;
+}
+
+// ============================================================================
 
 /**
  * Coinbase Commerce Webhook Handler
