@@ -13,6 +13,12 @@
 --              Transaction b1b7a840: $3, finished, NO ledger entries - STUCK
 --
 -- Strategy: Check balance_ledger first, only credit if truly missing
+-- 
+-- IMPORTANT: Uses credit_balance_with_first_deposit_bonus() function because:
+--   - Properly sets canonical_user_id_norm field (required NOT NULL)
+--   - Has idempotency built in via reference_id
+--   - Won't apply bonus since users already have has_used_new_user_bonus=true
+--   - More robust than credit_sub_account_balance()
 -- ============================================================================
 
 DO $$
@@ -70,16 +76,19 @@ BEGIN
   ELSE
     RAISE NOTICE '   ⚠️  NOT in balance_ledger - crediting now...';
     
-    -- Credit using standard function (no bonus - user already used it)
-    SELECT credit_sub_account_balance(
+    -- Credit using bonus function (handles canonical_user_id_norm properly)
+    -- Won't apply bonus since user already used it
+    SELECT credit_balance_with_first_deposit_bonus(
       v_highblock_user,
       v_highblock_amount,
-      'USD'
+      'Manual credit - stuck topup recovery',
+      v_highblock_ref
     ) INTO v_result;
     
     IF (v_result->>'success')::boolean THEN
       RAISE NOTICE '   ✅ Credited $% successfully', v_highblock_amount;
       RAISE NOTICE '   New balance: $%', v_result->>'new_balance';
+      RAISE NOTICE '   Bonus applied: %', v_result->>'bonus_applied';
       
       -- Update transaction flags
       UPDATE user_transactions
@@ -131,16 +140,19 @@ BEGIN
   ELSE
     RAISE NOTICE '   ⚠️  NOT in balance_ledger - crediting now...';
     
-    -- Credit using standard function (no bonus - user already used it) 
-    SELECT credit_sub_account_balance(
+    -- Credit using bonus function (handles canonical_user_id_norm properly)
+    -- Won't apply bonus since user already used it
+    SELECT credit_balance_with_first_deposit_bonus(
       v_luxe_user,
       v_luxe_amount,
-      'USD'
+      'Manual credit - stuck topup recovery',
+      v_luxe_ref
     ) INTO v_result;
     
     IF (v_result->>'success')::boolean THEN
       RAISE NOTICE '   ✅ Credited $% successfully', v_luxe_amount;
       RAISE NOTICE '   New balance: $%', v_result->>'new_balance';
+      RAISE NOTICE '   Bonus applied: %', v_result->>'bonus_applied';
       
       -- Update transaction flags
       UPDATE user_transactions
