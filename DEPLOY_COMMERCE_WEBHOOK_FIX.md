@@ -1,11 +1,13 @@
 # 🚨 CRITICAL: Deploy Commerce Webhook Fix
 
 ## The Problem
+
 The commerce-webhook idempotency bug is **STILL HAPPENING IN PRODUCTION** because the fixed code has not been deployed to Supabase Edge Functions.
 
 **Every new topup will continue to get stuck until you deploy this.**
 
 ## What Was Fixed
+
 - [commerce-webhook/index.ts](supabase/functions/commerce-webhook/index.ts#L937-L943)
 - **Old bug**: Checked `transaction.status === 'finished'` as "already credited" indicator
 - **Fixed**: Only checks `posted_to_balance` and `wallet_credited` flags (our source of truth)
@@ -30,6 +32,7 @@ supabase functions deploy commerce-webhook
 ## Verification
 
 After deployment, test with a small topup ($1-2):
+
 1. Make a new topup payment
 2. Wait for Coinbase confirmation
 3. Check balance updates immediately
@@ -39,12 +42,14 @@ After deployment, test with a small topup ($1-2):
 ## Why This Matters
 
 **Without this deployment:**
+
 - ❌ Highblock's issue will happen to EVERY new user
 - ❌ Payments will be taken but balances won't update
 - ❌ You'll need to manually run recovery scripts for each stuck topup
 - ❌ Users will lose trust in the platform
 
 **After deployment:**
+
 - ✅ Topups credit immediately and reliably
 - ✅ Dashboard visibility works automatically
 - ✅ No more stuck topups
@@ -62,7 +67,7 @@ If you want to check for other affected users:
 
 ```sql
 -- Find all potentially stuck topups
-SELECT 
+SELECT
   id,
   canonical_user_id,
   user_id,

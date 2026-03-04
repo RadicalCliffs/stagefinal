@@ -340,6 +340,8 @@ Deno.serve(async (req: Request) => {
     const transactionData = {
       id: transactionId,
       user_id: canonicalUserId,
+      canonical_user_id: canonicalUserId, // CRITICAL: Set canonical_user_id for orders tab filtering
+      wallet_address: walletAddress, // CRITICAL: Set wallet_address for identification
       competition_id: isEntry ? competitionId : null,
       amount: normalizedAmount,
       currency: "USD",

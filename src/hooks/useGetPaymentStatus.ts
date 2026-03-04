@@ -221,7 +221,7 @@ export function usePaymentStatus(onOpen: () => void) {
           if (txId) {
             const { data: transaction, error } = await supabase
               .from('user_transactions')
-              .select('id, status, payment_status, amount, currency, created_at, updated_at, competition_id, ticket_count, user_id')
+              .select('id, status, payment_status, amount, currency, created_at, updated_at, competition_id, ticket_count, user_id, type')
               .eq('id', txId)
               .maybeSingle() as any;
 
@@ -233,11 +233,17 @@ export function usePaymentStatus(onOpen: () => void) {
             }
 
             if (transaction) {
+              // CRITICAL: Different success messages for topups vs competition entries
+              const isTopup = transaction.type === 'topup';
+              const orderDescription = isTopup
+                ? `Top up successful - $${transaction.amount} credited to your wallet`
+                : transaction.ticket_count
+                  ? `${transaction.ticket_count} ticket(s) for $${transaction.amount}`
+                  : `$${transaction.amount} payment`;
+              
               setPaymentData({
                 ...transaction,
-                order_description: transaction.ticket_count
-                  ? `${transaction.ticket_count} ticket(s) for $${transaction.amount}`
-                  : `$${transaction.amount} payment`,
+                order_description: orderDescription,
                 pay_address: transaction.id,
               });
 
@@ -278,7 +284,7 @@ export function usePaymentStatus(onOpen: () => void) {
             // Try to find the transaction by order_id or tx_id
             let query = supabase
               .from('user_transactions')
-              .select('id, status, payment_status, amount, currency, created_at, updated_at, competition_id, ticket_count, user_id')
+              .select('id, status, payment_status, amount, currency, created_at, updated_at, competition_id, ticket_count, user_id, type')
               .order('created_at', { ascending: false } as any)
               .limit(1);
 
@@ -298,11 +304,17 @@ export function usePaymentStatus(onOpen: () => void) {
             }
 
             if (transaction) {
+              // CRITICAL: Different success messages for topups vs competition entries
+              const isTopup = transaction.type === 'topup';
+              const orderDescription = isTopup
+                ? `Top up successful - $${transaction.amount} credited to your wallet`
+                : transaction.ticket_count
+                  ? `${transaction.ticket_count} ticket(s) for $${transaction.amount}`
+                  : `$${transaction.amount} payment`;
+              
               setPaymentData({
                 ...transaction,
-                order_description: transaction.ticket_count
-                  ? `${transaction.ticket_count} ticket(s) for $${transaction.amount}`
-                  : `$${transaction.amount} payment`,
+                order_description: orderDescription,
                 pay_address: transaction.id,
               });
 
