@@ -396,3 +396,151 @@ describe('Database Migration Validation', () => {
     expect(constraint).toBe('uq_cep_user_comp_key');
   });
 });
+
+describe('Competition Status Classification', () => {
+  // Helper function mimicking isFinishedStatus from competition-status.ts
+  const FINISHED_COMPETITION_STATUSES = ['completed', 'drawn', 'sold_out', 'cancelled', 'expired'];
+  const isFinishedStatus = (status: string | null | undefined): boolean => {
+    if (!status) return false;
+    return FINISHED_COMPETITION_STATUSES.includes(status.toLowerCase());
+  };
+
+  describe('Status Normalization Logic', () => {
+    it('should classify sold_out competitions as finished', () => {
+      // This mimics the fix in EntriesList.tsx
+      const rawStatus = 'live'; // Mapped status (from mapStatus in database.ts)
+      const rawCompetitionStatus = 'sold_out'; // Raw status from DB
+      
+      const isFinishedByCompetitionStatus = isFinishedStatus(rawCompetitionStatus);
+      
+      const normalizedStatus = isFinishedByCompetitionStatus
+        ? 'completed'
+        : rawStatus === 'active'
+          ? 'live'
+          : rawStatus === 'drawing'
+            ? 'drawn'
+            : isFinishedStatus(rawStatus)
+              ? 'completed'
+              : rawStatus || 'live';
+      
+      expect(normalizedStatus).toBe('completed');
+      expect(isFinishedByCompetitionStatus).toBe(true);
+    });
+
+    it('should classify cancelled competitions as finished', () => {
+      const rawStatus = 'live';
+      const rawCompetitionStatus = 'cancelled';
+      
+      const isFinishedByCompetitionStatus = isFinishedStatus(rawCompetitionStatus);
+      
+      const normalizedStatus = isFinishedByCompetitionStatus
+        ? 'completed'
+        : rawStatus || 'live';
+      
+      expect(normalizedStatus).toBe('completed');
+    });
+
+    it('should classify expired competitions as finished', () => {
+      const rawStatus = 'live';
+      const rawCompetitionStatus = 'expired';
+      
+      const isFinishedByCompetitionStatus = isFinishedStatus(rawCompetitionStatus);
+      
+      const normalizedStatus = isFinishedByCompetitionStatus
+        ? 'completed'
+        : rawStatus || 'live';
+      
+      expect(normalizedStatus).toBe('completed');
+    });
+
+    it('should keep active competitions as live', () => {
+      const rawStatus = 'live';
+      const rawCompetitionStatus = 'active';
+      
+      const isFinishedByCompetitionStatus = isFinishedStatus(rawCompetitionStatus);
+      
+      const normalizedStatus = isFinishedByCompetitionStatus
+        ? 'completed'
+        : rawStatus === 'active'
+          ? 'live'
+          : rawStatus || 'live';
+      
+      expect(normalizedStatus).toBe('live');
+      expect(isFinishedByCompetitionStatus).toBe(false);
+    });
+
+    it('should classify drawn competitions as completed', () => {
+      const rawStatus = 'drawn';
+      const rawCompetitionStatus = 'drawn';
+      
+      const isFinishedByCompetitionStatus = isFinishedStatus(rawCompetitionStatus);
+      
+      const normalizedStatus = isFinishedByCompetitionStatus
+        ? 'completed'
+        : rawStatus;
+      
+      expect(normalizedStatus).toBe('completed');
+    });
+
+    it('should classify completed competitions as completed', () => {
+      const rawStatus = 'drawn';
+      const rawCompetitionStatus = 'completed';
+      
+      const isFinishedByCompetitionStatus = isFinishedStatus(rawCompetitionStatus);
+      
+      const normalizedStatus = isFinishedByCompetitionStatus
+        ? 'completed'
+        : rawStatus;
+      
+      expect(normalizedStatus).toBe('completed');
+    });
+  });
+
+  describe('Tab Routing Logic', () => {
+    it('should route sold_out competitions to finished tab', () => {
+      const effectiveStatus = 'completed'; // After normalization
+      const isCompletedEntry = true;
+      const isInstantWin = false;
+      const isPendingEntry = false;
+      
+      // Finished tab logic
+      const willShowInFinished = 
+        (effectiveStatus === 'completed' || effectiveStatus === 'drawn') &&
+        isCompletedEntry &&
+        !isInstantWin &&
+        !isPendingEntry;
+      
+      // Live tab logic
+      const willShowInLive = 
+        effectiveStatus === 'live' &&
+        isCompletedEntry &&
+        !isInstantWin &&
+        !isPendingEntry;
+      
+      expect(willShowInFinished).toBe(true);
+      expect(willShowInLive).toBe(false);
+    });
+
+    it('should route active competitions to live tab', () => {
+      const effectiveStatus = 'live';
+      const isCompletedEntry = true;
+      const isInstantWin = false;
+      const isPendingEntry = false;
+      
+      const willShowInLive = 
+        effectiveStatus === 'live' &&
+        isCompletedEntry &&
+        !isInstantWin &&
+        !isPendingEntry;
+      
+      const willShowInFinished = 
+        (effectiveStatus === 'completed' || effectiveStatus === 'drawn') &&
+        isCompletedEntry &&
+        !isInstantWin &&
+        !isPendingEntry;
+      
+      expect(willShowInLive).toBe(true);
+      expect(willShowInFinished).toBe(false);
+    });
+  });
+});

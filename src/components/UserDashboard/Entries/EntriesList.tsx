@@ -591,15 +591,26 @@ export default function EntriesList() {
 
     // Step 2: Normalize the status from database
     // Map all finished statuses to 'completed' for consistent filtering
+    // IMPORTANT: Check BOTH entry.status (mapped) and entry.competition_status (raw from DB)
+    // entry.status is already mapped to: "live", "completed", "drawn", "pending"
+    // entry.competition_status contains raw DB values like: "sold_out", "cancelled", "expired", "active", etc.
     const rawStatus = (entry.status || "").toLowerCase().trim();
+    const rawCompetitionStatus = (entry.competition_status || "").toLowerCase().trim();
+    
+    // FIX: Check if the raw competition_status indicates a finished state
+    // This catches cases where mapStatus in database.ts maps sold_out/cancelled/expired to "live"
+    const isFinishedByCompetitionStatus = isFinishedStatus(rawCompetitionStatus);
+    
     const normalizedStatus =
-      rawStatus === "active"
-        ? "live"
-        : rawStatus === "drawing"
-          ? "drawn"
-          : isFinishedStatus(rawStatus)
-            ? "completed"
-            : rawStatus || "live";
+      isFinishedByCompetitionStatus
+        ? "completed"
+        : rawStatus === "active"
+          ? "live"
+          : rawStatus === "drawing"
+            ? "drawn"
+            : isFinishedStatus(rawStatus)
+              ? "completed"
+              : rawStatus || "live";
 
     // Step 3: Determine effective status
     // ISSUE 4C FIX: Use end_date as source of truth for "ended" status
@@ -673,6 +684,8 @@ export default function EntriesList() {
         id: entry.id?.substring?.(0, 8) || entry.id,
         title: entry.title?.substring?.(0, 20) || "unknown",
         rawStatus,
+        rawCompetitionStatus,
+        isFinishedByCompetitionStatus,
         effectiveStatus,
         entryType,
         isCompetitionEnded,
