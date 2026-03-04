@@ -8,6 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { isFinishedStatus } from '../../constants/competition-status';
 
 describe('Dashboard Entries Data Flow', () => {
   describe('RPC Response Processing', () => {
@@ -398,12 +399,7 @@ describe('Database Migration Validation', () => {
 });
 
 describe('Competition Status Classification', () => {
-  // Helper function mimicking isFinishedStatus from competition-status.ts
-  const FINISHED_COMPETITION_STATUSES = ['completed', 'drawn', 'sold_out', 'cancelled', 'expired'];
-  const isFinishedStatus = (status: string | null | undefined): boolean => {
-    if (!status) return false;
-    return FINISHED_COMPETITION_STATUSES.includes(status.toLowerCase());
-  };
+  // Using isFinishedStatus imported from competition-status.ts
 
   describe('Status Normalization Logic', () => {
     it('should classify sold_out competitions as finished', () => {
@@ -453,8 +449,31 @@ describe('Competition Status Classification', () => {
       expect(normalizedStatus).toBe('completed');
     });
 
-    it('should keep active competitions as live', () => {
-      const rawStatus = 'live';
+    it('should keep active competitions as live when rawStatus is active', () => {
+      // Test the actual normalization path for active competitions
+      const rawStatus = 'active'; // The raw mapped status before normalization
+      const rawCompetitionStatus = 'active';
+      
+      const isFinishedByCompetitionStatus = isFinishedStatus(rawCompetitionStatus);
+      
+      // This mimics the actual logic in EntriesList.tsx
+      const normalizedStatus = isFinishedByCompetitionStatus
+        ? 'completed'
+        : rawStatus === 'active'
+          ? 'live'
+          : rawStatus === 'drawing'
+            ? 'drawn'
+            : isFinishedStatus(rawStatus)
+              ? 'completed'
+              : rawStatus || 'live';
+      
+      expect(normalizedStatus).toBe('live');
+      expect(isFinishedByCompetitionStatus).toBe(false);
+    });
+
+    it('should handle live mapped status for active competitions', () => {
+      // After mapStatus transforms 'active' to 'live', the entry.status will be 'live'
+      const rawStatus = 'live'; // Already mapped status
       const rawCompetitionStatus = 'active';
       
       const isFinishedByCompetitionStatus = isFinishedStatus(rawCompetitionStatus);
@@ -463,8 +482,13 @@ describe('Competition Status Classification', () => {
         ? 'completed'
         : rawStatus === 'active'
           ? 'live'
-          : rawStatus || 'live';
+          : rawStatus === 'drawing'
+            ? 'drawn'
+            : isFinishedStatus(rawStatus)
+              ? 'completed'
+              : rawStatus || 'live';
       
+      // 'live' doesn't match 'active', 'drawing', or finished statuses, so it falls through to rawStatus
       expect(normalizedStatus).toBe('live');
       expect(isFinishedByCompetitionStatus).toBe(false);
     });
