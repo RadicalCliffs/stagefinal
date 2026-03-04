@@ -19,6 +19,9 @@
 --   - Has idempotency built in via reference_id
 --   - Won't apply bonus since users already have has_used_new_user_bonus=true
 --   - More robust than credit_sub_account_balance()
+--
+-- NOTE: wallet_credited column doesn't exist in production yet, so we skip
+--       updating it in manual UPDATE statements (function tries but fails gracefully)
 -- ============================================================================
 
 DO $$
@@ -65,10 +68,9 @@ BEGIN
     RAISE NOTICE '   ℹ️  Already credited - found % balance_ledger entries', v_ledger_count;
     RAISE NOTICE '   ✅ Marking transaction as posted_to_balance=true';
     
-    -- Just update the flags
+    -- Just update the flags (wallet_credited column doesn't exist in prod yet)
     UPDATE user_transactions
     SET posted_to_balance = true,
-        wallet_credited = true,
         status = 'completed',
         updated_at = NOW()
     WHERE id = v_highblock_tx;
@@ -90,10 +92,9 @@ BEGIN
       RAISE NOTICE '   New balance: $%', v_result->>'new_balance';
       RAISE NOTICE '   Bonus applied: %', v_result->>'bonus_applied';
       
-      -- Update transaction flags
+      -- Update transaction flags (wallet_credited column doesn't exist in prod yet)
       UPDATE user_transactions
       SET posted_to_balance = true,
-          wallet_credited = true,
           status = 'completed',
           updated_at = NOW(),
           notes = COALESCE(notes, '') || ' [FIX: Manually credited ' || NOW()::DATE || ']'
@@ -129,10 +130,9 @@ BEGIN
     RAISE NOTICE '   ℹ️  Already credited - found % balance_ledger entries', v_ledger_count;
     RAISE NOTICE '   ✅ Marking transaction as posted_to_balance=true';
     
-    -- Just update the flags
+    -- Just update the flags (wallet_credited column doesn't exist in prod yet)
     UPDATE user_transactions
     SET posted_to_balance = true,
-        wallet_credited = true,
         status = 'completed',
         updated_at = NOW()
     WHERE id = v_luxe_tx;
@@ -154,10 +154,9 @@ BEGIN
       RAISE NOTICE '   New balance: $%', v_result->>'new_balance';
       RAISE NOTICE '   Bonus applied: %', v_result->>'bonus_applied';
       
-      -- Update transaction flags
+      -- Update transaction flags (wallet_credited column doesn't exist in prod yet)
       UPDATE user_transactions
       SET posted_to_balance = true,
-          wallet_credited = true,
           status = 'completed',
           updated_at = NOW(),
           notes = COALESCE(notes, '') || ' [FIX: Manually credited ' || NOW()::DATE || ']'

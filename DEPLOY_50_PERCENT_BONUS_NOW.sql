@@ -145,9 +145,9 @@ BEGIN
   END IF;
 
   -- Mark the transaction as posted to balance if it exists
+  -- Note: wallet_credited column may not exist in all environments
   UPDATE user_transactions
   SET posted_to_balance = true,
-      wallet_credited = true,
       updated_at = NOW()
   WHERE tx_id = p_reference_id
     OR id::text = p_reference_id
