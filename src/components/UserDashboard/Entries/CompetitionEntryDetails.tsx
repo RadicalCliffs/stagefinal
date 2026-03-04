@@ -261,24 +261,24 @@ const CompetitionEntryDetails = () => {
       description: firstEntry.description,
       image: firstEntry.image,
       status: firstEntry.status,
-      is_winner: iscompetitionVrfTxHash ?? firstEntry.vrf_tx_hash ?? undefined,
-      vrf_status: firstEntry.vrf_status ?? undefined,
-      individual_entries: uniqueEntries,
-      is_pending: isPending,
-      expires_at: expirations[0] || undefined,
-      is_instant_win: firstEntry.is_instant_win || false,
-    };
-  }, [entries, competitionVrfTxHashalue: firstEntry.prize_value ?? undefined,
+      is_winner: isWinner,
+      total_tickets: totalTickets,
+      all_ticket_numbers: uniqueTickets.join(", "),
+      total_amount_spent: totalAmount,
+      first_purchase_date: firstPurchaseDate ?? undefined,
+      last_purchase_date: lastPurchaseDate ?? undefined,
+      transaction_hashes: uniqueHashes.filter((h): h is string => h != null),
+      prize_value: firstEntry.prize_value ?? undefined,
       end_date: firstEntry.end_date ?? undefined,
       draw_date: firstEntry.draw_date ?? undefined,
-      vrf_tx_hash: firstEntry.vrf_tx_hash ?? undefined,
+      vrf_tx_hash: competitionVrfTxHash ?? firstEntry.vrf_tx_hash ?? undefined,
       vrf_status: firstEntry.vrf_status ?? undefined,
       individual_entries: uniqueEntries,
       is_pending: isPending,
       expires_at: expirations[0] || undefined,
       is_instant_win: firstEntry.is_instant_win || false,
     };
-  }, [entries]);
+  }, [entries, competitionVrfTxHash]);
 
   // Use aggregated data or fallback to location state
   const status = aggregatedEntry?.status || stateStatus || "live";
