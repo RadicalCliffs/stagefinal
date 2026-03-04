@@ -128,23 +128,30 @@ BEGIN
         updated_at = v_now
       WHERE id = v_competition.id;
       
-      -- Update/Insert into competition_winners
-      DELETE FROM competition_winners WHERE competitionid = v_competition.id;
-      INSERT INTO competition_winners (
-        competitionid, Winner, ticket_number, user_id, won_at
-      ) VALUES (
-        v_competition.id, v_winner_address, v_winning_ticket_number, 
-        v_winner_user_id, v_now
-      );
-      
-      -- Update/Insert into winners table
+      -- Clear old winner records completely
       DELETE FROM winners WHERE competition_id = v_competition.id;
+      DELETE FROM competition_winners WHERE competitionid = v_competition.id;
+      
+      -- Clear old is_winner flags
+      UPDATE joincompetition
+      SET is_winner = false
+      WHERE competition_id = v_competition.id;
+      
+      -- Insert new winner into winners table
       INSERT INTO winners (
         competition_id, user_id, wallet_address, ticket_number,
         prize_position, won_at, created_at, is_instant_win
       ) VALUES (
         v_competition.id, v_winner_user_id, v_winner_address, v_winning_ticket_number,
         1, v_now, v_now, false
+      );
+      
+      -- Insert new winner into competition_winners table  
+      INSERT INTO competition_winners (
+        competitionid, Winner, ticket_number, user_id, won_at
+      ) VALUES (
+        v_competition.id, v_winner_address, v_winning_ticket_number, 
+        v_winner_user_id, v_now
       );
       
       -- Set new winner's is_winner flag
