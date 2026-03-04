@@ -139,11 +139,20 @@ const VRFVerificationCard: React.FC<VRFVerificationCardProps> = ({
           <p className="sequel-75 text-[#DDE404] text-sm mb-2">
             Verification Formula
           </p>
-          <div className="bg-[#1A1A1A] rounded-lg p-3">
+          <div className="bg-[#1A1A1A] rounded-lg p-3 space-y-2">
+            <code className="sequel-45 text-yellow-400 text-xs block break-all">
+              SHA256('SELECT-WINNER-' + VRF_SEED + '-' + COMP_ID)
+            </code>
+            <code className="sequel-45 text-yellow-400 text-xs block">
+              → Take first 16 hex chars → Convert to number
+            </code>
             <code className="sequel-45 text-yellow-400 text-sm block">
-              (VRF_SEED % {ticketsSold}) + 1 = Ticket #{verifiedWinningTicket}
+              (Hash % {ticketsSold}) + 1 = Ticket #{verifiedWinningTicket}
             </code>
           </div>
+          <p className="sequel-45 text-white/40 text-xs mt-2">
+            This matches the exact algorithm in PostgreSQL digest() and the edge function
+          </p>
         </div>
 
         {/* VRF Contract Link */}
