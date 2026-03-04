@@ -95,6 +95,7 @@ async function confirmTicketsUnified(params: ConfirmTicketsParams): Promise<{
   error?: string;
   alreadyConfirmed?: boolean;
   confirmationInProgress?: boolean;
+  soldOut?: boolean;
 }> {
   const {
     reservationId,
@@ -215,6 +216,7 @@ async function confirmTicketsUnified(params: ConfirmTicketsParams): Promise<{
         ticketNumbers: result.ticketNumbers,
         alreadyConfirmed: result.alreadyConfirmed || false,
         confirmationInProgress: result.confirmationInProgress || false,
+        soldOut: result.soldOut || false,
       };
     } else {
       console.error("[PaymentModal] Ticket confirmation failed:", result.error);
@@ -516,6 +518,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   // Store purchased ticket numbers separately so they persist after payment success
   // This prevents clearing when onPaymentSuccess resets selectedTickets
   const [purchasedTickets, setPurchasedTickets] = useState<number[]>([]);
+  // Track if the user just bought out the competition (purchased the last tickets)
+  const [competitionSoldOut, setCompetitionSoldOut] = useState(false);
   const {
     paymentData,
     loading: paymentLoading,
@@ -1399,6 +1403,13 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
             );
           }
 
+          // Capture if the competition just sold out
+          if (confirmResult.soldOut) {
+            console.log("[PaymentModal] 🎉 Competition just SOLD OUT!");
+            setCompetitionSoldOut(true);
+            setPurchasedTickets(confirmResult.ticketNumbers || selectedTickets);
+          }
+
           // ISSUE 9B FIX: Show optimistic success immediately
           setShowOptimisticSuccess(true);
           setBaseTransactionId(reservationId || "success");
@@ -2265,14 +2276,24 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                 <Check size={32} className="text-black" />
               </div>
               <h3 className="text-white sequel-75 text-xl mb-2">
-                Payment Successful!
+                {competitionSoldOut ? "🎉 Competition Sold Out!" : "Payment Successful!"}
               </h3>
               <p className="text-gray-400 sequel-45 mb-4">
-                Your {purchasedTickets.length || ticketCount}{" "}
-                {(purchasedTickets.length || ticketCount) > 1
-                  ? "entries have"
-                  : "entry has"}{" "}
-                been confirmed.
+                {competitionSoldOut ? (
+                  <>
+                    <span className="text-[#DDE404] sequel-75">You just bought out this competition!</span>
+                    <br />
+                    Your {purchasedTickets.length || ticketCount}{" "}
+                    {(purchasedTickets.length || ticketCount) > 1 ? "entries have" : "entry has"} been confirmed.
+                    <br />
+                    <span className="text-white/80">The winner is being drawn now...</span>
+                  </>
+                ) : (
+                  <>
+                    Your {purchasedTickets.length || ticketCount}{" "}
+                    {(purchasedTickets.length || ticketCount) > 1 ? "entries have" : "entry has"} been confirmed.
+                  </>
+                )}
               </p>
 
               {/* ISSUE 9B FIX: Show optimistic loading feedback while entries refresh */}
