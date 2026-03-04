@@ -96,7 +96,12 @@ BEGIN
       v_highblock_ref
     ) INTO v_result;
     
-    IF (v_result->>'success')::booand dashboard visibility fields
+    IF (v_result->>'success')::boolean THEN
+      RAISE NOTICE '   ✅ Credited $% successfully', v_highblock_amount;
+      RAISE NOTICE '   New balance: $%', v_result->>'new_balance';
+      RAISE NOTICE '   Bonus applied: %', v_result->>'bonus_applied';
+      
+      -- Update transaction flags and dashboard visibility fields
       UPDATE user_transactions
       SET type = 'topup',
           canonical_user_id = v_highblock_user,
@@ -109,12 +114,7 @@ BEGIN
           notes = COALESCE(notes, '') || ' [FIX: Manually credited ' || NOW()::DATE || ']'
       WHERE id = v_highblock_tx;
       
-      RAISE NOTICE '   ✅ Transaction marked as credited and visible in dashboar
-          updated_at = NOW(),
-          notes = COALESCE(notes, '') || ' [FIX: Manually credited ' || NOW()::DATE || ']'
-      WHERE id = v_highblock_tx;
-      
-      RAISE NOTICE '   ✅ Transaction marked as credited';
+      RAISE NOTICE '   ✅ Transaction marked as credited and visible in dashboard';
     ELSE
       RAISE NOTICE '   ❌ Credit failed: %', v_result->>'error_message';
     END IF;
@@ -139,7 +139,12 @@ BEGIN
       OR reference_id = v_luxe_tx_id 
       OR reference_id = v_luxe_tx::text
     );
-  and dashboard visibility fields
+  
+  IF v_ledger_count > 0 THEN
+    RAISE NOTICE '   ℹ️  Already credited - found % balance_ledger entries', v_ledger_count;
+    RAISE NOTICE '   ✅ Marking transaction as posted_to_balance=true';
+    
+    -- Just update the flags and dashboard visibility fields
     UPDATE user_transactions
     SET type = 'topup',
         canonical_user_id = v_luxe_user,
@@ -147,12 +152,7 @@ BEGIN
         wallet_address = v_luxe_wallet,
         posted_to_balance = true,
         status = 'completed',
-        payment_status = 'confirmrking transaction as posted_to_balance=true';
-    
-    -- Just update the flags (wallet_credited column doesn't exist in prod yet)
-    UPDATE user_transactions
-    SET posted_to_balance = true,
-        status = 'completed',
+        payment_status = 'confirmed',
         updated_at = NOW()
     WHERE id = v_luxe_tx;
     
@@ -168,7 +168,12 @@ BEGIN
       v_luxe_ref
     ) INTO v_result;
     
-    IF (v_result->>'success')::booand dashboard visibility fields
+    IF (v_result->>'success')::boolean THEN
+      RAISE NOTICE '   ✅ Credited $% successfully', v_luxe_amount;
+      RAISE NOTICE '   New balance: $%', v_result->>'new_balance';
+      RAISE NOTICE '   Bonus applied: %', v_result->>'bonus_applied';
+      
+      -- Update transaction flags and dashboard visibility fields
       UPDATE user_transactions
       SET type = 'topup',
           canonical_user_id = v_luxe_user,
@@ -181,12 +186,7 @@ BEGIN
           notes = COALESCE(notes, '') || ' [FIX: Manually credited ' || NOW()::DATE || ']'
       WHERE id = v_luxe_tx;
       
-      RAISE NOTICE '   ✅ Transaction marked as credited and visible in dashboar
-          updated_at = NOW(),
-          notes = COALESCE(notes, '') || ' [FIX: Manually credited ' || NOW()::DATE || ']'
-      WHERE id = v_luxe_tx;
-      
-      RAISE NOTICE '   ✅ Transaction marked as credited';
+      RAISE NOTICE '   ✅ Transaction marked as credited and visible in dashboard';
     ELSE
       RAISE NOTICE '   ❌ Credit failed: %', v_result->>'error_message';
     END IF;
