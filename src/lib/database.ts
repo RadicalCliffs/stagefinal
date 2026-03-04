@@ -4401,7 +4401,7 @@ export const database = {
    * This is the primary source for user dashboard entries.
    * Falls back to getUserEntries if the RPC is not available.
    */
-  async getUserEntriesFromCompetitionEntries(userId: string) {
+  async getUserEntriesFromCompetitionEntries(userId: string, competitionId?: string) {
     try {
       if (!userId || userId.trim() === "") {
         databaseLogger.warn(
@@ -4412,9 +4412,11 @@ export const database = {
 
       // Use the RPC function to get entries with individual_purchases
       // This ensures we get all the fields mentioned in PR #355, including individual_purchases
+      // PERFORMANCE: Pass competitionId to filter results for better performance
       const { data, error }: any = await getUserCompetitionEntries(
         supabase,
         userId,
+        competitionId,
       );
 
       if (error) {

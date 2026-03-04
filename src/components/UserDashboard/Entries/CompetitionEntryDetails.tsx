@@ -69,7 +69,9 @@ const CompetitionEntryDetails = () => {
   const [purchaseGroups, setPurchaseGroups] = useState<
     Array<PurchaseGroup & { competition_title: string | null }>
   >([]);
-  const [competitionVrfTxHash, setCompetitionVrfTxHash] = useState<string | null>(null);
+  const [competitionVrfTxHash, setCompetitionVrfTxHash] = useState<
+    string | null
+  >(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -96,8 +98,9 @@ const CompetitionEntryDetails = () => {
       try {
         // FIXED: Use the same data source as EntriesList to ensure consistency
         // getUserEntriesFromCompetitionEntries uses the new RPC that returns proper data
+        // PERFORMANCE: Pass competitionId to only fetch entries for this specific competition
         const allEntries =
-          await database.getUserEntriesFromCompetitionEntries(canonicalUserId);
+          await database.getUserEntriesFromCompetitionEntries(canonicalUserId, competitionId);
         const competitionEntries = (allEntries || []).filter(
           (e: any): e is EntryData =>
             e !== null &&

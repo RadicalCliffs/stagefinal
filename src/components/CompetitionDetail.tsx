@@ -78,8 +78,8 @@ const CompetitionDetail = () => {
             // If competition just became sold out or drew a winner, show a brief notification
             const newComp = payload.new as Competition;
             if (
-              newComp.tickets_sold >= (newComp.total_tickets || 0) &&
-              newComp.tickets_sold > (competition?.tickets_sold || 0)
+              (newComp.tickets_sold ?? 0) >= (newComp.total_tickets || 0) &&
+              (newComp.tickets_sold ?? 0) > (competition?.tickets_sold || 0)
             ) {
               console.log(
                 "[CompetitionDetail] Competition just sold out! Transitioning to finished view...",

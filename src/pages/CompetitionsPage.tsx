@@ -50,7 +50,7 @@ const CompetitionsPage = () => {
 
     return `${String(days).padStart(2, "0")}:${String(hours).padStart(
       2,
-      "0"
+      "0",
     )}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
   };
 
@@ -82,7 +82,9 @@ const CompetitionsPage = () => {
           >
             {liveCompetitions.slice(0, liveVisible).map((comp: Competition) => {
               const rawProgress =
-                ((comp.tickets_sold || comp.entries_sold || 0) / (comp.total_tickets || comp.total_entries || 1)) * 100;
+                ((comp.tickets_sold || comp.entries_sold || 0) /
+                  (comp.total_tickets || comp.total_entries || 1)) *
+                100;
               const progressPercent = Number.isFinite(rawProgress)
                 ? rawProgress
                 : 0;
@@ -92,9 +94,11 @@ const CompetitionsPage = () => {
                   key={comp.id}
                   image={comp.image_url || bitcoinV2}
                   title={comp.title}
-                  price={parseFloat(String(comp.ticket_price || comp.entry_fee || '0'))}
+                  price={parseFloat(
+                    String(comp.ticket_price || comp.entry_fee || "0"),
+                  )}
                   timeRemaining={calculateTimeRemaining(
-                    String(comp.end_date ?? Date.now())
+                    String(comp.end_date ?? Date.now()),
                   )}
                   endDate={comp.end_date ?? undefined}
                   entriesSold={`${Math.round(progressPercent)}`}
@@ -103,8 +107,15 @@ const CompetitionsPage = () => {
                   progressPercent={progressPercent === 0 ? 10 : progressPercent}
                   onEnter={() => navigate(`/competitions/${comp.id}`)}
                   isInstantWin={comp.is_instant_win || undefined}
-                  onchainCompetitionId={comp.onchain_competition_id}
-                  isSoldOut={(comp.total_tickets || 0) > 0 && (comp.tickets_sold || 0) >= (comp.total_tickets || 0)}
+                  onchainCompetitionId={
+                    comp.onchain_competition_id
+                      ? Number(comp.onchain_competition_id)
+                      : undefined
+                  }
+                  isSoldOut={
+                    (comp.total_tickets || 0) > 0 &&
+                    (comp.tickets_sold || 0) >= (comp.total_tickets || 0)
+                  }
                 />
               );
             })}
@@ -136,7 +147,9 @@ const CompetitionsPage = () => {
             .slice(0, instantVisible)
             .map((comp: Competition) => {
               const rawProgress =
-                ((comp.tickets_sold || comp.entries_sold || 0) / (comp.total_tickets || comp.total_entries || 1)) * 100;
+                ((comp.tickets_sold || comp.entries_sold || 0) /
+                  (comp.total_tickets || comp.total_entries || 1)) *
+                100;
               const progressPercent = Number.isFinite(rawProgress)
                 ? rawProgress
                 : 0;
@@ -146,9 +159,11 @@ const CompetitionsPage = () => {
                   key={comp.id}
                   image={comp.image_url || bitcoinV2}
                   title={comp.title}
-                  price={parseFloat(String(comp.ticket_price || comp.entry_fee || '0'))}
+                  price={parseFloat(
+                    String(comp.ticket_price || comp.entry_fee || "0"),
+                  )}
                   timeRemaining={calculateTimeRemaining(
-                    String(comp.created_at ?? Date.now())
+                    String(comp.created_at ?? Date.now()),
                   )}
                   endDate={comp.end_date ?? undefined}
                   entriesSold={`${Math.round(progressPercent)}`}
@@ -157,24 +172,29 @@ const CompetitionsPage = () => {
                   progressPercent={progressPercent === 0 ? 10 : progressPercent}
                   onEnter={() => navigate(`/competitions/${comp.id}`)}
                   isInstantWin={true}
-                  onchainCompetitionId={comp.onchain_competition_id}
-                  isSoldOut={(comp.total_tickets || 0) > 0 && (comp.tickets_sold || 0) >= (comp.total_tickets || 0)}
+                  onchainCompetitionId={
+                    comp.onchain_competition_id
+                      ? Number(comp.onchain_competition_id)
+                      : undefined
+                  }
+                  isSoldOut={
+                    (comp.total_tickets || 0) > 0 &&
+                    (comp.tickets_sold || 0) >= (comp.total_tickets || 0)
+                  }
                 />
               );
             })}
         </div>
         {instantWinCompetitions.length > instantVisible && (
-            <div className="text-center md:mt-14 mt-8">
-              <button
-                onClick={() =>
-                  setInstantVisible((prev) => prev + 8)
-                }
-                className="uppercase border border-white sm:py-2 pt-[0.6rem] pb-1 px-10 rounded-lg sequel-95 hover:bg-[#DDE404]/90 sm:text-[1.3rem] text-xl cursor-pointer custom-box-shadow bg-[#DDE404] text-[#280508] sm:w-96 max-w-full"
-              >
-                Load More
-              </button>
-            </div>
-          )}
+          <div className="text-center md:mt-14 mt-8">
+            <button
+              onClick={() => setInstantVisible((prev) => prev + 8)}
+              className="uppercase border border-white sm:py-2 pt-[0.6rem] pb-1 px-10 rounded-lg sequel-95 hover:bg-[#DDE404]/90 sm:text-[1.3rem] text-xl cursor-pointer custom-box-shadow bg-[#DDE404] text-[#280508] sm:w-96 max-w-full"
+            >
+              Load More
+            </button>
+          </div>
+        )}
       </div>
       <div
         id="last-chance"
@@ -196,7 +216,9 @@ const CompetitionsPage = () => {
             .slice(0, lastChanceVisible)
             .map((comp: Competition) => {
               const rawProgress =
-                ((comp.tickets_sold || comp.entries_sold || 0) / (comp.total_tickets || comp.total_entries || 1)) * 100;
+                ((comp.tickets_sold || comp.entries_sold || 0) /
+                  (comp.total_tickets || comp.total_entries || 1)) *
+                100;
               const progressPercent = Number.isFinite(rawProgress)
                 ? rawProgress
                 : 0;
@@ -206,9 +228,11 @@ const CompetitionsPage = () => {
                   key={comp.id}
                   image={comp.image_url || bitcoinV2}
                   title={comp.title}
-                  price={parseFloat(String(comp.ticket_price || comp.entry_fee || '0'))}
+                  price={parseFloat(
+                    String(comp.ticket_price || comp.entry_fee || "0"),
+                  )}
                   timeRemaining={calculateTimeRemaining(
-                    String(comp.created_at ?? Date.now())
+                    String(comp.created_at ?? Date.now()),
                   )}
                   endDate={comp.end_date ?? undefined}
                   entriesSold={`${Math.round(progressPercent)}`}
@@ -219,24 +243,29 @@ const CompetitionsPage = () => {
                   className="!border-[#DDE404]"
                   isLastChanceCompetition
                   isInstantWin={comp.is_instant_win || undefined}
-                  onchainCompetitionId={comp.onchain_competition_id}
-                  isSoldOut={(comp.total_tickets || 0) > 0 && (comp.tickets_sold || 0) >= (comp.total_tickets || 0)}
+                  onchainCompetitionId={
+                    comp.onchain_competition_id
+                      ? Number(comp.onchain_competition_id)
+                      : undefined
+                  }
+                  isSoldOut={
+                    (comp.total_tickets || 0) > 0 &&
+                    (comp.tickets_sold || 0) >= (comp.total_tickets || 0)
+                  }
                 />
               );
             })}
         </div>
         {lastChanceCompetitions.length > lastChanceVisible && (
-            <div className="text-center md:mt-14 mt-8">
-              <button
-                onClick={() =>
-                  setLastChanceVisible((prev) => prev + 8)
-                }
-                className="uppercase border border-white sm:py-2 pt-[0.6rem] pb-1 px-10 rounded-lg sequel-95 hover:bg-[#DDE404]/90 sm:text-[1.3rem] text-xl cursor-pointer custom-box-shadow bg-[#DDE404] text-[#280508] sm:w-96 max-w-full "
-              >
-                Load More
-              </button>
-            </div>
-          )}
+          <div className="text-center md:mt-14 mt-8">
+            <button
+              onClick={() => setLastChanceVisible((prev) => prev + 8)}
+              className="uppercase border border-white sm:py-2 pt-[0.6rem] pb-1 px-10 rounded-lg sequel-95 hover:bg-[#DDE404]/90 sm:text-[1.3rem] text-xl cursor-pointer custom-box-shadow bg-[#DDE404] text-[#280508] sm:w-96 max-w-full "
+            >
+              Load More
+            </button>
+          </div>
+        )}
       </div>
       <div
         id="drawn"
@@ -255,15 +284,21 @@ const CompetitionsPage = () => {
         >
           {drawnCompetitions.slice(0, drawnVisible).map((comp: Competition) => {
             const rawProgress =
-              ((comp.tickets_sold || comp.entries_sold || 0) / (comp.total_tickets || comp.total_entries || 1)) * 100;
-            const progressPercent = Number.isFinite(rawProgress) ? rawProgress : 0;
+              ((comp.tickets_sold || comp.entries_sold || 0) /
+                (comp.total_tickets || comp.total_entries || 1)) *
+              100;
+            const progressPercent = Number.isFinite(rawProgress)
+              ? rawProgress
+              : 0;
             return (
               <LiveCompetitionCard
                 id={comp.id}
                 key={comp.id}
                 image={comp.image_url || bitcoinV2}
                 title={comp.title}
-                price={parseFloat(String(comp.ticket_price || comp.entry_fee || '0'))}
+                price={parseFloat(
+                  String(comp.ticket_price || comp.entry_fee || "0"),
+                )}
                 timeRemaining="00:00:00:00"
                 entriesSold={`${Math.round(progressPercent)}`}
                 ticketsSold={comp.tickets_sold || comp.entries_sold || 0}
@@ -273,7 +308,11 @@ const CompetitionsPage = () => {
                 className="!border-[#EF008F]"
                 isCompetitionFinished={true}
                 isInstantWin={comp.is_instant_win || undefined}
-                onchainCompetitionId={comp.onchain_competition_id}
+                onchainCompetitionId={
+                  comp.onchain_competition_id
+                    ? Number(comp.onchain_competition_id)
+                    : undefined
+                }
               />
             );
           })}

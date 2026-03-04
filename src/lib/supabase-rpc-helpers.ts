@@ -166,23 +166,29 @@ export const getUnavailableTickets = (
  *
  * @param supabaseClient - Supabase client instance
  * @param userIdentifier - User identifier (prize:pid:0x..., 0x wallet, canonical_user_id, or privy_user_id)
+ * @param competitionId - Optional competition UUID to filter results for better performance
  * @returns Promise with RPC result containing user's competition entries
  *
  * @example
  * // Get all entries for a user
  * const { data, error } = await getUserCompetitionEntries(supabase, 'prize:pid:0x2137af5047526a1180...');
+ * 
+ * // Get entries for specific competition (faster)
+ * const { data, error } = await getUserCompetitionEntries(supabase, 'prize:pid:0x2137af5047526a1180...', 'comp-uuid');
  */
 export const getUserCompetitionEntries = (
   supabaseClient: SupabaseClient,
-  userIdentifier: string
+  userIdentifier: string,
+  competitionId?: string
 ) => {
   if (!userIdentifier || typeof userIdentifier !== 'string' || userIdentifier.trim() === '') {
     throw new Error('userIdentifier is required for getUserCompetitionEntries');
   }
 
-  // The SQL function expects p_user_identifier parameter
+  // The SQL function expects p_user_identifier and optional p_competition_id parameters
   return supabaseClient.rpc('get_user_competition_entries', {
-    p_user_identifier: userIdentifier
+    p_user_identifier: userIdentifier,
+    p_competition_id: competitionId || null
   });
 };
 

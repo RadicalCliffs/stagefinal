@@ -224,7 +224,11 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
             setStep("success");
             setSuccessDisplayedAt(Date.now()); // Track when success was displayed
 
-            onSuccess?.();
+            // Immediately refresh balance to show updated amount
+            refreshBalance();
+
+            // Don't call onSuccess here - let the user see the success message
+            // onSuccess will be called when they click "Done" button
           } else if (data?.status && isFailureStatus(data.status)) {
             clearInterval(pollInterval);
             setStep("error");
@@ -237,7 +241,7 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
 
       return () => clearInterval(pollInterval);
     }
-  }, [step, transactionId, onSuccess, baseUser?.id, amount]);
+  }, [step, transactionId, baseUser?.id, amount, refreshBalance]);
 
   // Handle Coinbase Commerce iframe messages for success detection
   useEffect(() => {
@@ -247,13 +251,14 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
           event.data?.event === "charge:success" ||
           event.data?.type === "checkout:completed"
         ) {
-          onSuccess?.();
+          // Don't call onSuccess here - let the modal show success message first
+          // The user will click "Done" to dismiss and trigger onSuccess
         }
       }
     };
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [onSuccess]);
+  }, []);
 
   const initiatePayment = async () => {
     if (!baseUser?.id) {
@@ -411,16 +416,18 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
         setStep("success");
         setSuccessDisplayedAt(Date.now()); // Track when success was displayed
 
-        // Refresh user data to show updated balance
+        // Immediately refresh balance and user data
+        refreshBalance();
         await refreshUserData();
 
-        onSuccess?.();
+        // Don't call onSuccess here - let the user see the success message
+        // onSuccess will be called when they click "Done" button
       } else if (status.statusName === "error") {
         setError("Payment failed. Please try again.");
         setStep("error");
       }
     },
-    [refreshUserData, onSuccess],
+    [refreshBalance, refreshUserData, onSuccess],
   );
 
   const handleAmountSelect = (selectedAmount: number) => {
@@ -690,8 +697,13 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                   onClick={() => {
                     setStep("success");
                     setSuccessDisplayedAt(Date.now()); // Track when success was displayed
+
+                    // Immediately refresh balance and user data
+                    refreshBalance();
                     refreshUserData();
-                    onSuccess?.();
+
+                    // Don't call onSuccess here - let the user see the success message
+                    // onSuccess will be called when they click "Done" button after 5 seconds
                   }}
                   className="w-full h-14 flex items-center justify-center px-6 bg-[#0052FF] rounded-xl transition-all duration-200 hover:brightness-110 active:scale-[0.99]"
                 >
@@ -891,7 +903,8 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                 <Check size={32} className="text-black" />
               </div>
               <h3 className="text-white sequel-75 text-xl mb-2">
-                {textOverrides?.successMessage || "Payment Successful!"}
+                {textOverrides?.successMessage ||
+                  `Top up successful - $${amount.toFixed(2)}`}
               </h3>
 
               {/* Show first top-up bonus message if applicable */}
@@ -934,9 +947,16 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                   const elapsedMs = successDisplayedAt
                     ? Date.now() - successDisplayedAt
                     : MIN_SUCCESS_DISPLAY_MS;
+
                   if (elapsedMs < MIN_SUCCESS_DISPLAY_MS) {
-                    setTimeout(onClose, MIN_SUCCESS_DISPLAY_MS - elapsedMs);
+                    // Wait for remaining time, then call onSuccess and close
+                    setTimeout(() => {
+                      onSuccess?.();
+                      onClose();
+                    }, MIN_SUCCESS_DISPLAY_MS - elapsedMs);
                   } else {
+                    // Already waited long enough, call onSuccess and close immediately
+                    onSuccess?.();
                     onClose();
                   }
                 }}

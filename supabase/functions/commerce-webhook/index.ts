@@ -933,19 +933,19 @@ Deno.serve(async (req: Request) => {
         const topUpAmount = Number(transaction.amount) || 0;
 
         if (topUpAmount > 0 && transaction.user_id) {
-          // BULLETPROOF IDEMPOTENCY: Check ALL possible flags that indicate already credited
-          // This prevents double-crediting when instant-topup already credited the balance
+          // CORRECT IDEMPOTENCY CHECK - Only trust OUR flags, not payment provider status
           const alreadyCredited =
             transaction.posted_to_balance === true ||
-            transaction.wallet_credited === true ||
-            (transaction.status &&
-              ["completed", "finished", "confirmed", "success"].includes(
-                transaction.status.toLowerCase(),
-              ));
+            transaction.wallet_credited === true;
+
+          // IMPORTANT: We do NOT check transaction.status here because:
+          // - status="finished" means payment provider confirms payment
+          // - But it does NOT mean our system has credited the user's balance
+          // - Only posted_to_balance and wallet_credited indicate successful credit
 
           if (alreadyCredited) {
             console.log(
-              `[commerce-webhook][${requestId}] ⚠️ Top-up already credited (posted_to_balance=${transaction.posted_to_balance}, wallet_credited=${transaction.wallet_credited}, status=${transaction.status}), skipping balance update`,
+              `[commerce-webhook][${requestId}] ⚠️ Top-up already credited (posted_to_balance=${transaction.posted_to_balance}, wallet_credited=${transaction.wallet_credited}), skipping balance update`,
             );
           } else {
             // ROBUST CREDITING: Retry up to 3 times with exponential backoff

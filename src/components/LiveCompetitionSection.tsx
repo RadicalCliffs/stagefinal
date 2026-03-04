@@ -11,8 +11,8 @@ import LandingPageTabs from "./LandingPageTabs";
 import { useSectionTracking } from "../hooks/useSectionTracking";
 
 const LiveCompetitionSection = () => {
-  const sectionRef = useSectionTracking('live_competitions_section');
-  
+  const sectionRef = useSectionTracking("live_competitions_section");
+
   const OPTIONS = [
     { label: "Bitcoin", key: "bitcoin" },
     { label: "Cars & Watches", key: "car-watches" },
@@ -72,7 +72,7 @@ const LiveCompetitionSection = () => {
 
     return `${String(days).padStart(2, "0")}:${String(hours).padStart(
       2,
-      "0"
+      "0",
     )}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
   };
 
@@ -117,8 +117,13 @@ const LiveCompetitionSection = () => {
       </div>
       <div className="md:pt-14 pt-12 grid 2xl:grid-cols-4 lg:grid-cols-3 grid-cols-2 2xl:gap-x-4 2xl:gap-y-8 gap-x-4 sm:gap-y-8 gap-y-7 max-w-7xl mx-auto">
         {displayedCompetitions.map((comp: Competition) => {
-          const rawProgress = (comp.tickets_sold || comp.entries_sold || 0) / (comp.total_tickets || comp.total_entries || 1) * 100;
-          const progressPercent = Number.isFinite(rawProgress) ? rawProgress : 0;
+          const rawProgress =
+            ((comp.tickets_sold || comp.entries_sold || 0) /
+              (comp.total_tickets || comp.total_entries || 1)) *
+            100;
+          const progressPercent = Number.isFinite(rawProgress)
+            ? rawProgress
+            : 0;
 
           return (
             <LiveCompetitionCard
@@ -126,16 +131,24 @@ const LiveCompetitionSection = () => {
               key={comp.id}
               image={comp.image_url || bitcoinV2}
               title={comp.title}
-              price={parseFloat(String(comp.ticket_price || comp.entry_fee || '0'))}
+              price={parseFloat(
+                String(comp.ticket_price || comp.entry_fee || "0"),
+              )}
               endDate={comp.end_date || comp.draw_date || undefined}
-              timeRemaining={calculateTimeRemaining(comp.end_date || comp.draw_date || new Date().toISOString())}
+              timeRemaining={calculateTimeRemaining(
+                comp.end_date || comp.draw_date || new Date().toISOString(),
+              )}
               entriesSold={`${Math.round(progressPercent)}`}
               ticketsSold={comp.tickets_sold || comp.entries_sold || 0}
               totalTickets={comp.total_tickets || comp.total_entries || 0}
               progressPercent={progressPercent === 0 ? 10 : progressPercent}
               onEnter={() => navigate(`/competitions/${comp.id}`)}
               isInstantWin={comp.is_instant_win || undefined}
-              onchainCompetitionId={comp.onchain_competition_id}
+              onchainCompetitionId={
+                comp.onchain_competition_id
+                  ? Number(comp.onchain_competition_id)
+                  : undefined
+              }
             />
           );
         })}
