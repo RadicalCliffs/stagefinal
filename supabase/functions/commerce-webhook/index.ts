@@ -10,18 +10,18 @@ function isWalletAddress(identifier: string): boolean {
 }
 
 function isPrizePid(identifier: string): boolean {
-  return identifier.startsWith('prize:pid:');
+  return identifier.startsWith("prize:pid:");
 }
 
 function extractPrizePid(prizePid: string): string {
   if (!isPrizePid(prizePid)) {
     return prizePid;
   }
-  return prizePid.substring('prize:pid:'.length);
+  return prizePid.substring("prize:pid:".length);
 }
 
 function toPrizePid(inputUserId: string | null | undefined): string {
-  if (!inputUserId || inputUserId.trim() === '') {
+  if (!inputUserId || inputUserId.trim() === "") {
     return `prize:pid:${crypto.randomUUID()}`;
   }
 
@@ -39,22 +39,25 @@ function toPrizePid(inputUserId: string | null | undefined): string {
     return `prize:pid:${trimmedId.toLowerCase()}`;
   }
 
-  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const uuidPattern =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (uuidPattern.test(trimmedId)) {
     throw new Error(
       `UUID cannot be used as canonical_user_id: ${trimmedId}. ` +
-      `Use allocate_temp_canonical_user() for users without wallets, ` +
-      `or provide a wallet address to create prize:pid:0x{wallet} format.`
+        `Use allocate_temp_canonical_user() for users without wallets, ` +
+        `or provide a wallet address to create prize:pid:0x{wallet} format.`,
     );
   }
 
   throw new Error(
     `Invalid user identifier format: ${trimmedId}. ` +
-    `Must be wallet address (0x...) or already in prize:pid: format.`
+      `Must be wallet address (0x...) or already in prize:pid: format.`,
   );
 }
 
-function normalizeWalletAddress(address: string | null | undefined): string | null {
+function normalizeWalletAddress(
+  address: string | null | undefined,
+): string | null {
   if (!address) return null;
   const trimmed = address.trim();
   if (isWalletAddress(trimmed)) {
@@ -384,10 +387,10 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // If no transaction found by ID, try to find by charge ID
+    // If no transaction found by ID, try to find by charge ID in tx_id field
     if (!transaction && eventData.id) {
       console.log(
-        `[commerce-webhook][${requestId}] Transaction not found by metadata.transaction_id, trying by charge ID: ${eventData.id}`,
+        `[commerce-webhook][${requestId}] Transaction not found by metadata.transaction_id, trying by tx_id field: ${eventData.id}`,
       );
       const { data, error } = await supabase
         .from("user_transactions")
@@ -398,11 +401,35 @@ Deno.serve(async (req: Request) => {
       if (!error && data) {
         transaction = data;
         console.log(
-          `[commerce-webhook][${requestId}] ✅ Found transaction by charge ID: ${transaction.id}`,
+          `[commerce-webhook][${requestId}] ✅ Found transaction by tx_id field: ${transaction.id}`,
         );
       } else if (error) {
         console.error(
           `[commerce-webhook][${requestId}] Error searching by tx_id:`,
+          error,
+        );
+      }
+    }
+
+    // If still not found, try by charge_id column (for stuck topups after create-charge fix)
+    if (!transaction && eventData.id) {
+      console.log(
+        `[commerce-webhook][${requestId}] Transaction not found by tx_id, trying by charge_id column: ${eventData.id}`,
+      );
+      const { data, error } = await supabase
+        .from("user_transactions")
+        .select("*")
+        .eq("charge_id", eventData.id)
+        .maybeSingle();
+
+      if (!error && data) {
+        transaction = data;
+        console.log(
+          `[commerce-webhook][${requestId}] ✅ Found transaction by charge_id column: ${transaction.id}`,
+        );
+      } else if (error) {
+        console.error(
+          `[commerce-webhook][${requestId}] Error searching by charge_id:`,
           error,
         );
       }
@@ -1317,6 +1344,12 @@ Deno.serve(async (req: Request) => {
                     wallet_address: payerWallet,
                     network: payment?.network || "base",
                     payment_id: payment?.payment_id || payment?.transaction_id,
+                    // CRITICAL: Update canonical_user_id if it's NULL (fixes stuck topups from create-charge session_id bug)
+                    canonical_user_id: transaction.user_id,
+                    // CRITICAL: Also update charge_id, charge_code for future webhook matching
+                    charge_id: charge.id,
+                    charge_code: charge.code,
+                    checkout_url: charge.hosted_url,
                     completed_at: new Date().toISOString(),
                     credit_synced: true,
                     posted_to_balance: creditSuccess,
