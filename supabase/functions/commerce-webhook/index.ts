@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { toPrizePid, normalizeWalletAddress } from "../_shared/userId.ts";
+import { toPrizePid, normalizeWalletAddress } from "@shared/userId.ts";
 
 /**
  * Coinbase Commerce Webhook Handler
