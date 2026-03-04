@@ -1790,6 +1790,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     setCommerceTransactionId("");
     setPaymentMethod("coinbase");
     setPurchasedTickets([]);
+    setCompetitionSoldOut(false); // Reset sold-out celebration state
     setPaymentAttempted(false);
     setErrorMessage(null);
     // ISSUE 8B FIX: Clear enhanced error info on return
