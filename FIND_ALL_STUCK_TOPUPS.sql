@@ -16,7 +16,6 @@ SELECT
   ut.status,
   ut.payment_status,
   ut.posted_to_balance,
-  ut.wallet_credited,
   ut.created_at,
   ut.updated_at,
   -- Check if there's a matching balance_ledger entry
