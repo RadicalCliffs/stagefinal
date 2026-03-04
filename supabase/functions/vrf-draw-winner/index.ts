@@ -133,19 +133,21 @@ serve(async (req) => {
     // IMPORTANT: Using SHA-256 with first 16 hex chars to match PostgreSQL digest() method
     const vrfSeed = competition.outcomes_vrf_seed;
     const message = `SELECT-WINNER-${vrfSeed}-${competition_id}`;
-    
+
     // Hash with SHA-256 (matching PostgreSQL digest)
     const encoder = new TextEncoder();
     const data = encoder.encode(message);
     const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-    
+
     // Convert to hex string
     const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    
+    const hashHex = hashArray
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+
     // Take first 16 hex characters (matching PostgreSQL substring)
     const first16 = hashHex.substring(0, 16);
-    const hashBigInt = BigInt('0x' + first16);
+    const hashBigInt = BigInt("0x" + first16);
 
     // Convert hash to a number within ticket range (1 to ticketsSold)
     const winningTicketNumber = Number(

@@ -33,21 +33,23 @@ const calculateWinningTicket = async (
   try {
     // Create the exact same string format as the backend
     const message = `SELECT-WINNER-${vrfSeed}-${competitionId}`;
-    
+
     // Use SubtleCrypto SHA-256 (same as PostgreSQL digest)
     const encoder = new TextEncoder();
     const data = encoder.encode(message);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+
     // Convert to hex string
     const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    
+    const hashHex = hashArray
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+
     // Take first 16 hex characters (same as PostgreSQL substring(hash, 1, 16))
     const first16 = hashHex.substring(0, 16);
-    
+
     // Convert to BigInt and calculate ticket number
-    const hashBigInt = BigInt('0x' + first16);
+    const hashBigInt = BigInt("0x" + first16);
     return Number(hashBigInt % BigInt(ticketCount)) + 1;
   } catch (err) {
     console.error("Error calculating winning ticket:", err);
@@ -68,9 +70,9 @@ const VRFVerificationCard: React.FC<VRFVerificationCardProps> = ({
   useEffect(() => {
     if (vrfSeed && ticketsSold > 0 && competitionId) {
       calculateWinningTicket(vrfSeed, competitionId, ticketsSold)
-        .then(ticket => setVerifiedWinningTicket(ticket))
-        .catch(err => {
-          console.error('Failed to calculate winning ticket:', err);
+        .then((ticket) => setVerifiedWinningTicket(ticket))
+        .catch((err) => {
+          console.error("Failed to calculate winning ticket:", err);
           setVerifiedWinningTicket(0);
         });
     }
