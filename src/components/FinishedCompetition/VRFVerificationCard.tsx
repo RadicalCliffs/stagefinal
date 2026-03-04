@@ -1,25 +1,31 @@
 import { useState } from "react";
 import { ShieldCheck, ExternalLink, CheckCircle, Copy, CopyCheck } from "lucide-react";
 import { handleCopy, VRF_CONTRACT_ADDRESS, BASE_EXPLORER_URL } from "../../utils/util";
+import { keccak256, toHex } from 'viem';
 
 interface VRFVerificationCardProps {
   vrfSeed: string | null;
   ticketsSold: number;
   winningTicketNumber: number | null;
+  competitionId: string;
 }
 
 /**
  * Calculate winning ticket from VRF seed for verification
- * Formula: (VRF_SEED % tickets_sold) + 1 = winning_ticket
+ * Formula: keccak256('SELECT-WINNER-' + vrf_seed + '-' + competition_id) % tickets_sold + 1
+ * This matches the exact algorithm used in the smart contract and backend
  */
-const calculateWinningTicket = (vrfSeed: string, ticketCount: number): number => {
+const calculateWinningTicket = (vrfSeed: string, competitionId: string, ticketCount: number): number => {
   try {
-    // Handle both hex and decimal seed formats
-    const seedValue = vrfSeed.startsWith('0x')
-      ? BigInt(vrfSeed)
-      : BigInt(vrfSeed);
-    return Number(seedValue % BigInt(ticketCount)) + 1;
-  } catch {
+    // Create the exact same string format as the backend
+    const message = `SELECT-WINNER-${vrfSeed}-${competitionId}`;
+    // Hash it with keccak256
+    const hash = keccak256(toHex(message));
+    // Convert hash to BigInt and do modulo
+    const hashBigInt = BigInt(hash);
+    return Number(hashBigInt % BigInt(ticketCount)) + 1;
+  } catch (err) {
+    console.error('Error calculating winning ticket:', err);
     return 0;
   }
 };
@@ -28,6 +34,7 @@ const VRFVerificationCard: React.FC<VRFVerificationCardProps> = ({
   vrfSeed,
   ticketsSold,
   winningTicketNumber,
+  competitionId,
 }) => {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
@@ -36,7 +43,7 @@ const VRFVerificationCard: React.FC<VRFVerificationCardProps> = ({
     return null;
   }
 
-  const verifiedWinningTicket = calculateWinningTicket(vrfSeed, ticketsSold);
+  const verifiedWinningTicket = calculateWinningTicket(vrfSeed, competitionId, ticketsSold);
   const isVerificationMatch = winningTicketNumber !== null && verifiedWinningTicket === winningTicketNumber;
 
   // Truncate seed for display but keep full value for copy

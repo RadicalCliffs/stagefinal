@@ -61,6 +61,9 @@ interface WalletTransaction {
   payment_provider: string | null;
   created_at: string | null;
   completed_at: string | null;
+  balance_before?: number | null;
+  balance_after?: number | null;
+  tx_id?: string | null;
 }
 
 interface WalletManagementProps {
@@ -182,32 +185,20 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
           ? baseUser.id.toLowerCase()
           : baseUser.id;
 
-        const { data, error }: any = (await supabase
-          .from("user_transactions")
-          .select("*")
-          .eq("type", "topup")
-          .in("status", [
-            "pending",
-            "pending_payment",
-            "waiting",
-            "processing",
-            "finished",
-            "completed",
-            "confirmed",
-            "success",
-          ])
-          .or(
-            `user_id.eq.${normalizedWallet},canonical_user_id.eq.${canonicalId},wallet_address.eq.${normalizedWallet}`,
-          )
-          .order("created_at", { ascending: false } as any)
-          .limit(10)) as { data: WalletTransaction[]; error: any };
+        // Use RPC to get transactions with balance_before/balance_after from balance_ledger
+        const { data, error }: any = await supabase.rpc(
+          "get_user_topup_transactions",
+          {
+            p_user_identifier: canonicalId,
+          },
+        );
 
         if (error) {
           console.error("Error fetching transactions:", error);
           return;
         }
 
-        setTransactions(data || []);
+        setTransactions((data || []).slice(0, 10));
       } catch (err) {
         console.error("Error fetching transactions:", err);
       } finally {
@@ -1405,27 +1396,15 @@ const WalletManagement: React.FC<WalletManagementProps> = ({
                     ? (baseUser?.id || "").toLowerCase()
                     : baseUser?.id || "";
 
-                  const { data, error }: any = (await supabase
-                    .from("user_transactions")
-                    .select("*")
-                    .eq("type", "topup")
-                    .in("status", [
-                      "pending",
-                      "pending_payment",
-                      "waiting",
-                      "processing",
-                      "finished",
-                      "completed",
-                      "confirmed",
-                      "success",
-                    ])
-                    .or(
-                      `user_id.eq.${normalizedWallet},canonical_user_id.eq.${canonicalId},wallet_address.eq.${normalizedWallet}`,
-                    )
-                    .order("created_at", { ascending: false } as any)
-                    .limit(10)) as { data: WalletTransaction[]; error: any };
+                  // Use RPC to get transactions with balance_before/balance_after
+                  const { data, error }: any = await supabase.rpc(
+                    "get_user_topup_transactions",
+                    {
+                      p_user_identifier: canonicalId,
+                    },
+                  );
 
-                  if (!error) setTransactions(data || []);
+                  if (!error) setTransactions((data || []).slice(0, 10));
                 } catch (err) {
                   console.error("Error refreshing transactions:", err);
                 } finally {

@@ -123,7 +123,7 @@ const WinnerDetails = ({ competitionId }: WinnerDetailsProps) => {
           const { data: profileData } = (await supabase
             .from("profiles")
             .select("username, display_name")
-            .eq("wallet_address", resultData.winnerAddress)
+            .ilike("wallet_address", resultData.winnerAddress)
             .maybeSingle()) as any;
 
           if (profileData) {
@@ -236,6 +236,7 @@ const WinnerDetails = ({ competitionId }: WinnerDetailsProps) => {
           vrfSeed={winnerData.vrfSeed}
           ticketsSold={winnerData.ticketsSold}
           winningTicketNumber={winnerData.winningTicket}
+          competitionId={competitionId}
         />
       )}
     </div>

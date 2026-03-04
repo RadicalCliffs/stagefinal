@@ -95,11 +95,11 @@ const FinishedCompetitionHeroSection = ({
 
         // Extract username from user_id if it's a prize:pid format
         if (!result.winnerUsername && result.winnerAddress) {
-          // Check if the winner has a profile
+          // Check if the winner has a profile (case-insensitive search)
           const { data: profileData } = (await supabase
             .from("profiles")
             .select("username, display_name")
-            .eq("wallet_address", result.winnerAddress)
+            .ilike("wallet_address", result.winnerAddress)
             .maybeSingle()) as any;
 
           if (profileData) {
