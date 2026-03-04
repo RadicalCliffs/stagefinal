@@ -3,7 +3,6 @@
 // It uses the VRF seed pregenerated at competition creation time to select the winner
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { keccak256, toHex } from "https://esm.sh/viem";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -131,13 +130,24 @@ serve(async (req) => {
 
     // Use VRF seed to deterministically select winning ticket number
     // This is provably fair - anyone can verify the result using the same seed
+    // IMPORTANT: Using SHA-256 with first 16 hex chars to match PostgreSQL digest() method
     const vrfSeed = competition.outcomes_vrf_seed;
-    const selectionHash = keccak256(
-      toHex(`SELECT-WINNER-${vrfSeed}-${competition_id}`),
-    );
+    const message = `SELECT-WINNER-${vrfSeed}-${competition_id}`;
+    
+    // Hash with SHA-256 (matching PostgreSQL digest)
+    const encoder = new TextEncoder();
+    const data = encoder.encode(message);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+    
+    // Convert to hex string
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    
+    // Take first 16 hex characters (matching PostgreSQL substring)
+    const first16 = hashHex.substring(0, 16);
+    const hashBigInt = BigInt('0x' + first16);
 
     // Convert hash to a number within ticket range (1 to ticketsSold)
-    const hashBigInt = BigInt(selectionHash);
     const winningTicketNumber = Number(
       (hashBigInt % BigInt(ticketsSold)) + BigInt(1),
     );
