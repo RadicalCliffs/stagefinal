@@ -23,7 +23,7 @@ SELECT
    FROM balance_ledger bl 
    WHERE bl.canonical_user_id = ut.canonical_user_id
      AND (bl.reference_id = ('TOPUP_' || ut.canonical_user_id || '_' || ut.id)
-          OR bl.reference_id = ut.coinbase_commerce_charge_id
+          OR bl.reference_id = ut.charge_id
           OR bl.reference_id = ut.id::text)
   ) AS ledger_entries,
   -- Calculate expected reference_id
