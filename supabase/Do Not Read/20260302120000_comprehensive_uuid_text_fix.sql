@@ -7,14 +7,17 @@
 -- ROOT CAUSE:
 --   Several tables use different types for competition_id:
 --     - competitions.id         -> UUID
---     - tickets.competition_id  -> UUID (converted by 20260202160000)
---     - pending_tickets.competition_id   -> TEXT (stores UUID as string)
---     - pending_ticket_items.competition_id -> TEXT
---     - joincompetition.competitionid    -> TEXT
+--     - tickets.competition_id  -> UUID
+--     - pending_tickets.competition_id   -> UUID (verified in production 2026-03-03)
+--     - pending_ticket_items.competition_id -> UUID
+--     - joincompetition.competitionid    -> UUID (verified in production)
+--     - joincompetition.competition_id   -> UUID
 --
---   RPC functions receive p_competition_id as UUID but compare against TEXT
---   columns without explicit casts, causing PostgreSQL to fail with:
---     "operator does not exist: uuid = text"
+--   The ONLY TEXT column is competitions.onchain_competition_id (which is different)
+--
+--   Previous implementation incorrectly assumed pending_tickets used TEXT types
+--   and created unnecessary UUID->TEXT conversions everywhere, causing comparison
+--   errors when PostgreSQL tried to compare incompatible types.
 --
 -- FUNCTIONS FIXED:
 --   1. allocate_lucky_dip_tickets_batch  (PRIMARY: lucky dip reservation)
@@ -61,8 +64,6 @@ SET search_path = public
 AS $$
 DECLARE
   v_total_tickets INTEGER;
-  v_competition_uid TEXT;
-  v_competition_id_text TEXT;  -- TEXT version for pending_tickets/joincompetition
   v_available_tickets INTEGER[];
   v_selected_tickets INTEGER[];
   v_reservation_id UUID;
@@ -72,9 +73,6 @@ DECLARE
   v_available_count INTEGER;
   v_random_offset INTEGER;
 BEGIN
-  -- CRITICAL: Convert UUID to TEXT for tables that store competition_id as TEXT
-  v_competition_id_text := p_competition_id::TEXT;
-
   -- Validate count
   IF p_count < 1 THEN
     RETURN jsonb_build_object('success', false, 'error', 'Count must be at least 1');
@@ -88,9 +86,9 @@ BEGIN
     );
   END IF;
 
-  -- Get competition details (competitions.id is UUID - direct comparison)
-  SELECT total_tickets, uid
-  INTO v_total_tickets, v_competition_uid
+  -- Get competition details
+  SELECT total_tickets
+  INTO v_total_tickets
   FROM competitions
   WHERE id = p_competition_id
     AND deleted = false
@@ -108,32 +106,32 @@ BEGIN
   -- Build set of unavailable tickets
   v_unavailable_set := COALESCE(p_excluded_tickets, ARRAY[]::INTEGER[]);
 
-  -- Add sold tickets from joincompetition (competitionid is TEXT column)
+  -- Add sold tickets from joincompetition
   SELECT v_unavailable_set || COALESCE(array_agg(DISTINCT ticket_num), ARRAY[]::INTEGER[])
   INTO v_unavailable_set
   FROM (
     SELECT CAST(trim(unnest(string_to_array(ticketnumbers, ','))) AS INTEGER) AS ticket_num
     FROM joincompetition
-    WHERE (competitionid = v_competition_id_text OR competitionid = v_competition_uid::TEXT)
+    WHERE competitionid = p_competition_id
       AND ticketnumbers IS NOT NULL
       AND trim(ticketnumbers) != ''
   ) jc_tickets
   WHERE ticket_num IS NOT NULL AND ticket_num >= 1 AND ticket_num <= v_total_tickets;
 
-  -- Add sold tickets from tickets table (competition_id is UUID column)
+  -- Add sold tickets from tickets table
   SELECT v_unavailable_set || COALESCE(array_agg(ticket_number), ARRAY[]::INTEGER[])
   INTO v_unavailable_set
   FROM tickets
-  WHERE competition_id = p_competition_id  -- UUID = UUID
+  WHERE competition_id = p_competition_id
     AND ticket_number IS NOT NULL;
 
-  -- Add pending tickets from other users (pending_tickets.competition_id is TEXT)
+  -- Add pending tickets from other users
   SELECT v_unavailable_set || COALESCE(array_agg(ticket_num), ARRAY[]::INTEGER[])
   INTO v_unavailable_set
   FROM (
     SELECT unnest(ticket_numbers) AS ticket_num
     FROM pending_tickets
-    WHERE competition_id = v_competition_id_text  -- TEXT = TEXT
+    WHERE competition_id = p_competition_id
       AND status = 'pending'
       AND expires_at > NOW()
       AND user_id != p_user_id
@@ -174,11 +172,10 @@ BEGIN
   v_selected_tickets := v_available_tickets[1:p_count];
 
   -- Cancel existing pending reservations for this user
-  -- (pending_tickets.competition_id is TEXT)
   UPDATE pending_tickets
   SET status = 'cancelled', updated_at = NOW()
   WHERE user_id = p_user_id
-    AND competition_id = v_competition_id_text  -- TEXT = TEXT
+    AND competition_id = p_competition_id
     AND status = 'pending';
 
   -- Generate reservation details
@@ -186,7 +183,7 @@ BEGIN
   v_expires_at := NOW() + make_interval(mins => LEAST(GREATEST(p_hold_minutes, 1), 60));
   v_total_amount := p_count * p_ticket_price;
 
-  -- Create the pending reservation (pending_tickets.competition_id is TEXT)
+  -- Create the pending reservation
   INSERT INTO pending_tickets (
     id, user_id, competition_id, ticket_numbers, ticket_count,
     ticket_price, total_amount, status, session_id,
@@ -194,7 +191,7 @@ BEGIN
   ) VALUES (
     v_reservation_id,
     p_user_id,
-    v_competition_id_text,  -- Store as TEXT
+    p_competition_id,
     v_selected_tickets,
     p_count,
     p_ticket_price,
@@ -254,26 +251,23 @@ DECLARE
   v_batch int := LEAST(500, GREATEST(50, p_ticket_count));
   v_sample int[];
   v_pct numeric;
-  v_competition_id_text TEXT;  -- TEXT version for pending_tickets
 BEGIN
-  -- CRITICAL FIX: Convert UUID to TEXT for pending_tickets comparisons
-  v_competition_id_text := p_competition_id::TEXT;
 
   IF p_ticket_count <= 0 THEN
     RAISE EXCEPTION 'ticket_count must be > 0';
   END IF;
 
-  -- Expire stale holds (pending_tickets.competition_id is TEXT)
+  -- Expire stale holds (pending_tickets.competition_id is UUID)
   UPDATE public.pending_tickets
      SET status = 'expired', updated_at = now()
-   WHERE competition_id = v_competition_id_text  -- TEXT = TEXT
+   WHERE competition_id = p_competition_id  -- UUID = UUID
      AND status = 'pending'
      AND expires_at IS NOT NULL
      AND expires_at < now();
 
   UPDATE public.pending_ticket_items
      SET status = 'expired'
-   WHERE competition_id = v_competition_id_text  -- TEXT = TEXT
+   WHERE competition_id = p_competition_id  -- UUID = UUID
      AND status = 'pending'
      AND expires_at IS NOT NULL
      AND expires_at < now();
@@ -361,7 +355,7 @@ BEGIN
     RAISE EXCEPTION 'reservation_conflict_detected';
   END IF;
 
-  -- Create the pending batch (pending_tickets.competition_id is TEXT)
+  -- Create the pending batch (pending_tickets.competition_id is UUID)
   INSERT INTO public.pending_tickets(
     user_id, canonical_user_id, wallet_address, competition_id,
     status, hold_minutes, expires_at, reservation_id, created_at,
@@ -370,7 +364,7 @@ BEGIN
     payment_id, idempotency_key, privy_user_id, user_privy_id, note
   )
   VALUES (
-    NULL, p_canonical_user_id, p_wallet_address, v_competition_id_text,  -- TEXT
+    NULL, p_canonical_user_id, p_wallet_address, p_competition_id,  -- UUID
     'pending', p_hold_minutes, v_expires_at, gen_random_uuid(), now(),
     p_ticket_count, NULL, NULL, NULL, NULL,
     now(), NULL, NULL, v_alloc,
@@ -378,11 +372,11 @@ BEGIN
   )
   RETURNING id INTO v_pending_id;
 
-  -- Per-ticket pending rows (pending_ticket_items.competition_id is TEXT)
+  -- Per-ticket pending rows (pending_ticket_items.competition_id is UUID)
   INSERT INTO public.pending_ticket_items(
     pending_ticket_id, competition_id, ticket_number, status, expires_at, created_at
   )
-  SELECT v_pending_id, v_competition_id_text, unnest(v_alloc), 'pending', v_expires_at, now();
+  SELECT v_pending_id, p_competition_id, unnest(v_alloc), 'pending', v_expires_at, now();
 
   RETURN QUERY SELECT v_pending_id, v_alloc;
 END;
@@ -392,120 +386,9 @@ GRANT EXECUTE ON FUNCTION reserve_lucky_dip(TEXT, TEXT, UUID, INTEGER, INTEGER) 
 GRANT EXECUTE ON FUNCTION reserve_lucky_dip(TEXT, TEXT, UUID, INTEGER, INTEGER) TO service_role;
 
 -- ============================================================================
--- PART 3: validate_pending_tickets trigger (BEFORE INSERT)
--- Recalculates actual availability instead of trusting stale tickets_sold
+-- PART 3 & 4: Trigger functions removed - they are correctly defined in
+-- migration 20260302_fix_pending_tickets_triggers.sql which runs before this
 -- ============================================================================
-
-CREATE OR REPLACE FUNCTION public.validate_pending_tickets()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $function$
-DECLARE
-    v_total_tickets INT;
-    v_comp_uid TEXT;
-    v_sold_count INT;
-    v_other_pending INT;
-    v_available INT;
-BEGIN
-    -- competitions.id is UUID, NEW.competition_id is TEXT -> cast
-    SELECT c.total_tickets, c.uid::TEXT
-      INTO v_total_tickets, v_comp_uid
-    FROM competitions c
-    WHERE c.id = NEW.competition_id::UUID AND c.deleted = false
-    FOR UPDATE;
-
-    IF v_total_tickets IS NULL THEN
-        RAISE EXCEPTION 'Competition not found: %', NEW.competition_id;
-    END IF;
-
-    -- Count actual sold tickets from confirmed entries
-    SELECT COUNT(DISTINCT tn) INTO v_sold_count
-    FROM (
-        SELECT CAST(trim(unnest(string_to_array(jc.ticketnumbers, ','))) AS INTEGER) AS tn
-        FROM joincompetition jc
-        WHERE (jc.competitionid = NEW.competition_id OR jc.competitionid = v_comp_uid)
-          AND jc.ticketnumbers IS NOT NULL
-          AND trim(jc.ticketnumbers) != ''
-        UNION
-        SELECT t.ticket_number AS tn
-        FROM tickets t
-        WHERE t.competition_id = NEW.competition_id::UUID  -- UUID = UUID
-          AND t.ticket_number IS NOT NULL
-    ) sold;
-
-    -- Count pending tickets from OTHER users
-    SELECT COALESCE(SUM(pt.ticket_count), 0) INTO v_other_pending
-    FROM pending_tickets pt
-    WHERE pt.competition_id = NEW.competition_id  -- TEXT = TEXT
-      AND pt.status = 'pending'
-      AND pt.expires_at > NOW()
-      AND pt.user_id != NEW.user_id;
-
-    v_available := v_total_tickets - v_sold_count - v_other_pending;
-
-    IF NEW.ticket_count > v_available THEN
-        RAISE EXCEPTION 'Cannot create pending ticket for % tickets. Only % available.',
-            NEW.ticket_count, v_available;
-    END IF;
-
-    RETURN NEW;
-END;
-$function$;
-
--- ============================================================================
--- PART 4: update_tickets_sold_on_pending trigger (AFTER INSERT)
--- Recalculates tickets_sold from actual data instead of blind increment
--- ============================================================================
-
-CREATE OR REPLACE FUNCTION public.update_tickets_sold_on_pending()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $function$
-DECLARE
-    v_actual_sold INT;
-    v_comp_uid TEXT;
-    v_pending_count INT;
-BEGIN
-    -- Get the uid for this competition
-    SELECT uid::TEXT INTO v_comp_uid
-    FROM competitions
-    WHERE id = NEW.competition_id::UUID;  -- TEXT -> UUID cast
-
-    -- Count actual sold tickets from confirmed entries
-    SELECT COUNT(DISTINCT tn) INTO v_actual_sold
-    FROM (
-        SELECT CAST(trim(unnest(string_to_array(jc.ticketnumbers, ','))) AS INTEGER) AS tn
-        FROM joincompetition jc
-        WHERE (jc.competitionid = NEW.competition_id OR jc.competitionid = v_comp_uid)
-          AND jc.ticketnumbers IS NOT NULL
-          AND trim(jc.ticketnumbers) != ''
-        UNION
-        SELECT t.ticket_number AS tn
-        FROM tickets t
-        WHERE t.competition_id = NEW.competition_id::UUID  -- UUID = UUID
-          AND t.ticket_number IS NOT NULL
-    ) sold;
-
-    -- Count all active pending tickets
-    SELECT COALESCE(SUM(pt.ticket_count), 0) INTO v_pending_count
-    FROM pending_tickets pt
-    WHERE pt.competition_id = NEW.competition_id  -- TEXT = TEXT
-      AND pt.status = 'pending'
-      AND pt.expires_at > NOW();
-
-    -- Update with accurate count
-    UPDATE competitions
-    SET tickets_sold = v_actual_sold + v_pending_count,
-        updated_at = NOW()
-    WHERE id = NEW.competition_id::UUID;  -- TEXT -> UUID cast
-
-    RETURN NEW;
-END;
-$function$;
 
 -- ============================================================================
 -- PART 5: trg_fn_confirm_pending_tickets (confirmation trigger)
@@ -518,23 +401,16 @@ LANGUAGE plpgsql
 AS $function$
 DECLARE
   tnum int;
-  v_competition_uuid UUID;
 BEGIN
   IF (TG_OP = 'UPDATE') AND (OLD.confirmed_at IS NULL) AND (NEW.confirmed_at IS NOT NULL) THEN
-    -- pending_tickets.competition_id is TEXT, tickets.competition_id is UUID
-    BEGIN
-      v_competition_uuid := NEW.competition_id::UUID;
-    EXCEPTION WHEN invalid_text_representation THEN
-      RAISE WARNING 'Invalid competition_id format: %, skipping ticket creation', NEW.competition_id;
-      RETURN NEW;
-    END;
+    -- NEW.competition_id is already UUID (from pending_tickets table)
 
     FOREACH tnum IN ARRAY COALESCE(NEW.ticket_numbers, ARRAY[]::int[]) LOOP
       INSERT INTO public.tickets (
         competition_id, ticket_number, status, purchased_at, order_id,
         canonical_user_id, wallet_address
       ) VALUES (
-        v_competition_uuid,  -- UUID, not TEXT
+        NEW.competition_id,  -- Already UUID, no cast needed
         tnum,
         'sold',
         NEW.confirmed_at,
@@ -634,7 +510,6 @@ AS $$
 DECLARE
   v_competition_uuid UUID;
   v_comp_uid TEXT;
-  v_competition_id_text TEXT;
   v_unavailable INTEGER[] := ARRAY[]::INTEGER[];
   v_sold_jc INTEGER[] := ARRAY[]::INTEGER[];
   v_sold_tickets INTEGER[] := ARRAY[]::INTEGER[];
@@ -646,25 +521,23 @@ BEGIN
 
   BEGIN
     v_competition_uuid := competition_id::UUID;
-    v_competition_id_text := v_competition_uuid::TEXT;
   EXCEPTION WHEN invalid_text_representation THEN
     SELECT c.id, c.uid INTO v_competition_uuid, v_comp_uid
     FROM competitions c WHERE c.uid = competition_id LIMIT 1;
     IF v_competition_uuid IS NULL THEN RETURN ARRAY[]::INTEGER[]; END IF;
-    v_competition_id_text := v_competition_uuid::TEXT;
   END;
 
   IF v_comp_uid IS NULL THEN
     SELECT c.uid INTO v_comp_uid FROM competitions c WHERE c.id = v_competition_uuid;
   END IF;
 
-  -- joincompetition (competitionid is TEXT)
+  -- joincompetition (competitionid is UUID)
   SELECT COALESCE(array_agg(DISTINCT ticket_num), ARRAY[]::INTEGER[])
   INTO v_sold_jc
   FROM (
     SELECT CAST(TRIM(unnest(string_to_array(ticketnumbers, ','))) AS INTEGER) AS ticket_num
     FROM joincompetition
-    WHERE (competitionid = v_competition_id_text
+    WHERE (competitionid = v_competition_uuid::TEXT
       OR (v_comp_uid IS NOT NULL AND competitionid = v_comp_uid)
       OR competitionid = competition_id)
       AND ticketnumbers IS NOT NULL AND TRIM(ticketnumbers) != ''
@@ -681,14 +554,14 @@ BEGIN
 
   v_sold_tickets := COALESCE(v_sold_tickets, ARRAY[]::INTEGER[]);
 
-  -- pending_tickets (competition_id is TEXT)
+  -- pending_tickets (competition_id is UUID)
   BEGIN
     SELECT COALESCE(array_agg(DISTINCT ticket_num), ARRAY[]::INTEGER[])
     INTO v_pending
     FROM (
       SELECT unnest(pt.ticket_numbers) AS ticket_num
       FROM pending_tickets pt
-      WHERE pt.competition_id = v_competition_id_text  -- TEXT = TEXT
+      WHERE pt.competition_id = v_competition_uuid  -- UUID = UUID
         AND pt.status = 'pending'
         AND pt.expires_at > NOW()
     ) AS pending
@@ -733,10 +606,7 @@ SET search_path = public
 AS $$
 DECLARE
   v_comp_uid TEXT;
-  v_competition_id_text TEXT;
 BEGIN
-  v_competition_id_text := p_competition_id::TEXT;
-
   SELECT uid INTO v_comp_uid FROM competitions WHERE id = p_competition_id;
 
   RETURN QUERY
@@ -748,7 +618,7 @@ BEGIN
   FROM (
     SELECT unnest(string_to_array(ticketnumbers, ',')) AS t_num
     FROM joincompetition
-    WHERE (competitionid = v_competition_id_text
+    WHERE (competitionid = p_competition_id::TEXT
       OR (v_comp_uid IS NOT NULL AND competitionid = v_comp_uid))
       AND ticketnumbers IS NOT NULL
       AND trim(ticketnumbers) != ''
@@ -767,12 +637,12 @@ BEGIN
 
   UNION ALL
 
-  -- From pending_tickets (competition_id is TEXT)
+  -- From pending_tickets (competition_id is UUID)
   SELECT
     unnest(pt.ticket_numbers) AS ticket_number,
     'pending'::TEXT AS source
   FROM pending_tickets pt
-  WHERE pt.competition_id = v_competition_id_text  -- TEXT = TEXT
+  WHERE pt.competition_id = p_competition_id  -- UUID = UUID
     AND pt.status IN ('pending', 'confirming')
     AND pt.expires_at > NOW();
 END;
@@ -1283,7 +1153,7 @@ BEGIN
     COALESCE(c.status, 'active'),
     c.end_date
   FROM public.pending_tickets pt
-  LEFT JOIN public.competitions c ON pt.competition_id::UUID = c.id  -- TEXT::UUID = UUID
+  LEFT JOIN public.competitions c ON pt.competition_id = c.id  -- UUID = UUID
   WHERE (
     (resolved_canonical_user_id IS NOT NULL AND pt.canonical_user_id = resolved_canonical_user_id)
     OR (resolved_wallet_address IS NOT NULL AND (LOWER(pt.user_id) = resolved_wallet_address OR LOWER(pt.wallet_address) = resolved_wallet_address))
@@ -1408,12 +1278,15 @@ BEGIN
   RAISE NOTICE '=====================================================';
   RAISE NOTICE 'Functions created/updated: % (expected: 13)', func_count;
   RAISE NOTICE '';
-  RAISE NOTICE 'Type rules applied everywhere:';
+  RAISE NOTICE 'Type rules now correctly applied:';
   RAISE NOTICE '  competitions.id           = UUID  (direct comparison)';
   RAISE NOTICE '  tickets.competition_id    = UUID  (direct comparison)';
-  RAISE NOTICE '  pending_tickets.competition_id = TEXT (use ::TEXT cast)';
-  RAISE NOTICE '  pending_ticket_items.competition_id = TEXT (use ::TEXT cast)';
-  RAISE NOTICE '  joincompetition.competitionid  = TEXT (use ::TEXT cast)';
+  RAISE NOTICE '  pending_tickets.competition_id = UUID (verified in production 2026-03-03)';
+  RAISE NOTICE '  pending_ticket_items.competition_id = UUID (verified in production)';
+  RAISE NOTICE '  joincompetition.competitionid  = UUID (verified in production)';
+  RAISE NOTICE '  joincompetition.competition_id  = UUID';
+  RAISE NOTICE '';
+  RAISE NOTICE 'All unnecessary TEXT conversions removed.';
   RAISE NOTICE '=====================================================';
 END $$;
 

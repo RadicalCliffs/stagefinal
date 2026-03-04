@@ -267,7 +267,6 @@ export default function EntriesList() {
         setLoading(false);
         setIsRefreshing(false);
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
     [canonicalUserId, showToast],
   ); // debouncedFetchEntries excluded to avoid circular dependency
@@ -802,13 +801,14 @@ export default function EntriesList() {
 
       if (!groupMap.has(key)) {
         // Initialize new group for this competition
-        // Use actual amount_spent from database (includes bonuses, not just tickets × price)  
+        // Use actual amount_spent from database (includes bonuses, not just tickets × price)
         const ticketCount = entry.number_of_tickets || 0;
-        const actualAmount = typeof entry.amount_spent === 'number' 
-          ? entry.amount_spent 
-          : typeof entry.amount_spent === 'string' 
-            ? parseFloat(entry.amount_spent) || 0
-            : 0;
+        const actualAmount =
+          typeof entry.amount_spent === "number"
+            ? entry.amount_spent
+            : typeof entry.amount_spent === "string"
+              ? parseFloat(entry.amount_spent) || 0
+              : 0;
         groupMap.set(key, {
           competition_id: entry.competition_id,
           title: entry.title,
@@ -853,11 +853,12 @@ export default function EntriesList() {
         // Sum up actual amounts spent (includes bonuses, not just ticket count × price)
         const additionalTickets = entry.number_of_tickets || 0;
         existing.total_tickets += additionalTickets;
-        const additionalAmount = typeof entry.amount_spent === 'number'
-          ? entry.amount_spent
-          : typeof entry.amount_spent === 'string'
-            ? parseFloat(entry.amount_spent) || 0
-            : 0;
+        const additionalAmount =
+          typeof entry.amount_spent === "number"
+            ? entry.amount_spent
+            : typeof entry.amount_spent === "string"
+              ? parseFloat(entry.amount_spent) || 0
+              : 0;
         existing.total_amount_spent += additionalAmount;
 
         // Track if any entry is a winner

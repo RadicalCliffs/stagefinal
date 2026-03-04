@@ -202,11 +202,12 @@ const CompetitionEntryDetails = () => {
 
     // Sum actual amount_spent from all unique entries (includes bonuses, not just tickets × price)
     const totalAmount = uniqueEntries.reduce((sum, entry) => {
-      const amount = typeof entry.amount_spent === 'number'
-        ? entry.amount_spent
-        : typeof entry.amount_spent === 'string'
-          ? parseFloat(entry.amount_spent) || 0
-          : 0;
+      const amount =
+        typeof entry.amount_spent === "number"
+          ? entry.amount_spent
+          : typeof entry.amount_spent === "string"
+            ? parseFloat(entry.amount_spent) || 0
+            : 0;
       return sum + amount;
     }, 0);
 

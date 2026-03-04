@@ -138,7 +138,7 @@ function transformJoinCompetitionEntry(
   const entryId =
     jc.uid ||
     jc.id ||
-    `entry-${jc.competition_id || jc.competitionid || "no-comp"}-${jc.user_id?.substring(0, 8) || jc.userid?.substring(0, 8) || "no-user"}-${jc.joinedat || "unknown"}`;
+    `entry-${jc.competition_id || "no-comp"}-${jc.user_id?.substring(0, 8) || jc.userid?.substring(0, 8) || "no-user"}-${jc.joinedat || "unknown"}`;
 
   // Calculate number of tickets from ticket_numbers array
   const ticketNumbers = jc.ticket_numbers || jc.ticketnumbers;
@@ -146,7 +146,7 @@ function transformJoinCompetitionEntry(
 
   return {
     id: entryId,
-    competition_id: jc.competition_id || jc.competitionid,
+    competition_id: jc.competition_id,
     title: comp?.title || "Unknown Competition",
     description: comp?.description || "",
     image: comp?.image_url,
@@ -1070,7 +1070,7 @@ export const database = {
       data.map(async (ticket: any, index: number) => {
         // Try looking up competition by id first, then fallback to uid
         // joincompetition.competition_id may contain either the UUID id or the text uid
-        const compId = ticket.competition_id || ticket.competitionid;
+        const compId = ticket.competition_id;
         let comp = null;
 
         // First try direct id match (if it's a valid UUID)
@@ -1377,9 +1377,7 @@ export const database = {
     // Extract unique IDs for batch fetching
     const competitionIds = [
       ...new Set(
-        (entryData || [])
-          .map((t: any) => t.competition_id || t.competitionid)
-          .filter(Boolean),
+        (entryData || []).map((t: any) => t.competition_id).filter(Boolean),
       ),
     ];
     // Extract both wallet_address AND canonical_user_id - some entries have one but not the other
@@ -2006,7 +2004,7 @@ export const database = {
         const { data: soldData } = (await supabase
           .from("joincompetition")
           .select("ticketnumbers")
-          .eq("competitionid", competitionId)
+          .eq("competition_id", competitionId)
           .in("status", ["active", "sold"])) as any;
 
         if (soldData) {
@@ -2905,9 +2903,7 @@ export const database = {
             // Fetch competition data separately (same logic as above)
             const competitionIds = [
               ...new Set(
-                data
-                  .map((jc: any) => jc.competition_id || jc.competitionid)
-                  .filter(Boolean),
+                data.map((jc: any) => jc.competition_id).filter(Boolean),
               ),
             ];
             let competitionsMap = new Map<string, any>();
