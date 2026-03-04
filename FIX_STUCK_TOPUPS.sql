@@ -31,12 +31,16 @@ DECLARE
   v_highblock_amount NUMERIC := 3.00;
   v_highblock_tx_id TEXT := '05d3bb0e-4aaf-43a5-8096-c2271813203b';
   v_highblock_ref TEXT := 'TOPUP_prize:pid:0x543e8fb59312a2578f70152c79eae169e4f8fe9e_b1b7a840-142e-40e0-aef1-aab2c157697a';
+  v_highblock_wallet TEXT := '0x543e8fb59312a2578f70152c79eae169e4f8fe9e';
+  v_highblock_user_id UUID := '28241e09-753e-43a4-83d5-0169f9b92ec3';
   
   v_luxe_user TEXT := 'prize:pid:0xc469777462c1769b918a299a89c1d5eeaa4d5ee3';
   v_luxe_tx UUID := 'ca16d095-d855-4cc1-a866-557741347a65';
   v_luxe_amount NUMERIC := 5.00;
   v_luxe_tx_id TEXT := 'ac56002b-8db3-43b6-b46c-d191c5e67933';
   v_luxe_ref TEXT := 'TOPUP_prize:pid:0xc469777462c1769b918a299a89c1d5eeaa4d5ee3_ca16d095-d855-4cc1-a866-557741347a65';
+  v_luxe_wallet TEXT := '0xc469777462c1769b918a299a89c1d5eeaa4d5ee3';
+  v_luxe_user_id UUID := 'd75e48de-2da5-4f5d-8eaa-1a2b3c25735c';
   
   v_ledger_count INTEGER;
   v_result JSONB;
@@ -68,10 +72,15 @@ BEGIN
     RAISE NOTICE '   ℹ️  Already credited - found % balance_ledger entries', v_ledger_count;
     RAISE NOTICE '   ✅ Marking transaction as posted_to_balance=true';
     
-    -- Just update the flags (wallet_credited column doesn't exist in prod yet)
+    -- Just update the flags and dashboard visibility fields
     UPDATE user_transactions
-    SET posted_to_balance = true,
+    SET type = 'topup',
+        canonical_user_id = v_highblock_user,
+        user_id = v_highblock_user_id::text,
+        wallet_address = v_highblock_wallet,
+        posted_to_balance = true,
         status = 'completed',
+        payment_status = 'confirmed',
         updated_at = NOW()
     WHERE id = v_highblock_tx;
     
@@ -87,15 +96,20 @@ BEGIN
       v_highblock_ref
     ) INTO v_result;
     
-    IF (v_result->>'success')::boolean THEN
-      RAISE NOTICE '   ✅ Credited $% successfully', v_highblock_amount;
-      RAISE NOTICE '   New balance: $%', v_result->>'new_balance';
-      RAISE NOTICE '   Bonus applied: %', v_result->>'bonus_applied';
-      
-      -- Update transaction flags (wallet_credited column doesn't exist in prod yet)
+    IF (v_result->>'success')::booand dashboard visibility fields
       UPDATE user_transactions
-      SET posted_to_balance = true,
+      SET type = 'topup',
+          canonical_user_id = v_highblock_user,
+          user_id = v_highblock_user_id::text,
+          wallet_address = v_highblock_wallet,
+          posted_to_balance = true,
           status = 'completed',
+          payment_status = 'confirmed',
+          updated_at = NOW(),
+          notes = COALESCE(notes, '') || ' [FIX: Manually credited ' || NOW()::DATE || ']'
+      WHERE id = v_highblock_tx;
+      
+      RAISE NOTICE '   ✅ Transaction marked as credited and visible in dashboar
           updated_at = NOW(),
           notes = COALESCE(notes, '') || ' [FIX: Manually credited ' || NOW()::DATE || ']'
       WHERE id = v_highblock_tx;
@@ -125,10 +139,15 @@ BEGIN
       OR reference_id = v_luxe_tx_id 
       OR reference_id = v_luxe_tx::text
     );
-  
-  IF v_ledger_count > 0 THEN
-    RAISE NOTICE '   ℹ️  Already credited - found % balance_ledger entries', v_ledger_count;
-    RAISE NOTICE '   ✅ Marking transaction as posted_to_balance=true';
+  and dashboard visibility fields
+    UPDATE user_transactions
+    SET type = 'topup',
+        canonical_user_id = v_luxe_user,
+        user_id = v_luxe_user_id::text,
+        wallet_address = v_luxe_wallet,
+        posted_to_balance = true,
+        status = 'completed',
+        payment_status = 'confirmrking transaction as posted_to_balance=true';
     
     -- Just update the flags (wallet_credited column doesn't exist in prod yet)
     UPDATE user_transactions
@@ -149,15 +168,20 @@ BEGIN
       v_luxe_ref
     ) INTO v_result;
     
-    IF (v_result->>'success')::boolean THEN
-      RAISE NOTICE '   ✅ Credited $% successfully', v_luxe_amount;
-      RAISE NOTICE '   New balance: $%', v_result->>'new_balance';
-      RAISE NOTICE '   Bonus applied: %', v_result->>'bonus_applied';
-      
-      -- Update transaction flags (wallet_credited column doesn't exist in prod yet)
+    IF (v_result->>'success')::booand dashboard visibility fields
       UPDATE user_transactions
-      SET posted_to_balance = true,
+      SET type = 'topup',
+          canonical_user_id = v_luxe_user,
+          user_id = v_luxe_user_id::text,
+          wallet_address = v_luxe_wallet,
+          posted_to_balance = true,
           status = 'completed',
+          payment_status = 'confirmed',
+          updated_at = NOW(),
+          notes = COALESCE(notes, '') || ' [FIX: Manually credited ' || NOW()::DATE || ']'
+      WHERE id = v_luxe_tx;
+      
+      RAISE NOTICE '   ✅ Transaction marked as credited and visible in dashboar
           updated_at = NOW(),
           notes = COALESCE(notes, '') || ' [FIX: Manually credited ' || NOW()::DATE || ']'
       WHERE id = v_luxe_tx;
@@ -172,9 +196,20 @@ BEGIN
   RAISE NOTICE '════════════════════════════════════════════════════════════════';
   RAISE NOTICE 'FIX COMPLETE';
   RAISE NOTICE '════════════════════════════════════════════════════════════════';
+  RAISE NOTICE '';
+  RAISE NOTICE 'Transactions updated with:';
+  RAISE NOTICE '  ✅ Balance credited (if missing)';
+  RAISE NOTICE '  ✅ Transaction flags set (posted_to_balance, status)';
+  RAISE NOTICE '  ✅ Dashboard visibility fields (type, canonical_user_id, user_id, wallet_address)';
+  RAISE NOTICE '';
+  RAISE NOTICE 'Topups should now appear in:';
+  RAISE NOTICE '  - User dashboard top-up section';
+  RAISE NOTICE '  - Wallet management recent top-ups';
+  RAISE NOTICE '  - Orders tab';
+  RAISE NOTICE '';
   RAISE NOTICE 'Next steps:';
   RAISE NOTICE '1. Deploy fixed commerce-webhook (idempotency bug fix applied)';
   RAISE NOTICE '2. Verify user balances are correct in their dashboards';
-  RAISE NOTICE '3. Future topups will now credit correctly';
+  RAISE NOTICE '3. Future topups will credit correctly AND appear in dashboard automatically';
   RAISE NOTICE '';
 END $$;
