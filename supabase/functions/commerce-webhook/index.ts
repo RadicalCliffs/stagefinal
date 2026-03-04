@@ -1061,6 +1061,44 @@ Deno.serve(async (req: Request) => {
                   `[commerce-webhook][${requestId}] Using reference_id for idempotency: ${referenceId}`,
                 );
 
+                // COMPREHENSIVE IDEMPOTENCY CHECK: Check balance_ledger for MULTIPLE reference_ids
+                // to catch duplicates even if manual scripts and webhook used different reference_ids
+                const potentialReferenceIds = [
+                  transaction.tx_id,
+                  eventData.id,
+                  transaction.id,
+                ].filter(Boolean);
+
+                const { data: existingCredits } = await supabase
+                  .from("balance_ledger")
+                  .select("reference_id, amount, created_at")
+                  .eq("canonical_user_id", transaction.user_id)
+                  .in("reference_id", potentialReferenceIds);
+
+                if (existingCredits && existingCredits.length > 0) {
+                  console.log(
+                    `[commerce-webhook][${requestId}] ✅ Already credited - found ${existingCredits.length} matching ledger entries:`,
+                    existingCredits,
+                  );
+                  creditSuccess = true;
+
+                  // Get current balance
+                  const { data: balanceData } = await supabase
+                    .from("sub_account_balances")
+                    .select("available_balance, bonus_balance")
+                    .eq("canonical_user_id", transaction.user_id)
+                    .eq("currency", "USD")
+                    .maybeSingle();
+
+                  newBalance =
+                    (balanceData?.available_balance || 0) +
+                    (balanceData?.bonus_balance || 0);
+                  console.log(
+                    `[commerce-webhook][${requestId}] Current balance: ${newBalance}`,
+                  );
+                  break;
+                }
+
                 // Use credit_balance_with_first_deposit_bonus for modern fidelity
                 // This matches the instant-topup flow and ensures consistent bonus application
                 const { data: creditResult, error: rpcError } =
