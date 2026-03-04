@@ -39,7 +39,7 @@ const FinishedCompetitionHeroSection = ({
         const { data: compData } = (await supabase
           .from("competitions")
           .select(
-            "winner_address, outcomes_vrf_seed, tickets_sold, vrf_pregenerated_tx_hash",
+            "winner_address, outcomes_vrf_seed, tickets_sold, vrf_tx_hash, status, vrf_draw_completed_at",
           )
           .eq("id", id)
           .maybeSingle()) as any;
@@ -48,36 +48,64 @@ const FinishedCompetitionHeroSection = ({
           winnerAddress: compData?.winner_address || null,
           winnerUsername: null,
           winningTicket: null,
-          vrfTxHash: compData?.vrf_pregenerated_tx_hash || null,
+          vrfTxHash: compData?.vrf_tx_hash || null,
           vrfSeed: compData?.outcomes_vrf_seed || null,
           ticketsSold: compData?.tickets_sold || 0,
         };
 
-        // Fetch from competition_winners for more details
-        const { data: winnerRow } = (await supabase
-          .from("competition_winners")
-          .select(
-            "wallet_address, username, winner, ticket_number, winningticketnumber, tx_hash, txhash, vrf_tx_hash, rngtrxhash",
-          )
+        // Fetch from winners table (primary source for winner data)
+        const { data: winnersData } = (await supabase
+          .from("winners")
+          .select("wallet_address, ticket_number, user_id, username")
           .eq("competition_id", id)
-          .eq("is_winner", true)
+          .eq("prize_position", 1)
           .maybeSingle()) as any;
 
-        if (winnerRow) {
-          result = {
-            ...result,
-            winnerAddress: result.winnerAddress || winnerRow.wallet_address,
-            winnerUsername: winnerRow.username || winnerRow.winner || null,
-            winningTicket:
-              winnerRow.ticket_number || winnerRow.winningticketnumber || null,
-            vrfTxHash:
+        if (winnersData) {
+          result.winnerAddress =
+            winnersData.wallet_address || result.winnerAddress;
+          result.winningTicket = winnersData.ticket_number;
+          result.winnerUsername = winnersData.username || null;
+        }
+
+        // Fallback: Fetch from competition_winners for additional details
+        if (!winnersData) {
+          const { data: winnerRow } = (await supabase
+            .from("competition_winners")
+            .select(
+              "winner, ticket_number, user_id, username, tx_hash, txhash, vrf_tx_hash, rngtrxhash",
+            )
+            .eq("competitionid", id)
+            .maybeSingle()) as any;
+
+          if (winnerRow) {
+            result.winnerAddress =
+              result.winnerAddress || winnerRow.winner || null;
+            result.winnerUsername = winnerRow.username || null;
+            result.winningTicket = winnerRow.ticket_number || null;
+            result.vrfTxHash =
               result.vrfTxHash ||
               winnerRow.tx_hash ||
               winnerRow.txhash ||
               winnerRow.vrf_tx_hash ||
               winnerRow.rngtrxhash ||
-              null,
-          };
+              null;
+          }
+        }
+
+        // Extract username from user_id if it's a prize:pid format
+        if (!result.winnerUsername && result.winnerAddress) {
+          // Check if the winner has a profile
+          const { data: profileData } = (await supabase
+            .from("profiles")
+            .select("username, display_name")
+            .eq("wallet_address", result.winnerAddress)
+            .maybeSingle()) as any;
+
+          if (profileData) {
+            result.winnerUsername =
+              profileData.display_name || profileData.username || null;
+          }
         }
 
         setWinnerData(result);
@@ -154,24 +182,24 @@ const FinishedCompetitionHeroSection = ({
 
           {/* Winner & VRF Info Card - Integrated in Hero */}
           <div className="bg-[#141414] rounded-xl p-4 mt-4 relative">
-            {/* Winner Section */}
-            {winnerData &&
-            (winnerData.winnerUsername ||
-              winnerData.winnerAddress ||
-              winnerData.winningTicket) ? (
+            {/* Determine if we should show winner info or drawing state */}
+            {winnerData?.winnerAddress || winnerData?.winningTicket ? (
               <>
+                {/* Winner Announced Section */}
                 <div className="flex items-center gap-2 mb-4">
                   <Trophy className="w-6 h-6 text-[#DDE404]" />
                   <p className="sequel-75 uppercase text-[#DDE404] md:text-xl text-lg">
-                    Winner Announced
+                    🎉 Winner Announced
                   </p>
                 </div>
 
                 {/* Winner Details Grid */}
                 <div className="space-y-3 mb-4">
+                  {/* Username if available */}
                   {winnerData.winnerUsername && (
-                    <div className="flex items-center justify-between bg-[#1A1A1A] rounded-lg p-3">
-                      <span className="sequel-45 text-white/60 text-sm">
+                    <div className="flex items-center justify-between bg-[#1A1A1A] rounded-lg p-3 hover:bg-[#222222] transition-colors">
+                      <span className="sequel-45 text-white/60 text-sm flex items-center gap-2">
+                        <Trophy size={14} className="text-[#DDE404]" />
                         Winner
                       </span>
                       <span className="sequel-75 text-white text-sm">
@@ -179,10 +207,14 @@ const FinishedCompetitionHeroSection = ({
                       </span>
                     </div>
                   )}
+
+                  {/* Wallet Address - Always show if we have it */}
                   {winnerData.winnerAddress && (
-                    <div className="flex items-center justify-between bg-[#1A1A1A] rounded-lg p-3">
+                    <div className="flex items-center justify-between bg-[#1A1A1A] rounded-lg p-3 hover:bg-[#222222] transition-colors">
                       <span className="sequel-45 text-white/60 text-sm">
-                        Wallet
+                        {winnerData.winnerUsername
+                          ? "Wallet Address"
+                          : "Winner Address"}
                       </span>
                       <div className="flex items-center gap-2">
                         <span className="sequel-75 text-white text-sm font-mono">
@@ -193,6 +225,7 @@ const FinishedCompetitionHeroSection = ({
                             handleCopy(winnerData.winnerAddress!, "wallet")
                           }
                           className="text-white/40 hover:text-[#DDE404] transition-colors"
+                          title="Copy wallet address"
                         >
                           {copiedField === "wallet" ? (
                             <CopyCheck size={14} className="text-[#DDE404]" />
@@ -203,9 +236,11 @@ const FinishedCompetitionHeroSection = ({
                       </div>
                     </div>
                   )}
-                  {winnerData.winningTicket && (
-                    <div className="flex items-center justify-between bg-[#1A1A1A] rounded-lg p-3">
-                      <span className="sequel-45 text-white/60 text-sm flex items-center gap-1">
+
+                  {/* Winning Ticket Number */}
+                  {winnerData.winningTicket !== null && (
+                    <div className="flex items-center justify-between bg-[#1A1A1A] rounded-lg p-3 hover:bg-[#222222] transition-colors">
+                      <span className="sequel-45 text-white/60 text-sm flex items-center gap-2">
                         <Ticket size={14} />
                         Winning Ticket
                       </span>
@@ -216,26 +251,30 @@ const FinishedCompetitionHeroSection = ({
                   )}
                 </div>
 
-                {/* VRF Verification Section */}
-                {winnerData.vrfTxHash && (
+                {/* VRF Verification Section - Prominent */}
+                {(winnerData.vrfTxHash || winnerData.vrfSeed) && (
                   <div className="border-t border-[#2A2A2A] pt-4 mt-4">
                     <div className="flex items-center gap-2 mb-3">
-                      <ShieldCheck className="w-5 h-5 text-[#DDE404]" />
-                      <p className="sequel-75 text-[#DDE404] text-sm uppercase">
-                        VRF Verification
+                      <ShieldCheck className="w-5 h-5 text-[#10B981]" />
+                      <p className="sequel-75 text-[#10B981] text-sm uppercase">
+                        ✓ Provably Fair Draw
                       </p>
                     </div>
-                    <div className="bg-[#1A1A1A] rounded-lg p-3">
-                      <div className="flex items-center justify-between">
-                        <span className="sequel-45 text-white/60 text-xs">
-                          Transaction Hash
-                        </span>
+
+                    {/* VRF Transaction Hash */}
+                    {winnerData.vrfTxHash && (
+                      <div className="bg-[#0A2818] border border-[#10B981]/20 rounded-lg p-3 mb-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="sequel-45 text-[#10B981]/80 text-xs">
+                            VRF Transaction Hash
+                          </span>
+                        </div>
                         <div className="flex items-center gap-2">
                           <a
                             href={`https://basescan.org/tx/${winnerData.vrfTxHash}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="sequel-45 text-blue-400 hover:text-blue-300 text-xs font-mono flex items-center gap-1"
+                            className="sequel-45 text-[#10B981] hover:text-[#10B981]/80 text-xs font-mono flex items-center gap-1 transition-colors"
                           >
                             {truncateHash(winnerData.vrfTxHash)}
                             <ExternalLink size={12} />
@@ -244,44 +283,66 @@ const FinishedCompetitionHeroSection = ({
                             onClick={() =>
                               handleCopy(winnerData.vrfTxHash!, "vrf")
                             }
-                            className="text-white/40 hover:text-[#DDE404] transition-colors"
+                            className="text-[#10B981]/60 hover:text-[#10B981] transition-colors"
+                            title="Copy VRF transaction hash"
                           >
                             {copiedField === "vrf" ? (
-                              <CopyCheck size={14} className="text-[#DDE404]" />
+                              <CopyCheck size={14} className="text-[#10B981]" />
                             ) : (
                               <Copy size={14} />
                             )}
                           </button>
                         </div>
-                      </div>
-                    </div>
-                    {winnerData.vrfSeed && winnerData.ticketsSold > 0 && (
-                      <div className="bg-[#1A1A1A] rounded-lg p-3 mt-2">
-                        <p className="sequel-45 text-white/60 text-xs mb-1">
-                          Verification Formula
+                        <p className="sequel-45 text-[#10B981]/60 text-xs mt-2">
+                          Verify this draw on the blockchain →
                         </p>
-                        <code className="sequel-45 text-yellow-400 text-xs block">
-                          (VRF_SEED % {winnerData.ticketsSold}) + 1 = #
-                          {winnerData.winningTicket || "?"}
-                        </code>
                       </div>
                     )}
+
+                    {/* Verification Formula */}
+                    {winnerData.vrfSeed &&
+                      winnerData.ticketsSold > 0 &&
+                      winnerData.winningTicket !== null && (
+                        <div className="bg-[#1A1A1A] rounded-lg p-3">
+                          <p className="sequel-45 text-white/60 text-xs mb-2 flex items-center gap-1">
+                            <ShieldCheck size={12} />
+                            Verification Formula
+                          </p>
+                          <code className="sequel-45 text-[#DDE404] text-xs block break-all">
+                            keccak256(VRF_SEED) % {winnerData.ticketsSold} + 1 =
+                            #{winnerData.winningTicket}
+                          </code>
+                          <p className="sequel-45 text-white/40 text-xs mt-2">
+                            Anyone can verify this result using the VRF seed
+                          </p>
+                        </div>
+                      )}
                   </div>
                 )}
               </>
             ) : (
               <>
-                <p className="sequel-75 uppercase text-white md:text-xl text-lg mb-4">
-                  Competition Status
-                </p>
-                <button className="uppercase sequel-95 sm:text-2xl text-xl pointer-events-none bg-[#414141] text-[#1F1F1F] w-full rounded-xl py-3">
-                  {winnerData === null ? "Loading..." : "Drawing Winner..."}
-                </button>
-                <div className="mt-4 border-t border-[#2A2A2A] pt-4">
-                  <p className="sequel-45 text-white/60 text-sm text-center">
-                    Winner selection in progress. Results will appear here once
-                    VRF completes.
+                {/* Drawing in Progress State */}
+                <div className="text-center py-6">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#DDE404]/10 mb-4">
+                    <div className="animate-spin">
+                      <ShieldCheck className="w-8 h-8 text-[#DDE404]" />
+                    </div>
+                  </div>
+                  <p className="sequel-75 uppercase text-white md:text-xl text-lg mb-2">
+                    Drawing Winner
                   </p>
+                  <p className="sequel-45 text-white/60 text-sm max-w-md mx-auto">
+                    The VRF (Verifiable Random Function) draw is in progress.
+                    Winner information will appear here once the blockchain
+                    confirms the selection.
+                  </p>
+                  <div className="mt-6 pt-4 border-t border-[#2A2A2A]">
+                    <p className="sequel-45 text-white/40 text-xs">
+                      This process is provably fair and verifiable on the
+                      blockchain
+                    </p>
+                  </div>
                 </div>
               </>
             )}
