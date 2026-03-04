@@ -32,39 +32,44 @@ const WinnerResultsTable = ({ competitionId }: WinnerResultsTableProps) => {
       try {
         // Fetch winners from the winners table
         const { data: winnersData, error: winnersError } = await supabase
-          .from('winners')
-          .select('ticket_number, wallet_address')
-          .eq('competition_id', competitionId);
+          .from("winners")
+          .select("ticket_number, wallet_address")
+          .eq("competition_id", competitionId);
 
         if (winnersError) {
-          console.error('Error fetching winners:', winnersError);
+          console.error("Error fetching winners:", winnersError);
         }
 
         // Fetch competition details for total tickets and VRF data
-        const { data: compData, error: compError } = await supabase
-          .from('competitions')
-          .select('total_tickets, tickets_sold, vrf_tx_hash, outcomes_vrf_seed')
-          .eq('id', competitionId)
-          .maybeSingle() as any;
+        const { data: compData, error: compError } = (await supabase
+          .from("competitions")
+          .select("total_tickets, tickets_sold, vrf_tx_hash, outcomes_vrf_seed")
+          .eq("id", competitionId)
+          .maybeSingle()) as any;
 
         if (compError) {
-          console.error('Error fetching competition:', compError);
+          console.error("Error fetching competition:", compError);
         }
 
         // Fetch usernames for winner wallet addresses
         const usernameMap = new Map<string, string>();
         if (winnersData && winnersData.length > 0) {
-          const walletAddresses = winnersData.map((w: any) => w.wallet_address).filter(Boolean);
+          const walletAddresses = winnersData
+            .map((w: any) => w.wallet_address)
+            .filter(Boolean);
           if (walletAddresses.length > 0) {
-            const { data: usersData } = await supabase
-              .from('canonical_users')
-              .select('username, wallet_address')
-              .in('wallet_address', walletAddresses) as any;
-            
+            const { data: usersData } = (await supabase
+              .from("canonical_users")
+              .select("username, wallet_address")
+              .in("wallet_address", walletAddresses)) as any;
+
             if (usersData) {
               for (const user of usersData) {
                 if (user.wallet_address) {
-                  usernameMap.set(user.wallet_address.toLowerCase(), user.username || '');
+                  usernameMap.set(
+                    user.wallet_address.toLowerCase(),
+                    user.username || "",
+                  );
                 }
               }
             }
@@ -77,10 +82,10 @@ const WinnerResultsTable = ({ competitionId }: WinnerResultsTableProps) => {
         // Add data from winners table
         if (winnersData && winnersData.length > 0) {
           for (const winner of winnersData as any[]) {
-            const username = winner.wallet_address 
-              ? usernameMap.get(winner.wallet_address.toLowerCase()) 
+            const username = winner.wallet_address
+              ? usernameMap.get(winner.wallet_address.toLowerCase())
               : null;
-            
+
             results.push({
               txHash: compData?.vrf_tx_hash || null,
               min: 1,
@@ -95,7 +100,7 @@ const WinnerResultsTable = ({ competitionId }: WinnerResultsTableProps) => {
 
         setData(results);
       } catch (error) {
-        console.error('Error fetching winner data:', error);
+        console.error("Error fetching winner data:", error);
       } finally {
         setLoading(false);
       }
@@ -104,21 +109,19 @@ const WinnerResultsTable = ({ competitionId }: WinnerResultsTableProps) => {
     fetchWinnerData();
   }, [competitionId]);
 
-
-
   // Generate BaseScan URL from transaction hash
   const getBaseScanUrl = (txHash: string): string => {
-    if (!txHash) return '';
-    const cleanHash = txHash.startsWith('0x') ? txHash : `0x${txHash}`;
-    const isMainnet = import.meta.env.VITE_BASE_MAINNET === 'true';
-    const explorerDomain = isMainnet ? 'basescan.org' : 'sepolia.basescan.org';
+    if (!txHash) return "";
+    const cleanHash = txHash.startsWith("0x") ? txHash : `0x${txHash}`;
+    const isMainnet = import.meta.env.VITE_BASE_MAINNET === "true";
+    const explorerDomain = isMainnet ? "basescan.org" : "sepolia.basescan.org";
     return `https://${explorerDomain}/tx/${cleanHash}`;
   };
 
   // Check if a hash is a valid transaction hash
   const isValidTxHash = (hash: string | null): boolean => {
     if (!hash) return false;
-    const cleanHash = hash.startsWith('0x') ? hash : `0x${hash}`;
+    const cleanHash = hash.startsWith("0x") ? hash : `0x${hash}`;
     return /^0x[a-fA-F0-9]{64}$/.test(cleanHash);
   };
 
@@ -175,7 +178,13 @@ const WinnerResultsTable = ({ competitionId }: WinnerResultsTableProps) => {
                     </a>
                     <div
                       className="cursor-pointer hover:scale-110 transition-transform"
-                      onClick={() => handleCopy(index, getBaseScanUrl(item.txHash!), setCopiedIndex)}
+                      onClick={() =>
+                        handleCopy(
+                          index,
+                          getBaseScanUrl(item.txHash!),
+                          setCopiedIndex,
+                        )
+                      }
                     >
                       {copiedIndex === index ? (
                         <CopyCheckIcon size={18} className="text-[#DDE404]" />
@@ -191,9 +200,17 @@ const WinnerResultsTable = ({ competitionId }: WinnerResultsTableProps) => {
 
               <p className="text-center">{item.min}</p>
               <p className="text-center">{item.max}</p>
-              <p className="text-center text-[#DDE404]">#{item.winningNumber}</p>
-              <p className="text-end truncate max-w-[150px]" title={item.walletAddress || undefined}>
-                {item.username || (item.walletAddress ? `${item.walletAddress.substring(0, 6)}...${item.walletAddress.slice(-4)}` : '-')}
+              <p className="text-center text-[#DDE404]">
+                #{item.winningNumber}
+              </p>
+              <p
+                className="text-end truncate max-w-[150px]"
+                title={item.walletAddress || undefined}
+              >
+                {item.username ||
+                  (item.walletAddress
+                    ? `${item.walletAddress.substring(0, 6)}...${item.walletAddress.slice(-4)}`
+                    : "-")}
               </p>
             </div>
 
@@ -214,7 +231,13 @@ const WinnerResultsTable = ({ competitionId }: WinnerResultsTableProps) => {
                       </a>
                       <div
                         className="cursor-pointer hover:scale-110 transition-transform"
-                        onClick={() => handleCopy(index, getBaseScanUrl(item.txHash!), setCopiedIndex)}
+                        onClick={() =>
+                          handleCopy(
+                            index,
+                            getBaseScanUrl(item.txHash!),
+                            setCopiedIndex,
+                          )
+                        }
                       >
                         {copiedIndex === index ? (
                           <CopyCheckIcon size={16} className="text-[#DDE404]" />
@@ -247,7 +270,10 @@ const WinnerResultsTable = ({ competitionId }: WinnerResultsTableProps) => {
               <div className="flex justify-between">
                 <span className="text-white/60">Winner</span>
                 <span className="truncate max-w-[150px]">
-                  {item.username || (item.walletAddress ? `${item.walletAddress.substring(0, 6)}...${item.walletAddress.slice(-4)}` : '-')}
+                  {item.username ||
+                    (item.walletAddress
+                      ? `${item.walletAddress.substring(0, 6)}...${item.walletAddress.slice(-4)}`
+                      : "-")}
                 </span>
               </div>
             </div>
