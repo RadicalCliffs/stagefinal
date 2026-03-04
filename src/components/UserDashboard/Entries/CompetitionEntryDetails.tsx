@@ -69,6 +69,7 @@ const CompetitionEntryDetails = () => {
   const [purchaseGroups, setPurchaseGroups] = useState<
     Array<PurchaseGroup & { competition_title: string | null }>
   >([]);
+  const [competitionVrfTxHash, setCompetitionVrfTxHash] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -109,6 +110,16 @@ const CompetitionEntryDetails = () => {
           setEntries(competitionEntries);
         } else {
           setError("No entries found for this competition");
+        }
+
+        // Fetch vrf_tx_hash directly from competitions table
+        try {
+          const compData = await database.getCompetitionByIdV2(competitionId);
+          if (compData?.vrf_tx_hash) {
+            setCompetitionVrfTxHash(compData.vrf_tx_hash);
+          }
+        } catch (vrfErr) {
+          console.warn("Failed to fetch VRF tx hash:", vrfErr);
         }
 
         // Fetch purchase groups for this competition
@@ -250,14 +261,14 @@ const CompetitionEntryDetails = () => {
       description: firstEntry.description,
       image: firstEntry.image,
       status: firstEntry.status,
-      is_winner: isWinner,
-      total_tickets: totalTickets,
-      all_ticket_numbers: uniqueTickets.join(", "),
-      total_amount_spent: totalAmount,
-      first_purchase_date: firstPurchaseDate ?? undefined,
-      last_purchase_date: lastPurchaseDate ?? undefined,
-      transaction_hashes: uniqueHashes.filter((h): h is string => h != null),
-      prize_value: firstEntry.prize_value ?? undefined,
+      is_winner: iscompetitionVrfTxHash ?? firstEntry.vrf_tx_hash ?? undefined,
+      vrf_status: firstEntry.vrf_status ?? undefined,
+      individual_entries: uniqueEntries,
+      is_pending: isPending,
+      expires_at: expirations[0] || undefined,
+      is_instant_win: firstEntry.is_instant_win || false,
+    };
+  }, [entries, competitionVrfTxHashalue: firstEntry.prize_value ?? undefined,
       end_date: firstEntry.end_date ?? undefined,
       draw_date: firstEntry.draw_date ?? undefined,
       vrf_tx_hash: firstEntry.vrf_tx_hash ?? undefined,

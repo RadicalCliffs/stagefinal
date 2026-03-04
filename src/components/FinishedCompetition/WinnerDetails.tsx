@@ -155,12 +155,12 @@ const WinnerDetails = ({ competitionId }: WinnerDetailsProps) => {
   }
 
   // If no winner data at all, show drawing state (not "not available")
+  // BUT only if there's no winner_address in the competition table
   if (
     !winnerData ||
     (!winnerData.winnerAddress &&
       !winnerData.winnerUsername &&
-      !winnerData.winningTicket &&
-      !winnerData.txHash)
+      !winnerData.winningTicket)
   ) {
     return (
       <div className="bg-[#191919] max-w-7xl mx-auto rounded-2xl lg:px-20 px-6 lg:py-14 py-8">
