@@ -424,7 +424,7 @@ Deno.serve(async (req: Request) => {
       // Update transaction with checkout URL
       await supabase
         .from("user_transactions")
-        .update({ session_id: checkoutUrl })
+        .update({ checkout_url: checkoutUrl })
         .eq("id", transactionId);
 
       const elapsed = Date.now() - startTime;
@@ -588,7 +588,9 @@ Deno.serve(async (req: Request) => {
       .from("user_transactions")
       .update({
         tx_id: charge.id,
-        session_id: charge.code,
+        charge_id: charge.id,
+        charge_code: charge.code,
+        checkout_url: charge.hosted_url,
         payment_status: "waiting",
       })
       .eq("id", transactionId);
