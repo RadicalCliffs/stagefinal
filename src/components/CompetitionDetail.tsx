@@ -52,38 +52,46 @@ const CompetitionDetail = () => {
   useEffect(() => {
     if (!id) return;
 
-    console.log('[CompetitionDetail] Setting up real-time subscription for competition:', id);
+    console.log(
+      "[CompetitionDetail] Setting up real-time subscription for competition:",
+      id,
+    );
 
     const channel = supabase
       .channel(`competition-detail-${id}`)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'competitions',
+          event: "UPDATE",
+          schema: "public",
+          table: "competitions",
           filter: `id=eq.${id}`,
         },
         async (payload) => {
-          console.log('[CompetitionDetail] Competition updated:', payload.new);
-          
+          console.log("[CompetitionDetail] Competition updated:", payload.new);
+
           // Refetch competition data when it updates
           const updatedComp = await database.getCompetitionByIdV2(id);
           if (updatedComp) {
             setCompetition(updatedComp as Competition);
-            
+
             // If competition just became sold out or drew a winner, show a brief notification
             const newComp = payload.new as Competition;
-            if (newComp.tickets_sold >= (newComp.total_tickets || 0) && newComp.tickets_sold > (competition?.tickets_sold || 0)) {
-              console.log('[CompetitionDetail] Competition just sold out! Transitioning to finished view...');
+            if (
+              newComp.tickets_sold >= (newComp.total_tickets || 0) &&
+              newComp.tickets_sold > (competition?.tickets_sold || 0)
+            ) {
+              console.log(
+                "[CompetitionDetail] Competition just sold out! Transitioning to finished view...",
+              );
             }
           }
-        }
+        },
       )
       .subscribe();
 
     return () => {
-      console.log('[CompetitionDetail] Cleaning up real-time subscription');
+      console.log("[CompetitionDetail] Cleaning up real-time subscription");
       supabase.removeChannel(channel);
     };
   }, [id, competition?.tickets_sold]);

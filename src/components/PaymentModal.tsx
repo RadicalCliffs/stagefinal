@@ -2277,22 +2277,34 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                 <Check size={32} className="text-black" />
               </div>
               <h3 className="text-white sequel-75 text-xl mb-2">
-                {competitionSoldOut ? "🎉 Competition Sold Out!" : "Payment Successful!"}
+                {competitionSoldOut
+                  ? "🎉 Competition Sold Out!"
+                  : "Payment Successful!"}
               </h3>
               <p className="text-gray-400 sequel-45 mb-4">
                 {competitionSoldOut ? (
                   <>
-                    <span className="text-[#DDE404] sequel-75">You just bought out this competition!</span>
+                    <span className="text-[#DDE404] sequel-75">
+                      You just bought out this competition!
+                    </span>
                     <br />
                     Your {purchasedTickets.length || ticketCount}{" "}
-                    {(purchasedTickets.length || ticketCount) > 1 ? "entries have" : "entry has"} been confirmed.
+                    {(purchasedTickets.length || ticketCount) > 1
+                      ? "entries have"
+                      : "entry has"}{" "}
+                    been confirmed.
                     <br />
-                    <span className="text-white/80">The winner is being drawn now...</span>
+                    <span className="text-white/80">
+                      The winner is being drawn now...
+                    </span>
                   </>
                 ) : (
                   <>
                     Your {purchasedTickets.length || ticketCount}{" "}
-                    {(purchasedTickets.length || ticketCount) > 1 ? "entries have" : "entry has"} been confirmed.
+                    {(purchasedTickets.length || ticketCount) > 1
+                      ? "entries have"
+                      : "entry has"}{" "}
+                    been confirmed.
                   </>
                 )}
               </p>

@@ -151,7 +151,8 @@ const VRFVerificationCard: React.FC<VRFVerificationCardProps> = ({
             </code>
           </div>
           <p className="sequel-45 text-white/40 text-xs mt-2">
-            This matches the exact algorithm in PostgreSQL digest() and the edge function
+            This matches the exact algorithm in PostgreSQL digest() and the edge
+            function
           </p>
         </div>
 

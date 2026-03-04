@@ -43,7 +43,7 @@ const WinnerResultsTable = ({ competitionId }: WinnerResultsTableProps) => {
         // Fetch competition details for total tickets and VRF data
         const { data: compData, error: compError } = await supabase
           .from('competitions')
-          .select('total_tickets, tickets_sold, vrf_pregenerated_tx_hash, outcomes_vrf_seed')
+          .select('total_tickets, tickets_sold, vrf_tx_hash, outcomes_vrf_seed')
           .eq('id', competitionId)
           .maybeSingle() as any;
 
@@ -82,7 +82,7 @@ const WinnerResultsTable = ({ competitionId }: WinnerResultsTableProps) => {
               : null;
             
             results.push({
-              txHash: compData?.vrf_pregenerated_tx_hash || null,
+              txHash: compData?.vrf_tx_hash || null,
               min: 1,
               max: compData?.tickets_sold || compData?.total_tickets || 1000,
               winningNumber: winner.ticket_number || 0,
