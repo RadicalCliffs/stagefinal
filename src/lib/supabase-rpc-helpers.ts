@@ -8,7 +8,7 @@
  * CRITICAL: Always pass non-empty parameter objects matching SQL function signatures exactly.
  */
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
  * Finalize a purchase using the finalize_purchase RPC (PRODUCTION)
@@ -38,18 +38,22 @@ export const finalizePurchase = (
     reservationId: string;
     idempotencyKey?: string; // Kept for backward compatibility but not used
     ticketCount?: number | null; // Kept for backward compatibility but not used
-  }
+  },
 ) => {
   const { reservationId } = params;
 
   // Validate required parameters
-  if (!reservationId || typeof reservationId !== 'string' || reservationId.trim() === '') {
-    throw new Error('reservationId is required for finalizePurchase');
+  if (
+    !reservationId ||
+    typeof reservationId !== "string" ||
+    reservationId.trim() === ""
+  ) {
+    throw new Error("reservationId is required for finalizePurchase");
   }
 
   // Call production function with only reservation_id
-  return supabaseClient.rpc('finalize_purchase', {
-    p_reservation_id: reservationId
+  return supabaseClient.rpc("finalize_purchase", {
+    p_reservation_id: reservationId,
   });
 };
 
@@ -67,14 +71,18 @@ export const finalizePurchase = (
  */
 export const getDashboardEntries = (
   supabaseClient: SupabaseClient,
-  canonicalId: string
+  canonicalId: string,
 ) => {
-  if (!canonicalId || typeof canonicalId !== 'string' || canonicalId.trim() === '') {
-    throw new Error('canonicalId is required for getDashboardEntries');
+  if (
+    !canonicalId ||
+    typeof canonicalId !== "string" ||
+    canonicalId.trim() === ""
+  ) {
+    throw new Error("canonicalId is required for getDashboardEntries");
   }
 
-  return supabaseClient.rpc('get_comprehensive_user_dashboard_entries', {
-    user_identifier: canonicalId
+  return supabaseClient.rpc("get_comprehensive_user_dashboard_entries", {
+    user_identifier: canonicalId,
   } as any);
 };
 
@@ -92,14 +100,18 @@ export const getDashboardEntries = (
  */
 export const getCompetitionEntries = (
   supabaseClient: SupabaseClient,
-  compIdOrUid: string
+  compIdOrUid: string,
 ) => {
-  if (!compIdOrUid || typeof compIdOrUid !== 'string' || compIdOrUid.trim() === '') {
-    throw new Error('compIdOrUid is required for getCompetitionEntries');
+  if (
+    !compIdOrUid ||
+    typeof compIdOrUid !== "string" ||
+    compIdOrUid.trim() === ""
+  ) {
+    throw new Error("compIdOrUid is required for getCompetitionEntries");
   }
 
-  return supabaseClient.rpc('get_competition_entries', {
-    p_competition_id: compIdOrUid
+  return supabaseClient.rpc("get_competition_entries", {
+    p_competition_id: compIdOrUid,
   } as any);
 };
 
@@ -117,14 +129,18 @@ export const getCompetitionEntries = (
  */
 export const getAvailability = (
   supabaseClient: SupabaseClient,
-  compIdOrUid: string
+  compIdOrUid: string,
 ) => {
-  if (!compIdOrUid || typeof compIdOrUid !== 'string' || compIdOrUid.trim() === '') {
-    throw new Error('compIdOrUid is required for getAvailability');
+  if (
+    !compIdOrUid ||
+    typeof compIdOrUid !== "string" ||
+    compIdOrUid.trim() === ""
+  ) {
+    throw new Error("compIdOrUid is required for getAvailability");
   }
 
-  return supabaseClient.rpc('get_competition_ticket_availability', {
-    competition_id: compIdOrUid
+  return supabaseClient.rpc("get_competition_ticket_availability", {
+    competition_id: compIdOrUid,
   } as any);
 };
 
@@ -142,14 +158,18 @@ export const getAvailability = (
  */
 export const getUnavailableTickets = (
   supabaseClient: SupabaseClient,
-  compIdOrUid: string
+  compIdOrUid: string,
 ) => {
-  if (!compIdOrUid || typeof compIdOrUid !== 'string' || compIdOrUid.trim() === '') {
-    throw new Error('compIdOrUid is required for getUnavailableTickets');
+  if (
+    !compIdOrUid ||
+    typeof compIdOrUid !== "string" ||
+    compIdOrUid.trim() === ""
+  ) {
+    throw new Error("compIdOrUid is required for getUnavailableTickets");
   }
 
-  return supabaseClient.rpc('get_unavailable_tickets', {
-    p_competition_id: compIdOrUid
+  return supabaseClient.rpc("get_unavailable_tickets", {
+    p_competition_id: compIdOrUid,
   } as any);
 };
 
@@ -172,29 +192,33 @@ export const getUnavailableTickets = (
  * @example
  * // Get all entries for a user
  * const { data, error } = await getUserCompetitionEntries(supabase, 'prize:pid:0x2137af5047526a1180...');
- * 
+ *
  * // Get entries for specific competition (faster)
  * const { data, error } = await getUserCompetitionEntries(supabase, 'prize:pid:0x2137af5047526a1180...', 'comp-uuid');
  */
 export const getUserCompetitionEntries = (
   supabaseClient: SupabaseClient,
   userIdentifier: string,
-  competitionId?: string
+  competitionId?: string,
 ) => {
-  if (!userIdentifier || typeof userIdentifier !== 'string' || userIdentifier.trim() === '') {
-    throw new Error('userIdentifier is required for getUserCompetitionEntries');
+  if (
+    !userIdentifier ||
+    typeof userIdentifier !== "string" ||
+    userIdentifier.trim() === ""
+  ) {
+    throw new Error("userIdentifier is required for getUserCompetitionEntries");
   }
 
   // The SQL function expects p_user_identifier and optional p_competition_id parameters
-  return supabaseClient.rpc('get_user_competition_entries', {
+  return supabaseClient.rpc("get_user_competition_entries", {
     p_user_identifier: userIdentifier,
-    p_competition_id: competitionId || null
+    p_competition_id: competitionId || null,
   });
 };
 
 /**
  * Execute balance payment using the unified RPC
- * 
+ *
  * SQL Function: public.execute_balance_payment(
  *   p_competition_id TEXT,
  *   p_user_identifier TEXT,
@@ -204,10 +228,10 @@ export const getUserCompetitionEntries = (
  *   p_idempotency_key TEXT,
  *   p_reservation_id UUID
  * )
- * 
+ *
  * @param params - Payment parameters
  * @returns Promise with RPC result containing payment details
- * 
+ *
  * @example
  * const { data, error } = await executeBalancePayment(supabase, {
  *   competitionId: '88f3467c-747e-4231-bb2e-1869e227bb85',
@@ -229,7 +253,7 @@ export const executeBalancePayment = (
     selectedTickets?: number[] | null;
     idempotencyKey?: string;
     reservationId?: string | null;
-  }
+  },
 ) => {
   const {
     competitionId,
@@ -238,53 +262,65 @@ export const executeBalancePayment = (
     ticketCount,
     selectedTickets,
     idempotencyKey,
-    reservationId
+    reservationId,
   } = params;
-  
+
   // Validate required parameters
-  if (!competitionId || typeof competitionId !== 'string' || competitionId.trim() === '') {
-    throw new Error('competitionId is required for executeBalancePayment');
+  if (
+    !competitionId ||
+    typeof competitionId !== "string" ||
+    competitionId.trim() === ""
+  ) {
+    throw new Error("competitionId is required for executeBalancePayment");
   }
-  
-  if (!userIdentifier || typeof userIdentifier !== 'string' || userIdentifier.trim() === '') {
-    throw new Error('userIdentifier is required for executeBalancePayment');
+
+  if (
+    !userIdentifier ||
+    typeof userIdentifier !== "string" ||
+    userIdentifier.trim() === ""
+  ) {
+    throw new Error("userIdentifier is required for executeBalancePayment");
   }
-  
+
   if (!Number.isFinite(amount) || amount <= 0) {
-    throw new Error('amount must be a positive number for executeBalancePayment');
+    throw new Error(
+      "amount must be a positive number for executeBalancePayment",
+    );
   }
-  
+
   if (!Number.isFinite(ticketCount) || ticketCount <= 0) {
-    throw new Error('ticketCount must be a positive integer for executeBalancePayment');
+    throw new Error(
+      "ticketCount must be a positive integer for executeBalancePayment",
+    );
   }
-  
+
   // Generate idempotency key if not provided - must be UUID format
   // to avoid "invalid input syntax for type uuid" errors in database triggers
   const finalIdempotencyKey = idempotencyKey || crypto.randomUUID();
-  
-  return supabaseClient.rpc('execute_balance_payment', {
+
+  return supabaseClient.rpc("execute_balance_payment", {
     p_competition_id: competitionId,
     p_user_identifier: userIdentifier,
     p_amount: amount,
     p_ticket_count: ticketCount,
     p_selected_tickets: selectedTickets ?? null,
     p_idempotency_key: finalIdempotencyKey,
-    p_reservation_id: reservationId ?? null
+    p_reservation_id: reservationId ?? null,
   });
 };
 
 /**
  * Get purchase status by idempotency key
- * 
+ *
  * SQL Function: public.get_purchase_status_by_key(p_idempotency_key text) RETURNS jsonb
- * 
+ *
  * Quick lookup of a previously stored purchase result using the idempotency key.
  * Use this to check if a purchase already succeeded before retrying.
- * 
+ *
  * @param supabaseClient - Supabase client instance
  * @param idempotencyKey - The idempotency key to look up
  * @returns Promise with purchase status details
- * 
+ *
  * @example
  * const { data, error } = await getPurchaseStatusByKey(supabase, 'uuid-idempotency-key');
  * if (data?.found && data?.result?.success) {
@@ -293,20 +329,24 @@ export const executeBalancePayment = (
  */
 export const getPurchaseStatusByKey = (
   supabaseClient: SupabaseClient,
-  idempotencyKey: string
+  idempotencyKey: string,
 ) => {
-  if (!idempotencyKey || typeof idempotencyKey !== 'string' || idempotencyKey.trim() === '') {
-    throw new Error('idempotencyKey is required for getPurchaseStatusByKey');
+  if (
+    !idempotencyKey ||
+    typeof idempotencyKey !== "string" ||
+    idempotencyKey.trim() === ""
+  ) {
+    throw new Error("idempotencyKey is required for getPurchaseStatusByKey");
   }
 
-  return supabaseClient.rpc('get_purchase_status_by_key', {
-    p_idempotency_key: idempotencyKey
+  return supabaseClient.rpc("get_purchase_status_by_key", {
+    p_idempotency_key: idempotencyKey,
   });
 };
 
 /**
  * Verify competition purchase
- * 
+ *
  * SQL Function: public.verify_competition_purchase(
  *   p_canonical_user_id text,
  *   p_competition_id text,
@@ -314,15 +354,15 @@ export const getPurchaseStatusByKey = (
  *   p_idempotency_key text DEFAULT NULL,
  *   p_reservation_id uuid DEFAULT NULL
  * ) RETURNS jsonb
- * 
- * Verify if a purchase completed by reading either idempotency table or tickets 
+ *
+ * Verify if a purchase completed by reading either idempotency table or tickets
  * ownership as source of truth. Use this to check if tickets were allocated
  * even if the initial purchase response was lost.
- * 
+ *
  * @param supabaseClient - Supabase client instance
  * @param params - Verification parameters
  * @returns Promise with verification result
- * 
+ *
  * @example
  * const { data, error } = await verifyCompetitionPurchase(supabase, {
  *   canonicalUserId: 'prize:pid:0x...',
@@ -343,32 +383,50 @@ export const verifyCompetitionPurchase = (
     expectedCount: number;
     idempotencyKey?: string;
     reservationId?: string;
-  }
+  },
 ) => {
-  const { canonicalUserId, competitionId, expectedCount, idempotencyKey, reservationId } = params;
+  const {
+    canonicalUserId,
+    competitionId,
+    expectedCount,
+    idempotencyKey,
+    reservationId,
+  } = params;
 
-  if (!canonicalUserId || typeof canonicalUserId !== 'string' || canonicalUserId.trim() === '') {
-    throw new Error('canonicalUserId is required for verifyCompetitionPurchase');
+  if (
+    !canonicalUserId ||
+    typeof canonicalUserId !== "string" ||
+    canonicalUserId.trim() === ""
+  ) {
+    throw new Error(
+      "canonicalUserId is required for verifyCompetitionPurchase",
+    );
   }
-  if (!competitionId || typeof competitionId !== 'string' || competitionId.trim() === '') {
-    throw new Error('competitionId is required for verifyCompetitionPurchase');
+  if (
+    !competitionId ||
+    typeof competitionId !== "string" ||
+    competitionId.trim() === ""
+  ) {
+    throw new Error("competitionId is required for verifyCompetitionPurchase");
   }
-  if (typeof expectedCount !== 'number' || expectedCount <= 0) {
-    throw new Error('expectedCount must be a positive number for verifyCompetitionPurchase');
+  if (typeof expectedCount !== "number" || expectedCount <= 0) {
+    throw new Error(
+      "expectedCount must be a positive number for verifyCompetitionPurchase",
+    );
   }
 
-  return supabaseClient.rpc('verify_competition_purchase', {
+  return supabaseClient.rpc("verify_competition_purchase", {
     p_canonical_user_id: canonicalUserId,
     p_competition_id: competitionId,
     p_expected_count: expectedCount,
     p_idempotency_key: idempotencyKey ?? null,
-    p_reservation_id: reservationId ?? null
+    p_reservation_id: reservationId ?? null,
   });
 };
 
 /**
  * Rescue purchase attempt
- * 
+ *
  * SQL Function: public.rescue_purchase_attempt(
  *   p_user_identifier text,
  *   p_competition_id text,
@@ -377,15 +435,15 @@ export const verifyCompetitionPurchase = (
  *   p_idempotency_key text,
  *   p_reservation_id uuid
  * ) RETURNS jsonb
- * 
- * Safely re-invoke the main purchase RPC using the same idempotency_key and 
+ *
+ * Safely re-invoke the main purchase RPC using the same idempotency_key and
  * reservation_id. Use this if verification shows tickets aren't sold yet.
  * This is the final rescue attempt in the retry flow.
- * 
+ *
  * @param supabaseClient - Supabase client instance
  * @param params - Rescue parameters
  * @returns Promise with rescue attempt result
- * 
+ *
  * @example
  * const { data, error } = await rescuePurchaseAttempt(supabase, {
  *   userIdentifier: 'prize:pid:0x...',
@@ -408,36 +466,63 @@ export const rescuePurchaseAttempt = (
     expectedCount: number;
     idempotencyKey: string;
     reservationId: string;
-  }
+  },
 ) => {
-  const { userIdentifier, competitionId, ticketPrice, expectedCount, idempotencyKey, reservationId } = params;
+  const {
+    userIdentifier,
+    competitionId,
+    ticketPrice,
+    expectedCount,
+    idempotencyKey,
+    reservationId,
+  } = params;
 
-  if (!userIdentifier || typeof userIdentifier !== 'string' || userIdentifier.trim() === '') {
-    throw new Error('userIdentifier is required for rescuePurchaseAttempt');
+  if (
+    !userIdentifier ||
+    typeof userIdentifier !== "string" ||
+    userIdentifier.trim() === ""
+  ) {
+    throw new Error("userIdentifier is required for rescuePurchaseAttempt");
   }
-  if (!competitionId || typeof competitionId !== 'string' || competitionId.trim() === '') {
-    throw new Error('competitionId is required for rescuePurchaseAttempt');
+  if (
+    !competitionId ||
+    typeof competitionId !== "string" ||
+    competitionId.trim() === ""
+  ) {
+    throw new Error("competitionId is required for rescuePurchaseAttempt");
   }
-  if (typeof ticketPrice !== 'number' || ticketPrice <= 0) {
-    throw new Error('ticketPrice must be a positive number for rescuePurchaseAttempt');
+  if (typeof ticketPrice !== "number" || ticketPrice <= 0) {
+    throw new Error(
+      "ticketPrice must be a positive number for rescuePurchaseAttempt",
+    );
   }
-  if (typeof expectedCount !== 'number' || expectedCount <= 0) {
-    throw new Error('expectedCount must be a positive number for rescuePurchaseAttempt');
+  if (typeof expectedCount !== "number" || expectedCount <= 0) {
+    throw new Error(
+      "expectedCount must be a positive number for rescuePurchaseAttempt",
+    );
   }
-  if (!idempotencyKey || typeof idempotencyKey !== 'string' || idempotencyKey.trim() === '') {
-    throw new Error('idempotencyKey is required for rescuePurchaseAttempt');
+  if (
+    !idempotencyKey ||
+    typeof idempotencyKey !== "string" ||
+    idempotencyKey.trim() === ""
+  ) {
+    throw new Error("idempotencyKey is required for rescuePurchaseAttempt");
   }
-  if (!reservationId || typeof reservationId !== 'string' || reservationId.trim() === '') {
-    throw new Error('reservationId is required for rescuePurchaseAttempt');
+  if (
+    !reservationId ||
+    typeof reservationId !== "string" ||
+    reservationId.trim() === ""
+  ) {
+    throw new Error("reservationId is required for rescuePurchaseAttempt");
   }
 
-  return supabaseClient.rpc('rescue_purchase_attempt', {
+  return supabaseClient.rpc("rescue_purchase_attempt", {
     p_user_identifier: userIdentifier,
     p_competition_id: competitionId,
     p_ticket_price: ticketPrice,
     p_expected_count: expectedCount,
     p_idempotency_key: idempotencyKey,
-    p_reservation_id: reservationId
+    p_reservation_id: reservationId,
   });
 };
 
@@ -452,5 +537,5 @@ export default {
   finalizePurchase,
   getPurchaseStatusByKey,
   verifyCompetitionPurchase,
-  rescuePurchaseAttempt
+  rescuePurchaseAttempt,
 };
