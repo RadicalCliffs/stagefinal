@@ -33,7 +33,7 @@ BEGIN
     FROM (
       SELECT CAST(TRIM(unnest(string_to_array(ticketnumbers::TEXT, ','))) AS INTEGER) AS ticket_num
       FROM joincompetition
-      WHERE competitionid = p_competition_id
+      WHERE competition_id = p_competition_id
         AND ticketnumbers IS NOT NULL
         AND TRIM(ticketnumbers::TEXT) != ''
     ) AS jc_tickets
@@ -95,6 +95,21 @@ $$;
 GRANT EXECUTE ON FUNCTION get_unavailable_tickets(TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION get_unavailable_tickets(TEXT) TO anon;
 GRANT EXECUTE ON FUNCTION get_unavailable_tickets(TEXT) TO service_role;
+
+-- Create UUID overload for convenience (frontend often passes UUID)
+CREATE OR REPLACE FUNCTION get_unavailable_tickets(p_competition_id UUID)
+RETURNS INTEGER[]
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT get_unavailable_tickets(p_competition_id::TEXT);
+$$;
+
+GRANT EXECUTE ON FUNCTION get_unavailable_tickets(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_unavailable_tickets(UUID) TO anon;
+GRANT EXECUTE ON FUNCTION get_unavailable_tickets(UUID) TO service_role;
 
 -- Verify the function was created
 SELECT

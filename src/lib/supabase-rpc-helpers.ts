@@ -149,7 +149,7 @@ export const getUnavailableTickets = (
   }
 
   return supabaseClient.rpc('get_unavailable_tickets', {
-    competition_id: compIdOrUid
+    p_competition_id: compIdOrUid
   } as any);
 };
 
