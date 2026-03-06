@@ -379,6 +379,24 @@ export class CompetitionLifecycleService {
         user = (byCanonical && 'data' in byCanonical) ? byCanonical.data : null;
       }
 
+      // Robust username lookup - try additional strategies if user not found
+      let finalUsername = user?.username;
+      if (!finalUsername) {
+        const walletAddr = (entry as any).wallet_address;
+        if (walletAddr) {
+          const { data: walletUser } = await withRetry(
+            async () => supabase.from('canonical_users').select('username').or(`wallet_address.ilike.${walletAddr},canonical_user_id.eq.prize:pid:${walletAddr.toLowerCase()}`).maybeSingle(),
+            'lookup user by wallet'
+          ) as { data: any; error: any };
+          finalUsername = walletUser?.username;
+        }
+      }
+      
+      if (!finalUsername) {
+        console.error('[Competition Lifecycle] ❌ CRITICAL: User not found for entry', entry.userid);
+        finalUsername = 'Unknown';
+      }
+
       // Create winner record
       const winnerData = {
         competition_id: competition.id, // uuid
@@ -387,7 +405,7 @@ export class CompetitionLifecycleService {
         prize_position: 1, // REQUIRED by schema (adjust if multiple winners)
         prize_value: competition.prize_value || 0, // numeric
         prize_claimed: false,
-        username: user?.username || 'Unknown',
+        username: finalUsername,
         country: user?.country || null,
         wallet_address: (entry as any).wallet_address || user?.wallet_address || null,
         created_at: new Date().toISOString()

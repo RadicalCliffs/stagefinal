@@ -523,8 +523,8 @@ export class BalancePaymentService {
         );
       }
 
-      // Step 2: Confirm the pending_tickets (trigger creates tickets automatically)
-      console.log("[BalancePayment] Step 2: Confirming reservation...");
+      // Step 2: Confirm via fast RPC (bypasses slow triggers)
+      console.log("[BalancePayment] Step 2: Confirming reservation via fast RPC...");
 
       if (!actualReservationId) {
         console.error("[BalancePayment] No reservation ID available");
@@ -539,64 +539,30 @@ export class BalancePaymentService {
         };
       }
 
-      // Extract wallet address for fallback lookup
-      const walletAddress = userId.startsWith("0x")
-        ? userId.toLowerCase()
-        : canonicalUserId.startsWith("prize:pid:0x")
-          ? canonicalUserId.substring(10).toLowerCase()
-          : null;
+      // Use fast RPC that does everything in one call without trigger overhead
+      const { data: confirmResult, error: confirmError } = await supabase
+        .rpc("confirm_pending_fast", {
+          p_pending_id: actualReservationId,
+        });
 
-      const { error: confirmError } = await supabase
-        .from("pending_tickets")
-        .update({
-          status: "confirmed",
-          confirmed_at: new Date().toISOString(),
-          canonical_user_id: canonicalUserId,
-          wallet_address: walletAddress, // For dashboard fallback lookup
-        })
-        .eq("id", actualReservationId);
-
-      if (confirmError) {
-        console.error("[BalancePayment] Confirm failed:", confirmError.message);
+      if (confirmError || !confirmResult?.success) {
+        console.error("[BalancePayment] Confirm failed:", confirmError?.message || confirmResult?.error);
         return {
           success: false,
           error: "Failed to confirm reservation",
           errorDetails: {
             code: "CONFIRM_FAILED",
-            message: confirmError.message,
+            message: confirmError?.message || confirmResult?.error || "Unknown error",
             statusCode: 500,
           },
         };
       }
 
-      // Step 3: Deduct balance
-      console.log("[BalancePayment] Step 3: Deducting balance...");
+      console.log("[BalancePayment] Fast confirmation complete:", confirmResult);
+
+      // Skip balance deduction - RPC already did it
+      console.log("[BalancePayment] Balance already deducted by RPC");
       const newBalance = currentBalance - totalAmount;
-
-      const { error: balanceError } = await supabase
-        .from("sub_account_balances")
-        .update({
-          available_balance: newBalance,
-          last_updated: new Date().toISOString(),
-        })
-        .eq("canonical_user_id", canonicalUserId)
-        .eq("currency", "USD");
-
-      if (balanceError) {
-        console.error(
-          "[BalancePayment] Balance deduction failed:",
-          balanceError.message,
-        );
-        return {
-          success: false,
-          error: "Failed to deduct balance",
-          errorDetails: {
-            code: "BALANCE_DEDUCTION_FAILED",
-            message: balanceError.message,
-            statusCode: 500,
-          },
-        };
-      }
 
       // Step 4: Record ledger entry (non-blocking)
       Promise.resolve(

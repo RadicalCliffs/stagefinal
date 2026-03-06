@@ -7,18 +7,18 @@ function isWalletAddress(identifier: string): boolean {
 }
 
 function isPrizePid(identifier: string): boolean {
-  return identifier.startsWith('prize:pid:');
+  return identifier.startsWith("prize:pid:");
 }
 
 function extractPrizePid(prizePid: string): string {
   if (!isPrizePid(prizePid)) {
     return prizePid;
   }
-  return prizePid.substring('prize:pid:'.length);
+  return prizePid.substring("prize:pid:".length);
 }
 
 function toPrizePid(inputUserId: string | null | undefined): string {
-  if (!inputUserId || inputUserId.trim() === '') {
+  if (!inputUserId || inputUserId.trim() === "") {
     return `prize:pid:${crypto.randomUUID()}`;
   }
   const trimmedId = inputUserId.trim();
@@ -32,14 +32,17 @@ function toPrizePid(inputUserId: string | null | undefined): string {
   if (isWalletAddress(trimmedId)) {
     return `prize:pid:${trimmedId.toLowerCase()}`;
   }
-  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const uuidPattern =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (uuidPattern.test(trimmedId)) {
     return `prize:pid:${trimmedId.toLowerCase()}`;
   }
   return `prize:pid:${crypto.randomUUID()}`;
 }
 
-function normalizeWalletAddress(address: string | null | undefined): string | null {
+function normalizeWalletAddress(
+  address: string | null | undefined,
+): string | null {
   if (!address) return null;
   const trimmed = address.trim();
   if (isWalletAddress(trimmed)) {
@@ -49,16 +52,16 @@ function normalizeWalletAddress(address: string | null | undefined): string | nu
 }
 
 // Inlined CORS configuration (bundler doesn't support shared module imports)
-const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://stage.theprize.io';
+const SITE_URL = Deno.env.get("SITE_URL") ?? "https://stage.theprize.io";
 const ALLOWED_ORIGINS = [
   SITE_URL,
-  'https://stage.theprize.io',
-  'https://theprize.io',
-  'https://theprizeio.netlify.app',
-  'https://www.theprize.io',
-  'http://localhost:3000',
-  'http://localhost:5173',
-  'http://localhost:8888',
+  "https://stage.theprize.io",
+  "https://theprize.io",
+  "https://theprizeio.netlify.app",
+  "https://www.theprize.io",
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "http://localhost:8888",
 ];
 
 function getCorsOrigin(requestOrigin: string | null): string {
@@ -66,34 +69,37 @@ function getCorsOrigin(requestOrigin: string | null): string {
   if (requestOrigin && ALLOWED_ORIGINS.includes(requestOrigin)) {
     return requestOrigin;
   }
-  
+
   // Always return a specific origin (never empty string or wildcard)
   // This is required when using Access-Control-Allow-Credentials: true
   return SITE_URL;
 }
 
-function buildCorsHeaders(requestOrigin: string | null): Record<string, string> {
+function buildCorsHeaders(
+  requestOrigin: string | null,
+): Record<string, string> {
   const origin = getCorsOrigin(requestOrigin);
-  
+
   // Ensure we never return empty string (required for credentials: true)
   if (!origin) {
-    throw new Error('CORS origin cannot be empty when using credentials');
+    throw new Error("CORS origin cannot be empty when using credentials");
   }
-  
+
   return {
-    'Access-Control-Allow-Origin': origin,
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, cache-control, pragma, expires',
-    'Access-Control-Allow-Credentials': 'true',
-    'Access-Control-Max-Age': '86400',
-    'Vary': 'Origin',
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type, cache-control, pragma, expires",
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Max-Age": "86400",
+    Vary: "Origin",
   };
 }
 
 function handleCorsOptions(req: Request): Response {
-  const origin = req.headers.get('origin');
+  const origin = req.headers.get("origin");
   return new Response(null, {
-    status: 200,  // Use 200 instead of 204 for better compatibility
+    status: 200, // Use 200 instead of 204 for better compatibility
     headers: buildCorsHeaders(origin),
   });
 }
@@ -126,27 +132,48 @@ function pickRandomUnique<T>(arr: T[], count: number): T[] {
   return result;
 }
 
-async function assignTickets(params: AssignTicketsParams): Promise<AssignTicketsResult> {
-  const { supabase, competitionId, orderId, ticketCount, preferredTicketNumbers } = params;
+async function assignTickets(
+  params: AssignTicketsParams,
+): Promise<AssignTicketsResult> {
+  const {
+    supabase,
+    competitionId,
+    orderId,
+    ticketCount,
+    preferredTicketNumbers,
+  } = params;
   const inputIdentifier = params.userIdentifier || params.privyUserId;
-  
+
   // Convert to canonical format
   const userIdentifier = toPrizePid(inputIdentifier);
 
-  if (!userIdentifier) throw new Error("assignTickets: userIdentifier (wallet address or privy_user_id) is required");
-  if (!competitionId) throw new Error("assignTickets: competitionId is required");
-  if (!Number.isFinite(ticketCount) || ticketCount <= 0) throw new Error("assignTickets: ticketCount must be > 0");
+  if (!userIdentifier)
+    throw new Error(
+      "assignTickets: userIdentifier (wallet address or privy_user_id) is required",
+    );
+  if (!competitionId)
+    throw new Error("assignTickets: competitionId is required");
+  if (!Number.isFinite(ticketCount) || ticketCount <= 0)
+    throw new Error("assignTickets: ticketCount must be > 0");
 
   if (orderId) {
-    const { data: existingOrderTickets, error: existingOrderTicketsError } = await supabase
-      .from("tickets")
-      .select("ticket_number")
-      .eq("order_id", orderId);
+    const { data: existingOrderTickets, error: existingOrderTicketsError } =
+      await supabase
+        .from("tickets")
+        .select("ticket_number")
+        .eq("order_id", orderId);
 
     if (existingOrderTicketsError) {
-      console.error("assignTickets: error reading existing order tickets", existingOrderTicketsError);
+      console.error(
+        "assignTickets: error reading existing order tickets",
+        existingOrderTicketsError,
+      );
     } else if (existingOrderTickets && existingOrderTickets.length > 0) {
-      return { ticketNumbers: existingOrderTickets.map((t: any) => Number(t.ticket_number)) };
+      return {
+        ticketNumbers: existingOrderTickets.map((t: any) =>
+          Number(t.ticket_number),
+        ),
+      };
     }
   }
 
@@ -158,11 +185,15 @@ async function assignTickets(params: AssignTicketsParams): Promise<AssignTickets
 
   if (competitionError) {
     console.warn("assignTickets: unable to read competition", competitionError);
-    throw new Error("assignTickets: competition not found or error reading competition");
+    throw new Error(
+      "assignTickets: competition not found or error reading competition",
+    );
   }
 
   if (competition?.status && competition.status !== "active") {
-    throw new Error(`assignTickets: competition is not active (status: ${competition.status})`);
+    throw new Error(
+      `assignTickets: competition is not active (status: ${competition.status})`,
+    );
   }
 
   const maxTickets = Number(competition?.total_tickets) || 0;
@@ -180,22 +211,30 @@ async function assignTickets(params: AssignTicketsParams): Promise<AssignTickets
     throw usedError;
   }
 
-  const usedSet = new Set<number>((usedTickets || []).map((t: any) => Number(t.ticket_number)));
+  const usedSet = new Set<number>(
+    (usedTickets || []).map((t: any) => Number(t.ticket_number)),
+  );
 
   const availableCount = maxTickets - usedSet.size;
   if (availableCount <= 0) {
-    throw new Error("assignTickets: competition is sold out - no tickets available");
+    throw new Error(
+      "assignTickets: competition is sold out - no tickets available",
+    );
   }
 
   if (ticketCount > availableCount) {
-    throw new Error(`assignTickets: cannot allocate ${ticketCount} tickets, only ${availableCount} available`);
+    throw new Error(
+      `assignTickets: cannot allocate ${ticketCount} tickets, only ${availableCount} available`,
+    );
   }
 
   let finalTicketNumbers: number[] = [];
   const preferred: number[] = Array.isArray(preferredTicketNumbers)
-    ? preferredTicketNumbers.map(n => Number(n)).filter(n => Number.isFinite(n) && n >= 1 && n <= maxTickets)
+    ? preferredTicketNumbers
+        .map((n) => Number(n))
+        .filter((n) => Number.isFinite(n) && n >= 1 && n <= maxTickets)
     : [];
-  
+
   // Determine if this is a lucky dip (no specific tickets requested)
   const isLuckyDip = preferred.length === 0;
 
@@ -216,7 +255,9 @@ async function assignTickets(params: AssignTicketsParams): Promise<AssignTickets
     }
 
     if (available.length < remainingCount) {
-      throw new Error(`assignTickets: not enough available tickets - need ${remainingCount}, found ${available.length}`);
+      throw new Error(
+        `assignTickets: not enough available tickets - need ${remainingCount}, found ${available.length}`,
+      );
     }
 
     const picked = pickRandomUnique(available, remainingCount);
@@ -228,18 +269,26 @@ async function assignTickets(params: AssignTicketsParams): Promise<AssignTickets
   // Using large number (not truly infinite) to prevent infinite loops in edge cases
   const MAX_LUCKY_DIP_RETRIES = 10000; // 10,000 attempts should be more than enough
   const MAX_SPECIFIC_TICKET_RETRIES = 3; // Original retry count for specific tickets
-  const maxRetries = isLuckyDip ? MAX_LUCKY_DIP_RETRIES : MAX_SPECIFIC_TICKET_RETRIES;
-  
+  const maxRetries = isLuckyDip
+    ? MAX_LUCKY_DIP_RETRIES
+    : MAX_SPECIFIC_TICKET_RETRIES;
+
   let successfullyInserted: number[] = [];
   let remainingToInsert = [...finalTicketNumbers];
   let retryCount = 0;
 
-  console.log(`assignTickets: Starting allocation - isLuckyDip: ${isLuckyDip}, maxRetries: ${maxRetries}`);
+  console.log(
+    `assignTickets: Starting allocation - isLuckyDip: ${isLuckyDip}, maxRetries: ${maxRetries}`,
+  );
 
-  for (let attempt = 0; attempt < maxRetries && remainingToInsert.length > 0; attempt++) {
+  for (
+    let attempt = 0;
+    attempt < maxRetries && remainingToInsert.length > 0;
+    attempt++
+  ) {
     retryCount = attempt + 1;
-    
-    const rows = remainingToInsert.map(num => ({
+
+    const rows = remainingToInsert.map((num) => ({
       competition_id: competitionId,
       order_id: orderId ?? null,
       ticket_number: num,
@@ -252,21 +301,26 @@ async function assignTickets(params: AssignTicketsParams): Promise<AssignTickets
       successfullyInserted.push(...remainingToInsert);
       remainingToInsert = [];
       if (retryCount > 1) {
-        console.log(`assignTickets: SUCCESS after ${retryCount} attempts (isLuckyDip: ${isLuckyDip})`);
+        console.log(
+          `assignTickets: SUCCESS after ${retryCount} attempts (isLuckyDip: ${isLuckyDip})`,
+        );
       }
       break;
     }
 
-    const isConflictError = insertError.code === '23505' ||
-      insertError.message?.includes('unique') ||
-      insertError.message?.includes('duplicate');
+    const isConflictError =
+      insertError.code === "23505" ||
+      insertError.message?.includes("unique") ||
+      insertError.message?.includes("duplicate");
 
     if (!isConflictError) {
       console.error("assignTickets: error inserting tickets", insertError);
       throw insertError;
     }
 
-    console.warn(`assignTickets: conflict on attempt ${attempt + 1} (isLuckyDip: ${isLuckyDip}), retrying with fresh ticket selection`);
+    console.warn(
+      `assignTickets: conflict on attempt ${attempt + 1} (isLuckyDip: ${isLuckyDip}), retrying with fresh ticket selection`,
+    );
 
     const { data: currentUsedTickets, error: refetchError } = await supabase
       .from("tickets")
@@ -274,34 +328,51 @@ async function assignTickets(params: AssignTicketsParams): Promise<AssignTickets
       .eq("competition_id", competitionId);
 
     if (refetchError) {
-      console.error("assignTickets: error re-fetching used tickets", refetchError);
+      console.error(
+        "assignTickets: error re-fetching used tickets",
+        refetchError,
+      );
       throw refetchError;
     }
 
-    const currentUsedSet = new Set<number>((currentUsedTickets || []).map((t: any) => Number(t.ticket_number)));
+    const currentUsedSet = new Set<number>(
+      (currentUsedTickets || []).map((t: any) => Number(t.ticket_number)),
+    );
 
     const currentAvailable = maxTickets - currentUsedSet.size;
     if (currentAvailable < remainingToInsert.length) {
       // CRITICAL: Only fail if TRULY sold out
       if (currentAvailable === 0) {
-        throw new Error(`assignTickets: competition is NOW sold out (no tickets remain)`);
+        throw new Error(
+          `assignTickets: competition is NOW sold out (no tickets remain)`,
+        );
       }
       if (!isLuckyDip) {
         // For specific ticket requests, fail if not enough tickets
-        throw new Error(`assignTickets: competition became sold out during allocation - only ${currentAvailable} tickets remain`);
+        throw new Error(
+          `assignTickets: competition became sold out during allocation - only ${currentAvailable} tickets remain`,
+        );
       }
       // For lucky dip, reduce ticket count to what's available
-      console.warn(`assignTickets: Lucky dip reducing from ${remainingToInsert.length} to ${currentAvailable} tickets`);
+      console.warn(
+        `assignTickets: Lucky dip reducing from ${remainingToInsert.length} to ${currentAvailable} tickets`,
+      );
       remainingToInsert = remainingToInsert.slice(0, currentAvailable);
     }
 
-    const stillAvailable = remainingToInsert.filter(n => !currentUsedSet.has(n));
+    const stillAvailable = remainingToInsert.filter(
+      (n) => !currentUsedSet.has(n),
+    );
     const needToReplace = remainingToInsert.length - stillAvailable.length;
 
     if (needToReplace > 0) {
       // For lucky dip, aggressively find ANY available tickets
       const newAvailable: number[] = [];
-      for (let n = 1; n <= maxTickets && newAvailable.length < needToReplace * 10; n++) {
+      for (
+        let n = 1;
+        n <= maxTickets && newAvailable.length < needToReplace * 10;
+        n++
+      ) {
         if (!currentUsedSet.has(n) && !stillAvailable.includes(n)) {
           newAvailable.push(n);
         }
@@ -310,31 +381,39 @@ async function assignTickets(params: AssignTicketsParams): Promise<AssignTickets
       if (newAvailable.length < needToReplace) {
         if (isLuckyDip && currentAvailable > 0) {
           // For lucky dip, take whatever we can get
-          console.warn(`assignTickets: Lucky dip taking partial allocation - ${newAvailable.length + stillAvailable.length} of ${ticketCount} requested`);
+          console.warn(
+            `assignTickets: Lucky dip taking partial allocation - ${newAvailable.length + stillAvailable.length} of ${ticketCount} requested`,
+          );
           const replacements = newAvailable;
           remainingToInsert = [...stillAvailable, ...replacements];
         } else {
-          throw new Error("assignTickets: not enough available tickets remain after conflict resolution");
+          throw new Error(
+            "assignTickets: not enough available tickets remain after conflict resolution",
+          );
         }
       } else {
         const replacements = pickRandomUnique(newAvailable, needToReplace);
         remainingToInsert = [...stillAvailable, ...replacements];
       }
     }
-    
+
     finalTicketNumbers = [...successfullyInserted, ...remainingToInsert];
-    
+
     // Add small delay for lucky dip retries to reduce contention
     if (isLuckyDip && attempt > 0 && attempt % 10 === 0) {
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
     }
   }
 
   if (remainingToInsert.length > 0) {
     if (isLuckyDip) {
-      throw new Error(`assignTickets: LUCKY DIP FAILED after ${retryCount} attempts - this should NEVER happen! Available: ${availableCount}, Requested: ${ticketCount}`);
+      throw new Error(
+        `assignTickets: LUCKY DIP FAILED after ${retryCount} attempts - this should NEVER happen! Available: ${availableCount}, Requested: ${ticketCount}`,
+      );
     }
-    throw new Error("assignTickets: failed to insert tickets after multiple retries");
+    throw new Error(
+      "assignTickets: failed to insert tickets after multiple retries",
+    );
   }
 
   return { ticketNumbers: finalTicketNumbers };
@@ -359,14 +438,17 @@ Deno.serve(async (req: Request) => {
   }
 
   // Get origin for CORS headers on all responses
-  const corsHeaders = buildCorsHeaders(req.headers.get('origin'));
+  const corsHeaders = buildCorsHeaders(req.headers.get("origin"));
 
   // Health check endpoint: GET request returns health status
   if (req.method === "GET") {
     const incidentId = `health-check-${Date.now()}-${Math.random().toString(36).substring(7)}`;
     const timestamp = new Date().toISOString();
-    
-    const checks: Record<string, { status: "pass" | "fail" | "warn"; message: string; details?: any }> = {};
+
+    const checks: Record<
+      string,
+      { status: "pass" | "fail" | "warn"; message: string; details?: any }
+    > = {};
     let overallHealthy = true;
 
     // Check environment variables
@@ -464,7 +546,6 @@ Deno.serve(async (req: Request) => {
             message: "Incident log table accessible",
           };
         }
-
       } catch (e) {
         checks.database_connection = {
           status: "fail",
@@ -492,15 +573,14 @@ Deno.serve(async (req: Request) => {
 
     const statusCode = overallHealthy ? 200 : 503;
 
-    console.log(`[Health Check] ${overallHealthy ? "✅ PASS" : "❌ FAIL"} - ${timestamp} - incident: ${incidentId}`);
-
-    return new Response(
-      JSON.stringify(response, null, 2),
-      { 
-        status: statusCode, 
-        headers: { ...corsHeaders, "Content-Type": "application/json" } 
-      }
+    console.log(
+      `[Health Check] ${overallHealthy ? "✅ PASS" : "❌ FAIL"} - ${timestamp} - incident: ${incidentId}`,
     );
+
+    return new Response(JSON.stringify(response, null, 2), {
+      status: statusCode,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   // Declare requestBody at top level for error handler access
@@ -513,26 +593,29 @@ Deno.serve(async (req: Request) => {
     } catch (jsonError) {
       console.error("Failed to parse request JSON:", jsonError);
       return new Response(
-        JSON.stringify({ 
-          success: false, 
+        JSON.stringify({
+          success: false,
           error: "Invalid JSON in request body",
-          message: "Request must contain valid JSON"
+          message: "Request must contain valid JSON",
         }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
-    
+
     const {
-      reservationId,  // The pending ticket reservation ID
-      userId,         // User ID (for fallback lookup)
-      competitionId,  // Competition ID (for fallback lookup)
+      reservationId, // The pending ticket reservation ID
+      userId, // User ID (for fallback lookup)
+      competitionId, // Competition ID (for fallback lookup)
       transactionHash, // Payment transaction hash
       paymentProvider, // "privy_base_wallet" | "coinbase" | "balance" | "onchainkit_checkout"
-      walletAddress,  // Wallet address that made the payment
-      network,        // Network for the transaction (e.g., "base")
-      sessionId,      // Payment session ID (for lookup)
+      walletAddress, // Wallet address that made the payment
+      network, // Network for the transaction (e.g., "base")
+      sessionId, // Payment session ID (for lookup)
       selectedTickets, // Direct selected tickets array (for non-reservation flows)
-      ticketCount: requestedTicketCount // Ticket count passed from payment service
+      ticketCount: requestedTicketCount, // Ticket count passed from payment service
     } = requestBody;
 
     // Convert to canonical prize:pid: format IMMEDIATELY for consistent matching
@@ -555,7 +638,7 @@ Deno.serve(async (req: Request) => {
     console.log("[Confirm Tickets] Looking for reservation:", {
       reservationId,
       sessionId,
-      canonicalUserId: canonicalUserId.substring(0, 20) + '...',
+      canonicalUserId: canonicalUserId.substring(0, 20) + "...",
       competitionId,
       requestedTicketCount,
     });
@@ -620,7 +703,9 @@ Deno.serve(async (req: Request) => {
     // Fallback: try by userId + competitionId (most recent pending)
     // Use canonical userId for consistent matching
     if (!reservation && canonicalUserId && competitionId) {
-      console.log(`[Confirm Tickets] Fallback lookup for canonical userId: ${canonicalUserId.substring(0, 20)}...`);
+      console.log(
+        `[Confirm Tickets] Fallback lookup for canonical userId: ${canonicalUserId.substring(0, 20)}...`,
+      );
 
       // Try exact match with canonical ID
       let { data } = await supabase
@@ -635,7 +720,9 @@ Deno.serve(async (req: Request) => {
 
       // If not found, also try with the original userId for backward compatibility during transition
       if (!data && userId) {
-        console.log(`[Confirm Tickets] Exact fallback failed, trying with original userId for backward compatibility`);
+        console.log(
+          `[Confirm Tickets] Exact fallback failed, trying with original userId for backward compatibility`,
+        );
         const altCanonicalId = toPrizePid(userId);
         if (altCanonicalId !== canonicalUserId) {
           const { data: altData } = await supabase
@@ -665,7 +752,9 @@ Deno.serve(async (req: Request) => {
         .maybeSingle();
 
       if (existingEntry) {
-        console.log(`[Confirm Tickets] Reservation ${reservationId} already confirmed, returning existing entry`);
+        console.log(
+          `[Confirm Tickets] Reservation ${reservationId} already confirmed, returning existing entry`,
+        );
         const existingTicketNumbers = String(existingEntry.ticketnumbers || "")
           .split(",")
           .map((x: string) => parseInt(x.trim(), 10))
@@ -676,18 +765,23 @@ Deno.serve(async (req: Request) => {
             success: true,
             reservationId: reservation.id,
             ticketNumbers: existingTicketNumbers,
-            ticketCount: existingEntry.numberoftickets || existingTicketNumbers.length,
+            ticketCount:
+              existingEntry.numberoftickets || existingTicketNumbers.length,
             totalAmount: existingEntry.amountspent || 0,
             message: `Already confirmed ${existingTicketNumbers.length} tickets.`,
             alreadyConfirmed: true,
           }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
 
       // Reservation is being processed, return in-progress response
-      const resTicketNumbers = (reservation.ticket_numbers || []).map((n: any) => Number(n));
-      console.log(`[Confirm Tickets] Reservation ${reservationId} in progress, returning pending success`);
+      const resTicketNumbers = (reservation.ticket_numbers || []).map(
+        (n: any) => Number(n),
+      );
+      console.log(
+        `[Confirm Tickets] Reservation ${reservationId} in progress, returning pending success`,
+      );
       return new Response(
         JSON.stringify({
           success: true,
@@ -698,19 +792,25 @@ Deno.serve(async (req: Request) => {
           message: `Confirmation in progress for ${resTicketNumbers.length} tickets.`,
           confirmationInProgress: true,
         }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
     // If no reservation found, this is a lucky dip (random allocation)
     if (!reservation) {
-      console.log("No reservation found - handling as lucky dip (random allocation)");
+      console.log(
+        "No reservation found - handling as lucky dip (random allocation)",
+      );
       console.log("[Lucky Dip Debug] Input params:", {
         requestedTicketCount,
         requestedTicketCountType: typeof requestedTicketCount,
         sessionId,
-        selectedTicketsLength: Array.isArray(selectedTickets) ? selectedTickets.length : 'not array',
-        selectedTicketsSample: Array.isArray(selectedTickets) ? selectedTickets.slice(0, 5) : selectedTickets,
+        selectedTicketsLength: Array.isArray(selectedTickets)
+          ? selectedTickets.length
+          : "not array",
+        selectedTicketsSample: Array.isArray(selectedTickets)
+          ? selectedTickets.slice(0, 5)
+          : selectedTickets,
       });
 
       // Validate required fields for random allocation
@@ -718,9 +818,13 @@ Deno.serve(async (req: Request) => {
         return new Response(
           JSON.stringify({
             success: false,
-            error: "Missing userId or competitionId for random ticket allocation"
+            error:
+              "Missing userId or competitionId for random ticket allocation",
           }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
         );
       }
 
@@ -736,8 +840,12 @@ Deno.serve(async (req: Request) => {
           .maybeSingle();
 
         if (existingEntry) {
-          console.log(`[Confirm Tickets] Lucky Dip: Already confirmed entry found for txHash=${lookupTxHash}, returning existing`);
-          const existingTicketNumbers = String(existingEntry.ticketnumbers || "")
+          console.log(
+            `[Confirm Tickets] Lucky Dip: Already confirmed entry found for txHash=${lookupTxHash}, returning existing`,
+          );
+          const existingTicketNumbers = String(
+            existingEntry.ticketnumbers || "",
+          )
             .split(",")
             .map((x: string) => parseInt(x.trim(), 10))
             .filter((n: number) => Number.isFinite(n));
@@ -746,12 +854,13 @@ Deno.serve(async (req: Request) => {
             JSON.stringify({
               success: true,
               ticketNumbers: existingTicketNumbers,
-              ticketCount: existingEntry.numberoftickets || existingTicketNumbers.length,
+              ticketCount:
+                existingEntry.numberoftickets || existingTicketNumbers.length,
               totalAmount: existingEntry.amountspent || 0,
               message: `Already confirmed ${existingTicketNumbers.length} tickets.`,
               alreadyConfirmed: true,
             }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } },
           );
         }
       }
@@ -766,35 +875,52 @@ Deno.serve(async (req: Request) => {
       const parsedRequestedCount = Number(requestedTicketCount);
       if (Number.isFinite(parsedRequestedCount) && parsedRequestedCount > 0) {
         ticketCount = parsedRequestedCount;
-        console.log("[Lucky Dip Debug] Using requestedTicketCount:", ticketCount);
+        console.log(
+          "[Lucky Dip Debug] Using requestedTicketCount:",
+          ticketCount,
+        );
       } else if (Array.isArray(selectedTickets) && selectedTickets.length > 0) {
         // Second priority: use selectedTickets length if provided
         ticketCount = selectedTickets.length;
-        console.log("[Lucky Dip Debug] Using selectedTickets.length:", ticketCount);
+        console.log(
+          "[Lucky Dip Debug] Using selectedTickets.length:",
+          ticketCount,
+        );
       }
 
-      console.log("[Lucky Dip Debug] Initial ticketCount determined:", ticketCount);
+      console.log(
+        "[Lucky Dip Debug] Initial ticketCount determined:",
+        ticketCount,
+      );
 
       // If ticketCount is still the default (1), try to look it up from transaction
       // This is a fallback when neither requestedTicketCount nor selectedTickets were provided
       if (ticketCount === 1 && sessionId) {
-        console.log("[Lucky Dip Debug] Looking up ticket_count from transaction:", sessionId);
+        console.log(
+          "[Lucky Dip Debug] Looking up ticket_count from transaction:",
+          sessionId,
+        );
         const { data: txData } = await supabase
           .from("user_transactions")
           .select("ticket_count")
           .eq("id", sessionId)
           .maybeSingle();
         const txTicketCount = txData?.ticket_count;
-        console.log("[Lucky Dip Debug] Transaction lookup result:", { txTicketCount });
+        console.log("[Lucky Dip Debug] Transaction lookup result:", {
+          txTicketCount,
+        });
         if (txTicketCount && Number(txTicketCount) > 0) {
           ticketCount = Number(txTicketCount);
         }
       }
 
       // Parse selectedTickets if provided directly
-      const preferredTickets = Array.isArray(selectedTickets) && selectedTickets.length > 0
-        ? selectedTickets.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n) && n > 0)
-        : [];
+      const preferredTickets =
+        Array.isArray(selectedTickets) && selectedTickets.length > 0
+          ? selectedTickets
+              .map((n: any) => Number(n))
+              .filter((n: number) => Number.isFinite(n) && n > 0)
+          : [];
 
       console.log("[Lucky Dip Debug] Parsed preferredTickets:", {
         length: preferredTickets.length,
@@ -805,18 +931,24 @@ Deno.serve(async (req: Request) => {
       // The ticketCount from request takes priority as it represents what the user paid for
       // preferredTickets are just hints for which specific numbers to try first
       // DO NOT override ticketCount with preferredTickets.length - the user paid for ticketCount tickets!
-      console.log("[Lucky Dip Debug] Final ticketCount to allocate:", ticketCount);
+      console.log(
+        "[Lucky Dip Debug] Final ticketCount to allocate:",
+        ticketCount,
+      );
 
       // Allocate tickets using shared helper (with preferred tickets if provided)
       // Use canonical user ID for consistent storage
-      console.log(`Allocating ${ticketCount} tickets for user ${canonicalUserId} in competition ${competitionId}, preferred: ${preferredTickets.length}`);
+      console.log(
+        `Allocating ${ticketCount} tickets for user ${canonicalUserId} in competition ${competitionId}, preferred: ${preferredTickets.length}`,
+      );
       const assigned = await assignTickets({
         supabase,
         userIdentifier: canonicalUserId,
         competitionId: competitionId,
         orderId: sessionId || null,
         ticketCount,
-        preferredTicketNumbers: preferredTickets.length > 0 ? preferredTickets : undefined,
+        preferredTicketNumbers:
+          preferredTickets.length > 0 ? preferredTickets : undefined,
       });
 
       const ticketNumbers = assigned.ticketNumbers;
@@ -827,10 +959,10 @@ Deno.serve(async (req: Request) => {
 
       // Extract wallet address from canonical ID if it's a wallet-based ID
       // Validate that canonicalUserId has the expected format
-      if (canonicalUserId.startsWith('prize:pid:')) {
-        const extractedId = canonicalUserId.substring('prize:pid:'.length);
+      if (canonicalUserId.startsWith("prize:pid:")) {
+        const extractedId = canonicalUserId.substring("prize:pid:".length);
         const isWalletBased = /^0x[a-fA-F0-9]{40}$/i.test(extractedId);
-        
+
         if (isWalletBased) {
           userWalletAddress = extractedId.toLowerCase();
         }
@@ -901,7 +1033,7 @@ Deno.serve(async (req: Request) => {
       const { error: entriesError } = await supabase
         .from("competition_entries")
         .upsert(competitionEntry, {
-          onConflict: 'canonical_user_id,competition_id',
+          onConflict: "canonical_user_id,competition_id",
           // Aggregate: increment tickets_count, append ticket_numbers, update amount
         });
 
@@ -937,7 +1069,7 @@ Deno.serve(async (req: Request) => {
               .update({
                 winningWalletAddress: walletAddress,
                 winningUserId: userId,
-                wonAt: new Date().toISOString()
+                wonAt: new Date().toISOString(),
               })
               .eq("UID", prize.UID);
 
@@ -945,7 +1077,7 @@ Deno.serve(async (req: Request) => {
               instantWins.push({
                 ticketNumber: ticketNum,
                 prize: prize.prize,
-                prizeId: prize.UID
+                prizeId: prize.UID,
               });
             }
           }
@@ -955,11 +1087,15 @@ Deno.serve(async (req: Request) => {
       // Check if competition is now sold out and trigger drawing if so (Lucky Dip path)
       let soldOutTriggered = false;
       try {
-        if (competition && competition.status === "active" && competition.total_tickets > 0) {
+        if (
+          competition &&
+          competition.status === "active" &&
+          competition.total_tickets > 0
+        ) {
           // Count all sold tickets using RPC that handles both UUID and legacy uid
-          const { data: ticketCountResult, error: countError } = await supabase
-            .rpc('count_sold_tickets_for_competition', {
-              p_competition_id: competitionId
+          const { data: ticketCountResult, error: countError } =
+            await supabase.rpc("count_sold_tickets_for_competition", {
+              p_competition_id: competitionId,
             });
 
           let totalSoldTickets = 0;
@@ -967,7 +1103,10 @@ Deno.serve(async (req: Request) => {
             totalSoldTickets = Number(ticketCountResult);
           } else {
             // Fallback: Count from direct query (may miss entries with legacy uid)
-            console.warn('[Sold Out Check - Lucky Dip] RPC count failed, using fallback:', countError?.message);
+            console.warn(
+              "[Sold Out Check - Lucky Dip] RPC count failed, using fallback:",
+              countError?.message,
+            );
             const { data: soldEntries } = await supabase
               .from("joincompetition")
               .select("ticketnumbers")
@@ -975,17 +1114,23 @@ Deno.serve(async (req: Request) => {
 
             (soldEntries || []).forEach((entry: any) => {
               if (entry.ticketnumbers) {
-                const nums = entry.ticketnumbers.split(",").filter((n: string) => n.trim() !== "");
+                const nums = entry.ticketnumbers
+                  .split(",")
+                  .filter((n: string) => n.trim() !== "");
                 totalSoldTickets += nums.length;
               }
             });
           }
 
-          console.log(`[Sold Out Check - Lucky Dip] Competition ${competitionId}: ${totalSoldTickets}/${competition.total_tickets} tickets sold`);
+          console.log(
+            `[Sold Out Check - Lucky Dip] Competition ${competitionId}: ${totalSoldTickets}/${competition.total_tickets} tickets sold`,
+          );
 
           // Check if all tickets are sold
           if (totalSoldTickets >= competition.total_tickets) {
-            console.log(`[Sold Out - Lucky Dip] Competition ${competitionId} is SOLD OUT! Triggering draw...`);
+            console.log(
+              `[Sold Out - Lucky Dip] Competition ${competitionId} is SOLD OUT! Triggering draw...`,
+            );
             soldOutTriggered = true;
 
             if (competition.is_instant_win) {
@@ -995,21 +1140,29 @@ Deno.serve(async (req: Request) => {
                 .update({
                   status: "completed",
                   competitionended: 1,
-                  draw_date: new Date().toISOString()
+                  draw_date: new Date().toISOString(),
                 })
                 .eq("id", competitionId);
-              console.log(`[Sold Out - Lucky Dip] Instant win competition ${competitionId} marked as completed`);
+              console.log(
+                `[Sold Out - Lucky Dip] Instant win competition ${competitionId} marked as completed`,
+              );
             } else {
               // For standard competitions: select a winner
               // Use RPC to get entries with both UUID and legacy uid
-              const { data: entriesFromRpc, error: rpcError } = await supabase
-                .rpc('get_joincompetition_entries_for_competition', {
-                  p_competition_id: competitionId
-                });
+              const { data: entriesFromRpc, error: rpcError } =
+                await supabase.rpc(
+                  "get_joincompetition_entries_for_competition",
+                  {
+                    p_competition_id: competitionId,
+                  },
+                );
 
               let entriesWithUser = entriesFromRpc;
               if (rpcError || !entriesFromRpc) {
-                console.warn('[Sold Out - Lucky Dip] RPC get entries failed, using fallback:', rpcError?.message);
+                console.warn(
+                  "[Sold Out - Lucky Dip] RPC get entries failed, using fallback:",
+                  rpcError?.message,
+                );
                 const { data: fallbackEntries } = await supabase
                   .from("joincompetition")
                   .select("*")
@@ -1021,7 +1174,10 @@ Deno.serve(async (req: Request) => {
               const ticketToEntry = new Map<number, any>();
               (entriesWithUser || []).forEach((entry: any) => {
                 if (entry.ticketnumbers) {
-                  const nums = entry.ticketnumbers.split(",").map((n: string) => parseInt(n.trim())).filter((n: number) => !isNaN(n));
+                  const nums = entry.ticketnumbers
+                    .split(",")
+                    .map((n: string) => parseInt(n.trim()))
+                    .filter((n: number) => !isNaN(n));
                   nums.forEach((num: number) => {
                     allTicketNumbers.push(num);
                     ticketToEntry.set(num, entry);
@@ -1034,34 +1190,45 @@ Deno.serve(async (req: Request) => {
                 const vrfResponse = await fetch(
                   `${supabaseUrl}/functions/v1/vrf-draw-winner`,
                   {
-                    method: 'POST',
+                    method: "POST",
                     headers: {
-                      'Content-Type': 'application/json',
-                      'Authorization': `Bearer ${serviceRoleKey}`
+                      "Content-Type": "application/json",
+                      Authorization: `Bearer ${serviceRoleKey}`,
                     },
-                    body: JSON.stringify({ competition_id: competitionId })
-                  }
+                    body: JSON.stringify({ competition_id: competitionId }),
+                  },
                 );
-                
+
                 if (!vrfResponse.ok) {
                   const errorText = await vrfResponse.text();
-                  throw new Error(`VRF HTTP ${vrfResponse.status}: ${errorText}`);
+                  throw new Error(
+                    `VRF HTTP ${vrfResponse.status}: ${errorText}`,
+                  );
                 }
-                
+
                 const vrfResult = await vrfResponse.json();
-                console.log(`[Sold Out - Lucky Dip] VRF draw winner result:`, vrfResult);
-                
+                console.log(
+                  `[Sold Out - Lucky Dip] VRF draw winner result:`,
+                  vrfResult,
+                );
+
                 if (!vrfResult.ok) {
-                  throw new Error(vrfResult.error || 'VRF draw failed');
+                  throw new Error(vrfResult.error || "VRF draw failed");
                 }
               } catch (vrfErr) {
-                console.error('[Sold Out - Lucky Dip] VRF draw winner failed:', vrfErr);
+                console.error(
+                  "[Sold Out - Lucky Dip] VRF draw winner failed:",
+                  vrfErr,
+                );
               }
             }
           }
         }
       } catch (soldOutErr) {
-        console.error("Error checking/processing sold out competition (lucky dip):", soldOutErr);
+        console.error(
+          "Error checking/processing sold out competition (lucky dip):",
+          soldOutErr,
+        );
       }
 
       return new Response(
@@ -1076,9 +1243,9 @@ Deno.serve(async (req: Request) => {
             ? `Lucky dip tickets confirmed! Competition is now SOLD OUT - winner has been drawn!`
             : instantWins.length > 0
               ? `Lucky dip tickets confirmed! You won ${instantWins.length} instant prize(s)!`
-              : `Successfully confirmed ${ticketNumbers.length} random tickets.`
+              : `Successfully confirmed ${ticketNumbers.length} random tickets.`,
         }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -1094,9 +1261,12 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({
           success: false,
           error: "Reservation has expired. Please select tickets again.",
-          expiredAt: reservation.expires_at
+          expiredAt: reservation.expires_at,
         }),
-        { status: 410, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 410,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
@@ -1130,7 +1300,10 @@ Deno.serve(async (req: Request) => {
         .eq("id", reservation.id)
         .maybeSingle();
 
-      if (currentReservation?.status === "confirmed" || currentReservation?.status === "confirming") {
+      if (
+        currentReservation?.status === "confirmed" ||
+        currentReservation?.status === "confirming"
+      ) {
         // Look up the existing joincompetition entry
         const { data: existingEntry } = await supabase
           .from("joincompetition")
@@ -1140,8 +1313,12 @@ Deno.serve(async (req: Request) => {
           .maybeSingle();
 
         if (existingEntry) {
-          console.log(`[Confirm Tickets] Reservation already confirmed, returning existing entry`);
-          const existingTicketNumbers = String(existingEntry.ticketnumbers || "")
+          console.log(
+            `[Confirm Tickets] Reservation already confirmed, returning existing entry`,
+          );
+          const existingTicketNumbers = String(
+            existingEntry.ticketnumbers || "",
+          )
             .split(",")
             .map((x: string) => parseInt(x.trim(), 10))
             .filter((n: number) => Number.isFinite(n));
@@ -1151,17 +1328,20 @@ Deno.serve(async (req: Request) => {
               success: true,
               reservationId: reservation.id,
               ticketNumbers: existingTicketNumbers,
-              ticketCount: existingEntry.numberoftickets || existingTicketNumbers.length,
+              ticketCount:
+                existingEntry.numberoftickets || existingTicketNumbers.length,
               totalAmount: existingEntry.amountspent || 0,
               message: `Already confirmed ${existingTicketNumbers.length} tickets.`,
               alreadyConfirmed: true,
             }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } },
           );
         }
 
         // Entry being processed by another request, return success
-        console.log(`[Confirm Tickets] Reservation in progress by another request, returning pending success`);
+        console.log(
+          `[Confirm Tickets] Reservation in progress by another request, returning pending success`,
+        );
         return new Response(
           JSON.stringify({
             success: true,
@@ -1172,22 +1352,36 @@ Deno.serve(async (req: Request) => {
             message: `Confirmation in progress for ${ticketNumbers.length} tickets.`,
             confirmationInProgress: true,
           }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
 
       // Reservation is in unexpected state
       // Only return 409 for truly invalid states (expired, canceled, released)
-      if (currentReservation?.status === 'expired' || currentReservation?.status === 'canceled' || currentReservation?.status === 'released') {
-        console.error(`[Confirm Tickets] Reservation ${reservation.id} is in invalid state: ${currentReservation?.status}`);
+      if (
+        currentReservation?.status === "expired" ||
+        currentReservation?.status === "canceled" ||
+        currentReservation?.status === "released"
+      ) {
+        console.error(
+          `[Confirm Tickets] Reservation ${reservation.id} is in invalid state: ${currentReservation?.status}`,
+        );
         return new Response(
-          JSON.stringify({ success: false, error: `Reservation has been ${currentReservation?.status}. Please create a new reservation.` }),
-          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({
+            success: false,
+            error: `Reservation has been ${currentReservation?.status}. Please create a new reservation.`,
+          }),
+          {
+            status: 409,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
         );
       }
 
       // For any other state, treat as "in progress" to avoid breaking retry logic
-      console.log(`[Confirm Tickets] Reservation ${reservation.id} in state ${currentReservation?.status}, treating as in-progress`);
+      console.log(
+        `[Confirm Tickets] Reservation ${reservation.id} in state ${currentReservation?.status}, treating as in-progress`,
+      );
       return new Response(
         JSON.stringify({
           success: true,
@@ -1198,18 +1392,22 @@ Deno.serve(async (req: Request) => {
           message: `Confirmation processing for ${ticketNumbers.length} tickets.`,
           confirmationInProgress: true,
         }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    console.log(`[Confirm Tickets] Acquired lock on reservation ${reservation.id}, using atomic RPC conversion`);
+    console.log(
+      `[Confirm Tickets] Acquired lock on reservation ${reservation.id}, using atomic RPC conversion`,
+    );
 
     // Convert finalUserId to canonical format
     const finalCanonicalUserId = toPrizePid(finalUserId);
-    
+
     // Get user's wallet address for the RPC
     // Extract wallet from canonical ID if it's wallet-based
-    const extractedFinalId = finalCanonicalUserId.substring('prize:pid:'.length);
+    const extractedFinalId = finalCanonicalUserId.substring(
+      "prize:pid:".length,
+    );
     const isWalletBased = /^0x[a-fA-F0-9]{40}$/i.test(extractedFinalId);
     let userWalletAddress: string | null = null;
 
@@ -1243,35 +1441,33 @@ Deno.serve(async (req: Request) => {
     // - External payments (base_account, coinbase, etc): Use confirm_pending_to_sold (no debit - user already paid)
     // CRITICAL: Only explicit 'balance' payments should debit sub_account_balance
     // Crypto payments (Base, Coinbase, etc.) are already paid on-chain and should NOT touch sub_account_balance
-    const isBalancePayment = paymentProvider === 'balance';
-    
+    const isBalancePayment = paymentProvider === "balance";
+
     let rpcResult: Record<string, unknown> | null = null;
     let rpcError: Error | null = null;
 
     if (isBalancePayment) {
       // Use confirm_ticket_purchase which debits from sub_account_balance
-      console.log(`[Confirm Tickets] Using confirm_ticket_purchase for balance payment`);
-      const { data, error } = await supabase.rpc(
-        'confirm_ticket_purchase',
-        {
-          p_pending_ticket_id: reservation.id,
-          p_payment_provider: 'balance'
-        }
+      console.log(
+        `[Confirm Tickets] Using confirm_ticket_purchase for balance payment`,
       );
+      const { data, error } = await supabase.rpc("confirm_ticket_purchase", {
+        p_pending_ticket_id: reservation.id,
+        p_payment_provider: "balance",
+      });
       rpcResult = data as Record<string, unknown>;
       rpcError = error;
     } else {
       // Use confirm_pending_to_sold for external payments (no balance debit)
-      console.log(`[Confirm Tickets] Using confirm_pending_to_sold for ${paymentProvider} payment`);
-      const { data, error } = await supabase.rpc(
-        'confirm_pending_to_sold',
-        {
-          p_reservation_id: reservation.id,
-          p_transaction_hash: finalTransactionHash,
-          p_payment_provider: paymentProvider,
-          p_wallet_address: userWalletAddress
-        }
+      console.log(
+        `[Confirm Tickets] Using confirm_pending_to_sold for ${paymentProvider} payment`,
       );
+      const { data, error } = await supabase.rpc("confirm_pending_to_sold", {
+        p_reservation_id: reservation.id,
+        p_transaction_hash: finalTransactionHash,
+        p_payment_provider: paymentProvider,
+        p_wallet_address: userWalletAddress,
+      });
       rpcResult = data as Record<string, unknown>;
       rpcError = error;
     }
@@ -1282,9 +1478,12 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({
           success: false,
           error: "Failed to confirm tickets: " + rpcError.message,
-          retryable: true
+          retryable: true,
         }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
@@ -1292,7 +1491,9 @@ Deno.serve(async (req: Request) => {
 
     // Check if already confirmed (idempotent)
     if (conversionResult?.already_confirmed) {
-      console.log(`[Confirm Tickets] Reservation ${reservation.id} was already confirmed`);
+      console.log(
+        `[Confirm Tickets] Reservation ${reservation.id} was already confirmed`,
+      );
       return new Response(
         JSON.stringify({
           success: true,
@@ -1303,13 +1504,14 @@ Deno.serve(async (req: Request) => {
           message: `Already confirmed ${ticketNumbers.length} tickets.`,
           alreadyConfirmed: true,
         }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
     // Check for RPC-level errors
     if (!conversionResult?.success) {
-      const errorMsg = (conversionResult?.error as string) || "Unknown conversion error";
+      const errorMsg =
+        (conversionResult?.error as string) || "Unknown conversion error";
       console.error("[Confirm Tickets] Conversion failed:", errorMsg);
 
       // Check if expired
@@ -1318,9 +1520,12 @@ Deno.serve(async (req: Request) => {
           JSON.stringify({
             success: false,
             error: "Reservation has expired. Please select tickets again.",
-            expiredAt: conversionResult?.expired_at
+            expiredAt: conversionResult?.expired_at,
           }),
-          { status: 410, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          {
+            status: 410,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
         );
       }
 
@@ -1328,41 +1533,56 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({
           success: false,
           error: errorMsg,
-          retryable: (conversionResult?.retryable as boolean) || false
+          retryable: (conversionResult?.retryable as boolean) || false,
         }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
-    console.log(`[Confirm Tickets] Atomic conversion successful for reservation ${reservation.id}:`, {
-      ticketsInserted: conversionResult.tickets_inserted,
-      ticketCount: conversionResult.ticket_count
-    });
+    console.log(
+      `[Confirm Tickets] Atomic conversion successful for reservation ${reservation.id}:`,
+      {
+        ticketsInserted: conversionResult.tickets_inserted,
+        ticketCount: conversionResult.ticket_count,
+      },
+    );
 
     // For external crypto payments (non-balance), mark as wallet_credited to prevent reconcile-payments from processing
     // This is critical for base_account, coinbase_commerce, and other external payment providers
     // to prevent them from being incorrectly credited as top-ups by the reconcile-payments function
     if (!isBalancePayment && sessionId) {
-      console.log(`[Confirm Tickets] Marking external payment transaction ${sessionId} as wallet_credited to prevent double-processing`);
+      console.log(
+        `[Confirm Tickets] Marking external payment transaction ${sessionId} as wallet_credited to prevent double-processing`,
+      );
       const { error: updateError } = await supabase
-        .from('user_transactions')
-        .update({ 
-          wallet_credited: true
+        .from("user_transactions")
+        .update({
+          wallet_credited: true,
         })
-        .eq('id', sessionId);
-      
+        .eq("id", sessionId);
+
       if (updateError) {
-        console.error(`[Confirm Tickets] WARNING: Failed to mark transaction ${sessionId} as wallet_credited:`, updateError);
-        console.error(`[Confirm Tickets] This transaction may be reprocessed by reconcile-payments!`);
+        console.error(
+          `[Confirm Tickets] WARNING: Failed to mark transaction ${sessionId} as wallet_credited:`,
+          updateError,
+        );
+        console.error(
+          `[Confirm Tickets] This transaction may be reprocessed by reconcile-payments!`,
+        );
         // Don't fail the entire operation, but log the warning for monitoring
       } else {
-        console.log(`[Confirm Tickets] Successfully marked transaction ${sessionId} as wallet_credited`);
+        console.log(
+          `[Confirm Tickets] Successfully marked transaction ${sessionId} as wallet_credited`,
+        );
       }
     }
 
     // STEP 6: Check for instant win prizes
     const instantWins: any[] = [];
-    
+
     // Get competition to check if it's instant win
     const { data: competition } = await supabase
       .from("competitions")
@@ -1384,18 +1604,18 @@ Deno.serve(async (req: Request) => {
           // Claim the prize
           const { error: winUpdateErr } = await supabase
             .from("Prize_Instantprizes")
-            .update({ 
+            .update({
               winningWalletAddress: walletAddress,
               winningUserId: finalUserId,
-              wonAt: new Date().toISOString()
+              wonAt: new Date().toISOString(),
             })
             .eq("UID", prize.UID);
 
           if (!winUpdateErr) {
-            instantWins.push({ 
-              ticketNumber: ticketNum, 
-              prize: prize.prize, 
-              prizeId: prize.UID 
+            instantWins.push({
+              ticketNumber: ticketNum,
+              prize: prize.prize,
+              prizeId: prize.UID,
             });
           }
         }
@@ -1404,25 +1624,25 @@ Deno.serve(async (req: Request) => {
 
     // STEP 7: Create notification for user
     try {
-      await supabase
-        .from("notifications")
-        .insert({
-          user_id: finalUserId,
-          type: instantWins.length > 0 ? "instant_win" : "purchase_confirmed",
-          title: instantWins.length > 0
+      await supabase.from("notifications").insert({
+        user_id: finalUserId,
+        type: instantWins.length > 0 ? "instant_win" : "purchase_confirmed",
+        title:
+          instantWins.length > 0
             ? `🎉 You won ${instantWins.length} instant prize(s)!`
             : "Purchase Confirmed",
-          message: instantWins.length > 0
-            ? `Congratulations! Your ticket(s) ${instantWins.map(w => w.ticketNumber).join(", ")} won: ${instantWins.map(w => w.prize).join(", ")}`
+        message:
+          instantWins.length > 0
+            ? `Congratulations! Your ticket(s) ${instantWins.map((w) => w.ticketNumber).join(", ")} won: ${instantWins.map((w) => w.prize).join(", ")}`
             : `Your ${ticketNumbers.length} ticket(s) have been confirmed: ${ticketNumbers.join(", ")}`,
-          data: {
-            competitionId: finalCompetitionId,
-            ticketNumbers,
-            instantWins
-          },
-          read: false,
-          created_at: new Date().toISOString(),
-        });
+        data: {
+          competitionId: finalCompetitionId,
+          ticketNumbers,
+          instantWins,
+        },
+        read: false,
+        created_at: new Date().toISOString(),
+      });
     } catch (notifErr) {
       console.error("Error creating notification:", notifErr);
     }
@@ -1437,11 +1657,15 @@ Deno.serve(async (req: Request) => {
         .eq("id", finalCompetitionId)
         .maybeSingle();
 
-      if (compDetails && compDetails.status === "active" && compDetails.total_tickets > 0) {
+      if (
+        compDetails &&
+        compDetails.status === "active" &&
+        compDetails.total_tickets > 0
+      ) {
         // Count all sold tickets using RPC that handles both UUID and legacy uid
-        const { data: ticketCountResult, error: countError } = await supabase
-          .rpc('count_sold_tickets_for_competition', {
-            p_competition_id: finalCompetitionId
+        const { data: ticketCountResult, error: countError } =
+          await supabase.rpc("count_sold_tickets_for_competition", {
+            p_competition_id: finalCompetitionId,
           });
 
         let totalSoldTickets = 0;
@@ -1449,7 +1673,10 @@ Deno.serve(async (req: Request) => {
           totalSoldTickets = Number(ticketCountResult);
         } else {
           // Fallback: Count from direct query (may miss entries with legacy uid)
-          console.warn('[Sold Out Check] RPC count failed, using fallback:', countError?.message);
+          console.warn(
+            "[Sold Out Check] RPC count failed, using fallback:",
+            countError?.message,
+          );
           const { data: soldEntries } = await supabase
             .from("joincompetition")
             .select("ticketnumbers")
@@ -1457,17 +1684,23 @@ Deno.serve(async (req: Request) => {
 
           (soldEntries || []).forEach((entry: any) => {
             if (entry.ticketnumbers) {
-              const nums = entry.ticketnumbers.split(",").filter((n: string) => n.trim() !== "");
+              const nums = entry.ticketnumbers
+                .split(",")
+                .filter((n: string) => n.trim() !== "");
               totalSoldTickets += nums.length;
             }
           });
         }
 
-        console.log(`[Sold Out Check] Competition ${finalCompetitionId}: ${totalSoldTickets}/${compDetails.total_tickets} tickets sold`);
+        console.log(
+          `[Sold Out Check] Competition ${finalCompetitionId}: ${totalSoldTickets}/${compDetails.total_tickets} tickets sold`,
+        );
 
         // Check if all tickets are sold
         if (totalSoldTickets >= compDetails.total_tickets) {
-          console.log(`[Sold Out] Competition ${finalCompetitionId} is SOLD OUT! Triggering draw...`);
+          console.log(
+            `[Sold Out] Competition ${finalCompetitionId} is SOLD OUT! Triggering draw...`,
+          );
           soldOutTriggered = true;
 
           if (compDetails.is_instant_win) {
@@ -1477,21 +1710,29 @@ Deno.serve(async (req: Request) => {
               .update({
                 status: "completed",
                 competitionended: 1,
-                draw_date: new Date().toISOString()
+                draw_date: new Date().toISOString(),
               })
               .eq("id", finalCompetitionId);
-            console.log(`[Sold Out] Instant win competition ${finalCompetitionId} marked as completed`);
+            console.log(
+              `[Sold Out] Instant win competition ${finalCompetitionId} marked as completed`,
+            );
           } else {
             // For standard competitions: select a winner from all entries
             // Use RPC to get entries with both UUID and legacy uid
-            const { data: entriesFromRpc, error: rpcError } = await supabase
-              .rpc('get_joincompetition_entries_for_competition', {
-                p_competition_id: finalCompetitionId
-              });
+            const { data: entriesFromRpc, error: rpcError } =
+              await supabase.rpc(
+                "get_joincompetition_entries_for_competition",
+                {
+                  p_competition_id: finalCompetitionId,
+                },
+              );
 
             let entriesWithUser = entriesFromRpc;
             if (rpcError || !entriesFromRpc) {
-              console.warn('[Sold Out] RPC get entries failed, using fallback:', rpcError?.message);
+              console.warn(
+                "[Sold Out] RPC get entries failed, using fallback:",
+                rpcError?.message,
+              );
               const { data: fallbackEntries } = await supabase
                 .from("joincompetition")
                 .select("*")
@@ -1505,7 +1746,10 @@ Deno.serve(async (req: Request) => {
 
             (entriesWithUser || []).forEach((entry: any) => {
               if (entry.ticketnumbers) {
-                const nums = entry.ticketnumbers.split(",").map((n: string) => parseInt(n.trim())).filter((n: number) => !isNaN(n));
+                const nums = entry.ticketnumbers
+                  .split(",")
+                  .map((n: string) => parseInt(n.trim()))
+                  .filter((n: number) => !isNaN(n));
                 nums.forEach((num: number) => {
                   allTicketNumbers.push(num);
                   ticketToEntry.set(num, entry);
@@ -1518,34 +1762,56 @@ Deno.serve(async (req: Request) => {
               const vrfResponse = await fetch(
                 `${supabaseUrl}/functions/v1/vrf-draw-winner`,
                 {
-                  method: 'POST',
+                  method: "POST",
                   headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${serviceRoleKey}`
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${serviceRoleKey}`,
                   },
-                  body: JSON.stringify({ competition_id: finalCompetitionId })
-                }
+                  body: JSON.stringify({ competition_id: finalCompetitionId }),
+                },
               );
-              
+
               if (!vrfResponse.ok) {
                 const errorText = await vrfResponse.text();
                 throw new Error(`VRF HTTP ${vrfResponse.status}: ${errorText}`);
               }
-              
+
               const vrfResult = await vrfResponse.json();
               console.log(`[Sold Out] VRF draw winner result:`, vrfResult);
-              
+
               if (!vrfResult.ok) {
-                throw new Error(vrfResult.error || 'VRF draw failed');
+                throw new Error(vrfResult.error || "VRF draw failed");
               }
             } catch (vrfErr) {
-              console.error('[Sold Out] VRF draw winner failed:', vrfErr);
+              console.error("[Sold Out] VRF draw winner failed:", vrfErr);
             }
+          }
+
+          // REAL-TIME BROADCAST: Notify all clients that competition sold out
+          try {
+            await supabase.channel(`competition-${finalCompetitionId}`).send({
+              type: "broadcast",
+              event: "competition_sold_out",
+              payload: {
+                competition_id: finalCompetitionId,
+                sold_at: new Date().toISOString(),
+                total_tickets: compDetails.total_tickets,
+                is_instant_win: compDetails.is_instant_win,
+              },
+            });
+            console.log(
+              `[Sold Out] Broadcast sent for competition ${finalCompetitionId}`,
+            );
+          } catch (broadcastErr) {
+            console.error("[Sold Out] Failed to send broadcast:", broadcastErr);
           }
         }
       }
     } catch (soldOutErr) {
-      console.error("Error checking/processing sold out competition:", soldOutErr);
+      console.error(
+        "Error checking/processing sold out competition:",
+        soldOutErr,
+      );
       // Don't fail the entire operation - tickets were still confirmed
     }
 
@@ -1562,16 +1828,16 @@ Deno.serve(async (req: Request) => {
           ? `Tickets confirmed! Competition is now SOLD OUT - winner has been drawn!`
           : instantWins.length > 0
             ? `Tickets confirmed! You won ${instantWins.length} instant prize(s)!`
-            : `Successfully confirmed ${ticketNumbers.length} tickets.`
+            : `Successfully confirmed ${ticketNumbers.length} tickets.`,
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
-
   } catch (error) {
     const incidentId = `supabase-func-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-    const errorMessage = (error as Error).message || "Failed to confirm tickets";
+    const errorMessage =
+      (error as Error).message || "Failed to confirm tickets";
     const errorStack = (error as Error).stack;
-    
+
     console.error("Confirm pending tickets error:", error);
     console.error(`Incident ID: ${incidentId}`);
 
@@ -1579,7 +1845,7 @@ Deno.serve(async (req: Request) => {
     try {
       const supabaseUrl = Deno.env.get("SUPABASE_URL");
       const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-      
+
       if (supabaseUrl && serviceRoleKey) {
         const supabase = createClient(supabaseUrl, serviceRoleKey);
         await supabase.rpc("log_confirmation_incident", {
@@ -1611,13 +1877,17 @@ Deno.serve(async (req: Request) => {
     }
 
     return new Response(
-      JSON.stringify({ 
-        success: false, 
+      JSON.stringify({
+        success: false,
         error: errorMessage,
         incidentId,
-        message: "An error occurred during ticket confirmation. Please contact support with this incident ID if the issue persists.",
+        message:
+          "An error occurred during ticket confirmation. Please contact support with this incident ID if the issue persists.",
       }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 });

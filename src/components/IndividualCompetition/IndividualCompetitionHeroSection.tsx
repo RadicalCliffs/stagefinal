@@ -1,6 +1,6 @@
 import { useState, useEffect, lazy, Suspense } from "react";
 import ReactRangeSliderInput from "react-range-slider-input";
-import { heroSectionImage, individualLogoToken} from "../../assets/images";
+import { heroSectionImage, individualLogoToken } from "../../assets/images";
 import Countdown from "../Countdown";
 import "react-range-slider-input/dist/style.css";
 import { MinusIcon, PlusIcon } from "lucide-react";
@@ -9,16 +9,26 @@ import Reviews from "../Reviews";
 import CaptchaModal from "../CaptchaModal";
 import UserInfoModal from "../UserInfoModal";
 import type { UserInfo } from "../UserInfoModal";
-import type {CompetitionWrapper } from "../../models/models";
+import type { CompetitionWrapper } from "../../models/models";
 import { supabase } from "../../lib/supabase";
 import { useAuthUser } from "../../contexts/AuthContext";
-import { ticketReservationLogger, requestTracker, showDebugHintOnError } from "../../lib/debug-console";
+import {
+  ticketReservationLogger,
+  requestTracker,
+  showDebugHintOnError,
+} from "../../lib/debug-console";
 import { canEnterCompetition } from "../CompetitionStatusIndicator";
 
 // Lazy load PaymentModal - only loaded when user initiates payment
 const PaymentModal = lazy(() => import("../PaymentModal"));
 
-const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {competition: CompetitionWrapper['competition'], onEntriesRefresh?: () => void}) => {
+const IndividualCompetitionHeroSection = ({
+  competition,
+  onEntriesRefresh,
+}: {
+  competition: CompetitionWrapper["competition"];
+  onEntriesRefresh?: () => void;
+}) => {
   const { baseUser } = useAuthUser();
 
   // Default to 1 ticket for better UX (users can adjust as needed)
@@ -39,10 +49,10 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
   const soldCount = competition?.tickets_sold || 0;
   const totalTickets = competition?.total_tickets || 0;
   const availableCount = Math.max(0, totalTickets - soldCount);
-  
+
   // Maximum tickets per transaction (capped at 999)
   const maxTicketsPerPurchase = Math.min(availableCount, 999);
-  
+
   // No more complex RPC calls - use competition data directly like main page
   const isSoldOut = totalTickets > 0 && soldCount >= totalTickets;
 
@@ -53,22 +63,34 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
       const statusChannel = supabase
         .channel(`competition-status-hero-${competition.id}`)
         .on(
-          'postgres_changes',
+          "postgres_changes",
           {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'competitions',
-            filter: `id=eq.${competition.id}`
+            event: "UPDATE",
+            schema: "public",
+            table: "competitions",
+            filter: `id=eq.${competition.id}`,
           },
           (payload: any) => {
             const newStatus = payload.new?.status;
-            console.log('Competition status changed to:', newStatus);
+            console.log("Competition status changed to:", newStatus);
             // Reload page when competition is drawn or completed to show winner
-            if (newStatus === 'drawn' || newStatus === 'completed' || newStatus === 'drawing') {
+            if (
+              newStatus === "drawn" ||
+              newStatus === "completed" ||
+              newStatus === "drawing"
+            ) {
               window.location.reload();
             }
-          }
+          },
         )
+        // Listen for sold-out broadcast events
+        .on("broadcast", { event: "competition_sold_out" }, (payload: any) => {
+          console.log("🎉 Competition just sold out!", payload);
+          // Show a brief notification and reload to show finished competition
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000); // Give 2 seconds for celebration/confetti to show
+        })
         .subscribe();
 
       return () => {
@@ -94,7 +116,10 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
   const handleEnterNow = () => {
     // Safety check: don't allow entry for non-active competitions
     if (!canEnterCompetition(competition.status)) {
-      console.warn('Entry blocked: Competition status is not active:', competition.status);
+      console.warn(
+        "Entry blocked: Competition status is not active:",
+        competition.status,
+      );
       return;
     }
     // Ensure at least 1 ticket is selected
@@ -120,10 +145,10 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
   // This uses server-side allocation via lucky-dip-reserve edge function
   const reserveLuckyDipTickets = async (): Promise<boolean> => {
     if (!baseUser?.id || !competition?.id || ticketCount <= 0) {
-      ticketReservationLogger.warn('Pre-validation failed', {
+      ticketReservationLogger.warn("Pre-validation failed", {
         hasUser: !!baseUser?.id,
         hasCompetition: !!competition?.id,
-        ticketCount
+        ticketCount,
       });
       setReservationError("Please login and select tickets first");
       return false;
@@ -134,45 +159,55 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
 
     const reservationStartTime = Date.now();
 
-    ticketReservationLogger.group(`Lucky Dip Reservation - ${ticketCount} tickets`);
-    ticketReservationLogger.info('Starting server-side Lucky Dip reservation', {
-      userId: baseUser.id.substring(0, 10) + '...',
-      competitionId: competition.id.substring(0, 8) + '...',
+    ticketReservationLogger.group(
+      `Lucky Dip Reservation - ${ticketCount} tickets`,
+    );
+    ticketReservationLogger.info("Starting server-side Lucky Dip reservation", {
+      userId: baseUser.id.substring(0, 10) + "...",
+      competitionId: competition.id.substring(0, 8) + "...",
       ticketCount,
-      totalTickets: competition.total_tickets
+      totalTickets: competition.total_tickets,
     });
 
     try {
-      ticketReservationLogger.info('Invoking lucky-dip-reserve edge function', {
-        ticketCount
+      ticketReservationLogger.info("Invoking lucky-dip-reserve edge function", {
+        ticketCount,
       });
 
       const edgeFunctionStartTime = Date.now();
-      
-      const { data, error } = await supabase.functions.invoke('lucky-dip-reserve', {
-        body: {
-          userId: baseUser.id,
-          competitionId: competition.id,
-          count: ticketCount,
-          ticketPrice: Number(competition.ticket_price) || 1,
-          holdMinutes: 15
-        }
-      });
+
+      const { data, error } = await supabase.functions.invoke(
+        "lucky-dip-reserve",
+        {
+          body: {
+            userId: baseUser.id,
+            competitionId: competition.id,
+            count: ticketCount,
+            ticketPrice: Number(competition.ticket_price) || 1,
+            holdMinutes: 15,
+          },
+        },
+      );
 
       const edgeFunctionDuration = Date.now() - edgeFunctionStartTime;
 
       if (error) {
-        ticketReservationLogger.edgeFunctionError('lucky-dip-reserve', error, 1, 1);
+        ticketReservationLogger.edgeFunctionError(
+          "lucky-dip-reserve",
+          error,
+          1,
+          1,
+        );
         showDebugHintOnError();
 
         requestTracker.addRequest({
           timestamp: Date.now(),
-          endpoint: 'edge:lucky-dip-reserve',
-          method: 'EDGE_FUNCTION',
+          endpoint: "edge:lucky-dip-reserve",
+          method: "EDGE_FUNCTION",
           success: false,
-          error: error.message || 'Reservation failed',
-          errorCode: 'INVOKE_ERROR',
-          duration: edgeFunctionDuration
+          error: error.message || "Reservation failed",
+          errorCode: "INVOKE_ERROR",
+          duration: edgeFunctionDuration,
         });
 
         setReservationError("Could not reserve tickets. Please try again.");
@@ -183,19 +218,19 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
 
       if (!data || data.success !== true) {
         const errorMsg = data?.error || "Failed to reserve tickets";
-        ticketReservationLogger.warn('Application-level error', {
+        ticketReservationLogger.warn("Application-level error", {
           error: errorMsg,
-          response: data
+          response: data,
         });
 
         requestTracker.addRequest({
           timestamp: Date.now(),
-          endpoint: 'edge:lucky-dip-reserve',
-          method: 'EDGE_FUNCTION',
+          endpoint: "edge:lucky-dip-reserve",
+          method: "EDGE_FUNCTION",
           success: false,
           error: errorMsg,
-          errorCode: data?.errorCode || 'APP_ERROR',
-          duration: edgeFunctionDuration
+          errorCode: data?.errorCode || "APP_ERROR",
+          duration: edgeFunctionDuration,
         });
 
         setReservationError(errorMsg);
@@ -205,21 +240,25 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
       }
 
       const reservedTicketNumbers = data.ticketNumbers || [];
-      const ticketCountReserved = data.ticketCount || reservedTicketNumbers.length;
+      const ticketCountReserved =
+        data.ticketCount || reservedTicketNumbers.length;
 
-      ticketReservationLogger.success('Server-side Lucky Dip reservation successful', {
-        ticketCountReserved,
-        reservationId: data.reservationId || '(none)',
-        algorithm: data.algorithm || 'server-side-atomic-random',
-        totalDuration: Date.now() - reservationStartTime
-      });
+      ticketReservationLogger.success(
+        "Server-side Lucky Dip reservation successful",
+        {
+          ticketCountReserved,
+          reservationId: data.reservationId || "(none)",
+          algorithm: data.algorithm || "server-side-atomic-random",
+          totalDuration: Date.now() - reservationStartTime,
+        },
+      );
 
       requestTracker.addRequest({
         timestamp: Date.now(),
-        endpoint: 'edge:lucky-dip-reserve',
-        method: 'EDGE_FUNCTION',
+        endpoint: "edge:lucky-dip-reserve",
+        method: "EDGE_FUNCTION",
         success: true,
-        duration: edgeFunctionDuration
+        duration: edgeFunctionDuration,
       });
 
       setReservationId(data.reservationId || null);
@@ -227,22 +266,26 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
       setReserving(false);
       ticketReservationLogger.groupEnd();
       return true;
-
     } catch (err) {
-      ticketReservationLogger.error('Exception during Lucky Dip reservation', err);
+      ticketReservationLogger.error(
+        "Exception during Lucky Dip reservation",
+        err,
+      );
       showDebugHintOnError();
 
       requestTracker.addRequest({
         timestamp: Date.now(),
-        endpoint: 'edge:lucky-dip-reserve',
-        method: 'EDGE_FUNCTION',
+        endpoint: "edge:lucky-dip-reserve",
+        method: "EDGE_FUNCTION",
         success: false,
-        error: err instanceof Error ? err.message : 'Unknown exception',
-        errorCode: 'EXCEPTION',
-        duration: Date.now() - reservationStartTime
+        error: err instanceof Error ? err.message : "Unknown exception",
+        errorCode: "EXCEPTION",
+        duration: Date.now() - reservationStartTime,
       });
 
-      setReservationError(err instanceof Error ? err.message : "Failed to reserve tickets");
+      setReservationError(
+        err instanceof Error ? err.message : "Failed to reserve tickets",
+      );
       setReserving(false);
       ticketReservationLogger.groupEnd();
       return false;
@@ -251,23 +294,24 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
 
   // Check if competition accepts entries (only active competitions)
   const isEntryAllowed = canEnterCompetition(competition.status);
-  
+
   // Slider and buttons should be disabled only when tickets are unavailable
   const isSelectionDisabled = isSoldOut || availableCount === 0;
 
   // Debug logging
-  console.log('[HeroSection] Ticket availability:', {
+  console.log("[HeroSection] Ticket availability:", {
     soldCount,
     totalTickets,
     availableCount,
     isSoldOut,
     isEntryAllowed,
-    competitionStatus: competition.status
+    competitionStatus: competition.status,
   });
 
-  const progressPercent = totalTickets > 0
-    ? Math.max(10, Math.min(100, (soldCount / totalTickets) * 100))
-    : 10;
+  const progressPercent =
+    totalTickets > 0
+      ? Math.max(10, Math.min(100, (soldCount / totalTickets) * 100))
+      : 10;
 
   return (
     <div className="max-w-7xl mx-auto bg-[#1D1D1D] rounded-2xl px-3 py-4 ">
@@ -276,16 +320,34 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
           {/* Mobile countdown - on top of image */}
           <div className="xl:hidden absolute top-4 left-0 right-0 z-10">
             <div className="flex flex-col items-center justify-center">
-              <Countdown endDate={competition.end_date || competition.draw_date || competition.created_at} isEnded={isSoldOut || !isEntryAllowed} />
+              <Countdown
+                endDate={
+                  competition.end_date ||
+                  competition.draw_date ||
+                  competition.created_at
+                }
+                isEnded={isSoldOut || !isEntryAllowed}
+              />
             </div>
           </div>
-          <img src={competition.image_url || heroSectionImage} alt="hero-section" className="xl:w-auto w-full" />
+          <img
+            src={competition.image_url || heroSectionImage}
+            alt="hero-section"
+            className="xl:w-auto w-full"
+          />
           {/* Desktop countdown - below image */}
           <div className="xl:flex hidden flex-col items-center justify-center mt-5 xl:pb-0 pb-8">
             <p className="sequel-95 uppercase text-white mb-4 sm:text-3xl text-2xl">
               Time Remaining!
             </p>
-            <Countdown endDate={competition.end_date || competition.draw_date || competition.created_at} isEnded={isSoldOut || !isEntryAllowed} />
+            <Countdown
+              endDate={
+                competition.end_date ||
+                competition.draw_date ||
+                competition.created_at
+              }
+              isEnded={isSoldOut || !isEntryAllowed}
+            />
           </div>
         </div>
         <img
@@ -299,19 +361,24 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
             {competition.title}
           </h1>
           <p className="text-white sequel-45 text-sm sm:mt-4 mt-3 leading-loose sm:text-left text-center">
-            {competition.description || 'Ape into this competition for an amazing prize!'}
+            {competition.description ||
+              "Ape into this competition for an amazing prize!"}
           </p>
           <div className="bg-[#141414] rounded-xl p-4 mt-4 relative">
             <p className="sequel-75 uppercase text-white md:text-xl text-lg">
-              {competition?.is_instant_win ? 'Lucky Dips (Random Selection)' : 'Ticket Selection'}
+              {competition?.is_instant_win
+                ? "Lucky Dips (Random Selection)"
+                : "Ticket Selection"}
             </p>
 
             <div className="mt-3">
               <div className=" flex justify-between mb-3">
                 <span className="sequel-45 text-white md:text-lg">0</span>
-                <span className="sequel-45 text-white md:text-lg">{maxTicketsPerPurchase}</span>
+                <span className="sequel-45 text-white md:text-lg">
+                  {maxTicketsPerPurchase}
+                </span>
               </div>
-              
+
               {/* Show clear message when slider is disabled */}
               {isSoldOut && (
                 <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2 mb-3">
@@ -323,18 +390,20 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
               {!isEntryAllowed && !isSoldOut && availableCount > 0 && (
                 <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2 mb-3">
                   <p className="text-amber-400 text-sm sequel-45 text-center">
-                    ⚠️ Competition is not currently accepting entries (status: {competition.status})
+                    ⚠️ Competition is not currently accepting entries (status:{" "}
+                    {competition.status})
                   </p>
                 </div>
               )}
               {availableCount > 999 && (
                 <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg px-3 py-2 mb-3">
                   <p className="text-blue-400 text-sm sequel-45 text-center">
-                    Maximum 999 tickets per purchase. You can make multiple purchases for more tickets.
+                    Maximum 999 tickets per purchase. You can make multiple
+                    purchases for more tickets.
                   </p>
                 </div>
               )}
-              
+
               <ReactRangeSliderInput
                 className="single-thumb"
                 value={[0, ticketCount]}
@@ -354,31 +423,40 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
               <div>
                 <p className="sequel-45 text-white/60 text-sm">Total Cost:</p>
                 <p className="sequel-75 text-white text-lg">
-                  ${(ticketCount * (Number(competition?.ticket_price) || 1)).toFixed(2)}
+                  $
+                  {(
+                    ticketCount * (Number(competition?.ticket_price) || 1)
+                  ).toFixed(2)}
                 </p>
               </div>
             </div>
             <div className="mt-4 flex  justify-between items-center">
               <div className="flex items-center gap-3">
-                <div 
-                  onClick={isSelectionDisabled ? undefined : handleDecrement} 
-                  className={`${isSelectionDisabled ? 'bg-[#494949] cursor-not-allowed' : 'bg-[#DDE404] cursor-pointer hover:bg-[#DDE404]/90'} w-9 h-9 flex justify-center items-center rounded-full`}
+                <div
+                  onClick={isSelectionDisabled ? undefined : handleDecrement}
+                  className={`${isSelectionDisabled ? "bg-[#494949] cursor-not-allowed" : "bg-[#DDE404] cursor-pointer hover:bg-[#DDE404]/90"} w-9 h-9 flex justify-center items-center rounded-full`}
                 >
-                  <MinusIcon color={isSelectionDisabled ? "#888888" : "#000000"} />
+                  <MinusIcon
+                    color={isSelectionDisabled ? "#888888" : "#000000"}
+                  />
                 </div>
               </div>
               <div>
                 <p className="uppercase sequel-75 text-white md:text-lg">
                   Lucky Dips:{" "}
-                  <span className="sequel-75 text-[#DDE404]">{ticketCount}</span>
+                  <span className="sequel-75 text-[#DDE404]">
+                    {ticketCount}
+                  </span>
                 </p>
               </div>
               <div className="flex items-center gap-3 ">
-                <div 
-                  onClick={isSelectionDisabled ? undefined : handleIncrement} 
-                  className={`${isSelectionDisabled ? 'bg-[#494949] cursor-not-allowed' : 'bg-[#DDE404] cursor-pointer hover:bg-[#DDE404]/90'} w-9 h-9 flex justify-center items-center rounded-full`}
+                <div
+                  onClick={isSelectionDisabled ? undefined : handleIncrement}
+                  className={`${isSelectionDisabled ? "bg-[#494949] cursor-not-allowed" : "bg-[#DDE404] cursor-pointer hover:bg-[#DDE404]/90"} w-9 h-9 flex justify-center items-center rounded-full`}
                 >
-                  <PlusIcon color={isSelectionDisabled ? "#888888" : "#000000"} />
+                  <PlusIcon
+                    color={isSelectionDisabled ? "#888888" : "#000000"}
+                  />
                 </div>
               </div>
             </div>
@@ -432,11 +510,11 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
                     disabled={ticketCount === 0}
                     className={`sequel-95 uppercase text-base rounded-t-xl py-2 w-full transition-all ${
                       ticketCount === 0
-                        ? 'cursor-not-allowed bg-[#494949] text-white/50'
-                        : 'cursor-pointer hover:bg-[#DDE404]/90 bg-[#DDE404]'
+                        ? "cursor-not-allowed bg-[#494949] text-white/50"
+                        : "cursor-pointer hover:bg-[#DDE404]/90 bg-[#DDE404]"
                     }`}
                   >
-                    {ticketCount === 0 ? 'Select Tickets' : 'BUY NOW'}
+                    {ticketCount === 0 ? "Select Tickets" : "BUY NOW"}
                   </button>
                   <a
                     href="/terms-and-conditions#3-11"
@@ -455,7 +533,8 @@ const IndividualCompetitionHeroSection = ({competition, onEntriesRefresh}: {comp
           {reserving && (
             <div className="mt-3 bg-blue-500/10 border border-blue-500/30 rounded-lg px-4 py-2">
               <p className="text-blue-400 text-xs sequel-45 text-center flex items-center justify-center gap-2">
-                <span className="animate-spin">&#8987;</span> Reserving your tickets...
+                <span className="animate-spin">&#8987;</span> Reserving your
+                tickets...
               </p>
             </div>
           )}

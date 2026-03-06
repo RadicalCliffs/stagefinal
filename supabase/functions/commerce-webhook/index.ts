@@ -1023,6 +1023,59 @@ Deno.serve(async (req: Request) => {
         const topUpAmount = Number(transaction.amount) || 0;
 
         if (topUpAmount > 0 && transaction.user_id) {
+          // ============================================================================
+          // CRITICAL: Ensure user has a sub_account_balances record BEFORE crediting
+          // This fixes "new user" issues where first top-up fails because no balance record exists
+          // ============================================================================
+          console.log(
+            `[commerce-webhook][${requestId}] Ensuring user has balance record...`,
+          );
+
+          const { data: existingBalance, error: balanceCheckError } =
+            await supabase
+              .from("sub_account_balances")
+              .select("id")
+              .eq("canonical_user_id", transaction.user_id)
+              .eq("currency", "USD")
+              .maybeSingle();
+
+          if (!existingBalance && !balanceCheckError) {
+            console.log(
+              `[commerce-webhook][${requestId}] 🆕 Creating initial balance record for new user`,
+            );
+
+            // Create the balance record with initial 0 balance
+            const { error: createBalanceError } = await supabase
+              .from("sub_account_balances")
+              .insert({
+                canonical_user_id: transaction.user_id,
+                user_id: transaction.user_id,
+                wallet_address: transaction.wallet_address,
+                currency: "USD",
+                available_balance: 0,
+                pending_balance: 0,
+                bonus_balance: 0,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              });
+
+            if (createBalanceError) {
+              console.error(
+                `[commerce-webhook][${requestId}] ⚠️ Failed to create balance record:`,
+                createBalanceError.message,
+              );
+              // Don't fail - the credit function will handle this
+            } else {
+              console.log(
+                `[commerce-webhook][${requestId}] ✅ Created balance record for new user`,
+              );
+            }
+          } else if (existingBalance) {
+            console.log(
+              `[commerce-webhook][${requestId}] ✅ User already has balance record`,
+            );
+          }
+
           // CORRECT IDEMPOTENCY CHECK - Only trust OUR flags, not payment provider status
           const alreadyCredited =
             transaction.posted_to_balance === true ||

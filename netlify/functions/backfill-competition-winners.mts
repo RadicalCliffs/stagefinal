@@ -277,6 +277,22 @@ async function createWinner(
     // Convert user id to canonical format for consistent storage
     const canonicalUserId = toPrizePid(userData?.id || userId);
 
+    // Robust username lookup - try additional strategies if userData is incomplete
+    let finalUsername = userData?.username;
+    if (!finalUsername && entry.walletaddress) {
+      const { data: walletUser } = await supabase
+        .from("canonical_users")
+        .select("username")
+        .or(`wallet_address.ilike.${entry.walletaddress},canonical_user_id.eq.prize:pid:${entry.walletaddress.toLowerCase()}`)
+        .maybeSingle();
+      finalUsername = walletUser?.username;
+    }
+    
+    if (!finalUsername) {
+      console.error(`[BackfillWinners] ❌ CRITICAL: User not found for comp ${competition.id}, entry ${entry.walletaddress || userId}`);
+      finalUsername = "Unknown";
+    }
+
     // Create winner record
     const winnerData = {
       competition_id: competition.id,
@@ -284,7 +300,7 @@ async function createWinner(
       ticket_number: ticketNumber,
       prize_value: competition.prize_value || 0,
       prize_claimed: false,
-      username: userData?.username || "Unknown",
+      username: finalUsername,
       country: userData?.country || null,
       wallet_address: entry.walletaddress || userData?.wallet_address || null,
       crdate: new Date().toISOString(),

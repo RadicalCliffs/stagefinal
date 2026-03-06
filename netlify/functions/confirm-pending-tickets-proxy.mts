@@ -141,7 +141,17 @@ async function lookupUserDetails(
       .select("username, country, wallet_address")
       .ilike("wallet_address", walletAddress)
       .maybeSingle();
-    if (data) user = data;
+    if (data?.username) user = data;
+  }
+
+  // Try base_wallet_address
+  if (!user && walletAddress) {
+    const { data } = await supabase
+      .from("canonical_users")
+      .select("username, country, wallet_address")
+      .ilike("base_wallet_address", walletAddress)
+      .maybeSingle();
+    if (data?.username) user = data;
   }
 
   // Try privy user ID lookup
@@ -151,7 +161,7 @@ async function lookupUserDetails(
       .select("username, country, wallet_address")
       .eq("privy_user_id", privyUserId)
       .maybeSingle();
-    if (data) user = data;
+    if (data?.username) user = data;
   }
 
   // Try canonical_user_id lookup (handles prize:pid: format)
@@ -162,7 +172,7 @@ async function lookupUserDetails(
       .select("username, country, wallet_address")
       .eq("canonical_user_id", canonicalId)
       .maybeSingle();
-    if (data) user = data;
+    if (data?.username) user = data;
   }
 
   // Try direct ID lookup as fallback
@@ -172,7 +182,23 @@ async function lookupUserDetails(
       .select("username, country, wallet_address")
       .eq("id", userId)
       .maybeSingle();
-    if (data) user = data;
+    if (data?.username) user = data;
+  }
+
+  // Try constructed canonical_user_id from wallet
+  if (!user && walletAddress) {
+    const constructedId = `prize:pid:${walletAddress.toLowerCase()}`;
+    const { data } = await supabase
+      .from("canonical_users")
+      .select("username, country, wallet_address")
+      .eq("canonical_user_id", constructedId)
+      .maybeSingle();
+    if (data?.username) user = data;
+  }
+
+  // Log error if user not found
+  if (!user?.username) {
+    console.error(`[Confirm Tickets] ❌ CRITICAL: User not found. wallet=${walletAddress?.substring(0, 10)}, userId=${userId?.substring(0, 10)}, privy=${privyUserId?.substring(0, 10)}`);
   }
 
   return {
@@ -2005,6 +2031,28 @@ export default async (req: Request, _context: Context): Promise<Response> => {
                 draw_date: new Date().toISOString(),
               })
               .eq("id", finalCompetitionId);
+          }
+
+          // REAL-TIME BROADCAST: Notify all clients that competition sold out
+          try {
+            await supabase.channel(`competition-${finalCompetitionId}`).send({
+              type: "broadcast",
+              event: "competition_sold_out",
+              payload: {
+                competition_id: finalCompetitionId,
+                sold_at: new Date().toISOString(),
+                total_tickets: comp.total_tickets,
+                is_instant_win: comp.is_instant_win,
+              },
+            });
+            console.log(
+              `[Confirm Tickets] Broadcast sent for competition ${finalCompetitionId}`,
+            );
+          } catch (broadcastErr) {
+            console.error(
+              "[Confirm Tickets] Failed to send broadcast:",
+              broadcastErr,
+            );
           }
         }
       }

@@ -187,12 +187,28 @@ Deno.serve(async (req) => {
             continue;
           }
 
-          // Try to find the user by wallet address
-          const { data: user } = await supabase
-            .from("canonical_users")
-            .select("id, username, country, wallet_address")
-            .or(`wallet_address.ilike.${winner.walletAddress},base_wallet_address.ilike.${winner.walletAddress}`)
-            .maybeSingle();
+          // Try to find the user by wallet address using robust lookup
+          let user: any = null;
+          let username = "Unknown"; // Fallback for edge cases
+          let country = null;
+          
+          try {
+            const { data } = await supabase
+              .from("canonical_users")
+              .select("id, username, country, wallet_address, canonical_user_id")
+              .or(`wallet_address.ilike.${winner.walletAddress},base_wallet_address.ilike.${winner.walletAddress},canonical_user_id.eq.prize:pid:${winner.walletAddress.toLowerCase()}`)
+              .maybeSingle();
+            
+            if (data?.username) {
+              user = data;
+              username = data.username;
+              country = data.country;
+            } else {
+              console.error(`[vrf-sync-results] ❌ CRITICAL: User not found for wallet ${winner.walletAddress}`);
+            }
+          } catch (error) {
+            console.error(`[vrf-sync-results] ❌ Error looking up user:`, error);
+          }
 
           // Create winner record
           const winnerData = {
@@ -201,8 +217,8 @@ Deno.serve(async (req) => {
             ticket_number: winner.ticketNumber,
             prize_value: comp.prize_value || 0,
             prize_claimed: false,
-            username: user?.username || "Unknown",
-            country: user?.country || null,
+            username: username,
+            country: country,
             wallet_address: winner.walletAddress,
             vrf_tx_hash: comp.vrf_tx_hash || comp.rng_tx_hash || null, // Include VRF TX hash
             crdate: new Date().toISOString(),

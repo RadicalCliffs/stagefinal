@@ -520,6 +520,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   const [purchasedTickets, setPurchasedTickets] = useState<number[]>([]);
   // Track if the user just bought out the competition (purchased the last tickets)
   const [competitionSoldOut, setCompetitionSoldOut] = useState(false);
+  // Track if VRF draw is in progress after sold-out
+  const [vrfDrawInProgress, setVrfDrawInProgress] = useState(false);
   const {
     paymentData,
     loading: paymentLoading,
@@ -712,6 +714,65 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       setLoadingBalance(false);
     }
   }, [baseUser?.id]);
+
+  // Trigger celebratory confetti when user buys out the competition
+  const triggerSoldOutConfetti = useCallback(async () => {
+    try {
+      const confettiModule = await import("canvas-confetti");
+      const confetti = confettiModule.default;
+
+      // MASSIVE celebration burst!
+      const duration = 4000; // 4 seconds of confetti
+      const animationEnd = Date.now() + duration;
+      const colors = [
+        "#DDE404",
+        "#EF008F",
+        "#FFD700",
+        "#00FF00",
+        "#FF6B6B",
+        "#FFFFFF",
+      ];
+
+      const frame = () => {
+        confetti({
+          particleCount: 3,
+          angle: 60,
+          spread: 55,
+          origin: { x: 0, y: 0.6 },
+          colors: colors,
+        });
+        confetti({
+          particleCount: 3,
+          angle: 120,
+          spread: 55,
+          origin: { x: 1, y: 0.6 },
+          colors: colors,
+        });
+
+        if (Date.now() < animationEnd) {
+          requestAnimationFrame(frame);
+        }
+      };
+
+      // Initial big burst from center
+      confetti({
+        particleCount: 150,
+        spread: 100,
+        origin: { y: 0.5 },
+        colors: colors,
+        startVelocity: 45,
+      });
+
+      // Start the continuous side bursts
+      frame();
+
+      console.log(
+        "[PaymentModal] 🎊 Confetti triggered for sold-out competition!",
+      );
+    } catch (error) {
+      console.warn("[PaymentModal] Failed to load confetti:", error);
+    }
+  }, []);
 
   // CRITICAL FIX: Auto-recover reservation from sessionStorage on mount
   // This fixes the bug where refreshing the page loses the reservation
@@ -1408,6 +1469,43 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
             console.log("[PaymentModal] 🎉 Competition just SOLD OUT!");
             setCompetitionSoldOut(true);
             setPurchasedTickets(confirmResult.ticketNumbers || selectedTickets);
+            setVrfDrawInProgress(true);
+            // Trigger confetti celebration for buyout!
+            triggerSoldOutConfetti();
+
+            // Monitor VRF draw completion
+            const vrfChannel = supabase
+              .channel(`vrf-draw-${competitionId}`)
+              .on(
+                "postgres_changes",
+                {
+                  event: "UPDATE",
+                  schema: "public",
+                  table: "competitions",
+                  filter: `id=eq.${competitionId}`,
+                },
+                (payload: any) => {
+                  const newStatus = payload.new?.status;
+                  // Check if draw is complete
+                  if (
+                    newStatus === "completed" ||
+                    newStatus === "drawn" ||
+                    payload.new?.winner_address
+                  ) {
+                    console.log("[PaymentModal] VRF draw completed!");
+                    setVrfDrawInProgress(false);
+                    // Remove the channel after detection
+                    supabase.removeChannel(vrfChannel);
+                  }
+                },
+              )
+              .subscribe();
+
+            // Safety timeout: assume draw is complete after 60 seconds
+            setTimeout(() => {
+              setVrfDrawInProgress(false);
+              supabase.removeChannel(vrfChannel);
+            }, 60000);
           }
 
           // ISSUE 9B FIX: Show optimistic success immediately
@@ -1791,6 +1889,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     setPaymentMethod("coinbase");
     setPurchasedTickets([]);
     setCompetitionSoldOut(false); // Reset sold-out celebration state
+    setVrfDrawInProgress(false); // Reset VRF draw state
     setPaymentAttempted(false);
     setErrorMessage(null);
     // ISSUE 8B FIX: Clear enhanced error info on return
@@ -2284,9 +2383,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
               <p className="text-gray-400 sequel-45 mb-4">
                 {competitionSoldOut ? (
                   <>
-                    <span className="text-[#DDE404] sequel-75">
-                      You just bought out this competition!
+                    <span className="text-[#DDE404] sequel-75 text-lg">
+                      🎊 You just bought out this competition! 🎊
                     </span>
+                    <br />
                     <br />
                     Your {purchasedTickets.length || ticketCount}{" "}
                     {(purchasedTickets.length || ticketCount) > 1
@@ -2294,9 +2394,17 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                       : "entry has"}{" "}
                     been confirmed.
                     <br />
-                    <span className="text-white/80">
-                      The winner is being drawn now...
-                    </span>
+                    <br />
+                    {vrfDrawInProgress && (
+                      <span className="text-[#DDE404] sequel-75">
+                        🎲 Drawing winner using VRF...
+                      </span>
+                    )}
+                    {!vrfDrawInProgress && (
+                      <span className="text-white/80">
+                        The draw is complete! Refresh to see the winner.
+                      </span>
+                    )}
                   </>
                 ) : (
                   <>
