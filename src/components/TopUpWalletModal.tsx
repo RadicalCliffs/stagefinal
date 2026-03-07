@@ -256,10 +256,12 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
           // The user will click "Done" to dismiss and trigger onSuccess
         }
       }
-      
+
       // Handle postMessage from Coinbase Commerce redirect popup
-      if (event.origin === window.location.origin && 
-          event.data?.source === "coinbase-redirect") {
+      if (
+        event.origin === window.location.origin &&
+        event.data?.source === "coinbase-redirect"
+      ) {
         if (event.data.type === "topup-success") {
           // Popup closed after successful payment
           // Don't disrupt the UI - the modal's polling will handle the success transition
@@ -961,7 +963,8 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                 Your balance has been updated.
               </p>
               <p className="text-gray-500 sequel-45 text-xs mb-6">
-                (Please allow up to 60 seconds for this to appear in your balance)
+                (Please allow up to 60 seconds for this to appear in your
+                balance)
               </p>
               <button
                 onClick={() => {

@@ -305,12 +305,12 @@ export default function EntriesList() {
         try {
           window.opener.postMessage(
             { type: "topup-success", source: "coinbase-redirect" },
-            window.location.origin
+            window.location.origin,
           );
         } catch (err) {
           console.warn("Failed to notify parent window:", err);
         }
-        
+
         // Show brief message then close
         showToast("Top-up successful! Closing this window...", "success");
         setTimeout(() => {
@@ -318,7 +318,7 @@ export default function EntriesList() {
         }, 1500);
         return;
       }
-      
+
       // For entry purchases or non-popup contexts: show normal message
       showToast(
         "Payment successful! Your entries will appear below.",
@@ -333,7 +333,7 @@ export default function EntriesList() {
         try {
           window.opener.postMessage(
             { type: "topup-cancelled", source: "coinbase-redirect" },
-            window.location.origin
+            window.location.origin,
           );
         } catch (err) {
           console.warn("Failed to notify parent window:", err);
@@ -343,7 +343,7 @@ export default function EntriesList() {
         }, 1000);
         return;
       }
-      
+
       showToast("Payment was cancelled. You can try again anytime.", "info");
       cleanupUrlParams("payment", "txId", "status", "type");
     } else if (status === "complete") {
@@ -636,22 +636,24 @@ export default function EntriesList() {
     // entry.status is already mapped to: "live", "completed", "drawn", "pending"
     // entry.competition_status contains raw DB values like: "sold_out", "cancelled", "expired", "active", etc.
     const rawStatus = (entry.status || "").toLowerCase().trim();
-    const rawCompetitionStatus = (entry.competition_status || "").toLowerCase().trim();
-    
+    const rawCompetitionStatus = (entry.competition_status || "")
+      .toLowerCase()
+      .trim();
+
     // FIX: Check if the raw competition_status indicates a finished state
     // This catches cases where mapStatus in database.ts maps sold_out/cancelled/expired to "live"
-    const isFinishedByCompetitionStatus = isFinishedStatus(rawCompetitionStatus);
-    
-    const normalizedStatus =
-      isFinishedByCompetitionStatus
-        ? "completed"
-        : rawStatus === "active"
-          ? "live"
-          : rawStatus === "drawing"
-            ? "drawn"
-            : isFinishedStatus(rawStatus)
-              ? "completed"
-              : rawStatus || "live";
+    const isFinishedByCompetitionStatus =
+      isFinishedStatus(rawCompetitionStatus);
+
+    const normalizedStatus = isFinishedByCompetitionStatus
+      ? "completed"
+      : rawStatus === "active"
+        ? "live"
+        : rawStatus === "drawing"
+          ? "drawn"
+          : isFinishedStatus(rawStatus)
+            ? "completed"
+            : rawStatus || "live";
 
     // Step 3: Determine effective status
     // ISSUE 4C FIX: Use end_date as source of truth for "ended" status

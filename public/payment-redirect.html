@@ -1,141 +1,152 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Payment Processing...</title>
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #0a0a0a;
-            color: #ffffff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
+      body {
+        margin: 0;
+        padding: 0;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: #0a0a0a;
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+      }
+      .container {
+        text-align: center;
+        padding: 2rem;
+      }
+      .spinner {
+        border: 4px solid #333;
+        border-top: 4px solid #dde404;
+        border-radius: 50%;
+        width: 50px;
+        height: 50px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 1.5rem;
+      }
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
         }
-        .container {
-            text-align: center;
-            padding: 2rem;
+        100% {
+          transform: rotate(360deg);
         }
-        .spinner {
-            border: 4px solid #333;
-            border-top: 4px solid #DDE404;
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 1.5rem;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .message {
-            font-size: 1.125rem;
-            margin-bottom: 0.5rem;
-        }
-        .submessage {
-            font-size: 0.875rem;
-            color: #888;
-        }
-        .success {
-            color: #DDE404;
-        }
+      }
+      .message {
+        font-size: 1.125rem;
+        margin-bottom: 0.5rem;
+      }
+      .submessage {
+        font-size: 0.875rem;
+        color: #888;
+      }
+      .success {
+        color: #dde404;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="container">
-        <div class="spinner"></div>
-        <div class="message" id="message">Processing payment...</div>
-        <div class="submessage" id="submessage"></div>
+      <div class="spinner"></div>
+      <div class="message" id="message">Processing payment...</div>
+      <div class="submessage" id="submessage"></div>
     </div>
 
     <script>
-        (function() {
-            // Parse URL parameters
-            const urlParams = new URLSearchParams(window.location.search);
-            const payment = urlParams.get('payment');
-            const txType = urlParams.get('type');
-            const txId = urlParams.get('txId');
-            
-            const messageEl = document.getElementById('message');
-            const submessageEl = document.getElementById('submessage');
-            
-            // Check if this is a popup window
-            const isPopup = window.opener && !window.opener.closed;
-            
-            // Handle top-up in popup: auto-close immediately
-            if (isPopup && txType === 'topup') {
-                if (payment === 'success') {
-                    messageEl.textContent = '✓ Top-up successful!';
-                    messageEl.classList.add('success');
-                    submessageEl.textContent = 'Closing window...';
-                    
-                    // Notify parent window
-                    try {
-                        window.opener.postMessage({
-                            type: 'topup-success',
-                            source: 'coinbase-redirect',
-                            txId: txId
-                        }, window.location.origin);
-                    } catch (err) {
-                        console.warn('Failed to notify parent window:', err);
-                    }
-                    
-                    // Close popup after brief delay
-                    setTimeout(function() {
-                        window.close();
-                        // Fallback if close fails (browser may block it)
-                        setTimeout(function() {
-                            messageEl.textContent = 'You can close this window';
-                            submessageEl.textContent = '';
-                        }, 500);
-                    }, 1000);
-                } else if (payment === 'cancelled') {
-                    messageEl.textContent = 'Payment cancelled';
-                    submessageEl.textContent = 'Closing window...';
-                    
-                    // Notify parent window
-                    try {
-                        window.opener.postMessage({
-                            type: 'topup-cancelled',
-                            source: 'coinbase-redirect',
-                            txId: txId
-                        }, window.location.origin);
-                    } catch (err) {
-                        console.warn('Failed to notify parent window:', err);
-                    }
-                    
-                    // Close popup
-                    setTimeout(function() {
-                        window.close();
-                        setTimeout(function() {
-                            messageEl.textContent = 'You can close this window';
-                            submessageEl.textContent = '';
-                        }, 500);
-                    }, 800);
-                }
-            } else {
-                // Not a popup or not a top-up: redirect to dashboard
-                messageEl.textContent = 'Redirecting...';
-                submessageEl.textContent = 'Taking you to your dashboard';
-                
-                var redirectUrl = '/dashboard/entries';
-                if (payment) {
-                    redirectUrl += '?payment=' + payment;
-                    if (txId) redirectUrl += '&txId=' + txId;
-                    if (txType) redirectUrl += '&type=' + txType;
-                }
-                
-                // Redirect after brief delay
-                setTimeout(function() {
-                    window.location.href = redirectUrl;
-                }, 500);
+      (function () {
+        // Parse URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const payment = urlParams.get("payment");
+        const txType = urlParams.get("type");
+        const txId = urlParams.get("txId");
+
+        const messageEl = document.getElementById("message");
+        const submessageEl = document.getElementById("submessage");
+
+        // Check if this is a popup window
+        const isPopup = window.opener && !window.opener.closed;
+
+        // Handle top-up in popup: auto-close immediately
+        if (isPopup && txType === "topup") {
+          if (payment === "success") {
+            messageEl.textContent = "✓ Top-up successful!";
+            messageEl.classList.add("success");
+            submessageEl.textContent = "Closing window...";
+
+            // Notify parent window
+            try {
+              window.opener.postMessage(
+                {
+                  type: "topup-success",
+                  source: "coinbase-redirect",
+                  txId: txId,
+                },
+                window.location.origin,
+              );
+            } catch (err) {
+              console.warn("Failed to notify parent window:", err);
             }
-        })();
+
+            // Close popup after brief delay
+            setTimeout(function () {
+              window.close();
+              // Fallback if close fails (browser may block it)
+              setTimeout(function () {
+                messageEl.textContent = "You can close this window";
+                submessageEl.textContent = "";
+              }, 500);
+            }, 1000);
+          } else if (payment === "cancelled") {
+            messageEl.textContent = "Payment cancelled";
+            submessageEl.textContent = "Closing window...";
+
+            // Notify parent window
+            try {
+              window.opener.postMessage(
+                {
+                  type: "topup-cancelled",
+                  source: "coinbase-redirect",
+                  txId: txId,
+                },
+                window.location.origin,
+              );
+            } catch (err) {
+              console.warn("Failed to notify parent window:", err);
+            }
+
+            // Close popup
+            setTimeout(function () {
+              window.close();
+              setTimeout(function () {
+                messageEl.textContent = "You can close this window";
+                submessageEl.textContent = "";
+              }, 500);
+            }, 800);
+          }
+        } else {
+          // Not a popup or not a top-up: redirect to dashboard
+          messageEl.textContent = "Redirecting...";
+          submessageEl.textContent = "Taking you to your dashboard";
+
+          var redirectUrl = "/dashboard/entries";
+          if (payment) {
+            redirectUrl += "?payment=" + payment;
+            if (txId) redirectUrl += "&txId=" + txId;
+            if (txType) redirectUrl += "&type=" + txType;
+          }
+
+          // Redirect after brief delay
+          setTimeout(function () {
+            window.location.href = redirectUrl;
+          }, 500);
+        }
+      })();
     </script>
-</body>
+  </body>
 </html>
