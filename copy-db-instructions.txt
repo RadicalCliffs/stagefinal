@@ -1,0 +1,20 @@
+﻿# Old project connection
+old_db = "postgresql://postgres.mthwfldcjvpxjtmrqkqm:Habibinamimbi@aws-0-us-east-1.pooler.supabase.com:6543/postgres"
+
+# New project connection  
+new_db = "postgresql://postgres.qpenzfiwkneeahfcrrjh:XxxSexM@chine69@aws-0-us-east-1.pooler.supabase.com:6543/postgres"
+
+# To copy the schema, download and install PostgreSQL tools:
+# https://www.postgresql.org/download/windows/
+
+# Then run:
+# pg_dump $old_db --schema-only -f schema.sql
+# psql $new_db -f schema.sql
+
+Write-Host "Old DB: $old_db"
+Write-Host "New DB: $new_db"
+Write-Host ""
+Write-Host "Next steps:"
+Write-Host "1. Install PostgreSQL from: https://www.enterprisedb.com/downloads/postgres-postgresql-downloads"
+Write-Host "2. After install, run: pg_dump '' --schema-only > schema.sql"
+Write-Host "3. Then run: psql '' < schema.sql"
