@@ -27,12 +27,38 @@ const WalletPage: React.FC = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const statusOfPayment = urlParams.get("payment") || urlParams.get("paymentStatus");
     const txId = urlParams.get("txId");
+    const txType = urlParams.get("type");
     return {
       statusOfPayment,
       txId,
+      txType,
       hasPaymentParams: !!statusOfPayment || !!txId
     };
   }, []);
+
+  // Handle popup auto-close for Coinbase Commerce redirects
+  useEffect(() => {
+    const isPopup = window.opener && !window.opener.closed;
+    if (isPopup && paymentParams.statusOfPayment && paymentParams.txType === "topup") {
+      // Notify parent window
+      try {
+        window.opener.postMessage(
+          { 
+            type: paymentParams.statusOfPayment === "success" ? "topup-success" : "topup-cancelled",
+            source: "coinbase-redirect" 
+          },
+          window.location.origin
+        );
+      } catch (err) {
+        console.warn("Failed to notify parent window:", err);
+      }
+      
+      // Close popup after brief delay
+      setTimeout(() => {
+        window.close();
+      }, 1500);
+    }
+  }, [paymentParams]);
 
   const handleClosePaymentModal = () => {
     setShowPaymentModal(false);

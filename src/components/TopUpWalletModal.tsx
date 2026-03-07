@@ -243,9 +243,10 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
     }
   }, [step, transactionId, baseUser?.id, amount, refreshBalance]);
 
-  // Handle Coinbase Commerce iframe messages for success detection
+  // Handle messages from Coinbase Commerce and popup redirects
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      // Handle Coinbase Commerce iframe messages
       if (event.origin.includes("commerce.coinbase.com")) {
         if (
           event.data?.event === "charge:success" ||
@@ -255,10 +256,28 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
           // The user will click "Done" to dismiss and trigger onSuccess
         }
       }
+      
+      // Handle postMessage from Coinbase Commerce redirect popup
+      if (event.origin === window.location.origin && 
+          event.data?.source === "coinbase-redirect") {
+        if (event.data.type === "topup-success") {
+          // Popup closed after successful payment
+          // Don't disrupt the UI - the modal's polling will handle the success transition
+          // Just ensure balance is fresh for when user sees the success screen
+          refreshBalance();
+          refreshUserData();
+        } else if (event.data.type === "topup-cancelled") {
+          // Payment cancelled in popup - return to amount selection only if not already showing success
+          if (step !== "success") {
+            setStep("amount");
+            setError("");
+          }
+        }
+      }
     };
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, []);
+  }, [refreshBalance, refreshUserData, step]);
 
   const initiatePayment = async () => {
     if (!baseUser?.id) {
@@ -938,8 +957,11 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                 </div>
               )}
 
-              <p className="text-gray-400 sequel-45 mb-6">
+              <p className="text-gray-400 sequel-45 mb-2">
                 Your balance has been updated.
+              </p>
+              <p className="text-gray-500 sequel-45 text-xs mb-6">
+                (Please allow up to 60 seconds for this to appear in your balance)
               </p>
               <button
                 onClick={() => {
@@ -949,15 +971,19 @@ const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
                     : MIN_SUCCESS_DISPLAY_MS;
 
                   if (elapsedMs < MIN_SUCCESS_DISPLAY_MS) {
-                    // Wait for remaining time, then call onSuccess and close
+                    // Wait for remaining time, then refresh page to show new balance
                     setTimeout(() => {
                       onSuccess?.();
                       onClose();
+                      // Refresh the page to ensure balance updates are visible
+                      window.location.reload();
                     }, MIN_SUCCESS_DISPLAY_MS - elapsedMs);
                   } else {
-                    // Already waited long enough, call onSuccess and close immediately
+                    // Already waited long enough, refresh immediately
                     onSuccess?.();
                     onClose();
+                    // Refresh the page to ensure balance updates are visible
+                    window.location.reload();
                   }
                 }}
                 className="h-14 px-10 flex items-center justify-center mx-auto bg-[#0052FF] rounded-xl transition-all duration-200 hover:brightness-110 active:scale-[0.99]"

@@ -286,6 +286,7 @@ export default function EntriesList() {
   useEffect(() => {
     const paymentStatus = searchParams.get("payment");
     const status = searchParams.get("status");
+    const txType = searchParams.get("type");
 
     // Helper function to clean up URL parameters
     const cleanupUrlParams = (...paramsToRemove: string[]) => {
@@ -294,17 +295,57 @@ export default function EntriesList() {
       setSearchParams(newParams, { replace: true });
     };
 
+    // Check if this page was opened as a popup from Coinbase Commerce
+    const isPopup = window.opener && !window.opener.closed;
+
     if (paymentStatus === "success") {
+      // For top-ups in a popup: notify parent and auto-close
+      if (isPopup && txType === "topup") {
+        // Notify parent window that top-up was successful
+        try {
+          window.opener.postMessage(
+            { type: "topup-success", source: "coinbase-redirect" },
+            window.location.origin
+          );
+        } catch (err) {
+          console.warn("Failed to notify parent window:", err);
+        }
+        
+        // Show brief message then close
+        showToast("Top-up successful! Closing this window...", "success");
+        setTimeout(() => {
+          window.close();
+        }, 1500);
+        return;
+      }
+      
+      // For entry purchases or non-popup contexts: show normal message
       showToast(
         "Payment successful! Your entries will appear below.",
         "success",
       );
-      cleanupUrlParams("payment", "txId", "status");
+      cleanupUrlParams("payment", "txId", "status", "type");
       // Refresh entries to show the new purchase
       debouncedFetchEntries();
     } else if (paymentStatus === "cancelled") {
+      // For cancellations in popup: just close without message
+      if (isPopup && txType === "topup") {
+        try {
+          window.opener.postMessage(
+            { type: "topup-cancelled", source: "coinbase-redirect" },
+            window.location.origin
+          );
+        } catch (err) {
+          console.warn("Failed to notify parent window:", err);
+        }
+        setTimeout(() => {
+          window.close();
+        }, 1000);
+        return;
+      }
+      
       showToast("Payment was cancelled. You can try again anytime.", "info");
-      cleanupUrlParams("payment", "txId", "status");
+      cleanupUrlParams("payment", "txId", "status", "type");
     } else if (status === "complete") {
       // Handle legacy status parameter from onramp/offramp redirects
       showToast("Transaction completed successfully!", "success");

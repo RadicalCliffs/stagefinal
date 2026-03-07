@@ -475,11 +475,11 @@ Deno.serve(async (req: Request) => {
           ? JSON.stringify(selectedTickets)
           : null,
       } as ChargeMetadata,
-      // Redirect URLs - all payments go to entries dashboard on success/cancel
-      // Success: User sees their entries and balance update
-      // Cancel: User can retry payment from dashboard
-      redirect_url: `${successBaseUrl}/dashboard/entries?payment=success&txId=${transactionId}`,
-      cancel_url: `${successBaseUrl}/dashboard/entries?payment=cancelled&txId=${transactionId}`,
+      // Redirect URLs - use lightweight redirect handler to avoid loading full app in popup
+      // The payment-redirect.html page will auto-close top-up popups immediately
+      // and redirect entry purchases to the dashboard
+      redirect_url: `${successBaseUrl}/payment-redirect.html?payment=success&txId=${transactionId}&type=${type}`,
+      cancel_url: `${successBaseUrl}/payment-redirect.html?payment=cancelled&txId=${transactionId}&type=${type}`,
     };
 
     console.log(
