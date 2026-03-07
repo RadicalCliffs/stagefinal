@@ -524,7 +524,9 @@ export class BalancePaymentService {
       }
 
       // Step 2: Confirm via fast RPC (bypasses slow triggers)
-      console.log("[BalancePayment] Step 2: Confirming reservation via fast RPC...");
+      console.log(
+        "[BalancePayment] Step 2: Confirming reservation via fast RPC...",
+      );
 
       if (!actualReservationId) {
         console.error("[BalancePayment] No reservation ID available");
@@ -540,25 +542,34 @@ export class BalancePaymentService {
       }
 
       // Use fast RPC that does everything in one call without trigger overhead
-      const { data: confirmResult, error: confirmError } = await supabase
-        .rpc("confirm_pending_fast", {
+      const { data: confirmResult, error: confirmError } = await supabase.rpc(
+        "confirm_pending_fast",
+        {
           p_pending_id: actualReservationId,
-        });
+        },
+      );
 
       if (confirmError || !confirmResult?.success) {
-        console.error("[BalancePayment] Confirm failed:", confirmError?.message || confirmResult?.error);
+        console.error(
+          "[BalancePayment] Confirm failed:",
+          confirmError?.message || confirmResult?.error,
+        );
         return {
           success: false,
           error: "Failed to confirm reservation",
           errorDetails: {
             code: "CONFIRM_FAILED",
-            message: confirmError?.message || confirmResult?.error || "Unknown error",
+            message:
+              confirmError?.message || confirmResult?.error || "Unknown error",
             statusCode: 500,
           },
         };
       }
 
-      console.log("[BalancePayment] Fast confirmation complete:", confirmResult);
+      console.log(
+        "[BalancePayment] Fast confirmation complete:",
+        confirmResult,
+      );
 
       // Skip balance deduction - RPC already did it
       console.log("[BalancePayment] Balance already deducted by RPC");
