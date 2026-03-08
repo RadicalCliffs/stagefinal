@@ -131,6 +131,7 @@ const BitcoinGiveawayPage = lazy(
   () => import("./pages/BitcoinGiveawayPage.tsx"),
 );
 const RolexWatchPage = lazy(() => import("./pages/RolexWatchPage.tsx"));
+const McadeLandingPage = lazy(() => import("./pages/McadeLandingPage.tsx"));
 
 // Dashboard + its sections
 const UserDashboard = lazy(() => import("./pages/UserDashboard.tsx"));
@@ -188,6 +189,7 @@ const router = createBrowserRouter([
     element: <App />,
     children: [
       { index: true, element: <LandingPage /> },
+      { path: "mcade", element: <McadeLandingPage /> },
       { path: "competitions", element: <CompetitionsPage /> },
       {
         path: "competitions/lamborghini-urus",

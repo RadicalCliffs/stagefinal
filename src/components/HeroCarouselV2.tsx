@@ -1,9 +1,10 @@
-import { Swiper, SwiperSlide } from 'swiper/react';
-import { Autoplay, Pagination, Navigation } from 'swiper/modules';
-import 'swiper/swiper-bundle.css';
-import { btcGiveaway, rolexWatch, lamboUrus } from '../assets/images';
-import { SwiperNavButtons } from './SwiperCustomNav';
-import { useIsMobile } from '../hooks/useIsMobile';
+import { Swiper, SwiperSlide } from "swiper/react";
+import { Autoplay, Pagination, Navigation } from "swiper/modules";
+import "swiper/swiper-bundle.css";
+import { btcGiveaway, rolexWatch, lamboUrus } from "../assets/images";
+import { SwiperNavButtons } from "./SwiperCustomNav";
+import { useIsMobile } from "../hooks/useIsMobile";
+import { Link } from "react-router";
 
 interface HeroSlide {
   image: string;
@@ -21,33 +22,33 @@ const HeroCarouselV2 = () => {
   const slides: HeroSlide[] = [
     {
       image: lamboUrus,
-      title: 'WIN THE MOST OUTRAGEOUS URUS ON THE PLANET',
+      title: "WIN THE MOST OUTRAGEOUS URUS ON THE PLANET",
       description:
         "This is more than a competition... it's an event. A 650-horsepower Italian brute wrapped in full Prize livery, dripping in attitude, powered by fair play and fixed odds.",
-      price: '$10.00',
-      cta: 'Coming soon!',
-      link: '/competitions/lamborghini-urus',
-      slug: 'lamborghini-urus',
+      price: "$10.00",
+      cta: "Coming soon!",
+      link: "/competitions/lamborghini-urus",
+      slug: "lamborghini-urus",
     },
     {
       image: btcGiveaway,
-      title: 'INSTANT CRYPTO KING: WIN 1 BTC',
+      title: "INSTANT CRYPTO KING: WIN 1 BTC",
       description:
         "1 BTC. One draw. Unlimited envy. When this hits your wallet, your friends won't just notice, they'll wish they were you. Step into the arena and take your chance at walking away with the most iconic digital asset on the planet",
-      price: '$1.00',
-      cta: 'Coming soon!',
-      link: '/competitions/bitcoin-giveaway',
-      slug: 'bitcoin-giveaway',
+      price: "$1.00",
+      cta: "Coming soon!",
+      link: "/competitions/bitcoin-giveaway",
+      slug: "bitcoin-giveaway",
     },
     {
       image: rolexWatch,
-      title: 'WRIST ROYALTY AWAITS: ONE ROLEX, ONE WINNER',
+      title: "WRIST ROYALTY AWAITS: ONE ROLEX, ONE WINNER",
       description:
         "A Rolex is the trophy everyone wants but few ever claim. Now's your chance to change that. Step into the spotlight and enter for the opportunity to wrap iconic craftsmanship, prestige, and pure status around your wrist.",
-      price: '$5.00',
-      cta: 'Coming soon!',
-      link: '/competitions/rolex-watch',
-      slug: 'rolex-watch',
+      price: "$5.00",
+      cta: "Coming soon!",
+      link: "/competitions/rolex-watch",
+      slug: "rolex-watch",
     },
   ];
 
@@ -73,7 +74,7 @@ const HeroCarouselV2 = () => {
                   className="w-full rounded-t-xl sm:min-h-[480px] sm:max-h-[480px] max-h-[300px] min-h-[300px] object-cover"
                   src={slide.image}
                   alt={slide.title}
-                  loading={idx === 0 ? 'eager' : 'lazy'}
+                  loading={idx === 0 ? "eager" : "lazy"}
                 />
 
                 {/* Mobile content below image */}
@@ -85,18 +86,25 @@ const HeroCarouselV2 = () => {
                     <p className="sequel-45 text-white/90 text-[11px] mb-3 line-clamp-2 leading-snug">
                       {slide.description}
                     </p>
-                    <div className="flex items-stretch gap-0 relative">
+                    <Link
+                      to={slide.link}
+                      className="flex items-stretch gap-0 relative group"
+                    >
                       <div className="bg-white rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 z-10">
-                        <span className="sequel-95 text-xs text-black">{slide.price}</span>
-                        <span className="sequel-45 text-xs text-black/70">/ Entry</span>
+                        <span className="sequel-95 text-xs text-black">
+                          {slide.price}
+                        </span>
+                        <span className="sequel-45 text-xs text-black/70">
+                          / Entry
+                        </span>
                       </div>
                       <span
-                        className="sequel-95 bg-[#DDE404] text-[#280508] px-4 py-1.5 rounded-lg text-xs flex-1 text-center -ml-5 relative cursor-not-allowed"
-                        style={{ boxShadow: '-8px 0 16px rgba(0, 0, 0, 0.3)' }}
+                        className="sequel-95 bg-[#DDE404] text-[#280508] px-4 py-1.5 rounded-lg text-xs flex-1 text-center -ml-5 relative group-hover:bg-[#c5cb04] transition-colors"
+                        style={{ boxShadow: "-8px 0 16px rgba(0, 0, 0, 0.3)" }}
                       >
                         {slide.cta}
                       </span>
-                    </div>
+                    </Link>
                   </div>
                 )}
               </div>
@@ -113,17 +121,18 @@ const HeroCarouselV2 = () => {
                     </p>
                   </div>
 
-                  <div className="bg-white text-[#1A1A1A] rounded-xl xl:w-4/12 md:w-5/12 w-full sm:block flex items-center gap-2">
+                  <Link
+                    to={slide.link}
+                    className="bg-white text-[#1A1A1A] rounded-xl xl:w-4/12 md:w-5/12 w-full sm:block flex items-center gap-2 group"
+                  >
                     <p className="sequel-45 sm:px-0 pl-3 sm:text-center sm:w-auto w-full sm:text-sm text-xs py-2">
                       <span className="sequel-95">{slide.price} / </span>Entry
                     </p>
 
-                    <span
-                      className="md:sequel-95 text-center block sequel-95 bg-[#DDE404] text-[#280508] sm:py-2 pt-2 pb-1.5 rounded-xl sm:text-base text-xs w-full cursor-not-allowed border border-white/30"
-                    >
+                    <span className="md:sequel-95 text-center block sequel-95 bg-[#DDE404] text-[#280508] sm:py-2 pt-2 pb-1.5 rounded-xl sm:text-base text-xs w-full group-hover:bg-[#c5cb04] transition-colors border border-white/30">
                       {slide.cta}
                     </span>
-                  </div>
+                  </Link>
                 </div>
               )}
             </div>
