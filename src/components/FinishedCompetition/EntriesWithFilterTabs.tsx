@@ -469,10 +469,12 @@ const EntriesWithFilterTabs = ({
 
         // If we already have entries from RPC/view, enhance them with tx hashes from tickets
         if (transformedEntries.length > 0) {
+          let enhancedCount = 0;
           transformedEntries.forEach((entry) => {
             const txHash = ticketNumToTxHash.get(entry.ticketNumber);
             if (txHash && !entry.transactionHash) {
               entry.transactionHash = txHash;
+              enhancedCount++;
             }
             // Also enhance wallet if needed
             const wallet = ticketNumToWallet.get(entry.ticketNumber);
@@ -480,7 +482,11 @@ const EntriesWithFilterTabs = ({
               entry.walletAddress = wallet;
             }
           });
-          entriesLogger.info("Enhanced existing entries with tickets table data");
+          entriesLogger.info("Enhanced existing entries with tickets table data", {
+            enhancedCount,
+            totalEntries: transformedEntries.length,
+            sampleEntry: transformedEntries[0],
+          });
         } else {
           // If we have no entries yet, create them from tickets table
           ticketsData.forEach((ticket: any) => {
@@ -1037,6 +1043,15 @@ const EntriesWithFilterTabs = ({
 
       // Sort by ticket number
       transformedEntries.sort((a, b) => a.ticketNumber - b.ticketNumber);
+
+      // Log sample entries to verify transaction hashes
+      const entriesWithTxHash = transformedEntries.filter(e => e.transactionHash);
+      entriesLogger.info("Final entries status", {
+        totalEntries: transformedEntries.length,
+        withTxHash: entriesWithTxHash.length,
+        sampleWithHash: entriesWithTxHash.slice(0, 3),
+        sampleWithoutHash: transformedEntries.filter(e => !e.transactionHash).slice(0, 3),
+      });
 
       entriesLogger.successWithTiming("Entries fetch complete", startTime, {
         finalCount: transformedEntries.length,
