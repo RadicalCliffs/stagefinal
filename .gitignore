@@ -47,3 +47,4 @@ test-results/
 playwright-report/
 playwright/.cache/
 test-results/*.json
+sendgrid.env

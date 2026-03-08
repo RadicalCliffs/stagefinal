@@ -125,10 +125,8 @@ async function sendWinnerEmail(
           {
             to: [{ email }],
             dynamic_template_data: {
-              "Player Username": username,
-              "Competition Name": competitionTitle,
-              "Prize Value": prizeValue,
-              "Winning Ticket": `#${ticketNumber}`,
+              Ticket_Number: `#${ticketNumber}`,
+              Prize_Name: competitionTitle,
             },
           },
         ],

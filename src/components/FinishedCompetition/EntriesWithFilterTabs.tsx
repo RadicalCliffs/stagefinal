@@ -267,7 +267,7 @@ const EntriesWithFilterTabs = ({
         const { data: exactData, error: exactError } = await supabase
           .from("v_joincompetition_active")
           .select(
-            "ticket_numbers, purchasedate, wallet_address, user_id, canonical_user_id, transactionhash",
+            "ticket_numbers, purchasedate, wallet_address, user_id, canonical_user_id, transactionhash, transaction_hash",
           )
           .eq("competition_id", idToUse);
 
@@ -301,7 +301,7 @@ const EntriesWithFilterTabs = ({
             const { data: uidData, error: uidError } = await supabase
               .from("v_joincompetition_active")
               .select(
-                "ticket_numbers, purchasedate, wallet_address, user_id, canonical_user_id, transactionhash",
+                "ticket_numbers, purchasedate, wallet_address, user_id, canonical_user_id, transactionhash, transaction_hash",
               )
               .eq("competition_id", compData.uid);
 
