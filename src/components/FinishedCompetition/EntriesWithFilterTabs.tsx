@@ -539,7 +539,6 @@ const EntriesWithFilterTabs = ({
             success: false,
             error: ticketsError.message,
           });
-        }
       }
 
       // Strategy 4: Query pending_tickets table (used for confirmed purchases, kept for posterity)
