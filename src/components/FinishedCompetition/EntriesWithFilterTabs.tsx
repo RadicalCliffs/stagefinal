@@ -403,32 +403,86 @@ const EntriesWithFilterTabs = ({
         }
       }
 
-      // Strategy 3: Query tickets table directly as fallback
-      if (transformedEntries.length === 0) {
-        entriesLogger.info("Trying tickets table fallback");
+      // Strategy 3: ALWAYS query tickets table to get transaction hashes
+      // Even if we have entries from RPC/view, we need the tickets table for tx hashes
+      entriesLogger.info("Querying tickets table for transaction hashes");
 
-        const ticketsStartTime = Date.now();
-        const { data: ticketsData, error: ticketsError } = await supabase
-          .from("tickets")
-          .select(
-            "ticket_number, created_at, privy_user_id, user_id, wallet_address, canonical_user_id, transaction_hash",
-          )
-          .eq("competition_id", idToUse);
+      const ticketsStartTime = Date.now();
+      const { data: ticketsData, error: ticketsError } = await supabase
+        .from("tickets")
+        .select(
+          "ticket_number, created_at, privy_user_id, user_id, wallet_address, canonical_user_id, transaction_hash, payment_tx_hash",
+        )
+        .eq("competition_id", idToUse);
 
-        if (!ticketsError && ticketsData && ticketsData.length > 0) {
-          entriesLogger.success("Tickets table returned data", {
-            count: ticketsData.length,
-            duration: Date.now() - ticketsStartTime,
+      if (!ticketsError && ticketsData && ticketsData.length > 0) {
+        entriesLogger.success("Tickets table returned data", {
+          count: ticketsData.length,
+          duration: Date.now() - ticketsStartTime,
+        });
+
+        requestTracker.addRequest({
+          timestamp: Date.now(),
+          endpoint: "tickets.select",
+          method: "QUERY",
+          success: true,
+          duration: Date.now() - ticketsStartTime,
+        });
+
+        // Build a map of ticket number -> transaction hash for fast lookup
+        const ticketNumToTxHash = new Map<number, string>();
+        const ticketNumToWallet = new Map<number, string>();
+
+        ticketsData.forEach((ticket: any) => {
+          if (ticket.ticket_number != null) {
+            const ticketNum = parseInt(ticket.ticket_number);
+            if (!isNaN(ticketNum)) {
+              // Store transaction hash if available
+              const txHash = ticket.transaction_hash || ticket.payment_tx_hash;
+              if (txHash) {
+                ticketNumToTxHash.set(ticketNum, txHash);
+              }
+
+              // Store wallet address
+              let wallet =
+                ticket.wallet_address ||
+                ticket.user_id ||
+                ticket.privy_user_id ||
+                "";
+
+              // Extract wallet from canonical_user_id if present
+              if (
+                (!wallet || !wallet.startsWith("0x")) &&
+                ticket.canonical_user_id &&
+                ticket.canonical_user_id.startsWith("prize:pid:")
+              ) {
+                wallet = ticket.canonical_user_id.substring(10); // Remove 'prize:pid:' prefix
+              }
+
+              if (wallet && wallet.startsWith("0x")) {
+                ticketNumToWallet.set(ticketNum, wallet);
+                walletAddresses.add(wallet.toLowerCase());
+              }
+            }
+          }
+        });
+
+        // If we already have entries from RPC/view, enhance them with tx hashes from tickets
+        if (transformedEntries.length > 0) {
+          transformedEntries.forEach((entry) => {
+            const txHash = ticketNumToTxHash.get(entry.ticketNumber);
+            if (txHash && !entry.transactionHash) {
+              entry.transactionHash = txHash;
+            }
+            // Also enhance wallet if needed
+            const wallet = ticketNumToWallet.get(entry.ticketNumber);
+            if (wallet && (!entry.walletAddress || entry.walletAddress === "Unknown")) {
+              entry.walletAddress = wallet;
+            }
           });
-
-          requestTracker.addRequest({
-            timestamp: Date.now(),
-            endpoint: "tickets.select",
-            method: "QUERY",
-            success: true,
-            duration: Date.now() - ticketsStartTime,
-          });
-
+          entriesLogger.info("Enhanced existing entries with tickets table data");
+        } else {
+          // If we have no entries yet, create them from tickets table
           ticketsData.forEach((ticket: any) => {
             // Check wallet_address first as it's the most reliable
             // canonical_user_id format is 'prize:pid:' + wallet_address
@@ -469,15 +523,16 @@ const EntriesWithFilterTabs = ({
                       })
                     : "Unknown",
                   walletAddress: wallet || "Unknown",
-                  transactionHash: ticket.transaction_hash || undefined,
+                  transactionHash: ticket.transaction_hash || ticket.payment_tx_hash || undefined,
                 });
               }
             }
           });
-        } else if (ticketsError) {
-          entriesLogger.warn("tickets table query error", ticketsError);
+        }
+      } else if (ticketsError) {
+        entriesLogger.warn("tickets table query error", ticketsError);
 
-          requestTracker.addRequest({
+        requestTracker.addRequest({
             timestamp: Date.now(),
             endpoint: "tickets.select",
             method: "QUERY",
