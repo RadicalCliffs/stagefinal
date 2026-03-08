@@ -86,34 +86,85 @@ const NotificationsLayout = () => {
 
     init();
 
-    // Set up real-time subscription for notifications
-    if (!canonicalUserId) return;
+    // Set up real-time subscription for user_notifications
+    if (!canonicalUserId || !baseUser?.id) return;
 
-    console.log("[Notifications] Setting up real-time subscription");
+    console.log(
+      "[Notifications] Setting up real-time subscription for user:",
+      baseUser.id,
+    );
 
+    // Subscribe to user_notifications table changes for this user
+    // The user_id column stores the canonical_users.id (profile ID)
     const channel = supabase
-      .channel(`user-notifications-${canonicalUserId}`)
+      .channel(`user-notifications-${baseUser.id}`)
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "INSERT",
           schema: "public",
-          table: "notifications",
-          filter: `canonical_user_id=eq.${canonicalUserId}`,
+          table: "user_notifications",
+          filter: `user_id=eq.${baseUser.id}`,
         },
         (payload) => {
-          console.log("[Notifications] Real-time update:", payload.eventType);
-          // Refresh notifications on any change
-          loadNotifications(true);
+          console.log(
+            "[Notifications] New notification received:",
+            payload.new,
+          );
+          // Add the new notification to state immediately for instant feedback
+          const newNotification = payload.new as UserNotification;
+          setNotifications((prev) => [newNotification, ...prev]);
         },
       )
-      .subscribe();
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "user_notifications",
+          filter: `user_id=eq.${baseUser.id}`,
+        },
+        (payload) => {
+          console.log("[Notifications] Notification updated:", payload.new);
+          // Update the notification in state
+          const updatedNotification = payload.new as UserNotification;
+          setNotifications((prev) =>
+            prev.map((n) =>
+              n.id === updatedNotification.id ? updatedNotification : n,
+            ),
+          );
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "user_notifications",
+          filter: `user_id=eq.${baseUser.id}`,
+        },
+        (payload) => {
+          console.log("[Notifications] Notification deleted:", payload.old);
+          // Remove the notification from state
+          const deletedId = (payload.old as { id: string }).id;
+          setNotifications((prev) => prev.filter((n) => n.id !== deletedId));
+        },
+      )
+      .subscribe((status) => {
+        console.log("[Notifications] Subscription status:", status);
+      });
 
     return () => {
       console.log("[Notifications] Cleaning up real-time subscription");
       supabase.removeChannel(channel);
     };
-  }, [loadNotifications, handleBackfill, authenticated, canonicalUserId]);
+  }, [
+    loadNotifications,
+    handleBackfill,
+    authenticated,
+    canonicalUserId,
+    baseUser?.id,
+  ]);
 
   const handleMarkAsRead = async (id: string) => {
     await notificationService.markAsRead(id);
