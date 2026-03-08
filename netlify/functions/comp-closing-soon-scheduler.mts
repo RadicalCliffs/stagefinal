@@ -75,6 +75,7 @@ async function sendClosingSoonEmails(
         hours_remaining: `${hoursRemaining} hours`,
         entry_price: entryPrice,
         "Cash alternative available": "Cash alternative available", // Static text for now
+        Competition_URL: `https://theprize.io/competitions/${competition.id}`,
       },
     }));
 

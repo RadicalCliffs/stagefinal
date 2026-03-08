@@ -93,6 +93,7 @@ const personalizations = targetUsers.map((user) => ({
     hours_remaining: `${hoursRemaining} hours`,
     entry_price: `$${competition.ticket_price?.toFixed(2) || "0.00"}`,
     "Cash alternative available": "Cash alternative available",
+    Competition_URL: `https://theprize.io/competitions/${competition.id}`,
   },
 }));
 

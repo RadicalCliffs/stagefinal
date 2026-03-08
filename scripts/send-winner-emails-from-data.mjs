@@ -35,6 +35,7 @@ const personalizations = winnerData.map((winner) => ({
   dynamic_template_data: {
     Ticket_Number: `#${winner.ticket_number}`,
     Prize_Name: winner.competition_title,
+    Competition_URL: winner.competition_id ? `https://theprize.io/competitions/${winner.competition_id}` : "https://theprize.io/competitions",
   },
 }));
 

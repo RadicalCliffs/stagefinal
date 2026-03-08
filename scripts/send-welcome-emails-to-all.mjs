@@ -39,6 +39,7 @@ async function sendWelcomeEmailBatch(users) {
     to: [{ email: user.email }],
     dynamic_template_data: {
       username: user.username || "Player",
+      Competitions_URL: "https://theprize.io/competitions",
     },
   }));
 

@@ -17,12 +17,13 @@ console.log("=== EMAIL TESTING SCRIPT ===\n");
 /**
  * Send winner email
  */
-async function sendWinnerEmail(recipients, ticketNumber, prizeName) {
+async function sendWinnerEmail(recipients, ticketNumber, prizeName, competitionId) {
   const personalizations = recipients.map((email) => ({
     to: [{ email }],
     dynamic_template_data: {
       Ticket_Number: ticketNumber,
       Prize_Name: prizeName,
+      Competition_URL: competitionId ? `https://theprize.io/competitions/${competitionId}` : "https://theprize.io/competitions",
     },
   }));
 
@@ -72,6 +73,7 @@ async function sendClosingSoonEmail(
       hours_remaining: hoursRemaining,
       entry_price: entryPrice,
       "Cash alternative available": "Cash alternative available",
+      Competition_URL: "https://theprize.io/competitions/test-comp-id",
     },
   }));
 

@@ -100,6 +100,7 @@ async function sendWinnerEmail(
   competitionTitle: string,
   prizeValue: string,
   ticketNumber: number,
+  competitionId: string,
 ): Promise<void> {
   const sendgridApiKey = Netlify.env.get("SENDGRID_API_KEY");
   const fromEmail =
@@ -127,6 +128,7 @@ async function sendWinnerEmail(
             dynamic_template_data: {
               Ticket_Number: `#${ticketNumber}`,
               Prize_Name: competitionTitle,
+              Competition_URL: `https://theprize.io/competitions/${competitionId}`,
             },
           },
         ],
@@ -491,6 +493,7 @@ async function checkVRFDrawResults(supabase: SupabaseClient): Promise<void> {
           comp.title,
           prizeValue,
           existingWinner.ticket_number,
+          comp.id,
         );
       }
 

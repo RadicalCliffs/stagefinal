@@ -239,7 +239,8 @@ export async function sendWinnerEmail(
   username: string,
   competitionName: string,
   prizeValue: string,
-  winningTicket: string
+  winningTicket: string,
+  competitionId?: string
 ): Promise<{ success: boolean; error?: string }> {
   const sendgridApiKey = Netlify.env.get("SENDGRID_API_KEY");
   const fromEmail = Netlify.env.get("SENDGRID_FROM_EMAIL") || "contact@theprize.io";
@@ -255,6 +256,7 @@ export async function sendWinnerEmail(
     "Competition Name": competitionName,
     "Prize Value": prizeValue,
     "Winning Ticket": winningTicket,
+    Competition_URL: competitionId ? `https://theprize.io/competitions/${competitionId}` : "https://theprize.io/competitions",
   });
 }
 
@@ -267,7 +269,8 @@ export async function sendCompLiveEmail(
   competitionName: string,
   prizeValue: string,
   endDate: string,
-  ticketPrice: string
+  ticketPrice: string,
+  competitionId?: string
 ): Promise<{ success: boolean; error?: string }> {
   const sendgridApiKey = Netlify.env.get("SENDGRID_API_KEY");
   const fromEmail = Netlify.env.get("SENDGRID_FROM_EMAIL") || "contact@theprize.io";
@@ -284,6 +287,7 @@ export async function sendCompLiveEmail(
     "Prize Value": prizeValue,
     "End Date": endDate,
     "Ticket Price": ticketPrice,
+    Competition_URL: competitionId ? `https://theprize.io/competitions/${competitionId}` : "https://theprize.io/competitions",
   });
 }
 
@@ -319,6 +323,7 @@ export async function sendFomoEmail(
         "Player Username": recipient.username,
         "Active Competitions": activeCompetitions,
         "Total Prizes": totalPrizes,
+        Competitions_URL: "https://theprize.io/competitions",
       },
     }));
 

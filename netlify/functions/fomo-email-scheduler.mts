@@ -97,6 +97,7 @@ async function sendFomoEmails(
         "Player Username": recipient.username,
         "Active Competitions": activeCompetitions,
         "Total Prizes": totalPrizes,
+        Competitions_URL: "https://theprize.io/competitions",
       },
     }));
 

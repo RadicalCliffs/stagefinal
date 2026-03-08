@@ -89,6 +89,7 @@ async function sendCompLiveEmail(
         "Prize Value": prizeValue,
         "End Date": endDate,
         "Ticket Price": ticketPrice,
+        "Competition_URL": `https://theprize.io/competitions/${competition.id}`,
       },
     }));
 

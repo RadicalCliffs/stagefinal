@@ -134,7 +134,8 @@ async function sendWinnerEmail(
   username: string,
   competitionTitle: string,
   prizeValue: string,
-  ticketNumber: number
+  ticketNumber: number,
+  competitionId: string
 ): Promise<void> {
   const sendgridApiKey = Netlify.env.get("SENDGRID_API_KEY");
   const fromEmail = Netlify.env.get("SENDGRID_FROM_EMAIL") || "contact@theprize.io";
@@ -160,6 +161,7 @@ async function sendWinnerEmail(
             "Competition Name": competitionTitle,
             "Prize Value": prizeValue,
             "Winning Ticket": `#${ticketNumber}`,
+            Competition_URL: `https://theprize.io/competitions/${competitionId}`,
           },
         }],
         from: { email: fromEmail, name: "ThePrize.io" },
@@ -332,7 +334,8 @@ async function createWinner(
         userData.username || "Player",
         competition.title,
         prizeValue,
-        ticketNumber
+        ticketNumber,
+        competition.id
       );
     }
 

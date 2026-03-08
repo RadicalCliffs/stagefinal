@@ -26,6 +26,7 @@ for (const email of TEST_RECIPIENTS) {
             dynamic_template_data: {
               Ticket_Number: "#12345",
               Prize_Name: "iPhone 16 Pro Max Test Competition",
+              Competition_URL: "https://theprize.io/competitions/test-comp-id",
             },
           },
         ],

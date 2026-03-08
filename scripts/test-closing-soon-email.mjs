@@ -29,6 +29,7 @@ for (const email of TEST_RECIPIENTS) {
               hours_remaining: "18 hours",
               entry_price: "£2.50",
               "Cash alternative available": "Cash alternative available",
+              Competition_URL: "https://theprize.io/competitions/test-comp-id",
             },
           },
         ],
