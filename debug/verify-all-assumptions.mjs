@@ -76,9 +76,7 @@ if (triggers) {
   console.log("✅ Existing triggers on tickets:");
   triggers.forEach((t) => console.log(`   - ${t}`));
 } else {
-  console.log(
-    "   (Could not fetch - function might not exist, but that's OK)",
-  );
+  console.log("   (Could not fetch - function might not exist, but that's OK)");
 }
 
 console.log("\n✅ VERIFICATION COMPLETE");
