@@ -4,7 +4,6 @@ import FaqSection from "../Faqs"
 import NeverMissGame from "../NeverMissGame"
 import EntriesWithFilterTabs from "./EntriesWithFilterTabs"
 import FinishedCompetitionHeroSection from "./FinishedCompetitionHeroSection"
-import WinnerDetails from "./WinnerDetails"
 import WinnerResultsTable from "./WinnerResultsTable"
 import type {  CompetitionWrapper } from '../../models/models';
 
@@ -15,9 +14,6 @@ const FinishedCompetition = ({competition}:CompetitionWrapper) => {
       <div className="relative py-10">
         <div className="xl:px-0 px-4">
           <FinishedCompetitionHeroSection competition={competition}/>
-        </div>
-        <div className="mt-10 xl:px-0 px-4">
-          <WinnerDetails competitionId={competition.id} />
         </div>
         <div className="mt-10 xl:px-0 px-4">
           <WinnerResultsTable competitionId={competition.id} />

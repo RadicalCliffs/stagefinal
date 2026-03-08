@@ -16,7 +16,7 @@
  * IMPORTANT: When changing this value, ensure all date comparisons use
  * the helper functions below to maintain consistency.
  */
-export const COMPETITION_VISIBILITY_CUTOFF: string | null = "2025-12-12T00:00:00.000Z";
+export const COMPETITION_VISIBILITY_CUTOFF: string | null = "2026-03-08T00:00:00.000Z";
 
 /**
  * Check if a competition should be visible based on its creation date
