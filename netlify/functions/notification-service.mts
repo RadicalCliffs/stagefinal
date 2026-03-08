@@ -406,7 +406,10 @@ async function handleCreateNotification(
       details: error.details,
       hint: error.hint,
     });
-    return errorResponse(`Failed to create notification: ${error.message || error.code || 'Unknown error'}`, 500);
+    return errorResponse(
+      `Failed to create notification: ${error.message || error.code || "Unknown error"}`,
+      500,
+    );
   }
 
   return jsonResponse({ ok: true, notification: data });
