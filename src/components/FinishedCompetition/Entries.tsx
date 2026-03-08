@@ -145,22 +145,27 @@ const EntriesTable: React.FC<EntriesTableProps> = ({
   const renderVRFHash = (entry: any) => {
     const txHash = entry.transactionHash || entry.vrfHash || entry.rngHash;
 
+    // Debug logging for ALL entries
+    console.log(`[Entries] Ticket ${entry.ticketNumber}:`, {
+      hasTransactionHash: !!entry.transactionHash,
+      hasVrfHash: !!entry.vrfHash,
+      hasRngHash: !!entry.rngHash,
+      txHash: txHash || 'NONE',
+      txHashLength: txHash?.length || 0,
+    });
+
     if (!txHash) {
       return <span className="text-white/40 text-sm">-</span>;
     }
 
     const hashType = classifyTxHash(txHash);
+    const baseScanUrl = hashType === 'blockchain' ? getBaseScanUrl(txHash) : null;
 
-    // Debug logging - remove after verification
-    if (entry.ticketNumber === 5 || entry.ticketNumber === 6) {
-      console.log(`[Entries] Ticket ${entry.ticketNumber}:`, {
-        txHash,
-        hashType,
-        length: txHash.length,
-        startsWithOx: txHash.startsWith('0x'),
-        baseScanUrl: hashType === 'blockchain' ? getBaseScanUrl(txHash) : null,
-      });
-    }
+    console.log(`[Entries] Ticket ${entry.ticketNumber} classification:`, {
+      hashType,
+      baseScanUrl,
+      willBeClickable: hashType === 'blockchain',
+    });
 
     // Balance payment - show wallet icon and "Balance" text
     if (hashType === "balance_payment") {
@@ -205,15 +210,25 @@ const EntriesTable: React.FC<EntriesTableProps> = ({
         txHash.length > 16
           ? `${txHash.substring(0, 8)}...${txHash.slice(-6)}`
           : txHash;
+      const url = getBaseScanUrl(txHash);
+      
       return (
         <div className="flex items-center gap-2">
           <a
-            href={getBaseScanUrl(txHash)}
+            href={url}
             target="_blank"
             rel="noopener noreferrer"
             className="text-[#DDE404] hover:text-[#DDE404]/80 transition-colors truncate max-w-25 font-mono text-sm flex items-center gap-1"
             title="View on BaseScan"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              console.log('[Entries] Link clicked:', {
+                ticketNumber: entry.ticketNumber,
+                txHash,
+                url,
+                willNavigate: true,
+              });
+              e.stopPropagation();
+            }}
           >
             {displayHash}
             <ExternalLink size={12} />
