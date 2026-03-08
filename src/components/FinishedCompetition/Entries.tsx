@@ -151,6 +151,17 @@ const EntriesTable: React.FC<EntriesTableProps> = ({
 
     const hashType = classifyTxHash(txHash);
 
+    // Debug logging - remove after verification
+    if (entry.ticketNumber === 5 || entry.ticketNumber === 6) {
+      console.log(`[Entries] Ticket ${entry.ticketNumber}:`, {
+        txHash,
+        hashType,
+        length: txHash.length,
+        startsWithOx: txHash.startsWith('0x'),
+        baseScanUrl: hashType === 'blockchain' ? getBaseScanUrl(txHash) : null,
+      });
+    }
+
     // Balance payment - show wallet icon and "Balance" text
     if (hashType === "balance_payment") {
       return (
