@@ -22,7 +22,8 @@ export const config: Config = {
 
 // ---------- Supabase ----------
 function getSupabase(): SupabaseClient {
-  const supabaseUrl = Netlify.env.get("VITE_SUPABASE_URL") || Netlify.env.get("SUPABASE_URL");
+  const supabaseUrl =
+    Netlify.env.get("VITE_SUPABASE_URL") || Netlify.env.get("SUPABASE_URL");
   const serviceRoleKey = Netlify.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
   if (!supabaseUrl) throw new Error("Missing SUPABASE_URL / VITE_SUPABASE_URL");
@@ -71,10 +72,11 @@ async function getCompetitionStats(supabase: SupabaseClient): Promise<{
 async function sendFomoEmails(
   recipients: User[],
   activeCompetitions: string,
-  totalPrizes: string
+  totalPrizes: string,
 ): Promise<{ sent: number; failed: number }> {
   const sendgridApiKey = Netlify.env.get("SENDGRID_API_KEY");
-  const fromEmail = Netlify.env.get("SENDGRID_FROM_EMAIL") || "contact@theprize.io";
+  const fromEmail =
+    Netlify.env.get("SENDGRID_FROM_EMAIL") || "contact@theprize.io";
   const templateId = Netlify.env.get("SENDGRID_TEMPLATE_FOMO");
 
   if (!sendgridApiKey || !templateId) {
@@ -117,14 +119,22 @@ async function sendFomoEmails(
 
       if (response.ok) {
         sent += batch.length;
-        console.log(`[fomo-email] Batch ${Math.floor(i / batchSize) + 1}: sent ${batch.length} emails`);
+        console.log(
+          `[fomo-email] Batch ${Math.floor(i / batchSize) + 1}: sent ${batch.length} emails`,
+        );
       } else {
         const errorText = await response.text();
-        console.error(`[fomo-email] Batch ${Math.floor(i / batchSize) + 1} failed:`, errorText);
+        console.error(
+          `[fomo-email] Batch ${Math.floor(i / batchSize) + 1} failed:`,
+          errorText,
+        );
         failed += batch.length;
       }
     } catch (error) {
-      console.error(`[fomo-email] Batch ${Math.floor(i / batchSize) + 1} error:`, error);
+      console.error(
+        `[fomo-email] Batch ${Math.floor(i / batchSize) + 1} error:`,
+        error,
+      );
       failed += batch.length;
     }
 
@@ -143,7 +153,9 @@ export default async (req: Request): Promise<Response> => {
 
   try {
     const { next_run } = await req.json();
-    console.log(`[fomo-email] Scheduled function triggered. Next run: ${next_run}`);
+    console.log(
+      `[fomo-email] Scheduled function triggered. Next run: ${next_run}`,
+    );
   } catch {
     console.log("[fomo-email] Function triggered (manual invoke)");
   }
@@ -157,12 +169,16 @@ export default async (req: Request): Promise<Response> => {
     if (stats.activeCount === 0) {
       console.log("[fomo-email] No active competitions, skipping FOMO email");
       return new Response(
-        JSON.stringify({ message: "No active competitions, FOMO email skipped" }),
-        { headers: { "Content-Type": "application/json" } }
+        JSON.stringify({
+          message: "No active competitions, FOMO email skipped",
+        }),
+        { headers: { "Content-Type": "application/json" } },
       );
     }
 
-    console.log(`[fomo-email] Found ${stats.activeCount} active competitions with £${stats.totalPrizeValue} in prizes`);
+    console.log(
+      `[fomo-email] Found ${stats.activeCount} active competitions with £${stats.totalPrizeValue} in prizes`,
+    );
 
     // Get all users with email addresses
     const { data: users, error: usersError } = await supabase
@@ -172,32 +188,39 @@ export default async (req: Request): Promise<Response> => {
 
     if (usersError) {
       console.error("[fomo-email] Error fetching users:", usersError);
-      return new Response(
-        JSON.stringify({ error: usersError.message }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: usersError.message }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     if (!users || users.length === 0) {
       console.log("[fomo-email] No users with email addresses found");
       return new Response(
         JSON.stringify({ message: "No users to send FOMO email to" }),
-        { headers: { "Content-Type": "application/json" } }
+        { headers: { "Content-Type": "application/json" } },
       );
     }
 
     // Filter to only users with both email and username
-    const recipients: User[] = users
-      .filter((u): u is User => !!u.email && !!u.username);
+    const recipients: User[] = users.filter(
+      (u): u is User => !!u.email && !!u.username,
+    );
 
-    console.log(`[fomo-email] Sending FOMO emails to ${recipients.length} users`);
+    console.log(
+      `[fomo-email] Sending FOMO emails to ${recipients.length} users`,
+    );
 
     // Format statistics for the email
     const activeCompetitions = stats.activeCount.toString();
     const totalPrizes = `£${stats.totalPrizeValue.toLocaleString()}`;
 
     // Send the emails
-    const { sent, failed } = await sendFomoEmails(recipients, activeCompetitions, totalPrizes);
+    const { sent, failed } = await sendFomoEmails(
+      recipients,
+      activeCompetitions,
+      totalPrizes,
+    );
 
     const elapsed = Date.now() - startTime;
     const summary = {
@@ -222,7 +245,7 @@ export default async (req: Request): Promise<Response> => {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
       }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
+      { status: 500, headers: { "Content-Type": "application/json" } },
     );
   }
 };

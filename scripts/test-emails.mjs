@@ -17,13 +17,20 @@ console.log("=== EMAIL TESTING SCRIPT ===\n");
 /**
  * Send winner email
  */
-async function sendWinnerEmail(recipients, ticketNumber, prizeName, competitionId) {
+async function sendWinnerEmail(
+  recipients,
+  ticketNumber,
+  prizeName,
+  competitionId,
+) {
   const personalizations = recipients.map((email) => ({
     to: [{ email }],
     dynamic_template_data: {
       Ticket_Number: ticketNumber,
       Prize_Name: prizeName,
-      Competition_URL: competitionId ? `https://theprize.io/competitions/${competitionId}` : "https://theprize.io/competitions",
+      Competition_URL: competitionId
+        ? `https://theprize.io/competitions/${competitionId}`
+        : "https://theprize.io/competitions",
     },
   }));
 

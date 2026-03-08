@@ -400,8 +400,13 @@ async function handleCreateNotification(
     .single();
 
   if (error) {
-    console.error("Error creating notification:", error);
-    return errorResponse("Failed to create notification", 500);
+    console.error("[notification-service] Error creating notification:", {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+    return errorResponse(`Failed to create notification: ${error.message || error.code || 'Unknown error'}`, 500);
   }
 
   return jsonResponse({ ok: true, notification: data });

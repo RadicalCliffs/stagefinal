@@ -16,14 +16,17 @@
  * IMPORTANT: When changing this value, ensure all date comparisons use
  * the helper functions below to maintain consistency.
  */
-export const COMPETITION_VISIBILITY_CUTOFF: string | null = "2026-03-08T00:00:00.000Z";
+export const COMPETITION_VISIBILITY_CUTOFF: string | null =
+  "2026-03-08T00:00:00.000Z";
 
 /**
  * Check if a competition should be visible based on its creation date
  * @param createdAt - The competition's creation date
  * @returns true if the competition should be shown
  */
-export function isCompetitionVisible(createdAt: string | Date | null | undefined): boolean {
+export function isCompetitionVisible(
+  createdAt: string | Date | null | undefined,
+): boolean {
   // If no cutoff is configured, show all competitions
   if (!COMPETITION_VISIBILITY_CUTOFF) {
     return true;
@@ -47,7 +50,9 @@ export function isCompetitionVisible(createdAt: string | Date | null | undefined
  * @param date - The date to check
  * @returns true if the date is after the cutoff
  */
-export function isAfterVisibilityCutoff(date: string | Date | null | undefined): boolean {
+export function isAfterVisibilityCutoff(
+  date: string | Date | null | undefined,
+): boolean {
   return isCompetitionVisible(date);
 }
 

@@ -19,7 +19,8 @@ export const config: Config = {
 
 // ---------- Supabase ----------
 function getSupabase(): SupabaseClient {
-  const supabaseUrl = Netlify.env.get("VITE_SUPABASE_URL") || Netlify.env.get("SUPABASE_URL");
+  const supabaseUrl =
+    Netlify.env.get("VITE_SUPABASE_URL") || Netlify.env.get("SUPABASE_URL");
   const serviceRoleKey = Netlify.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
   if (!supabaseUrl) throw new Error("Missing SUPABASE_URL / VITE_SUPABASE_URL");
@@ -50,10 +51,11 @@ interface User {
  */
 async function sendCompLiveEmail(
   recipients: Array<{ email: string; username: string }>,
-  competition: Competition
+  competition: Competition,
 ): Promise<{ sent: number; failed: number }> {
   const sendgridApiKey = Netlify.env.get("SENDGRID_API_KEY");
-  const fromEmail = Netlify.env.get("SENDGRID_FROM_EMAIL") || "contact@theprize.io";
+  const fromEmail =
+    Netlify.env.get("SENDGRID_FROM_EMAIL") || "contact@theprize.io";
   const templateId = Netlify.env.get("SENDGRID_TEMPLATE_COMP_LIVE");
 
   if (!sendgridApiKey || !templateId) {
@@ -65,8 +67,12 @@ async function sendCompLiveEmail(
   let failed = 0;
 
   // Format competition details
-  const prizeValue = competition.prize_value ? `£${competition.prize_value}` : "Amazing Prize";
-  const ticketPrice = competition.ticket_price ? `£${competition.ticket_price.toFixed(2)}` : "Check site";
+  const prizeValue = competition.prize_value
+    ? `£${competition.prize_value}`
+    : "Amazing Prize";
+  const ticketPrice = competition.ticket_price
+    ? `£${competition.ticket_price.toFixed(2)}`
+    : "Check site";
   const endDate = competition.end_date
     ? new Date(competition.end_date).toLocaleDateString("en-GB", {
         weekday: "long",
@@ -89,7 +95,7 @@ async function sendCompLiveEmail(
         "Prize Value": prizeValue,
         "End Date": endDate,
         "Ticket Price": ticketPrice,
-        "Competition_URL": `https://theprize.io/competitions/${competition.id}`,
+        Competition_URL: `https://theprize.io/competitions/${competition.id}`,
       },
     }));
 
@@ -131,7 +137,10 @@ async function sendCompLiveEmail(
 /**
  * Mark a competition as having its notification sent
  */
-async function markCompetitionNotified(supabase: SupabaseClient, competitionId: string): Promise<void> {
+async function markCompetitionNotified(
+  supabase: SupabaseClient,
+  competitionId: string,
+): Promise<void> {
   try {
     // Use a system notification record to track that comp_live email was sent
     await supabase.from("user_notifications").insert({
@@ -144,14 +153,20 @@ async function markCompetitionNotified(supabase: SupabaseClient, competitionId: 
       created_at: new Date().toISOString(),
     });
   } catch (error) {
-    console.error(`[comp-live-email] Error marking competition notified:`, error);
+    console.error(
+      `[comp-live-email] Error marking competition notified:`,
+      error,
+    );
   }
 }
 
 /**
  * Check if a competition has already had its notification sent
  */
-async function hasCompetitionBeenNotified(supabase: SupabaseClient, competitionId: string): Promise<boolean> {
+async function hasCompetitionBeenNotified(
+  supabase: SupabaseClient,
+  competitionId: string,
+): Promise<boolean> {
   const { data } = await supabase
     .from("user_notifications")
     .select("id")
@@ -169,7 +184,9 @@ export default async (req: Request): Promise<Response> => {
 
   try {
     const { next_run } = await req.json();
-    console.log(`[comp-live-email] Scheduled function triggered. Next run: ${next_run}`);
+    console.log(
+      `[comp-live-email] Scheduled function triggered. Next run: ${next_run}`,
+    );
   } catch {
     console.log("[comp-live-email] Function triggered (manual invoke)");
   }
@@ -179,7 +196,9 @@ export default async (req: Request): Promise<Response> => {
 
     // Find competitions that became active in the last 30 minutes
     // (30 min window to catch any we might have missed)
-    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    const thirtyMinutesAgo = new Date(
+      Date.now() - 30 * 60 * 1000,
+    ).toISOString();
 
     const { data: newCompetitions, error: compError } = await supabase
       .from("competitions")
@@ -189,8 +208,13 @@ export default async (req: Request): Promise<Response> => {
       .order("created_at", { ascending: false });
 
     if (compError) {
-      console.error("[comp-live-email] Error fetching competitions:", compError);
-      return new Response(JSON.stringify({ error: compError.message }), { status: 500 });
+      console.error(
+        "[comp-live-email] Error fetching competitions:",
+        compError,
+      );
+      return new Response(JSON.stringify({ error: compError.message }), {
+        status: 500,
+      });
     }
 
     if (!newCompetitions || newCompetitions.length === 0) {
@@ -198,7 +222,9 @@ export default async (req: Request): Promise<Response> => {
       return new Response(JSON.stringify({ message: "No new competitions" }));
     }
 
-    console.log(`[comp-live-email] Found ${newCompetitions.length} new competition(s)`);
+    console.log(
+      `[comp-live-email] Found ${newCompetitions.length} new competition(s)`,
+    );
 
     // Get all users with email addresses
     const { data: users, error: usersError } = await supabase
@@ -223,13 +249,20 @@ export default async (req: Request): Promise<Response> => {
     // Process each new competition
     for (const competition of newCompetitions) {
       // Check if we've already sent notification for this competition
-      const alreadyNotified = await hasCompetitionBeenNotified(supabase, competition.id);
+      const alreadyNotified = await hasCompetitionBeenNotified(
+        supabase,
+        competition.id,
+      );
       if (alreadyNotified) {
-        console.log(`[comp-live-email] Competition ${competition.id} already notified, skipping`);
+        console.log(
+          `[comp-live-email] Competition ${competition.id} already notified, skipping`,
+        );
         continue;
       }
 
-      console.log(`[comp-live-email] Sending COMP LIVE emails for: ${competition.title}`);
+      console.log(
+        `[comp-live-email] Sending COMP LIVE emails for: ${competition.title}`,
+      );
 
       const { sent, failed } = await sendCompLiveEmail(recipients, competition);
       totalSent += sent;
@@ -238,7 +271,9 @@ export default async (req: Request): Promise<Response> => {
       // Mark competition as notified
       await markCompetitionNotified(supabase, competition.id);
 
-      console.log(`[comp-live-email] Competition ${competition.title}: sent=${sent}, failed=${failed}`);
+      console.log(
+        `[comp-live-email] Competition ${competition.title}: sent=${sent}, failed=${failed}`,
+      );
     }
 
     const elapsed = Date.now() - startTime;
@@ -262,7 +297,7 @@ export default async (req: Request): Promise<Response> => {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
       }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
+      { status: 500, headers: { "Content-Type": "application/json" } },
     );
   }
 };

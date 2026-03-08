@@ -21,7 +21,8 @@ export const config: Config = {
 
 // ---------- Supabase ----------
 function getSupabase(): SupabaseClient {
-  const supabaseUrl = Netlify.env.get("VITE_SUPABASE_URL") || Netlify.env.get("SUPABASE_URL");
+  const supabaseUrl =
+    Netlify.env.get("VITE_SUPABASE_URL") || Netlify.env.get("SUPABASE_URL");
   const serviceRoleKey = Netlify.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
   if (!supabaseUrl) throw new Error("Missing SUPABASE_URL / VITE_SUPABASE_URL");
@@ -48,9 +49,12 @@ async function withRetries<T>(label: string, fn: () => Promise<T>): Promise<T> {
     } catch (e) {
       lastErr = e;
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[BackfillWinners] ${label} failed (attempt ${attempt}/${MAX_RETRIES}): ${msg}`);
+      console.warn(
+        `[BackfillWinners] ${label} failed (attempt ${attempt}/${MAX_RETRIES}): ${msg}`,
+      );
       if (attempt < MAX_RETRIES) {
-        const delay = INITIAL_DELAY_MS * Math.pow(2, attempt - 1) + Math.random() * 150;
+        const delay =
+          INITIAL_DELAY_MS * Math.pow(2, attempt - 1) + Math.random() * 150;
         await sleep(delay);
       }
     }
@@ -63,7 +67,7 @@ async function withRetries<T>(label: string, fn: () => Promise<T>): Promise<T> {
 function generateSecureRandom(): number {
   const array = new Uint32Array(1);
   crypto.getRandomValues(array);
-  return array[0] / (0xFFFFFFFF + 1);
+  return array[0] / (0xffffffff + 1);
 }
 
 /**
@@ -71,9 +75,11 @@ function generateSecureRandom(): number {
  * This ensures the winner is ALWAYS someone who bought a ticket.
  * The function keeps generating random selections from purchased tickets only.
  */
-function selectWinnerFromPurchasedTickets(purchasedTicketNumbers: number[]): number {
+function selectWinnerFromPurchasedTickets(
+  purchasedTicketNumbers: number[],
+): number {
   if (purchasedTicketNumbers.length === 0) {
-    throw new Error('Cannot select winner from empty ticket list');
+    throw new Error("Cannot select winner from empty ticket list");
   }
   const randomNumber = generateSecureRandom();
   const randomIndex = Math.floor(randomNumber * purchasedTicketNumbers.length);
@@ -102,7 +108,7 @@ async function createWinnerNotification(
   supabase: SupabaseClient,
   profileId: string,
   competition: any,
-  ticketNumber: number
+  ticketNumber: number,
 ): Promise<void> {
   try {
     const { error } = await supabase.from("user_notifications").insert({
@@ -111,15 +117,22 @@ async function createWinnerNotification(
       title: "🎉 Congratulations! You Won!",
       message: `You have won ${competition.title}! Your winning ticket was #${ticketNumber}. Check your entries for more details.`,
       competition_id: competition.id,
-      prize_info: competition.prize_value ? `£${competition.prize_value}` : competition.title,
+      prize_info: competition.prize_value
+        ? `£${competition.prize_value}`
+        : competition.title,
       read: false,
       created_at: new Date().toISOString(),
     });
 
     if (error) {
-      console.error("[BackfillWinners] Error creating winner notification:", error);
+      console.error(
+        "[BackfillWinners] Error creating winner notification:",
+        error,
+      );
     } else {
-      console.log(`[BackfillWinners] Winner notification created for user ${profileId}`);
+      console.log(
+        `[BackfillWinners] Winner notification created for user ${profileId}`,
+      );
     }
   } catch (err) {
     console.error("[BackfillWinners] Error in createWinnerNotification:", err);
@@ -135,14 +148,17 @@ async function sendWinnerEmail(
   competitionTitle: string,
   prizeValue: string,
   ticketNumber: number,
-  competitionId: string
+  competitionId: string,
 ): Promise<void> {
   const sendgridApiKey = Netlify.env.get("SENDGRID_API_KEY");
-  const fromEmail = Netlify.env.get("SENDGRID_FROM_EMAIL") || "contact@theprize.io";
+  const fromEmail =
+    Netlify.env.get("SENDGRID_FROM_EMAIL") || "contact@theprize.io";
   const templateId = Netlify.env.get("SENDGRID_TEMPLATE_WINNER");
 
   if (!sendgridApiKey || !templateId) {
-    console.log("[BackfillWinners] SendGrid winner email not configured, skipping");
+    console.log(
+      "[BackfillWinners] SendGrid winner email not configured, skipping",
+    );
     return;
   }
 
@@ -154,16 +170,18 @@ async function sendWinnerEmail(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        personalizations: [{
-          to: [{ email }],
-          dynamic_template_data: {
-            "Player Username": username,
-            "Competition Name": competitionTitle,
-            "Prize Value": prizeValue,
-            "Winning Ticket": `#${ticketNumber}`,
-            Competition_URL: `https://theprize.io/competitions/${competitionId}`,
+        personalizations: [
+          {
+            to: [{ email }],
+            dynamic_template_data: {
+              "Player Username": username,
+              "Competition Name": competitionTitle,
+              "Prize Value": prizeValue,
+              "Winning Ticket": `#${ticketNumber}`,
+              Competition_URL: `https://theprize.io/competitions/${competitionId}`,
+            },
           },
-        }],
+        ],
         from: { email: fromEmail, name: "ThePrize.io" },
         template_id: templateId,
       }),
@@ -188,14 +206,14 @@ async function sendWinnerEmail(
 async function getCompetitionEntries(
   supabase: SupabaseClient,
   competitionId: string,
-  competitionUid: string | null
+  competitionUid: string | null,
 ): Promise<CompetitionEntry[]> {
   // Try with UUID first
   let { data, error } = await withRetries("fetch entries by id", () =>
     supabase
       .from("joincompetition")
       .select("*")
-      .eq("competitionid", competitionId)
+      .eq("competitionid", competitionId),
   );
 
   // If no results, try with legacy uid
@@ -204,7 +222,7 @@ async function getCompetitionEntries(
       supabase
         .from("joincompetition")
         .select("*")
-        .eq("competitionid", competitionUid)
+        .eq("competitionid", competitionUid),
     );
     if (!uidResult.error && uidResult.data && uidResult.data.length > 0) {
       data = uidResult.data;
@@ -226,7 +244,7 @@ async function createWinner(
   supabase: SupabaseClient,
   competition: any,
   entry: CompetitionEntry,
-  ticketNumber: number
+  ticketNumber: number,
 ): Promise<boolean> {
   try {
     // Check if winner already exists
@@ -237,7 +255,9 @@ async function createWinner(
       .maybeSingle();
 
     if (existingWinner) {
-      console.log(`[BackfillWinners] Winner already exists for competition ${competition.id}`);
+      console.log(
+        `[BackfillWinners] Winner already exists for competition ${competition.id}`,
+      );
       return false;
     }
 
@@ -285,13 +305,17 @@ async function createWinner(
       const { data: walletUser } = await supabase
         .from("canonical_users")
         .select("username")
-        .or(`wallet_address.ilike.${entry.walletaddress},canonical_user_id.eq.prize:pid:${entry.walletaddress.toLowerCase()}`)
+        .or(
+          `wallet_address.ilike.${entry.walletaddress},canonical_user_id.eq.prize:pid:${entry.walletaddress.toLowerCase()}`,
+        )
         .maybeSingle();
       finalUsername = walletUser?.username;
     }
-    
+
     if (!finalUsername) {
-      console.error(`[BackfillWinners] ❌ CRITICAL: User not found for comp ${competition.id}, entry ${entry.walletaddress || userId}`);
+      console.error(
+        `[BackfillWinners] ❌ CRITICAL: User not found for comp ${competition.id}, entry ${entry.walletaddress || userId}`,
+      );
       finalUsername = "Unknown";
     }
 
@@ -309,7 +333,7 @@ async function createWinner(
     };
 
     const { error } = await withRetries("insert winner", () =>
-      supabase.from("winners").insert(winnerData)
+      supabase.from("winners").insert(winnerData),
     );
 
     if (error) {
@@ -317,25 +341,34 @@ async function createWinner(
       return false;
     }
 
-    console.log(`[BackfillWinners] Winner created for ${competition.title}: ticket #${ticketNumber}`);
+    console.log(
+      `[BackfillWinners] Winner created for ${competition.title}: ticket #${ticketNumber}`,
+    );
 
     // Create winner notification and send email
     // Use the profile ID (UUID) for notification storage
     const profileId = userData?.id || userId;
     if (profileId) {
-      await createWinnerNotification(supabase, profileId, competition, ticketNumber);
+      await createWinnerNotification(
+        supabase,
+        profileId,
+        competition,
+        ticketNumber,
+      );
     }
 
     // Send winner email if user has an email address
     if (userData?.email) {
-      const prizeValue = competition.prize_value ? `£${competition.prize_value}` : competition.title;
+      const prizeValue = competition.prize_value
+        ? `£${competition.prize_value}`
+        : competition.title;
       await sendWinnerEmail(
         userData.email,
         userData.username || "Player",
         competition.title,
         prizeValue,
         ticketNumber,
-        competition.id
+        competition.id,
       );
     }
 
@@ -349,7 +382,10 @@ async function createWinner(
 /**
  * Mark competition as drawn/completed if not already
  */
-async function ensureCompetitionCompleted(supabase: SupabaseClient, competition: any): Promise<void> {
+async function ensureCompetitionCompleted(
+  supabase: SupabaseClient,
+  competition: any,
+): Promise<void> {
   if (competition.status !== "completed") {
     await withRetries("mark as completed", () =>
       supabase
@@ -359,7 +395,7 @@ async function ensureCompetitionCompleted(supabase: SupabaseClient, competition:
           competitionended: 1,
           draw_date: competition.draw_date || new Date().toISOString(),
         })
-        .eq("id", competition.id)
+        .eq("id", competition.id),
     );
   }
 }
@@ -369,9 +405,11 @@ async function ensureCompetitionCompleted(supabase: SupabaseClient, competition:
  */
 async function drawWinnerForCompetition(
   supabase: SupabaseClient,
-  competition: any
+  competition: any,
 ): Promise<{ success: boolean; reason: string }> {
-  console.log(`[BackfillWinners] Processing: ${competition.title} (${competition.id})`);
+  console.log(
+    `[BackfillWinners] Processing: ${competition.title} (${competition.id})`,
+  );
 
   // Skip instant win competitions - winners are determined at purchase
   if (competition.is_instant_win) {
@@ -379,7 +417,11 @@ async function drawWinnerForCompetition(
   }
 
   // Get all entries for this competition
-  const entries = await getCompetitionEntries(supabase, competition.id, competition.uid);
+  const entries = await getCompetitionEntries(
+    supabase,
+    competition.id,
+    competition.uid,
+  );
 
   if (entries.length === 0) {
     console.log(`[BackfillWinners] No entries for ${competition.id}`);
@@ -411,24 +453,36 @@ async function drawWinnerForCompetition(
     return { success: false, reason: "no_tickets" };
   }
 
-  console.log(`[BackfillWinners] Found ${allTicketNumbers.length} purchased tickets for ${competition.title}`);
+  console.log(
+    `[BackfillWinners] Found ${allTicketNumbers.length} purchased tickets for ${competition.title}`,
+  );
 
   // Select winning ticket from ONLY purchased tickets
   // This is the key: RNG only chooses from tickets that were actually bought
-  const winningTicketNumber = selectWinnerFromPurchasedTickets(allTicketNumbers);
+  const winningTicketNumber =
+    selectWinnerFromPurchasedTickets(allTicketNumbers);
   const winningEntry = ticketToEntryMap.get(winningTicketNumber);
 
   if (!winningEntry) {
-    console.error(`[BackfillWinners] Unexpected: winning ticket ${winningTicketNumber} not in map`);
+    console.error(
+      `[BackfillWinners] Unexpected: winning ticket ${winningTicketNumber} not in map`,
+    );
     return { success: false, reason: "ticket_map_error" };
   }
 
   // Create winner record
-  const created = await createWinner(supabase, competition, winningEntry, winningTicketNumber);
+  const created = await createWinner(
+    supabase,
+    competition,
+    winningEntry,
+    winningTicketNumber,
+  );
 
   if (created) {
     await ensureCompetitionCompleted(supabase, competition);
-    console.log(`[BackfillWinners] Winner drawn: ${competition.title} -> ticket #${winningTicketNumber}`);
+    console.log(
+      `[BackfillWinners] Winner drawn: ${competition.title} -> ticket #${winningTicketNumber}`,
+    );
     return { success: true, reason: "winner_created" };
   }
 
@@ -457,21 +511,25 @@ async function backfillMissingWinners(supabase: SupabaseClient): Promise<{
   const threeMonthsAgo = new Date();
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
 
-  console.log(`[BackfillWinners] Looking for competitions since ${threeMonthsAgo.toISOString()}`);
+  console.log(
+    `[BackfillWinners] Looking for competitions since ${threeMonthsAgo.toISOString()}`,
+  );
 
   // Get all competitions that:
   // 1. Were created in the last 3 months OR have end_date in last 3 months
   // 2. Have status 'completed' OR end_date has passed
   // 3. Are NOT instant win (those winners are determined at purchase)
-  const { data: competitions, error } = await withRetries("fetch competitions", () =>
-    supabase
-      .from("competitions")
-      .select("*")
-      .eq("is_instant_win", false)
-      .or(
-        `created_at.gte.${threeMonthsAgo.toISOString()},end_date.gte.${threeMonthsAgo.toISOString()}`
-      )
-      .order("created_at", { ascending: false })
+  const { data: competitions, error } = await withRetries(
+    "fetch competitions",
+    () =>
+      supabase
+        .from("competitions")
+        .select("*")
+        .eq("is_instant_win", false)
+        .or(
+          `created_at.gte.${threeMonthsAgo.toISOString()},end_date.gte.${threeMonthsAgo.toISOString()}`,
+        )
+        .order("created_at", { ascending: false }),
   );
 
   if (error) {
@@ -484,7 +542,9 @@ async function backfillMissingWinners(supabase: SupabaseClient): Promise<{
     return stats;
   }
 
-  console.log(`[BackfillWinners] Found ${competitions.length} competitions to check`);
+  console.log(
+    `[BackfillWinners] Found ${competitions.length} competitions to check`,
+  );
 
   // Filter to only expired or completed competitions
   const now = new Date();
@@ -493,7 +553,9 @@ async function backfillMissingWinners(supabase: SupabaseClient): Promise<{
     return c.status === "completed" || (endDate && endDate < now);
   });
 
-  console.log(`[BackfillWinners] ${expiredCompetitions.length} are expired/completed`);
+  console.log(
+    `[BackfillWinners] ${expiredCompetitions.length} are expired/completed`,
+  );
 
   // Check which ones already have winners
   const competitionIds = expiredCompetitions.map((c) => c.id);
@@ -503,7 +565,7 @@ async function backfillMissingWinners(supabase: SupabaseClient): Promise<{
     .in("competition_id", competitionIds);
 
   const competitionsWithWinners = new Set(
-    (existingWinners || []).map((w) => w.competition_id)
+    (existingWinners || []).map((w) => w.competition_id),
   );
 
   // Process each competition without a winner
@@ -520,13 +582,19 @@ async function backfillMissingWinners(supabase: SupabaseClient): Promise<{
 
       if (result.success) {
         stats.winnersCreated++;
-      } else if (result.reason === "no_entries" || result.reason === "no_tickets") {
+      } else if (
+        result.reason === "no_entries" ||
+        result.reason === "no_tickets"
+      ) {
         stats.noEntries++;
       } else {
         stats.errors++;
       }
     } catch (error) {
-      console.error(`[BackfillWinners] Error processing ${competition.id}:`, error);
+      console.error(
+        `[BackfillWinners] Error processing ${competition.id}:`,
+        error,
+      );
       stats.errors++;
     }
   }
@@ -542,15 +610,21 @@ async function syncCompetitionWinners(supabase: SupabaseClient): Promise<void> {
 
   try {
     // Call the sync function if it exists
-    const { error } = await supabase.rpc("sync_all_winners_to_competition_winners");
+    const { error } = await supabase.rpc(
+      "sync_all_winners_to_competition_winners",
+    );
     if (error) {
       // If RPC doesn't exist, that's okay - the trigger should handle it
-      console.log("[BackfillWinners] sync_all_winners_to_competition_winners RPC not available, using trigger");
+      console.log(
+        "[BackfillWinners] sync_all_winners_to_competition_winners RPC not available, using trigger",
+      );
     } else {
       console.log("[BackfillWinners] competition_winners synced successfully");
     }
   } catch (e) {
-    console.log("[BackfillWinners] Sync function not available, relying on triggers");
+    console.log(
+      "[BackfillWinners] Sync function not available, relying on triggers",
+    );
   }
 }
 
@@ -560,7 +634,9 @@ export default async (req: Request): Promise<Response> => {
 
   try {
     const { next_run } = await req.json();
-    console.log(`[BackfillWinners] Scheduled function triggered. Next run: ${next_run}`);
+    console.log(
+      `[BackfillWinners] Scheduled function triggered. Next run: ${next_run}`,
+    );
   } catch {
     console.log("[BackfillWinners] Function triggered (manual invoke)");
   }
@@ -597,7 +673,7 @@ export default async (req: Request): Promise<Response> => {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
       }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
+      { status: 500, headers: { "Content-Type": "application/json" } },
     );
   }
 };

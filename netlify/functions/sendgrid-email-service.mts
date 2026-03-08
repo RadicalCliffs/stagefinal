@@ -44,7 +44,11 @@ interface CompLiveEmailData {
   "Ticket Price"?: string;
 }
 
-type EmailTemplateData = WelcomeEmailData | WinnerEmailData | FomoEmailData | CompLiveEmailData;
+type EmailTemplateData =
+  | WelcomeEmailData
+  | WinnerEmailData
+  | FomoEmailData
+  | CompLiveEmailData;
 
 interface SendEmailRequest {
   type: EmailType;
@@ -92,7 +96,7 @@ async function sendTemplateEmail(
   toEmail: string | string[],
   templateId: string,
   dynamicData: Record<string, unknown>,
-  toName?: string
+  toName?: string,
 ): Promise<{ success: boolean; error?: string }> {
   const toArray = Array.isArray(toEmail) ? toEmail : [toEmail];
 
@@ -116,14 +120,20 @@ async function sendTemplateEmail(
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error(`[sendgrid-email-service] SendGrid error: ${response.status}`, errorText);
+    console.error(
+      `[sendgrid-email-service] SendGrid error: ${response.status}`,
+      errorText,
+    );
     return { success: false, error: `SendGrid error: ${response.status}` };
   }
 
   return { success: true };
 }
 
-export default async function handler(request: Request, _context: Context): Promise<Response> {
+export default async function handler(
+  request: Request,
+  _context: Context,
+): Promise<Response> {
   const requestId = crypto.randomUUID().slice(0, 8);
 
   if (request.method === "OPTIONS") {
@@ -133,7 +143,10 @@ export default async function handler(request: Request, _context: Context): Prom
   if (request.method !== "POST") {
     return new Response(
       JSON.stringify({ success: false, error: "Method not allowed" }),
-      { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      {
+        status: 405,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 
@@ -143,40 +156,71 @@ export default async function handler(request: Request, _context: Context): Prom
 
     if (!type || !to || !templateData) {
       return new Response(
-        JSON.stringify({ success: false, error: "Missing required fields: type, to, templateData" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({
+          success: false,
+          error: "Missing required fields: type, to, templateData",
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
     const validTypes: EmailType[] = ["welcome", "winner", "fomo", "comp_live"];
     if (!validTypes.includes(type)) {
       return new Response(
-        JSON.stringify({ success: false, error: `Invalid email type. Valid types: ${validTypes.join(", ")}` }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({
+          success: false,
+          error: `Invalid email type. Valid types: ${validTypes.join(", ")}`,
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
     const sendgridApiKey = Netlify.env.get("SENDGRID_API_KEY");
-    const fromEmail = Netlify.env.get("SENDGRID_FROM_EMAIL") || "contact@theprize.io";
+    const fromEmail =
+      Netlify.env.get("SENDGRID_FROM_EMAIL") || "contact@theprize.io";
 
     if (!sendgridApiKey) {
-      console.error(`[sendgrid-email-service][${requestId}] SENDGRID_API_KEY not configured`);
+      console.error(
+        `[sendgrid-email-service][${requestId}] SENDGRID_API_KEY not configured`,
+      );
       return new Response(
-        JSON.stringify({ success: false, error: "Email service not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({
+          success: false,
+          error: "Email service not configured",
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
     const templateId = getTemplateId(type);
     if (!templateId) {
-      console.error(`[sendgrid-email-service][${requestId}] Template ID not configured for type: ${type}`);
+      console.error(
+        `[sendgrid-email-service][${requestId}] Template ID not configured for type: ${type}`,
+      );
       return new Response(
-        JSON.stringify({ success: false, error: `Template not configured for email type: ${type}` }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({
+          success: false,
+          error: `Template not configured for email type: ${type}`,
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
-    console.log(`[sendgrid-email-service][${requestId}] Sending ${type} email to ${Array.isArray(to) ? to.length + " recipients" : to}`);
+    console.log(
+      `[sendgrid-email-service][${requestId}] Sending ${type} email to ${Array.isArray(to) ? to.length + " recipients" : to}`,
+    );
 
     const result = await sendTemplateEmail(
       sendgridApiKey,
@@ -184,26 +228,40 @@ export default async function handler(request: Request, _context: Context): Prom
       to,
       templateId,
       templateData as Record<string, unknown>,
-      toName
+      toName,
     );
 
     if (!result.success) {
       return new Response(
         JSON.stringify({ success: false, error: result.error }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
-    console.log(`[sendgrid-email-service][${requestId}] Email sent successfully`);
+    console.log(
+      `[sendgrid-email-service][${requestId}] Email sent successfully`,
+    );
     return new Response(
-      JSON.stringify({ success: true, message: `${type} email sent successfully` }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({
+        success: true,
+        message: `${type} email sent successfully`,
+      }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   } catch (error) {
     console.error(`[sendgrid-email-service][${requestId}] Error:`, error);
     return new Response(
       JSON.stringify({ success: false, error: "Internal error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 }
@@ -215,14 +273,17 @@ export default async function handler(request: Request, _context: Context): Prom
  */
 export async function sendWelcomeEmail(
   email: string,
-  username: string
+  username: string,
 ): Promise<{ success: boolean; error?: string }> {
   const sendgridApiKey = Netlify.env.get("SENDGRID_API_KEY");
-  const fromEmail = Netlify.env.get("SENDGRID_FROM_EMAIL") || "contact@theprize.io";
+  const fromEmail =
+    Netlify.env.get("SENDGRID_FROM_EMAIL") || "contact@theprize.io";
   const templateId = Netlify.env.get("SENDGRID_TEMPLATE_WELCOME");
 
   if (!sendgridApiKey || !templateId) {
-    console.log("[sendWelcomeEmail] SendGrid not fully configured, skipping email");
+    console.log(
+      "[sendWelcomeEmail] SendGrid not fully configured, skipping email",
+    );
     return { success: false, error: "Email service not configured" };
   }
 
@@ -240,14 +301,17 @@ export async function sendWinnerEmail(
   competitionName: string,
   prizeValue: string,
   winningTicket: string,
-  competitionId?: string
+  competitionId?: string,
 ): Promise<{ success: boolean; error?: string }> {
   const sendgridApiKey = Netlify.env.get("SENDGRID_API_KEY");
-  const fromEmail = Netlify.env.get("SENDGRID_FROM_EMAIL") || "contact@theprize.io";
+  const fromEmail =
+    Netlify.env.get("SENDGRID_FROM_EMAIL") || "contact@theprize.io";
   const templateId = Netlify.env.get("SENDGRID_TEMPLATE_WINNER");
 
   if (!sendgridApiKey || !templateId) {
-    console.log("[sendWinnerEmail] SendGrid not fully configured, skipping email");
+    console.log(
+      "[sendWinnerEmail] SendGrid not fully configured, skipping email",
+    );
     return { success: false, error: "Email service not configured" };
   }
 
@@ -256,7 +320,9 @@ export async function sendWinnerEmail(
     "Competition Name": competitionName,
     "Prize Value": prizeValue,
     "Winning Ticket": winningTicket,
-    Competition_URL: competitionId ? `https://theprize.io/competitions/${competitionId}` : "https://theprize.io/competitions",
+    Competition_URL: competitionId
+      ? `https://theprize.io/competitions/${competitionId}`
+      : "https://theprize.io/competitions",
   });
 }
 
@@ -270,14 +336,17 @@ export async function sendCompLiveEmail(
   prizeValue: string,
   endDate: string,
   ticketPrice: string,
-  competitionId?: string
+  competitionId?: string,
 ): Promise<{ success: boolean; error?: string }> {
   const sendgridApiKey = Netlify.env.get("SENDGRID_API_KEY");
-  const fromEmail = Netlify.env.get("SENDGRID_FROM_EMAIL") || "contact@theprize.io";
+  const fromEmail =
+    Netlify.env.get("SENDGRID_FROM_EMAIL") || "contact@theprize.io";
   const templateId = Netlify.env.get("SENDGRID_TEMPLATE_COMP_LIVE");
 
   if (!sendgridApiKey || !templateId) {
-    console.log("[sendCompLiveEmail] SendGrid not fully configured, skipping email");
+    console.log(
+      "[sendCompLiveEmail] SendGrid not fully configured, skipping email",
+    );
     return { success: false, error: "Email service not configured" };
   }
 
@@ -287,7 +356,9 @@ export async function sendCompLiveEmail(
     "Prize Value": prizeValue,
     "End Date": endDate,
     "Ticket Price": ticketPrice,
-    Competition_URL: competitionId ? `https://theprize.io/competitions/${competitionId}` : "https://theprize.io/competitions",
+    Competition_URL: competitionId
+      ? `https://theprize.io/competitions/${competitionId}`
+      : "https://theprize.io/competitions",
   });
 }
 
@@ -297,14 +368,17 @@ export async function sendCompLiveEmail(
 export async function sendFomoEmail(
   recipients: Array<{ email: string; username: string }>,
   activeCompetitions: string,
-  totalPrizes: string
+  totalPrizes: string,
 ): Promise<{ success: boolean; sent: number; failed: number }> {
   const sendgridApiKey = Netlify.env.get("SENDGRID_API_KEY");
-  const fromEmail = Netlify.env.get("SENDGRID_FROM_EMAIL") || "contact@theprize.io";
+  const fromEmail =
+    Netlify.env.get("SENDGRID_FROM_EMAIL") || "contact@theprize.io";
   const templateId = Netlify.env.get("SENDGRID_TEMPLATE_FOMO");
 
   if (!sendgridApiKey || !templateId) {
-    console.log("[sendFomoEmail] SendGrid not fully configured, skipping email");
+    console.log(
+      "[sendFomoEmail] SendGrid not fully configured, skipping email",
+    );
     return { success: false, sent: 0, failed: recipients.length };
   }
 

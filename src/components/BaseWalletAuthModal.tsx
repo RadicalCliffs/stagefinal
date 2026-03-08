@@ -123,17 +123,17 @@ async function linkWalletToExistingUser(
     telegram?: string;
     avatar?: string;
   }
-): Promise<{ success: boolean; userId?: string; created?: boolean }> {
+): Promise<{ success: boolean; userId?: string; created?: boolean; error?: string }> {
   try {
     // Validate inputs first - fail fast if missing
     if (!email || !email.trim()) {
       console.error('[BaseWallet] linkWalletToExistingUser called without email');
-      return { success: false };
+      return { success: false, error: 'Email is required to link wallet' };
     }
     
     if (!walletAddress || !walletAddress.trim()) {
       console.error('[BaseWallet] linkWalletToExistingUser called without wallet address');
-      return { success: false };
+      return { success: false, error: 'Wallet address is required' };
     }
 
     console.log('[BaseWallet] Looking up user by email:', email);
@@ -248,7 +248,7 @@ async function linkWalletToExistingUser(
 
       if (updateError) {
         console.error('[BaseWallet] Error updating user with wallet:', updateError);
-        return { success: false };
+        return { success: false, error: `Database error: ${updateError.message || 'Failed to update user'}` };
       }
 
       // Call attach_identity_after_auth RPC for identity/profile linking
@@ -418,21 +418,21 @@ async function linkWalletToExistingUser(
 
         if (!upsertResponse.ok) {
           console.error('[BaseWallet] Failed to create user via upsert:', responseData);
-          return { success: false };
+          return { success: false, error: responseData?.error || 'Failed to create user account' };
         }
 
         console.log('[BaseWallet] User created successfully via upsert:', responseData);
         return { success: true, userId: responseData.user?.id || '', created: true };
       } catch (err) {
         console.error('[BaseWallet] Error calling upsert-user:', err);
-        return { success: false };
+        return { success: false, error: err instanceof Error ? err.message : 'Network error creating user' };
       }
     }
 
       } catch (innerError) {
         // Handle any errors from the inner async operations
         console.error('[BaseWallet] Error in linkWalletToExistingUser inner promise:', innerError);
-        return { success: false };
+        return { success: false, error: innerError instanceof Error ? innerError.message : 'Error linking wallet' };
       }
     })() as Promise<{ success: boolean; userId?: string; created?: boolean }>;
     
@@ -452,7 +452,7 @@ async function linkWalletToExistingUser(
   } catch (error) {
     // Outer catch for any synchronous errors (validation, etc.)
     console.error('[BaseWallet] Error in linkWalletToExistingUser:', error);
-    return { success: false };
+    return { success: false, error: error instanceof Error ? error.message : 'Unexpected error linking wallet' };
   }
 }
 
@@ -1143,10 +1143,9 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
             setFlowState('logged-in-success');
           } else {
-            // CRITICAL FIX: Instead of showing error, try to create the user
-            // The user may have been created during signup but lookup failed
-            console.log('[BaseWallet] Link failed, user may not exist yet. Showing error but user can retry.');
-            setEmailError('Unable to connect wallet to account. Please try signing up again or contact support.');
+            // Show the actual error message from linkWalletToExistingUser
+            console.error('[BaseWallet] Link failed:', result.error);
+            setEmailError(result.error || 'Unable to connect wallet to account. Please try signing up again or contact support.');
           }
           return;
         }
@@ -1255,7 +1254,8 @@ export const BaseWalletAuthModal: React.FC<BaseWalletAuthModalProps> = ({
 
             setFlowState('logged-in-success');
           } else {
-            setEmailError('Unable to connect wallet. Please try again or contact support.');
+            console.error('[BaseWallet] Fallback link failed:', result.error);
+            setEmailError(result.error || 'Unable to connect wallet. Please try again or contact support.');
           }
         } else {
           // No email available - this shouldn't happen for authenticated users
