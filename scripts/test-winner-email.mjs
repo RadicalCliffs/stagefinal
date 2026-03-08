@@ -1,5 +1,5 @@
 import fetch from "node-fetch";
-import 'dotenv/config';
+import "dotenv/config";
 
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || process.argv[2];
 const TEMPLATE_ID = "d-8c1c8a84405443da908cdf85eb30d182";

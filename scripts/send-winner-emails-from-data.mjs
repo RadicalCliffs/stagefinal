@@ -1,5 +1,5 @@
 import { readFileSync } from "fs";
-import 'dotenv/config';
+import "dotenv/config";
 
 const sendgridApiKey = process.env.SENDGRID_API_KEY;
 const sendgridFromEmail = "contact@theprize.io";

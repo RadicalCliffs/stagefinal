@@ -478,15 +478,21 @@ const EntriesWithFilterTabs = ({
             }
             // Also enhance wallet if needed
             const wallet = ticketNumToWallet.get(entry.ticketNumber);
-            if (wallet && (!entry.walletAddress || entry.walletAddress === "Unknown")) {
+            if (
+              wallet &&
+              (!entry.walletAddress || entry.walletAddress === "Unknown")
+            ) {
               entry.walletAddress = wallet;
             }
           });
-          entriesLogger.info("Enhanced existing entries with tickets table data", {
-            enhancedCount,
-            totalEntries: transformedEntries.length,
-            sampleEntry: transformedEntries[0],
-          });
+          entriesLogger.info(
+            "Enhanced existing entries with tickets table data",
+            {
+              enhancedCount,
+              totalEntries: transformedEntries.length,
+              sampleEntry: transformedEntries[0],
+            },
+          );
         } else {
           // If we have no entries yet, create them from tickets table
           ticketsData.forEach((ticket: any) => {
@@ -529,7 +535,10 @@ const EntriesWithFilterTabs = ({
                       })
                     : "Unknown",
                   walletAddress: wallet || "Unknown",
-                  transactionHash: ticket.transaction_hash || ticket.payment_tx_hash || undefined,
+                  transactionHash:
+                    ticket.transaction_hash ||
+                    ticket.payment_tx_hash ||
+                    undefined,
                 });
               }
             }
@@ -539,12 +548,12 @@ const EntriesWithFilterTabs = ({
         entriesLogger.warn("tickets table query error", ticketsError);
 
         requestTracker.addRequest({
-            timestamp: Date.now(),
-            endpoint: "tickets.select",
-            method: "QUERY",
-            success: false,
-            error: ticketsError.message,
-          });
+          timestamp: Date.now(),
+          endpoint: "tickets.select",
+          method: "QUERY",
+          success: false,
+          error: ticketsError.message,
+        });
       }
 
       // Strategy 4: Query pending_tickets table (used for confirmed purchases, kept for posterity)
@@ -1045,12 +1054,16 @@ const EntriesWithFilterTabs = ({
       transformedEntries.sort((a, b) => a.ticketNumber - b.ticketNumber);
 
       // Log sample entries to verify transaction hashes
-      const entriesWithTxHash = transformedEntries.filter(e => e.transactionHash);
+      const entriesWithTxHash = transformedEntries.filter(
+        (e) => e.transactionHash,
+      );
       entriesLogger.info("Final entries status", {
         totalEntries: transformedEntries.length,
         withTxHash: entriesWithTxHash.length,
         sampleWithHash: entriesWithTxHash.slice(0, 3),
-        sampleWithoutHash: transformedEntries.filter(e => !e.transactionHash).slice(0, 3),
+        sampleWithoutHash: transformedEntries
+          .filter((e) => !e.transactionHash)
+          .slice(0, 3),
       });
 
       entriesLogger.successWithTiming("Entries fetch complete", startTime, {

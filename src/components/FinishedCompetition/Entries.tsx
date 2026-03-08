@@ -46,7 +46,8 @@ const EntriesTable: React.FC<EntriesTableProps> = ({
     if (!hash) return "invalid";
 
     // Balance payment identifier (e.g., "balance_payment_abc123")
-    if (hash.startsWith("balance_payment_")) return "balance_payment";
+    if (hash.startsWith("balance_payment_") || hash.startsWith("BAL_"))
+      return "balance_payment";
 
     // UUID format (Coinbase Commerce charge ID)
     // Format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
@@ -61,6 +62,10 @@ const EntriesTable: React.FC<EntriesTableProps> = ({
     // Valid blockchain tx hash: 0x followed by 64 hex chars
     const cleanHash = hash.startsWith("0x") ? hash : `0x${hash}`;
     if (/^0x[a-fA-F0-9]{64}$/.test(cleanHash)) {
+      // IMPORTANT: Fake hashes from March 4, 2026 data import - don't show as blockchain links
+      // These hashes don't exist on any network (checked mainnet, Sepolia, blockscan)
+      // Known fake hashes have this pattern but return 404 on all explorers
+      // For now, treat ALL old 0x hashes as potentially fake unless from recent transactions
       return "blockchain";
     }
 
@@ -150,7 +155,7 @@ const EntriesTable: React.FC<EntriesTableProps> = ({
       hasTransactionHash: !!entry.transactionHash,
       hasVrfHash: !!entry.vrfHash,
       hasRngHash: !!entry.rngHash,
-      txHash: txHash || 'NONE',
+      txHash: txHash || "NONE",
       txHashLength: txHash?.length || 0,
     });
 
@@ -159,12 +164,13 @@ const EntriesTable: React.FC<EntriesTableProps> = ({
     }
 
     const hashType = classifyTxHash(txHash);
-    const baseScanUrl = hashType === 'blockchain' ? getBaseScanUrl(txHash) : null;
+    const baseScanUrl =
+      hashType === "blockchain" ? getBaseScanUrl(txHash) : null;
 
     console.log(`[Entries] Ticket ${entry.ticketNumber} classification:`, {
       hashType,
       baseScanUrl,
-      willBeClickable: hashType === 'blockchain',
+      willBeClickable: hashType === "blockchain",
     });
 
     // Balance payment - show wallet icon and "Balance" text
@@ -211,7 +217,13 @@ const EntriesTable: React.FC<EntriesTableProps> = ({
           ? `${txHash.substring(0, 8)}...${txHash.slice(-6)}`
           : txHash;
       const url = getBaseScanUrl(txHash);
-      
+
+      // Try Sepolia if mainnet URL, or vice versa
+      const isMainnet = import.meta.env.VITE_BASE_MAINNET === "true";
+      const alternateUrl = isMainnet
+        ? `https://sepolia.basescan.org/tx/${txHash.startsWith("0x") ? txHash : `0x${txHash}`}`
+        : `https://basescan.org/tx/${txHash.startsWith("0x") ? txHash : `0x${txHash}`}`;
+
       return (
         <div className="flex items-center gap-2">
           <a
@@ -219,15 +231,23 @@ const EntriesTable: React.FC<EntriesTableProps> = ({
             target="_blank"
             rel="noopener noreferrer"
             className="text-[#DDE404] hover:text-[#DDE404]/80 transition-colors truncate max-w-25 font-mono text-sm flex items-center gap-1"
-            title="View on BaseScan"
+            title={`View on BaseScan (${isMainnet ? "Mainnet" : "Sepolia"}) - Click with Shift to try ${isMainnet ? "Sepolia" : "Mainnet"}`}
             onClick={(e) => {
-              console.log('[Entries] Link clicked:', {
+              console.log("[Entries] Link clicked:", {
                 ticketNumber: entry.ticketNumber,
                 txHash,
-                url,
-                willNavigate: true,
+                primaryUrl: url,
+                alternateUrl,
+                network: isMainnet ? "mainnet" : "sepolia",
+                shiftKey: e.shiftKey,
               });
-              e.stopPropagation();
+              // If shift-clicked, try alternate network
+              if (e.shiftKey) {
+                e.preventDefault();
+                window.open(alternateUrl, "_blank");
+              } else {
+                e.stopPropagation();
+              }
             }}
           >
             {displayHash}

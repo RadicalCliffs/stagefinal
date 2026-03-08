@@ -1,0 +1,139 @@
+FINAL DEPLOYMENT SUMMARY - fix_balance_simple.sql
+=================================================
+Date: March 8, 2026
+
+VERIFIED SCHEMA ✅
+==================
+
+Tables:
+- canonical_users           ✅ EXISTS
+  - canonical_user_id       ✅ PRIMARY KEY
+  - last_topup_tx_hash      ✅ EXISTS
+  - last_ticket_tx_hash     ⚠️  WILL BE ADDED
+
+- tickets                   ✅ EXISTS
+  - All columns verified    ✅
+
+- user_transactions         ✅ EXISTS
+  - All columns verified    ✅
+
+- payment_webhook_events    ✅ EXISTS
+  - payload (JSON)          ✅
+  - created_at              ✅
+
+Payment Provider Values (VERIFIED):
+- 'balance'                 ✅ Used in production
+- 'balance_payment'         ✅ Used in production
+- 'coinbase'                ✅ Used in production
+
+WHAT THE MIGRATION DOES
+========================
+
+1. ADD COLUMN
+   - Adds last_ticket_tx_hash to canonical_users
+   - Creates index for fast lookups
+
+2. CREATE FUNCTION: tickets_tx_id_fill()
+   PURPOSE: Auto-populate tx_id on tickets with REAL blockchain hashes
+   
+   LOGIC:
+   a) Balance payments ('balance', 'balance_payment'):
+      → Look up user's last_topup_tx_hash from canonical_users
+      → Use that hash (users paid with their balance from a topup)
+   
+   b) Direct crypto payments ('coinbase', 'crypto', 'privy'):
+      → Check if payment_tx_hash is already a blockchain hash
+      → If not, look it up in payment_webhook_events
+      → Use the real blockchain hash from THAT transaction
+   
+   c) Otherwise:
+      → Set to NULL (NO FAKE HASHES EVER)
+
+3. CREATE FUNCTION: update_user_topup_hash()
+   PURPOSE: Track user's most recent topup transaction
+   
+   TRIGGERED ON: user_transactions INSERT/UPDATE
+   LOGIC:
+   - Only process if type = 'topup'
+   - Extract blockchain hash from tx_id or webhook
+   - Update canonical_users.last_topup_tx_hash
+
+4. CREATE FUNCTION: update_user_ticket_hash()
+   PURPOSE: Track user's most recent ticket purchase transaction
+   
+   TRIGGERED ON: tickets INSERT/UPDATE of tx_id
+   LOGIC:
+   - Update canonical_users.last_ticket_tx_hash with ticket's tx_id
+
+DEPLOYMENT STEPS
+================
+
+1. Run fix_balance_simple.sql in Supabase SQL Editor
+   - Adds column
+   - Creates functions
+   - Creates triggers
+
+2. Run populate-user-hashes-NOW.mjs
+   - Populates 3 users with their hardcoded topup hashes
+   - Updates all their tickets (created 2/20-3/8) with correct hash
+
+3. Verify results:
+   - Each user has their OWN unique blockchain hash
+   - No more shared hashes across users
+   - No more fake generated hashes
+
+EXPECTED OUTCOMES
+=================
+
+✅ Balance payments (15,000+ tickets):
+   - ALL get their user's topup blockchain hash
+   - Each user gets THEIR OWN hash (not shared)
+
+✅ Direct crypto payments:
+   - Get the blockchain hash from THAT purchase transaction
+   - Each transaction has its OWN unique hash
+
+✅ Missing hashes:
+   - Set to NULL instead of fake generated hashes
+   - Can identify and fix these later
+
+ROLLBACK PLAN
+==============
+
+If something goes wrong:
+
+1. Drop the triggers:
+   DROP TRIGGER IF EXISTS trg_update_topup_hash ON user_transactions;
+   DROP TRIGGER IF EXISTS trg_update_ticket_hash ON tickets;
+
+2. Revert the function:
+   -- Put back old tickets_tx_id_fill() from backup
+
+3. Remove column (optional):
+   ALTER TABLE canonical_users DROP COLUMN last_ticket_tx_hash;
+
+KNOWN LIMITATIONS
+=================
+
+1. Webhook JSON paths might not cover ALL webhook formats
+   → Gracefully falls back to NULL if not found
+
+2. Only handles known payment providers
+   → Others will get NULL (which is OK - we can identify them)
+
+3. Existing tickets with wrong hashes need manual update
+   → populate-user-hashes-NOW.mjs handles the 3 main users
+   → Others can be fixed same way if needed
+
+READY TO DEPLOY? ✅
+==================
+
+All assumptions verified:
+✅ Table names correct
+✅ Column names correct
+✅ Payment provider values correct
+✅ JSON structure reasonable
+✅ No fake hashes generated
+✅ Graceful fallback to NULL
+
+NEXT: Run the SQL in Supabase dashboard

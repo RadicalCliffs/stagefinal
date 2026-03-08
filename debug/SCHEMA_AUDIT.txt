@@ -1,0 +1,144 @@
+COMPREHENSIVE SCHEMA AUDIT FOR fix_balance_simple.sql
+===============================================
+
+TABLES REFERENCED:
+==================
+
+1. canonical_users
+   ✅ VERIFIED - exists
+   Columns used:
+   - canonical_user_id          ✅ VERIFIED (primary key)
+   - last_topup_tx_hash         ✅ VERIFIED (already exists)
+   - last_ticket_tx_hash        ⚠️  ADDING (new column being created)
+
+2. user_transactions
+   ✅ VERIFIED - exists
+   Columns used:
+   - canonical_user_id          ✅ VERIFIED
+   - type                       ✅ VERIFIED
+   - tx_id                      ✅ VERIFIED
+
+3. payment_webhook_events
+   ✅ VERIFIED - exists in codebase
+   Columns used:
+   - payload                    ✅ VERIFIED (JSON type)
+   - created_at                 ✅ VERIFIED
+
+4. tickets
+   ✅ VERIFIED - exists
+   Columns used:
+   - id                         ✅ VERIFIED
+   - competition_id             ✅ VERIFIED
+   - ticket_number              ✅ VERIFIED
+   - canonical_user_id          ✅ VERIFIED
+   - wallet_address             ✅ VERIFIED
+   - payment_provider           ✅ VERIFIED
+   - payment_amount             ✅ VERIFIED
+   - payment_tx_hash            ✅ VERIFIED
+   - tx_id                      ✅ VERIFIED
+   - created_at                 ✅ VERIFIED
+
+FUNCTIONS CALLED:
+=================
+
+1. public.gen_ticket_tx_id()
+   ❌ REMOVED - was fallback for fake hashes, now just sets NULL
+
+TRIGGERS:
+=========
+
+1. trg_update_topup_hash
+   - ON: user_transactions
+   - WHEN: AFTER INSERT OR UPDATE
+   - CALLS: update_user_topup_hash()
+   ✅ Trigger name is arbitrary (we choose it)
+
+2. trg_update_ticket_hash
+   - ON: tickets
+   - WHEN: AFTER INSERT OR UPDATE OF tx_id
+   - CALLS: update_user_ticket_hash()
+   ✅ Trigger name is arbitrary (we choose it)
+
+3. (tickets_tx_id_fill trigger - must exist in DB already)
+   - ON: tickets
+   - WHEN: BEFORE INSERT OR UPDATE
+   - CALLS: tickets_tx_id_fill()
+   ✅ Function being REPLACED by our SQL
+
+JSON PATHS IN WEBHOOK PAYLOAD:
+================================
+
+Attempting to extract blockchain hash from Coinbase webhooks:
+- payload->'payments'->0->>'transaction_id'
+- payload->'event'->'data'->'payments'->0->>'transaction_id'
+- payload->'data'->'payments'->0->>'transaction_id'
+- payload->'event'->'data'->'web3_data'->'success_events'->0->>'tx_hsh'
+- payload->'data'->'web3_data'->'success_events'->0->>'tx_hsh'
+
+⚠️  These paths are based on known Coinbase Commerce webhook structure
+    Need to verify at least one works with actual webhook data
+
+PAYMENT PROVIDER VALUES:
+=========================
+
+Checking for:
+- 'balance'                    ✅ Confirmed in code
+- 'coinbase_commerce'          ⚠️  Need to verify actual values
+- 'coinbase'                   ⚠️  Need to verify
+- 'crypto'                     ⚠️  Need to verify
+
+LOGIC FLOW:
+===========
+
+tickets_tx_id_fill():
+1. IF tx_id is already set → skip
+2. IF payment_provider = 'balance'
+   → Look up user's last_topup_tx_hash
+   → Use that hash (or NULL if not found)
+3. ELIF payment_provider IN ('coinbase_commerce', 'coinbase', 'crypto')
+   → Check if payment_tx_hash is already a blockchain hash (0x + 66 chars)
+   → If yes, use it
+   → If not, look it up in payment_webhook_events by charge ID
+   → Use found hash (or NULL if not found)
+4. ELSE
+   → Set to NULL
+
+update_user_topup_hash():
+- Triggered on user_transactions INSERT/UPDATE
+- Only process if type = 'topup'
+- Extract blockchain hash from tx_id or webhook
+- Update canonical_users.last_topup_tx_hash
+
+update_user_ticket_hash():
+- Triggered on tickets INSERT/UPDATE OF tx_id
+- Update canonical_users.last_ticket_tx_hash with ticket's tx_id
+
+ASSUMPTIONS TO VERIFY:
+======================
+
+1. ⚠️  What are the actual payment_provider values for crypto payments?
+   - Need to query tickets table to see actual values used
+
+2. ⚠️  Does payment_webhook_events table exist in production?
+   - Referenced in code but need to confirm table exists
+
+3. ⚠️  Do the JSON paths for extracting blockchain hashes work?
+   - Need to test with actual webhook data
+
+4. ⚠️  What is the actual trigger name for tickets_tx_id_fill?
+   - Need to check existing triggers on tickets table
+
+RISK ASSESSMENT:
+================
+
+🔴 CRITICAL:
+- None identified (all table/column names verified)
+
+🟡 MEDIUM:
+- Webhook JSON paths might not match all webhook formats
+- Payment provider values might be different than assumed
+- payment_webhook_events table might not exist
+
+🟢 LOW:
+- Function will gracefully fall back to NULL if hashes not found
+- Triggers are idempotent (can be re-run safely)
