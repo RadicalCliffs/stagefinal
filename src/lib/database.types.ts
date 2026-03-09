@@ -1978,32 +1978,41 @@ export interface Database {
         Row: {
           id: string;
           user_id: string;
+          type: string;
           title: string;
           message: string;
-          notification_type: string | null;
-          read: boolean | null;
-          created_at: string | null;
-          updated_at: string | null;
+          competition_id: string | null;
+          prize_info: string | null;
+          amount: number | null;
+          expires_at: string | null;
+          read: boolean;
+          created_at: string;
         };
         Insert: {
           id?: string;
           user_id: string;
-          title: string;
-          message: string;
-          notification_type?: string | null;
-          read?: boolean | null;
-          created_at?: string | null;
-          updated_at?: string | null;
+          type?: string;
+          title?: string;
+          message?: string;
+          competition_id?: string | null;
+          prize_info?: string | null;
+          amount?: number | null;
+          expires_at?: string | null;
+          read?: boolean;
+          created_at?: string;
         };
         Update: {
           id?: string;
           user_id?: string;
+          type?: string;
           title?: string;
           message?: string;
-          notification_type?: string | null;
-          read?: boolean | null;
-          created_at?: string | null;
-          updated_at?: string | null;
+          competition_id?: string | null;
+          prize_info?: string | null;
+          amount?: number | null;
+          expires_at?: string | null;
+          read?: boolean;
+          created_at?: string;
         };
       };
       user_transactions: {

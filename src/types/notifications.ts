@@ -23,7 +23,6 @@ export interface UserNotification {
   created_at: string;
   expires_at?: string;
   amount?: number;
-  transaction_id?: string;
 }
 
 export interface NotificationPreferences {
