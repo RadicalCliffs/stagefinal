@@ -19,6 +19,7 @@ import { useNavigate, useLocation } from "react-router";
 import { notificationService } from "../lib/notification-service";
 import { avatar as localDefaultAvatar } from "../assets/images";
 import { useWalletTokens } from "../hooks/useWalletTokens";
+import { supabase } from "../lib/supabase";
 import { useRealTimeBalance } from "../hooks/useRealTimeBalance";
 
 // Lazy load TopUpWalletModal - only loaded when user clicks "Top Up"
@@ -235,7 +236,6 @@ const LoggedInUserBtn = ({ fullWidth = false }: LoggedInUserBtnProps) => {
     const interval = setInterval(fetchUnreadCount, 30000);
 
     // Set up real-time subscription for instant updates
-    const { supabase } = require("../lib/supabase");
     const channel = supabase
       .channel(`unread-count-${baseUser.id}`)
       .on(
